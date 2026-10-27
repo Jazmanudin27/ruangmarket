@@ -112,12 +112,16 @@ export class ShopeeService {
     });
 
     const url = `${this.baseUrl}${path}?${query.toString()}`;
-    const keyName = isMerchant ? 'merchant_id' : 'shop_id';
-    const payload = JSON.stringify({
-      [keyName]: 0,
+    const idNum = Number(sId);
+    const payload = isMerchant ? {
+      merchant_id: idNum,
       refresh_token: refreshToken,
       partner_id: this.partnerId
-    }).replace(':0,', `:${sId},`);
+    } : {
+      shop_id: idNum,
+      refresh_token: refreshToken,
+      partner_id: this.partnerId
+    };
 
     const res = await this.requestPost(url, payload);
 
