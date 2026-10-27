@@ -21,6 +21,23 @@ export class TiktokService {
     return `${this.authBaseUrl}?${params.toString()}`;
   }
 
+  // Tukar Auth Code menjadi Access Token TikTok resmi
+  async getAccessTokenFromCode(authCode) {
+    const path = '/api/v2/token/get';
+    const query = new URLSearchParams({
+      app_key: this.appKey,
+      app_secret: this.appSecret,
+      auth_code: authCode,
+      grant_type: 'authorized_code'
+    });
+    const url = `https://auth.tiktok-shops.com${path}?${query.toString()}`;
+    const res = await this.request('GET', url);
+    if (res.code !== 0) {
+      throw new Error(`TikTok Token Get Error: ${res.message || 'Unknown Error'}`);
+    }
+    return res.data; // { access_token, refresh_token, expire_in, open_id, seller_name }
+  }
+
   // Refresh Access Token TikTok
   async refreshAccessToken(refreshToken) {
     const path = '/api/v2/token/refresh';
