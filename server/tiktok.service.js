@@ -5,7 +5,7 @@ import './env.js';
 export class TiktokService {
   constructor(config = {}) {
     this.appKey = config.appKey || process.env.TIKTOK_APP_KEY || '6k51f66j8f7ki';
-    this.appSecret = config.appSecret || process.env.TIKTOK_APP_SECRET || '';
+    this.appSecret = config.appSecret || process.env.TIKTOK_APP_SECRET || '07ae917200c1af2fdc6fd6d7d39bc38f418bdbd1';
     this.baseUrl = config.baseUrl || 'https://open-api.tiktokglobalshop.com';
     this.authBaseUrl = 'https://services.tiktokshop.com/open/authorize';
     this.redirectUri = config.redirectUri || 'https://market.ruangtech.com/tiktok/callback';

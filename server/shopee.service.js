@@ -86,11 +86,12 @@ export class ShopeeService {
     });
 
     const url = `${this.baseUrl}${path}?${query.toString()}`;
-    const payload = {
+    // Kirim integer 64-bit murni tanpa pembulatan Number JS
+    const payload = JSON.stringify({
+      shop_id: 0,
       refresh_token: refreshToken,
-      shop_id: isNaN(Number(sId)) ? sId : Number(sId),
       partner_id: this.partnerId
-    };
+    }).replace(':0,', `:${sId},`);
 
     const res = await this.requestPost(url, payload);
 
