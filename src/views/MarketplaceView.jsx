@@ -25,8 +25,6 @@ export default function MarketplaceView({ onBack }) {
   // Mode: 'create' (persis seperti screenshot) atau 'list' (daftar toko)
   const [viewMode, setViewMode] = useState('create');
   const [loadingChannel, setLoadingChannel] = useState(null);
-  // Default ke 'live' karena Shopee mewajibkan domain terdaftar di Console (market.ruangtech.com)
-  const [redirectTarget, setRedirectTarget] = useState('live');
 
   // Daftar toko terhubung
   const [connectedStores, setConnectedStores] = useState(() => {
@@ -102,11 +100,7 @@ export default function MarketplaceView({ onBack }) {
   const handleConnectMarketplace = async (channelKey) => {
     setLoadingChannel(channelKey);
     try {
-      const customRedirect = redirectTarget === 'local'
-        ? (channelKey === 'shopee' ? 'http://localhost:3000/shopee/callback' : 'http://localhost:3000/tiktok/callback')
-        : '';
-      const queryParam = customRedirect ? `&redirect=${encodeURIComponent(customRedirect)}` : '';
-      const res = await fetch(`/api/marketplace/auth-url?channel=${channelKey}${queryParam}`);
+      const res = await fetch(`/api/marketplace/auth-url?channel=${channelKey}`);
       const data = await res.json();
       
       if (!res.ok || !data.url) {
@@ -260,7 +254,7 @@ export default function MarketplaceView({ onBack }) {
   ];
 
   return (
-    <div style={{ padding: '24px 32px', maxWidth: '1240px', margin: '0 auto', fontFamily: 'inherit' }}>
+    <div style={{ padding: '20px 24px', width: '100%', maxWidth: '100%', boxSizing: 'border-box', fontFamily: 'inherit' }}>
       
       {/* HEADER SECTION - PERSIS SEPERTI SCREENSHOT */}
       <div style={{
@@ -362,101 +356,33 @@ export default function MarketplaceView({ onBack }) {
           overflow: 'hidden'
         }}>
           
-          {/* SECTION HEADER BAR */}
+          {/* SECTION HEADER BAR (PERSIS SCREENSHOT) */}
           <div style={{
-            padding: '12px 20px',
+            padding: '14px 20px',
             borderBottom: '1px solid #e2e8f0',
             backgroundColor: '#ffffff',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: '10px'
+            gap: '8px'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Zap size={16} color="#0284c7" />
-              <h2 style={{
-                margin: 0,
-                fontSize: '13.5px',
-                fontWeight: '800',
-                color: '#1e293b'
-              }}>
-                1. Otorisasi Resmi Platform Marketplace (OAuth 2.0)
-              </h2>
-            </div>
-
-            {/* SWITCHER REDIRECT TARGET: LOKAL vs SERVER */}
-            <div style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              backgroundColor: '#f1f5f9',
-              padding: '3px',
-              borderRadius: '6px',
-              border: '1px solid #e2e8f0',
-              fontSize: '11px'
+            <Zap size={16} color="#0284c7" />
+            <h2 style={{
+              margin: 0,
+              fontSize: '13.5px',
+              fontWeight: '800',
+              color: '#1e293b'
             }}>
-              <span style={{ padding: '0 8px', color: '#64748b', fontWeight: '600' }}>Target Callback:</span>
-              <button
-                type="button"
-                onClick={() => setRedirectTarget('local')}
-                style={{
-                  padding: '3px 10px',
-                  borderRadius: '4px',
-                  border: 'none',
-                  backgroundColor: redirectTarget === 'local' ? '#0284c7' : 'transparent',
-                  color: redirectTarget === 'local' ? '#ffffff' : '#475569',
-                  fontWeight: redirectTarget === 'local' ? '800' : '600',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                Localhost:3000 (Lokal)
-              </button>
-              <button
-                type="button"
-                onClick={() => setRedirectTarget('live')}
-                style={{
-                  padding: '3px 10px',
-                  borderRadius: '4px',
-                  border: 'none',
-                  backgroundColor: redirectTarget === 'live' ? '#0284c7' : 'transparent',
-                  color: redirectTarget === 'live' ? '#ffffff' : '#475569',
-                  fontWeight: redirectTarget === 'live' ? '800' : '600',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                market.ruangtech.com (Server)
-              </button>
-            </div>
+              1. Otorisasi Resmi Platform Marketplace (OAuth 2.0)
+            </h2>
           </div>
 
-          {/* SUBTITLE HINT & NOTICE */}
+          {/* SUBTITLE HINT */}
           <div style={{
-            padding: '12px 20px 6px 20px',
+            padding: '14px 20px 6px 20px',
             fontSize: '12px',
             color: '#64748b'
           }}>
             Pilih platform marketplace yang ingin Anda hubungkan. Anda akan diarahkan ke portal otorisasi resmi platform secara aman.
-          </div>
-
-          {/* NOTICE CALLOUT */}
-          <div style={{
-            margin: '8px 20px 10px 20px',
-            padding: '10px 14px',
-            backgroundColor: '#eff6ff',
-            border: '1px solid #bfdbfe',
-            borderRadius: '6px',
-            fontSize: '11.5px',
-            color: '#1e40af',
-            display: 'flex',
-            alignItems: 'flex-start',
-            gap: '8px'
-          }}>
-            <AlertCircle size={15} color="#2563eb" style={{ flexShrink: 0, marginTop: '1px' }} />
-            <div>
-              <strong>Informasi Validasi Shopee Console:</strong> Shopee menolak redirect ke domain selain yang didaftarkan di Developer Console (<code>market.ruangtech.com</code>). Gunakan target <strong>market.ruangtech.com</strong> untuk otorisasi resmi, atau tambahkan <code>http://localhost:3000</code> ke whitelist redirect URL di Shopee Open Platform Console jika ingin redirect langsung ke lokal.
-            </div>
           </div>
 
           {/* LIST OF MARKETPLACE CARDS */}
