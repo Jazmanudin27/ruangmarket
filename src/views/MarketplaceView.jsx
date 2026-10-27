@@ -208,8 +208,8 @@ export default function MarketplaceView({ onBack, onNavigate }) {
       let fetchedItems = null;
       try {
         const endpoints = [
+          `https://erp.aspartech.com/api/marketplace/shopee/products?shop_id=${store.shopId}&access_token=${encodeURIComponent(store.accessToken || '')}`,
           `/api/marketplace/shopee/products?shop_id=${store.shopId}&access_token=${encodeURIComponent(store.accessToken || '')}`,
-          `http://localhost:3001/api/marketplace/shopee/products?shop_id=${store.shopId}&access_token=${encodeURIComponent(store.accessToken || '')}`,
           `/api/shopee-sync.php?shop_id=${store.shopId}&access_token=${encodeURIComponent(store.accessToken || '')}`
         ];
 
