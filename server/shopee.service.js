@@ -19,51 +19,86 @@ export class ShopeeService {
     return crypto.createHmac('sha256', this.partnerKey).update(baseString).digest('hex');
   }
 
-  // Helper request HTTP(S) GET menggunakan modern fetch engine
-  async requestGet(url) {
-    const res = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'User-Agent': 'curl/7.81.0',
-        'Accept': 'application/json, text/plain, */*'
-      }
+  // Helper request HTTP(S) GET menggunakan IPv4
+  requestGet(url) {
+    return new Promise((resolve, reject) => {
+      const parsed = new URL(url);
+      const req = https.request({
+        hostname: parsed.hostname,
+        path: parsed.pathname + parsed.search,
+        method: 'GET',
+        family: 4, // Wajib IPv4 agar tidak timeout
+        headers: {
+          'User-Agent': 'curl/7.81.0',
+          'Accept': 'application/json'
+        },
+        timeout: 15000
+      }, (res) => {
+        let raw = '';
+        res.on('data', chunk => raw += chunk);
+        res.on('end', () => {
+          if (!raw || raw.trim() === '') {
+            return reject(new Error(`Empty Response from Shopee (HTTP ${res.statusCode})`));
+          }
+          try {
+            resolve(JSON.parse(raw));
+          } catch (e) {
+            reject(new Error(`Invalid JSON Response (HTTP ${res.statusCode}): ${raw.slice(0, 150)}`));
+          }
+        });
+      });
+
+      req.on('error', reject);
+      req.on('timeout', () => {
+        req.destroy();
+        reject(new Error('Koneksi ke Shopee Timeout (15s IPv4)'));
+      });
+      req.end();
     });
-
-    const text = await res.text();
-    if (!text || text.trim() === '') {
-      throw new Error(`Empty Response from Shopee (HTTP ${res.status})`);
-    }
-
-    try {
-      return JSON.parse(text);
-    } catch (e) {
-      throw new Error(`Invalid JSON Response (HTTP ${res.status}): ${text.slice(0, 150)}`);
-    }
   }
 
-  // Helper request HTTP(S) POST JSON menggunakan modern fetch engine
-  async requestPost(url, body) {
-    const postData = typeof body === 'string' ? body : JSON.stringify(body);
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'User-Agent': 'curl/7.81.0',
-        'Accept': 'application/json'
-      },
-      body: postData
+  // Helper request HTTP(S) POST JSON menggunakan IPv4
+  requestPost(url, body) {
+    return new Promise((resolve, reject) => {
+      const parsed = new URL(url);
+      const postData = typeof body === 'string' ? body : JSON.stringify(body);
+
+      const req = https.request({
+        hostname: parsed.hostname,
+        path: parsed.pathname + parsed.search,
+        method: 'POST',
+        family: 4, // Wajib IPv4 agar tidak timeout
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(postData),
+          'User-Agent': 'curl/7.81.0',
+          'Accept': 'application/json'
+        },
+        timeout: 15000
+      }, (res) => {
+        let raw = '';
+        res.on('data', chunk => raw += chunk);
+        res.on('end', () => {
+          if (!raw || raw.trim() === '') {
+            return reject(new Error(`Empty Response from Shopee POST (HTTP ${res.statusCode})`));
+          }
+          try {
+            resolve(JSON.parse(raw));
+          } catch (e) {
+            reject(new Error(`Invalid JSON Response POST (HTTP ${res.statusCode}): ${raw.slice(0, 150)}`));
+          }
+        });
+      });
+
+      req.on('error', reject);
+      req.on('timeout', () => {
+        req.destroy();
+        reject(new Error('Koneksi POST ke Shopee Timeout (15s IPv4)'));
+      });
+
+      req.write(postData);
+      req.end();
     });
-
-    const text = await res.text();
-    if (!text || text.trim() === '') {
-      throw new Error(`Empty Response from Shopee POST (HTTP ${res.status})`);
-    }
-
-    try {
-      return JSON.parse(text);
-    } catch (e) {
-      throw new Error(`Invalid JSON Response POST (HTTP ${res.status}): ${text.slice(0, 150)}`);
-    }
   }
 
   // Tukar Auth Code menjadi Access Token resmi (setelah seller klik otorisasi)
