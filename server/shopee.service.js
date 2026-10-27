@@ -6,7 +6,7 @@ export class ShopeeService {
   constructor(config = {}) {
     this.partnerId = Number(config.partnerId || process.env.SHOPEE_PARTNER_ID || 2036279);
     this.partnerKey = config.partnerKey || process.env.SHOPEE_PARTNER_KEY || 'shpk59526e67746975637544656f774b525973634654617446624f6867646677';
-    this.baseUrl = config.baseUrl || 'https://partner.shopeemobile.com';
+    this.baseUrl = config.baseUrl || process.env.SHOPEE_BASE_URL || 'https://partner.shopee.co.id';
   }
 
   // 1. Generate Signature Shopee HMAC-SHA256
