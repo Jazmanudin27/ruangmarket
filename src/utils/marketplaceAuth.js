@@ -5,14 +5,14 @@ export const MARKETPLACE_CONFIG = {
   shopee: {
     partnerId: 2036279,
     baseUrl: 'https://partner.shopeemobile.com',
-    redirectUrl: 'https://erp.aspartech.com/shopee/callback',
+    redirectUrl: 'https://market.ruangtech.com/shopee/callback',
     partnerKey: 'shpk59526e67746975637544656f774b525973634654617446624f6867646677',
     webhookSecret: '686152534b71424663427756415846654658726c4a6875595579425677426f61',
   },
   tiktok: {
     appKey: '6k51f66j8f7ki',
     appSecret: '07ae917200c1af2fdc6fd6d7d39bc38f418bdbd1',
-    redirectUri: 'https://erp.aspartech.com/tiktok/callback',
+    redirectUri: 'https://market.ruangtech.com/tiktok/callback',
   }
 };
 

@@ -18,7 +18,7 @@ function marketplacePlugin() {
           const partnerId = 2036279;
           const partnerKey = 'shpk59526e67746975637544656f774b525973634654617446624f6867646677';
           const baseUrl = 'https://partner.shopeemobile.com';
-          const redirectUrl = customRedirect || 'https://erp.aspartech.com/shopee/callback';
+          const redirectUrl = customRedirect || 'https://market.ruangtech.com/shopee/callback';
           const apiPath = '/api/v2/shop/auth_partner';
           const timestamp = Math.floor(Date.now() / 1000);
 
@@ -32,7 +32,7 @@ function marketplacePlugin() {
 
         if (channel === 'tiktok' || channel === 'tokopedia') {
           const appKey = '6k51f66j8f7ki';
-          const redirectUri = customRedirect || 'https://erp.aspartech.com/tiktok/callback';
+          const redirectUri = customRedirect || 'https://market.ruangtech.com/tiktok/callback';
           const state = 'ruangmarket_' + Date.now();
           const authUrl = `https://auth.tiktok-shops.com/oauth/authorize?app_key=${appKey}&state=${state}&redirect_uri=${encodeURIComponent(redirectUri)}`;
 

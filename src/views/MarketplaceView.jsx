@@ -25,7 +25,7 @@ export default function MarketplaceView({ onBack }) {
   // Mode: 'create' (persis seperti screenshot) atau 'list' (daftar toko)
   const [viewMode, setViewMode] = useState('create');
   const [loadingChannel, setLoadingChannel] = useState(null);
-  // Default ke 'live' karena Shopee mewajibkan domain terdaftar di Console (erp.aspartech.com)
+  // Default ke 'live' karena Shopee mewajibkan domain terdaftar di Console (market.ruangtech.com)
   const [redirectTarget, setRedirectTarget] = useState('live');
 
   // Daftar toko terhubung
@@ -426,7 +426,7 @@ export default function MarketplaceView({ onBack }) {
                   transition: 'all 0.15s ease'
                 }}
               >
-                erp.aspartech.com (Server)
+                market.ruangtech.com (Server)
               </button>
             </div>
           </div>
@@ -455,7 +455,7 @@ export default function MarketplaceView({ onBack }) {
           }}>
             <AlertCircle size={15} color="#2563eb" style={{ flexShrink: 0, marginTop: '1px' }} />
             <div>
-              <strong>Informasi Validasi Shopee Console:</strong> Shopee menolak redirect ke domain selain yang didaftarkan di Developer Console (<code>erp.aspartech.com</code>). Gunakan target <strong>erp.aspartech.com</strong> untuk otorisasi resmi, atau tambahkan <code>http://localhost:3000</code> ke whitelist redirect URL di Shopee Open Platform Console jika ingin redirect langsung ke lokal.
+              <strong>Informasi Validasi Shopee Console:</strong> Shopee menolak redirect ke domain selain yang didaftarkan di Developer Console (<code>market.ruangtech.com</code>). Gunakan target <strong>market.ruangtech.com</strong> untuk otorisasi resmi, atau tambahkan <code>http://localhost:3000</code> ke whitelist redirect URL di Shopee Open Platform Console jika ingin redirect langsung ke lokal.
             </div>
           </div>
 
@@ -624,7 +624,7 @@ export default function MarketplaceView({ onBack }) {
               <span>Kredensial API Shopee & TikTok tersimpan aman terenkripsi (HMAC-SHA256).</span>
             </div>
             <div>
-              Redirect URL ERP: <strong style={{ color: '#0f172a' }}>https://erp.aspartech.com</strong>
+              Redirect URL ERP: <strong style={{ color: '#0f172a' }}>https://market.ruangtech.com</strong>
             </div>
           </div>
 
