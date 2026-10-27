@@ -205,29 +205,28 @@ export default function MarketplaceView({ onBack, onNavigate }) {
 
     try {
       // 1. Coba fetch API live
-      let fetchedItems = null;
-      try {
-        const endpoints = [
-          `/api/marketplace/shopee/products?shop_id=${store.shopId}&access_token=${encodeURIComponent(store.accessToken || '')}`,
-          `https://market.ruangtech.com:3008/api/marketplace/shopee/products?shop_id=${store.shopId}&access_token=${encodeURIComponent(store.accessToken || '')}`,
-          `http://31.97.109.165:3008/api/marketplace/shopee/products?shop_id=${store.shopId}&access_token=${encodeURIComponent(store.accessToken || '')}`,
-          `/api/shopee-sync.php?shop_id=${store.shopId}&access_token=${encodeURIComponent(store.accessToken || '')}`
-        ];
+        const endpoint = `/api/marketplace/shopee/products?shop_id=${store.shopId}&access_token=${encodeURIComponent(store.accessToken || '')}`;
+        
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 12000);
 
-        for (const ep of endpoints) {
-          try {
-            const res = await fetch(ep);
-            const json = await res.json();
-            if (json.status === 'success' && Array.isArray(json.data) && json.data.length > 0) {
-              fetchedItems = json.data.map(d => ({
-                ...d,
-                company_code: activeCompany.code || 'RSG'
-              }));
-              break;
-            }
-          } catch (e) {}
+        const res = await fetch(endpoint, { signal: controller.signal });
+        clearTimeout(timeoutId);
+        
+        const json = await res.json();
+        if (json.status === 'success' && Array.isArray(json.data) && json.data.length > 0) {
+          fetchedItems = json.data.map(d => ({
+            ...d,
+            company_code: activeCompany.code || 'RSG'
+          }));
+        } else {
+          toastError(json.message || 'Gagal menarik produk dari API Shopee');
+          return;
         }
-      } catch (e) {}
+      } catch (fetchErr) {
+        toastError(`Koneksi API gagal: ${fetchErr.name === 'AbortError' ? 'Timeout (Server tidak merespon)' : fetchErr.message}`);
+        return;
+      }
 
       if (!fetchedItems || fetchedItems.length === 0) {
         toastError('Tidak ada produk yang berhasil ditarik dari Shopee API.');
