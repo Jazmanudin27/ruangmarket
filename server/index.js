@@ -1,9 +1,13 @@
 import http from 'http';
 import { ShopeeService } from './shopee.service.js';
 import { TiktokService } from './tiktok.service.js';
+import { pool, initDb } from './db.js';
 import './env.js';
 
 const PORT = process.env.PORT || 5010;
+
+// Inisialisasi Database MySQL
+initDb();
 
 const shopeeService = new ShopeeService();
 const tiktokService = new TiktokService();
