@@ -9,10 +9,11 @@ export class ShopeeService {
   }
 
   // 1. Generate Signature Shopee HMAC-SHA256
-  generateSignature(path, timestamp, accessToken = '', shopId = 0) {
+  generateSignature(path, timestamp, accessToken = '', shopId = '') {
+    const sId = String(shopId || '');
     let baseString = `${this.partnerId}${path}${timestamp}`;
-    if (accessToken && shopId) {
-      baseString += `${accessToken}${shopId}`;
+    if (accessToken && sId) {
+      baseString += `${accessToken}${sId}`;
     }
     return crypto.createHmac('sha256', this.partnerKey).update(baseString).digest('hex');
   }
@@ -34,17 +35,83 @@ export class ShopeeService {
     });
   }
 
-  // 2. Mendapatkan Daftar Item ID Produk
+  // Helper request HTTP(S) POST JSON
+  requestPost(url, body) {
+    return new Promise((resolve, reject) => {
+      const parsedUrl = new URL(url);
+      const postData = typeof body === 'string' ? body : JSON.stringify(body);
+
+      const req = https.request({
+        hostname: parsedUrl.hostname,
+        path: parsedUrl.pathname + parsedUrl.search,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(postData)
+        },
+        timeout: 20000
+      }, (res) => {
+        let raw = '';
+        res.on('data', chunk => raw += chunk);
+        res.on('end', () => {
+          try {
+            resolve(JSON.parse(raw));
+          } catch (e) {
+            reject(new Error(`Invalid JSON Response: ${raw}`));
+          }
+        });
+      });
+
+      req.on('error', err => reject(err));
+      req.write(postData);
+      req.end();
+    });
+  }
+
+  // 2. Refresh Token Shopee jika access_token sudah expired
+  async refreshAccessToken(refreshToken, shopId) {
+    const path = '/api/v2/auth/access_token/get';
+    const timestamp = Math.floor(Date.now() / 1000);
+    const sId = String(shopId);
+
+    // Signature untuk auth/access_token/get: partner_id + path + timestamp
+    const baseString = `${this.partnerId}${path}${timestamp}`;
+    const sign = crypto.createHmac('sha256', this.partnerKey).update(baseString).digest('hex');
+
+    const query = new URLSearchParams({
+      partner_id: this.partnerId,
+      timestamp,
+      sign
+    });
+
+    const url = `${this.baseUrl}${path}?${query.toString()}`;
+    const payload = {
+      refresh_token: refreshToken,
+      shop_id: isNaN(Number(sId)) ? sId : Number(sId),
+      partner_id: this.partnerId
+    };
+
+    const res = await this.requestPost(url, payload);
+
+    if (res.error && res.error !== '') {
+      throw new Error(`Shopee Refresh Token Error: ${res.message || res.error}`);
+    }
+
+    return res;
+  }
+
+  // 3. Mendapatkan Daftar Item ID Produk
   async getItemList(shopId, accessToken, pageSize = 50, offset = 0) {
     const path = '/api/v2/product/get_item_list';
     const timestamp = Math.floor(Date.now() / 1000);
-    const sign = this.generateSignature(path, timestamp, accessToken, shopId);
+    const sId = String(shopId);
+    const sign = this.generateSignature(path, timestamp, accessToken, sId);
 
     const query = new URLSearchParams({
       partner_id: this.partnerId,
       timestamp,
       access_token: accessToken,
-      shop_id: shopId,
+      shop_id: sId,
       sign,
       offset,
       page_size: pageSize,
@@ -61,19 +128,20 @@ export class ShopeeService {
     return res.response?.item || [];
   }
 
-  // 3. Mendapatkan Detail Lengkap Produk (Nama, SKU, Harga, Stok)
+  // 4. Mendapatkan Detail Lengkap Produk (Nama, SKU, Harga, Stok)
   async getItemBaseInfo(shopId, accessToken, itemIds = []) {
     if (!itemIds || itemIds.length === 0) return [];
 
     const path = '/api/v2/product/get_item_base_info';
     const timestamp = Math.floor(Date.now() / 1000);
-    const sign = this.generateSignature(path, timestamp, accessToken, shopId);
+    const sId = String(shopId);
+    const sign = this.generateSignature(path, timestamp, accessToken, sId);
 
     const query = new URLSearchParams({
       partner_id: this.partnerId,
       timestamp,
       access_token: accessToken,
-      shop_id: shopId,
+      shop_id: sId,
       sign,
       item_id_list: itemIds.join(',')
     });
@@ -88,15 +156,15 @@ export class ShopeeService {
     return res.response?.item_list || [];
   }
 
-  // 4. Sinkronisasi Lengkap: Ambil Item List + Detail Base Info
+  // 5. Sinkronisasi Lengkap: Ambil Item List + Detail Base Info
   async syncProducts(shopId, accessToken, pageSize = 20) {
-    const items = await this.getItemList(shopId, accessToken, pageSize);
+    const sId = String(shopId);
+    const items = await this.getItemList(sId, accessToken, pageSize);
     if (!items || items.length === 0) return [];
 
     const itemIds = items.map(i => i.item_id);
-    const details = await this.getItemBaseInfo(shopId, accessToken, itemIds.slice(0, 20));
+    const details = await this.getItemBaseInfo(sId, accessToken, itemIds.slice(0, 20));
 
-    // Standarisasi field agar langsung cocok dengan tabel produk_marketplace
     return details.map(d => {
       let harga = 0;
       if (d.price_info?.[0]?.current_price) harga = d.price_info[0].current_price;
