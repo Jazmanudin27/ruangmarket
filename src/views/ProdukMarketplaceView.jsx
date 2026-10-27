@@ -131,45 +131,36 @@ export default function ProdukMarketplaceView({ onNavigate }) {
       let apiResponse = null;
       let isSuccess = false;
 
-      // Coba fetch backend Node.js service
+      // Fetch backend Node.js service via Nginx proxy
       try {
-        const endpoints = [
-          `/api/marketplace/shopee/products?shop_id=${shopId}&access_token=${encodeURIComponent(accessToken)}`,
-          `https://market.ruangtech.com:3008/api/marketplace/shopee/products?shop_id=${shopId}&access_token=${encodeURIComponent(accessToken)}`,
-          `http://31.97.109.165:3008/api/marketplace/shopee/products?shop_id=${shopId}&access_token=${encodeURIComponent(accessToken)}`,
-          `/api/shopee-sync.php?shop_id=${shopId}&access_token=${encodeURIComponent(accessToken)}`
-        ];
+        const endpoint = `/api/marketplace/shopee/products?shop_id=${shopId}&access_token=${encodeURIComponent(accessToken)}`;
+        const res = await fetch(endpoint);
+        const json = await res.json();
+        if (json.status === 'success' && Array.isArray(json.data) && json.data.length > 0) {
+          isSuccess = true;
+          apiResponse = json;
+          const formattedItems = json.data.map(item => ({
+            ...item,
+            company_code: activeCompany.code || 'RSG'
+          }));
 
-        for (const ep of endpoints) {
-          try {
-            const res = await fetch(ep);
-            const json = await res.json();
-            if (json.status === 'success' && Array.isArray(json.data) && json.data.length > 0) {
-              isSuccess = true;
-              apiResponse = json;
-              const formattedItems = json.data.map(item => ({
-                ...item,
-                company_code: activeCompany.code || 'RSG'
-              }));
+          setMktProdukList(prev => {
+            const existingIds = new Set(prev.map(p => p.item_id));
+            const newOnes = formattedItems.filter(c => !existingIds.has(c.item_id));
+            const merged = [...newOnes, ...prev];
+            try {
+              localStorage.setItem(PRODUK_MARKETPLACE_KEY, JSON.stringify(merged));
+            } catch (e) {}
+            return merged;
+          });
 
-              setMktProdukList(prev => {
-                const existingIds = new Set(prev.map(p => p.item_id));
-                const newOnes = formattedItems.filter(c => !existingIds.has(c.item_id));
-                const merged = [...newOnes, ...prev];
-                try {
-                  localStorage.setItem(PRODUK_MARKETPLACE_KEY, JSON.stringify(merged));
-                } catch (e) {}
-                return merged;
-              });
-
-              toastSuccess(`Berhasil menarik ${formattedItems.length} produk asli dari Shopee!`);
-              break;
-            } else if (json.message || json.error) {
-              apiResponse = json;
-            }
-          } catch (e) {}
+          toastSuccess(`Berhasil menarik ${formattedItems.length} produk asli dari Shopee!`);
+        } else if (json.message || json.error) {
+          apiResponse = json;
         }
-      } catch (e) {}
+      } catch (e) {
+        apiResponse = { message: e.message };
+      }
 
       if (!isSuccess) {
         toastError(apiResponse?.message || 'Gagal menarik produk dari API Shopee');
