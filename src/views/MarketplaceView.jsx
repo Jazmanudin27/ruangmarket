@@ -43,48 +43,47 @@ export default function MarketplaceView({ onBack, onNavigate }) {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [importTokenText, setImportTokenText] = useState('');
 
-  // Daftar toko terhubung (Termasuk token aktif live TikTok Shop dari ERP)
+  const SINGLE_OFFICIAL_STORE = [
+    {
+      id: 'tk_shopee_ragantara',
+      company_code: 'RSG',
+      channel: 'shopee',
+      channelName: 'Shopee Marketplace',
+      shopName: 'RAGANTARA UNIFORM',
+      shopId: '7494247208764540234',
+      logo: 'store-logos/zbp3kiQPJWMwwdGq6OCIjv0lj0jPKDwGhfiwk6yL.jpg',
+      cipher: 'ROW_a8jKrQAAAACAttXT_EuXnKiQASXs4q8z',
+      accessToken: 'ROW_vxeWOQAAAADXzfcAbFNM2vF4sGvyrLklGCfVKYb9V5U-xAv3eYbj0WBp9k2DaBWQbhCs-Nbbf4CSvM0IRczhb3W_CpJb8PFK9NI72ydb0H8KkODzV-mB_tm_ZKGrQzybH1Btsfmr9OrmweBcvcbahhhqu7HsWUmifb_YB8gx-vonfi12uUm364iWKOTekkTQD2SUc4xrQKH2a1pKTA4mG4_5ftCNdi9B',
+      refreshToken: 'ROW_U5GyVAAAAACQMhMaQ5QXpCAhk_jChhoWhZBMQOdJg46oqHXZXnJS8cIfKb6AxdbslxXsUdLtCDA',
+      expiresAt: '2026-10-30 03:00:05',
+      connectedAt: '24 Jul 2026, 07:57',
+      lastSyncAt: '27 Okt 2026, 19:56',
+      status: 'Active (Connected)',
+      deliveryType: 'DROP_OFF',
+      autoSyncStok: true
+    }
+  ];
+
+  // Daftar toko terhubung (Shopee RAGANTARA UNIFORM)
   const [connectedStores, setConnectedStores] = useState(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY_TOKO);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // Hanya izinkan toko RAGANTARA UNIFORM
+          const filtered = parsed.filter(s => s.shopId === '7494247208764540234' || s.shopName?.includes('RAGANTARA'));
+          if (filtered.length > 0) {
+            localStorage.setItem(STORAGE_KEY_TOKO, JSON.stringify(filtered));
+            return filtered;
+          }
+        }
       }
     } catch (e) {}
-    return [
-      {
-        id: 'tk_shopee_ragantara',
-        company_code: 'RSG',
-        channel: 'shopee',
-        channelName: 'Shopee Marketplace',
-        shopName: 'RAGANTARA UNIFORM',
-        shopId: '7494247208764540234',
-        cipher: 'ROW_a8jKrQAAAACAttXT_EuXnKiQASXs4q8z',
-        accessToken: 'ROW_vxeWOQAAAADXzfcAbFNM2vF4sGvyrLklGCfVKYb9V5U-xAv3eYbj0WBp9k2DaBWQbhCs-Nbbf4CSvM0IRczhb3W_CpJb8PFK9NI72ydb0H8KkODzV-mB_tm_ZKGrQzybH1Btsfmr9OrmweBcvcbahhhqu7HsWUmifb_YB8gx-vonfi12uUm364iWKOTekkTQD2SUc4xrQKH2a1pKTA4mG4_5ftCNdi9B',
-        refreshToken: 'ROW_U5GyVAAAAACQMhMaQ5QXpCAhk_jChhoWhZBMQOdJg46oqHXZXnJS8cIfKb6AxdbslxXsUdLtCDA',
-        expiresAt: '2026-10-30 03:00:05',
-        connectedAt: '27 Okt 2026, 19:30',
-        status: 'Active (Connected)',
-        deliveryType: 'DROP_OFF',
-        autoSyncStok: true
-      },
-      {
-        id: 'tk_tiktok_ruangseragam',
-        company_code: 'RSG',
-        channel: 'tiktok',
-        channelName: 'TikTok Shop',
-        shopName: 'RUANG SERAGAM',
-        shopId: '943001511',
-        accessToken: 'eyJhbGciOiJIUzI1NiJ9.CLekfBABGKef1MEDIAEooeWB1wYwzsTt1gI4AUABSAc.bXZV5rgwcNBJj7QDKg3HeLemNfaxLz5CFFqJzZ_5Z6Y',
-        refreshToken: 'eyJhbGciOiJIUzI1NiJ9.CLekfBABGKef1MEDIAIooeWB1wYwrpLQwAk4AUABSAc.PCHE_MspTFRFYZt21pkRGsMCvjBzWZAoZMXOhuxFhdM',
-        expiresAt: '2026-10-27 20:45:05',
-        connectedAt: '27 Okt 2026, 16:45',
-        status: 'Active (Connected)',
-        deliveryType: 'DROP_OFF',
-        autoSyncStok: true
-      }
-    ];
+    try {
+      localStorage.setItem(STORAGE_KEY_TOKO, JSON.stringify(SINGLE_OFFICIAL_STORE));
+    } catch (e) {}
+    return SINGLE_OFFICIAL_STORE;
   });
 
   useEffect(() => {
