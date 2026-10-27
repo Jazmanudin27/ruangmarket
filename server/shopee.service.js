@@ -19,63 +19,51 @@ export class ShopeeService {
     return crypto.createHmac('sha256', this.partnerKey).update(baseString).digest('hex');
   }
 
-  // Helper request HTTP(S) GET dengan redirect follower
-  requestGet(url, maxRedirects = 3) {
-    return new Promise((resolve, reject) => {
-      https.get(url, (res) => {
-        // Handle redirect (301, 302, 307)
-        if ([301, 302, 307, 308].includes(res.statusCode) && res.headers.location && maxRedirects > 0) {
-          const redirectUrl = new URL(res.headers.location, url).toString();
-          return resolve(this.requestGet(redirectUrl, maxRedirects - 1));
-        }
-
-        let raw = '';
-        res.on('data', chunk => raw += chunk);
-        res.on('end', () => {
-          if (!raw || raw.trim() === '') {
-            return reject(new Error(`Empty Response from Shopee (HTTP ${res.statusCode})`));
-          }
-          try {
-            resolve(JSON.parse(raw));
-          } catch (e) {
-            reject(new Error(`Invalid JSON Response (HTTP ${res.statusCode}): ${raw.slice(0, 150)}`));
-          }
-        });
-      }).on('error', err => reject(err));
+  // Helper request HTTP(S) GET menggunakan modern fetch engine
+  async requestGet(url) {
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'curl/7.81.0',
+        'Accept': 'application/json, text/plain, */*'
+      }
     });
+
+    const text = await res.text();
+    if (!text || text.trim() === '') {
+      throw new Error(`Empty Response from Shopee (HTTP ${res.status})`);
+    }
+
+    try {
+      return JSON.parse(text);
+    } catch (e) {
+      throw new Error(`Invalid JSON Response (HTTP ${res.status}): ${text.slice(0, 150)}`);
+    }
   }
 
-  // Helper request HTTP(S) POST JSON
-  requestPost(url, body) {
-    return new Promise((resolve, reject) => {
-      const parsedUrl = new URL(url);
-      const postData = typeof body === 'string' ? body : JSON.stringify(body);
-
-      const req = https.request({
-        hostname: parsedUrl.hostname,
-        path: parsedUrl.pathname + parsedUrl.search,
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(postData)
-        },
-        timeout: 20000
-      }, (res) => {
-        let raw = '';
-        res.on('data', chunk => raw += chunk);
-        res.on('end', () => {
-          try {
-            resolve(JSON.parse(raw));
-          } catch (e) {
-            reject(new Error(`Invalid JSON Response: ${raw}`));
-          }
-        });
-      });
-
-      req.on('error', err => reject(err));
-      req.write(postData);
-      req.end();
+  // Helper request HTTP(S) POST JSON menggunakan modern fetch engine
+  async requestPost(url, body) {
+    const postData = typeof body === 'string' ? body : JSON.stringify(body);
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': 'curl/7.81.0',
+        'Accept': 'application/json'
+      },
+      body: postData
     });
+
+    const text = await res.text();
+    if (!text || text.trim() === '') {
+      throw new Error(`Empty Response from Shopee POST (HTTP ${res.status})`);
+    }
+
+    try {
+      return JSON.parse(text);
+    } catch (e) {
+      throw new Error(`Invalid JSON Response POST (HTTP ${res.status}): ${text.slice(0, 150)}`);
+    }
   }
 
   // Tukar Auth Code menjadi Access Token resmi (setelah seller klik otorisasi)
