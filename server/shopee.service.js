@@ -69,11 +69,11 @@ export class ShopeeService {
     });
   }
 
-  // 2. Refresh Token Shopee jika access_token sudah expired
-  async refreshAccessToken(refreshToken, shopId) {
+  // 2. Refresh Token Shopee jika access_token sudah expired (Mendukung shop_id atau merchant_id)
+  async refreshAccessToken(refreshToken, id, isMerchant = false) {
     const path = '/api/v2/auth/access_token/get';
     const timestamp = Math.floor(Date.now() / 1000);
-    const sId = String(shopId);
+    const sId = String(id);
 
     // Signature untuk auth/access_token/get: partner_id + path + timestamp
     const baseString = `${this.partnerId}${path}${timestamp}`;
@@ -86,9 +86,9 @@ export class ShopeeService {
     });
 
     const url = `${this.baseUrl}${path}?${query.toString()}`;
-    // Kirim integer 64-bit murni tanpa pembulatan Number JS
+    const keyName = isMerchant ? 'merchant_id' : 'shop_id';
     const payload = JSON.stringify({
-      shop_id: 0,
+      [keyName]: 0,
       refresh_token: refreshToken,
       partner_id: this.partnerId
     }).replace(':0,', `:${sId},`);
@@ -96,7 +96,7 @@ export class ShopeeService {
     const res = await this.requestPost(url, payload);
 
     if (res.error && res.error !== '') {
-      throw new Error(`Shopee Refresh Token Error: ${res.message || res.error}`);
+      throw new Error(`Shopee Refresh Token Error (${keyName}): ${res.message || res.error}`);
     }
 
     return res;
