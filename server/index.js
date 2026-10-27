@@ -3,7 +3,7 @@ import { ShopeeService } from './shopee.service.js';
 import { TiktokService } from './tiktok.service.js';
 import './env.js';
 
-const PORT = process.env.PORT || 3008;
+const PORT = process.env.PORT || 5055;
 
 const shopeeService = new ShopeeService();
 const tiktokService = new TiktokService();
