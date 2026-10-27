@@ -35,6 +35,7 @@ import { INITIAL_BATCH_PRODUKSI } from '../data/initialSPK';
 import { INITIAL_KARYAWAN_DATA } from '../data/initialKaryawan';
 import { INITIAL_PRODUK_DATA } from '../data/initialProduk';
 import { KARYAWAN_STORAGE_KEY } from './KaryawanView';
+import { getActiveCompany } from '../utils/tenant.util';
 
 export const SPK_STORAGE_KEY = 'ruangmarket_spk_v2'; // version bump for new nested structure
 const PRODUK_STORAGE_KEY = 'ruangmarket_produk_gamis_v4';
@@ -238,6 +239,16 @@ export default function SPKView() {
     } catch (e) {}
     return INITIAL_PRODUK_DATA;
   });
+
+  const [activeCompany, setActiveCompany] = useState(getActiveCompany);
+
+  useEffect(() => {
+    const handleCompanyChange = () => {
+      setActiveCompany(getActiveCompany());
+    };
+    window.addEventListener('companyChange', handleCompanyChange);
+    return () => window.removeEventListener('companyChange', handleCompanyChange);
+  }, []);
 
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('Semua');
@@ -660,7 +671,7 @@ export default function SPKView() {
       toastSuccess('Data Kode Produksi & Seluruh SPK berhasil diperbarui');
     } else {
       const nextId = batchList.length > 0 ? Math.max(...batchList.map(b => b.id)) + 1 : 1;
-      setBatchList(prev => [{ ...formData, id: nextId }, ...prev]);
+      setBatchList(prev => [{ ...formData, id: nextId, company_code: activeCompany.code || 'RSG' }, ...prev]);
       setExpandedBatch(prev => ({ ...prev, [nextId]: true }));
       toastSuccess('Kode Produksi baru dan seluruh SPK & Produk berhasil dibuat');
     }
@@ -682,8 +693,10 @@ export default function SPKView() {
     }
   };
 
-  // Filter batch list
-  const filteredBatch = batchList.filter(b => {
+  // Filter batch list by company (Multi-Tenant)
+  const companyBatches = batchList.filter(b => !b.company_code || b.company_code === activeCompany.code);
+
+  const filteredBatch = companyBatches.filter(b => {
     const q = search.toLowerCase();
     const matchHeader = (b.kode_produksi || '').toLowerCase().includes(q) || (b.nama_pelanggan || '').toLowerCase().includes(q);
     const matchSpk = (b.spk_list || []).some(s => 

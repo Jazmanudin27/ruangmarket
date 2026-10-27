@@ -20,8 +20,11 @@ import {
   Users,
   ClipboardList,
   Store,
-  ShoppingBag
+  ShoppingBag,
+  Building,
+  Check
 } from 'lucide-react';
+import { getCompanies, getActiveCompany, setActiveCompanyCode } from '../utils/tenant.util';
 import DashboardView from '../views/DashboardView';
 import ProdukView from '../views/ProdukView';
 import KategoriView from '../views/KategoriView';
@@ -56,10 +59,17 @@ export default function AdminLayout() {
   const produksiRef = useRef(null);
   const [isMarketplaceOpen, setIsMarketplaceOpen] = useState(false);
   const marketplaceRef = useRef(null);
+  const [isCompanyDropdownOpen, setIsCompanyDropdownOpen] = useState(false);
+  const companyDropdownRef = useRef(null);
+  const [companies, setCompanies] = useState(getCompanies);
+  const [activeCompany, setActiveCompany] = useState(getActiveCompany);
 
   // Close dropdowns on click outside
   useEffect(() => {
     function handleClickOutside(event) {
+      if (companyDropdownRef.current && !companyDropdownRef.current.contains(event.target)) {
+        setIsCompanyDropdownOpen(false);
+      }
       if (dataMasterRef.current && !dataMasterRef.current.contains(event.target)) {
         setIsDataMasterOpen(false);
       }
@@ -87,26 +97,38 @@ export default function AdminLayout() {
     } catch (e) {}
   }, []);
 
-  // Read total products for badge
+  // Read total products for badge (filtered by active company)
   const [totalProdukCount, setTotalProdukCount] = useState(() => {
     try {
       const saved = localStorage.getItem('ruangmarket_produk_gamis_v4');
-      if (saved) return JSON.parse(saved).length;
+      if (saved) {
+        const list = JSON.parse(saved);
+        return list.filter(p => !p.company_code || p.company_code === activeCompany.code).length;
+      }
     } catch (e) {}
-    return INITIAL_PRODUK_DATA.length;
+    return INITIAL_PRODUK_DATA.filter(p => p.company_code === activeCompany.code).length;
   });
 
-  // Listen for storage change
+  // Listen for storage change & companyChange
   useEffect(() => {
     const handleStorageChange = () => {
       try {
+        const currentComp = getActiveCompany();
+        setActiveCompany(currentComp);
         const saved = localStorage.getItem('ruangmarket_produk_gamis_v4');
-        if (saved) setTotalProdukCount(JSON.parse(saved).length);
+        if (saved) {
+          const list = JSON.parse(saved);
+          setTotalProdukCount(list.filter(p => !p.company_code || p.company_code === currentComp.code).length);
+        }
       } catch (e) {}
     };
     window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, []);
+    window.addEventListener('companyChange', handleStorageChange);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('companyChange', handleStorageChange);
+    };
+  }, [activeCompany.code]);
 
   // Realtime clock
   useEffect(() => {
@@ -247,9 +269,113 @@ export default function AdminLayout() {
                 RUANG MARKET
               </div>
               <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: '700', letterSpacing: '0.01em', lineHeight: 1 }}>
-                Sistem Produk & Toko
+                Sistem Multi-Perusahaan
               </div>
             </div>
+          </div>
+
+          {/* COMPANY / TENANT SELECTOR DROPDOWN (PERSIS SCREENSHOT USER) */}
+          <div style={{ position: 'relative' }} ref={companyDropdownRef}>
+            <button
+              type="button"
+              onClick={() => setIsCompanyDropdownOpen(!isCompanyDropdownOpen)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '4px 10px',
+                borderRadius: '6px',
+                border: '1px solid rgba(56, 189, 248, 0.35)',
+                backgroundColor: 'rgba(2, 132, 199, 0.15)',
+                color: '#ffffff',
+                fontSize: '11.5px',
+                fontWeight: '700',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(2, 132, 199, 0.25)'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgba(2, 132, 199, 0.15)'}
+            >
+              <Building size={13} color="#38bdf8" />
+              <span>{activeCompany.name}</span>
+              <span style={{
+                fontSize: '9.5px',
+                padding: '1px 5px',
+                borderRadius: '4px',
+                backgroundColor: 'rgba(255, 255, 255, 0.12)',
+                color: '#38bdf8',
+                fontWeight: '800'
+              }}>
+                {activeCompany.code}
+              </span>
+              <ChevronDown size={11} color="#94a3b8" style={{ transform: isCompanyDropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s ease' }} />
+            </button>
+
+            {/* Dropdown Menu List Perusahaan */}
+            {isCompanyDropdownOpen && (
+              <div style={{
+                position: 'absolute',
+                left: 0,
+                top: '100%',
+                marginTop: '6px',
+                backgroundColor: '#0f172a',
+                borderRadius: '8px',
+                border: '1px solid #334155',
+                boxShadow: '0 12px 30px rgba(0, 0, 0, 0.6)',
+                padding: '6px',
+                minWidth: '220px',
+                zIndex: 3000
+              }}>
+                <div style={{ padding: '4px 8px 6px 8px', fontSize: '10px', fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Pilih Perusahaan Aktif
+                </div>
+                {companies.map((c) => {
+                  const isCurrent = c.code === activeCompany.code;
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => {
+                        setActiveCompanyCode(c.code);
+                        setActiveCompany(c);
+                        setIsCompanyDropdownOpen(false);
+                        toastSuccess(`Beralih ke perusahaan: ${c.name}`);
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        width: '100%',
+                        padding: '7px 8px',
+                        borderRadius: '6px',
+                        border: 'none',
+                        backgroundColor: isCurrent ? 'rgba(2, 132, 199, 0.2)' : 'transparent',
+                        color: isCurrent ? '#38bdf8' : '#cbd5e1',
+                        fontSize: '11.5px',
+                        fontWeight: isCurrent ? '800' : '600',
+                        cursor: 'pointer',
+                        textAlign: 'left'
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!isCurrent) e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)';
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isCurrent) e.currentTarget.style.backgroundColor = 'transparent';
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: c.color || '#38bdf8' }} />
+                        <div>
+                          <div>{c.name}</div>
+                          <div style={{ fontSize: '10px', color: '#64748b' }}>Kode: {c.code}</div>
+                        </div>
+                      </div>
+                      {isCurrent && <Check size={14} color="#38bdf8" />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* DESKTOP NAV TABS (DARK MODE & SLEEK ACCENTS) */}

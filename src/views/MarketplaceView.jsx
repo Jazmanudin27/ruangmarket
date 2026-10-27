@@ -18,6 +18,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { toastSuccess, toastError, showConfirm } from '../utils/alert.util';
+import { getActiveCompany } from '../utils/tenant.util';
 
 const STORAGE_KEY_TOKO = 'ruangmarket_connected_stores_v1';
 
@@ -25,6 +26,15 @@ export default function MarketplaceView({ onBack }) {
   // Mode: 'create' (persis seperti screenshot) atau 'list' (daftar toko)
   const [viewMode, setViewMode] = useState('create');
   const [loadingChannel, setLoadingChannel] = useState(null);
+  const [activeCompany, setActiveCompany] = useState(getActiveCompany);
+
+  useEffect(() => {
+    const handleCompanyChange = () => {
+      setActiveCompany(getActiveCompany());
+    };
+    window.addEventListener('companyChange', handleCompanyChange);
+    return () => window.removeEventListener('companyChange', handleCompanyChange);
+  }, []);
 
   // Daftar toko terhubung
   const [connectedStores, setConnectedStores] = useState(() => {
@@ -35,6 +45,7 @@ export default function MarketplaceView({ onBack }) {
     return [
       {
         id: 'tk_shopee_01',
+        company_code: 'RSG',
         channel: 'shopee',
         channelName: 'Shopee Marketplace',
         shopName: 'Ruang Seragam Official (Shopee)',
@@ -45,6 +56,7 @@ export default function MarketplaceView({ onBack }) {
       },
       {
         id: 'tk_tiktok_01',
+        company_code: 'RSG',
         channel: 'tiktok',
         channelName: 'TikTok Shop',
         shopName: 'Ruang Seragam ID (TikTok)',

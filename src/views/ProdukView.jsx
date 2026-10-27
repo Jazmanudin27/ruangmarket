@@ -31,6 +31,7 @@ import {
 import { showConfirm, toastSuccess, toastError } from '../utils/alert.util';
 import { INITIAL_PRODUK_DATA } from '../data/initialProduk';
 import { INITIAL_KATEGORI_DATA } from '../data/initialKategori';
+import { getActiveCompany, getActiveCompanyCode } from '../utils/tenant.util';
 
 const STORAGE_KEY = 'ruangmarket_produk_gamis_v4';
 const KATEGORI_STORAGE_KEY = 'ruangmarket_kategori_v1';
@@ -226,6 +227,17 @@ export default function ProdukView() {
     return INITIAL_PRODUK_DATA;
   });
 
+  const [activeCompany, setActiveCompany] = useState(getActiveCompany);
+
+  // Listen to company change from topbar
+  useEffect(() => {
+    const handleCompanyChange = () => {
+      setActiveCompany(getActiveCompany());
+    };
+    window.addEventListener('companyChange', handleCompanyChange);
+    return () => window.removeEventListener('companyChange', handleCompanyChange);
+  }, []);
+
   const [activeFilterTab, setActiveFilterTab] = useState('semua');
   const [search, setSearch] = useState('');
   const [filterKategori, setFilterKategori] = useState('Semua');
@@ -304,13 +316,16 @@ export default function ProdukView() {
   }, [produkList]);
 
   // Summary counts
-  const totalProduk = produkList.length;
-  const totalTersedia = produkList.filter(p => p.stok > p.min_stok).length;
-  const totalMenipis = produkList.filter(p => p.stok > 0 && p.stok <= p.min_stok).length;
-  const totalHabis = produkList.filter(p => p.stok <= 0).length;
+  // Filter produk milik perusahaan aktif (Multi-Tenant)
+  const companyProdukList = produkList.filter(p => !p.company_code || p.company_code === activeCompany.code);
+
+  const totalProduk = companyProdukList.length;
+  const totalTersedia = companyProdukList.filter(p => p.stok > p.min_stok).length;
+  const totalMenipis = companyProdukList.filter(p => p.stok > 0 && p.stok <= p.min_stok).length;
+  const totalHabis = companyProdukList.filter(p => p.stok <= 0).length;
 
   // Filter logic
-  const filteredList = produkList.filter(p => {
+  const filteredList = companyProdukList.filter(p => {
     const isHabis = p.stok <= 0;
     const isMenipis = p.stok > 0 && p.stok <= p.min_stok;
     const isTersedia = p.stok > p.min_stok;
@@ -353,9 +368,10 @@ export default function ProdukView() {
   const handleOpenAdd = () => {
     setEditingId(null);
     const nextId = produkList.length > 0 ? Math.max(...produkList.map(p => p.id)) + 1 : 1;
+    const prefix = activeCompany.code || 'RSG';
     setFormData({
       ...initialForm,
-      sku: `PRD-260${String(nextId).padStart(4, '0')}`,
+      sku: `${prefix}-PRD-260${String(nextId).padStart(4, '0')}`,
       barcode: `899${String(1000 + nextId)}`
     });
     setIsFormModalOpen(true);
@@ -409,7 +425,8 @@ export default function ProdukView() {
       const newId = produkList.length > 0 ? Math.max(...produkList.map(p => p.id)) + 1 : 1;
       const newProduk = {
         ...formData,
-        id: newId
+        id: newId,
+        company_code: activeCompany.code || 'RSG'
       };
       setProdukList(prev => [newProduk, ...prev]);
       toastSuccess('Produk baru berhasil ditambahkan');

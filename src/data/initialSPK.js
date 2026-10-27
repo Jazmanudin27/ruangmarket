@@ -6,6 +6,7 @@
 export const INITIAL_BATCH_PRODUKSI = [
   {
     id: 1,
+    company_code: 'RSG',
     kode_produksi: 'PRD-202610-001',
     nama_pelanggan: 'Pelanggan ABC (Distributor Utama Jakarta)',
     tgl_pesan: '2026-10-24',
