@@ -207,10 +207,24 @@ export default function MarketplaceView({ onBack, onNavigate }) {
       // 1. Coba fetch API live
       let fetchedItems = null;
       try {
-        const res = await fetch(`/api/marketplace/shopee/products?shop_id=${store.shopId}&access_token=${encodeURIComponent(store.accessToken || '')}`);
-        const json = await res.json();
-        if (json.status === 'success' && Array.isArray(json.data) && json.data.length > 0) {
-          fetchedItems = json.data;
+        const endpoints = [
+          `/api/marketplace/shopee/products?shop_id=${store.shopId}&access_token=${encodeURIComponent(store.accessToken || '')}`,
+          `http://localhost:3001/api/marketplace/shopee/products?shop_id=${store.shopId}&access_token=${encodeURIComponent(store.accessToken || '')}`,
+          `/api/shopee-sync.php?shop_id=${store.shopId}&access_token=${encodeURIComponent(store.accessToken || '')}`
+        ];
+
+        for (const ep of endpoints) {
+          try {
+            const res = await fetch(ep);
+            const json = await res.json();
+            if (json.status === 'success' && Array.isArray(json.data) && json.data.length > 0) {
+              fetchedItems = json.data.map(d => ({
+                ...d,
+                company_code: activeCompany.code || 'RSG'
+              }));
+              break;
+            }
+          } catch (e) {}
         }
       } catch (e) {}
 

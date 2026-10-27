@@ -52,26 +52,16 @@ export default function ProdukMarketplaceView({ onNavigate }) {
     return () => window.removeEventListener('companyChange', handleCompanyChange);
   }, []);
 
-  // Data staging produk marketplace (KOSONG secara default, bersihkan sample dummy lama)
+  // Data staging produk marketplace
   const [mktProdukList, setMktProdukList] = useState(() => {
     try {
       const saved = localStorage.getItem(PRODUK_MARKETPLACE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          // Bersihkan data dummy sample lama yang terduplikasi
-          const cleaned = parsed.filter(p => 
-            !p.id?.startsWith('mp_ragan_') && 
-            !p.id?.startsWith('mp_shopee_') && 
-            !p.item_id?.startsWith('749424720876400')
-          );
-          localStorage.setItem(PRODUK_MARKETPLACE_KEY, JSON.stringify(cleaned));
-          return cleaned;
+          return parsed;
         }
       }
-    } catch (e) {}
-    try {
-      localStorage.setItem(PRODUK_MARKETPLACE_KEY, JSON.stringify([]));
     } catch (e) {}
     return [];
   });
@@ -156,8 +146,22 @@ export default function ProdukMarketplaceView({ onNavigate }) {
             if (json.status === 'success' && Array.isArray(json.data) && json.data.length > 0) {
               isSuccess = true;
               apiResponse = json;
-              setMktProdukList(prev => [...json.data, ...prev]);
-              toastSuccess(`Berhasil menarik ${json.data.length} produk asli dari Shopee!`);
+              const formattedItems = json.data.map(item => ({
+                ...item,
+                company_code: activeCompany.code || 'RSG'
+              }));
+
+              setMktProdukList(prev => {
+                const existingIds = new Set(prev.map(p => p.item_id));
+                const newOnes = formattedItems.filter(c => !existingIds.has(c.item_id));
+                const merged = [...newOnes, ...prev];
+                try {
+                  localStorage.setItem(PRODUK_MARKETPLACE_KEY, JSON.stringify(merged));
+                } catch (e) {}
+                return merged;
+              });
+
+              toastSuccess(`Berhasil menarik ${formattedItems.length} produk asli dari Shopee!`);
               break;
             } else if (json.message || json.error) {
               apiResponse = json;
@@ -166,107 +170,8 @@ export default function ProdukMarketplaceView({ onNavigate }) {
         }
       } catch (e) {}
 
-      // Jika tidak sukses via Node service, coba dev proxy
       if (!isSuccess) {
-        try {
-          const devRes = await fetch(`/api/marketplace/sync-shopee?shop_id=${shopId}&access_token=${encodeURIComponent(accessToken)}`);
-          const devJson = await devRes.json();
-          apiResponse = devJson;
-          if (devJson.response && devJson.response.item && devJson.response.item.length > 0) {
-            isSuccess = true;
-            const items = devJson.response.item.map((item) => ({
-              id: `shopee_${item.item_id}`,
-              item_id: String(item.item_id),
-              company_code: activeCompany.code || 'RSG',
-              channel: 'shopee',
-              channelName: 'Shopee Marketplace',
-              shopName: 'RAGANTARA UNIFORM',
-              nama_produk: `Produk Shopee #${item.item_id}`,
-              sku_marketplace: `SHOPEE-${item.item_id}`,
-              harga_jual: 150000,
-              stok_marketplace: 50,
-              varian_marketplace: 'Standard',
-              status: 'Belum Dimapping',
-              syncedAt: new Date().toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-            }));
-            setMktProdukList(prev => [...items, ...prev]);
-            toastSuccess(`Berhasil menarik ${items.length} produk asli dari Shopee!`);
-          }
-        } catch (e) {}
-      }
-
-      // Jika koneksi API live Shopee belum di-linked, langsung masukkan katalog produk toko RAGANTARA UNIFORM
-      if (!isSuccess) {
-        const catalogItems = [
-          {
-            id: `mp_shopee_${Date.now()}_1`,
-            item_id: '7494247208764001',
-            company_code: activeCompany.code || 'RSG',
-            channel: 'shopee',
-            channelName: 'Shopee Marketplace',
-            shopName: 'RAGANTARA UNIFORM',
-            nama_produk: 'Seragam Kemeja PDL Lapangan Tactical Quickdry Ripstop',
-            sku_marketplace: 'RAGAN-PDL-QDR-01',
-            harga_jual: 155000,
-            stok_marketplace: 110,
-            varian_marketplace: 'Hitam, Abu Tua - M, L, XL',
-            status: 'Belum Dimapping',
-            syncedAt: new Date().toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-          },
-          {
-            id: `mp_shopee_${Date.now()}_2`,
-            item_id: '7494247208764002',
-            company_code: activeCompany.code || 'RSG',
-            channel: 'shopee',
-            channelName: 'Shopee Marketplace',
-            shopName: 'RAGANTARA UNIFORM',
-            nama_produk: 'Baju Seragam Guru Kemeja Putih Toyobo Fodu Premium',
-            sku_marketplace: 'RAGAN-GRU-TYB-02',
-            harga_jual: 165000,
-            stok_marketplace: 85,
-            varian_marketplace: 'Putih Bersih - Size S, M, L, XL',
-            status: 'Belum Dimapping',
-            syncedAt: new Date().toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-          },
-          {
-            id: `mp_shopee_${Date.now()}_3`,
-            item_id: '7494247208764003',
-            company_code: activeCompany.code || 'RSG',
-            channel: 'shopee',
-            channelName: 'Shopee Marketplace',
-            shopName: 'RAGANTARA UNIFORM',
-            nama_produk: 'Celana Panjang PDL Tactical Blackhawk Polos',
-            sku_marketplace: 'RAGAN-CL-BHK-03',
-            harga_jual: 135000,
-            stok_marketplace: 90,
-            varian_marketplace: 'Khaki, Hitam, Hijau Army - 30 sd 38',
-            status: 'Belum Dimapping',
-            syncedAt: new Date().toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-          },
-          {
-            id: `mp_shopee_${Date.now()}_4`,
-            item_id: '7494247208764004',
-            company_code: activeCompany.code || 'RSG',
-            channel: 'shopee',
-            channelName: 'Shopee Marketplace',
-            shopName: 'RAGANTARA UNIFORM',
-            nama_produk: 'Kemeja Safari Seragam Pria Drill Lengan Pendek / Panjang',
-            sku_marketplace: 'RAGAN-SFR-DRL-04',
-            harga_jual: 185000,
-            stok_marketplace: 65,
-            varian_marketplace: 'Coklat Tua, Biru Dongker - Size L, XL',
-            status: 'Belum Dimapping',
-            syncedAt: new Date().toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-          }
-        ];
-
-        setMktProdukList(prev => {
-          const existingIds = new Set(prev.map(p => p.item_id));
-          const newOnes = catalogItems.filter(c => !existingIds.has(c.item_id));
-          return [...newOnes, ...prev];
-        });
-
-        toastSuccess(`Berhasil menarik ${catalogItems.length} produk dari Shopee Toko RAGANTARA UNIFORM!`);
+        toastError(apiResponse?.message || 'Gagal menarik produk dari API Shopee');
       }
 
     } catch (err) {

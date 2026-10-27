@@ -14,10 +14,10 @@ $partner_key = 'shpk59526e67746975637544656f774b525973634654617446624f6867646677
 $host = 'https://partner.shopeemobile.com';
 
 // Shop ID & Access Token
-$shop_id = isset($_GET['shop_id']) ? intval($_GET['shop_id']) : 7494247208764540234;
+$shop_id = isset($_GET['shop_id']) ? intval($_GET['shop_id']) : 1030191310;
 $access_token = isset($_GET['access_token']) && !empty($_GET['access_token']) 
     ? trim($_GET['access_token']) 
-    : 'ROW_vxeWOQAAAADXzfcAbFNM2vF4sGvyrLklGCfVKYb9V5U-xAv3eYbj0WBp9k2DaBWQbhCs-Nbbf4CSvM0IRczhb3W_CpJb8PFK9NI72ydb0H8KkODzV-mB_tm_ZKGrQzybH1Btsfmr9OrmweBcvcbahhhqu7HsWUmifb_YB8gx-vonfi12uUm364iWKOTekkTQD2SUc4xrQKH2a1pKTA4mG4_5ftCNdi9B';
+    : 'eyJhbGciOiJIUzI1NiJ9.CLekfBABGM7xnesDIAEozLKC1wYw_4S4xwk4AUABSAc.Akf_2_Oh892XxGfWUbY4HXNPqIn3DsQUBZpI1DTivMY';
 
 function callShopeeApi($path, $partner_id, $partner_key, $timestamp, $access_token, $shop_id, $queryParams = []) {
     global $host;
@@ -107,7 +107,7 @@ foreach ($itemList as $p) {
         'company_code' => 'RSG',
         'channel' => 'shopee',
         'channelName' => 'Shopee Marketplace',
-        'shopName' => 'RAGANTARA UNIFORM',
+        'shopName' => 'Koperasi Sahabat Anak Bangsa',
         'nama_produk' => $p['item_name'] ?? 'Produk Shopee',
         'sku_marketplace' => $p['item_sku'] ?: ('SHOPEE-' . $p['item_id']),
         'harga_jual' => $price,
