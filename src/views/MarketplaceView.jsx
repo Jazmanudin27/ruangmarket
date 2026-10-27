@@ -36,32 +36,44 @@ export default function MarketplaceView({ onBack }) {
     return () => window.removeEventListener('companyChange', handleCompanyChange);
   }, []);
 
-  // Daftar toko terhubung
+  // State modal import token manual
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importTokenText, setImportTokenText] = useState('');
+
+  // Daftar toko terhubung (Termasuk token aktif live TikTok Shop dari ERP)
   const [connectedStores, setConnectedStores] = useState(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY_TOKO);
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
     } catch (e) {}
     return [
+      {
+        id: 'tk_tiktok_aspartech_01',
+        company_code: 'RSG',
+        channel: 'tiktok',
+        channelName: 'TikTok Shop',
+        shopName: 'RUANG SERAGAM',
+        shopId: '7495487525216094891',
+        cipher: 'ROW_Hbd_fAAAAACqX58asQX4uCOsoefXXn4c',
+        accessToken: 'ROW_hrW2eAAAAADXzfcAbFNM2vF4sGvyrLklzSslk4uklv4KXG8FDCL8TMDVZVSXm1QNwF3HkXc-CfZT-WsF6yF-qO2wOSJKCKh0f2aji_gApWDGMP1FFNH5ZYrC2D-6o9YEAajZdQ7cQvPYE1BZu2jAwSLxLaUzYOX0JwzW6ZUsu5Tj1dxn343kAe1TMZ5nydARMQJ94b20hIGW2ibwtqaqCkw8yQz8wQjW',
+        refreshToken: 'ROW_rfVKJgAAAACQMhMaQ5QXpCAhk_jChhoWo0KgxyEvuEVSbCvPTxxl3OU0jfV_dLTlJcuRIEhLVNQ',
+        expiresAt: '2026-11-03 13:45:04',
+        connectedAt: '27 Okt 2026, 13:45',
+        status: 'Active (Connected)',
+        deliveryType: 'DROP_OFF',
+        autoSyncStok: true
+      },
       {
         id: 'tk_shopee_01',
         company_code: 'RSG',
         channel: 'shopee',
         channelName: 'Shopee Marketplace',
         shopName: 'Ruang Seragam Official (Shopee)',
-        shopId: '98273612',
+        shopId: '2036279',
         connectedAt: '27 Okt 2026, 14:20',
-        status: 'Active',
-        autoSyncStok: true
-      },
-      {
-        id: 'tk_tiktok_01',
-        company_code: 'RSG',
-        channel: 'tiktok',
-        channelName: 'TikTok Shop',
-        shopName: 'Ruang Seragam ID (TikTok)',
-        shopId: 'IDLC6A9XYZ',
-        connectedAt: '27 Okt 2026, 16:45',
         status: 'Active',
         autoSyncStok: true
       }
@@ -303,7 +315,31 @@ export default function MarketplaceView({ onBack }) {
         </div>
 
         {/* TOP RIGHT ACTION BUTTON */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button
+            type="button"
+            onClick={() => setIsImportModalOpen(true)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 14px',
+              borderRadius: '7px',
+              backgroundColor: '#f8fafc',
+              color: '#334155',
+              border: '1px solid #cbd5e1',
+              fontSize: '12px',
+              fontWeight: '700',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}
+          >
+            <Link2 size={14} color="#0284c7" />
+            <span>Impor Token Manual</span>
+          </button>
+
           {viewMode === 'create' ? (
             <button
               type="button"
@@ -738,6 +774,158 @@ export default function MarketplaceView({ onBack }) {
             </div>
           )}
 
+        </div>
+      )}
+
+      {/* MODAL IMPOR TOKEN MANUAL DARI ERP ASPARTECH */}
+      {isImportModalOpen && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: 'rgba(15, 23, 42, 0.7)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          padding: '16px'
+        }}>
+          <div style={{
+            backgroundColor: '#ffffff',
+            borderRadius: '12px',
+            width: '100%',
+            maxWidth: '560px',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.3)',
+            overflow: 'hidden',
+            border: '1px solid #cbd5e1'
+          }}>
+            {/* Modal Header */}
+            <div style={{
+              padding: '16px 20px',
+              backgroundColor: '#0f172a',
+              color: '#ffffff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Link2 size={18} color="#38bdf8" />
+                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '800' }}>
+                  Impor Token Marketplace (Instan)
+                </h3>
+              </div>
+              <button
+                onClick={() => setIsImportModalOpen(false)}
+                style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: '20px' }}>
+              <p style={{ margin: '0 0 12px', fontSize: '12.5px', color: '#475569', lineHeight: 1.4 }}>
+                Tempel data baris token dari ERP Aspartech (tab-separated atau format teks). Sistem akan mengekstrak <strong>Shop ID</strong>, <strong>Access Token</strong>, dan masa aktif secara otomatis.
+              </p>
+
+              <textarea
+                rows={5}
+                value={importTokenText}
+                onChange={(e) => setImportTokenText(e.target.value)}
+                placeholder="Contoh: RUANG SERAGAM  store-logos/...  7495487525216094891  ROW_Hbd_f...  ROW_hrW2e..."
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  borderRadius: '6px',
+                  border: '1px solid #cbd5e1',
+                  fontSize: '11.5px',
+                  fontFamily: 'monospace',
+                  boxSizing: 'border-box',
+                  outline: 'none',
+                  backgroundColor: '#f8fafc'
+                }}
+              />
+
+              <div style={{ marginTop: '12px', padding: '10px 12px', borderRadius: '6px', backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', fontSize: '11px', color: '#1e40af' }}>
+                ✓ Token langsung aktif dan siap digunakan untuk sinkronisasi stok dan pesanan toko.
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{
+              padding: '12px 20px',
+              backgroundColor: '#f8fafc',
+              borderTop: '1px solid #e2e8f0',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'flex-end',
+              gap: '8px'
+            }}>
+              <button
+                type="button"
+                onClick={() => setIsImportModalOpen(false)}
+                style={{
+                  padding: '8px 14px',
+                  borderRadius: '6px',
+                  border: '1px solid #cbd5e1',
+                  backgroundColor: '#ffffff',
+                  color: '#475569',
+                  fontSize: '12px',
+                  fontWeight: '700',
+                  cursor: 'pointer'
+                }}
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!importTokenText.trim()) {
+                    toastError('Teks token belum dimasukkan!');
+                    return;
+                  }
+                  // Parse tokens
+                  const parts = importTokenText.trim().split(/\t|\s{2,}/);
+                  const shopName = parts[0] || 'Toko Impor';
+                  const shopId = parts.find(p => /^\d{15,22}$/.test(p)) || parts[2] || `ID_${Date.now()}`;
+                  const accessToken = parts.find(p => p.startsWith('ROW_hr') || p.startsWith('ROW_')) || '';
+                  const expiresAt = parts.find(p => /\d{4}-\d{2}-\d{2}/.test(p)) || '2026-11-03';
+
+                  const importedStore = {
+                    id: `tk_manual_${Date.now()}`,
+                    company_code: activeCompany.code || 'RSG',
+                    channel: 'tiktok',
+                    channelName: 'TikTok Shop',
+                    shopName: shopName,
+                    shopId: shopId,
+                    accessToken: accessToken,
+                    expiresAt: expiresAt,
+                    connectedAt: new Date().toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+                    status: 'Active (Connected)',
+                    autoSyncStok: true
+                  };
+
+                  setConnectedStores(prev => [importedStore, ...prev.filter(s => s.shopId !== shopId)]);
+                  setIsImportModalOpen(false);
+                  setImportTokenText('');
+                  setViewMode('list');
+                  toastSuccess(`Toko ${shopName} (${shopId}) berhasil diimpor & terhubung!`);
+                }}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  backgroundColor: '#0284c7',
+                  color: '#ffffff',
+                  fontSize: '12px',
+                  fontWeight: '700',
+                  cursor: 'pointer'
+                }}
+              >
+                Simpan & Hubungkan
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
