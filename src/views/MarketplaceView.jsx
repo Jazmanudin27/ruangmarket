@@ -15,7 +15,10 @@ import {
   AlertCircle,
   Clock,
   Layers,
-  ChevronRight
+  ChevronRight,
+  Download,
+  Package,
+  ShoppingCart
 } from 'lucide-react';
 import { toastSuccess, toastError, showConfirm } from '../utils/alert.util';
 import { getActiveCompany } from '../utils/tenant.util';
@@ -194,6 +197,119 @@ export default function MarketplaceView({ onBack }) {
     if (confirmed) {
       setConnectedStores(prev => prev.filter(item => item.id !== id));
       toastSuccess(`Koneksi toko ${name} diputuskan`);
+    }
+  };
+
+  // Fungsi Tarik Produk dari Toko Marketplace ke Data Produk ERP
+  const handleSyncProduk = async (store) => {
+    toastSuccess(`Menghubungi API ${store.channelName}...`);
+    try {
+      // Mock fetching produk katalog dari API Toko Shopee/TikTok
+      const sampleImportedProducts = [
+        {
+          id: Date.now() + 1,
+          company_code: activeCompany.code || 'RSG',
+          nama_produk: `${store.shopName} - Gamis Syari Premium Set`,
+          sku: `${activeCompany.code || 'RSG'}-MKT-${String(Math.floor(1000 + Math.random() * 9000))}`,
+          barcode: `${Math.floor(8990000 + Math.random() * 99999)}`,
+          kategori: 'Gamis Syari',
+          tipe_set: 'Satu Setel',
+          status_order: 'Ready Stok',
+          varian: 'Black Onyx - Size All Size',
+          stok: 50,
+          min_stok: 10,
+          satuan: 'PCS',
+          harga_beli: 185000,
+          harga_jual: 299000,
+          estimasi_kain: 'Silk Jetblack Premium',
+          panjang_kain_cm: 280,
+          harga_kain_cm: 200,
+          source: store.channelName
+        },
+        {
+          id: Date.now() + 2,
+          company_code: activeCompany.code || 'RSG',
+          nama_produk: `${store.shopName} - Kemeja Seragam Safari Drill`,
+          sku: `${activeCompany.code || 'RSG'}-MKT-${String(Math.floor(1000 + Math.random() * 9000))}`,
+          barcode: `${Math.floor(8990000 + Math.random() * 99999)}`,
+          kategori: 'Gamis Casual',
+          tipe_set: 'Single',
+          status_order: 'Ready Stok',
+          varian: 'Navy Blue - Size XL',
+          stok: 35,
+          min_stok: 8,
+          satuan: 'PCS',
+          harga_beli: 110000,
+          harga_jual: 195000,
+          estimasi_kain: 'Japan Drill Nagata',
+          panjang_kain_cm: 220,
+          harga_kain_cm: 180,
+          source: store.channelName
+        }
+      ];
+
+      // Simpan ke local storage produk master
+      const saved = localStorage.getItem('ruangmarket_produk_gamis_v4');
+      const existing = saved ? JSON.parse(saved) : [];
+      const updated = [...sampleImportedProducts, ...existing];
+      localStorage.setItem('ruangmarket_produk_gamis_v4', JSON.stringify(updated));
+      window.dispatchEvent(new Event('storage'));
+
+      toastSuccess(`Berhasil menarik ${sampleImportedProducts.length} produk dari ${store.shopName} ke Data Produk!`);
+    } catch (err) {
+      toastError(`Gagal tarik produk: ${err.message}`);
+    }
+  };
+
+  // Fungsi Tarik Pesanan dari Toko Marketplace ke SPK / Antrian Produksi
+  const handleSyncPesanan = async (store) => {
+    toastSuccess(`Menarik pesanan baru dari ${store.shopName}...`);
+    try {
+      const dateStr = new Date().toISOString().split('T')[0];
+      const newSpkId = `SPK-${store.channel.toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`;
+      const newBatch = {
+        id: Date.now(),
+        company_code: activeCompany.code || 'RSG',
+        kode_produksi: `ORD-${store.channel.toUpperCase()}-${Date.now().toString().slice(-6)}`,
+        nama_pelanggan: `Order Marketplace [${store.shopName}]`,
+        tgl_pesan: dateStr,
+        deadline: new Date(Date.now() + 3 * 86400000).toISOString().split('T')[0],
+        status: 'Dalam Proses',
+        catatan: `Pesanan otomatis dari ${store.channelName} (${store.shopName}) - Shop ID: ${store.shopId}`,
+        spk_list: [
+          {
+            id_spk: newSpkId,
+            nama_spk: `SPK Jahit Pesanan Online #${newSpkId}`,
+            penjahit: 'Agus Sutrisno',
+            status_spk: 'Potong Pola',
+            produk_items: [
+              {
+                id: `item-${Date.now()}`,
+                no_spk: newSpkId,
+                produk_id: 1,
+                sku: `${activeCompany.code || 'RSG'}-ORD-01`,
+                nama_produk: `Pesanan ${store.shopName} (Item 1)`,
+                kategori: 'Marketplace Order',
+                satuan: 'PCS',
+                qty: 24,
+                kain_nama: 'Kain Jetblack Silk',
+                panjang_kain_cm: 250,
+                harga_kain_cm: 200,
+                estimasi_kain: 'Kain Jetblack Silk - 6.000 CM (60M) @Rp200/CM'
+              }
+            ]
+          }
+        ]
+      };
+
+      const saved = localStorage.getItem('ruangmarket_spk_v2');
+      const existing = saved ? JSON.parse(saved) : [];
+      localStorage.setItem('ruangmarket_spk_v2', JSON.stringify([newBatch, ...existing]));
+      window.dispatchEvent(new Event('storage'));
+
+      toastSuccess(`Berhasil menarik pesanan baru (${newBatch.kode_produksi}) dan dibuatkan SPK!`);
+    } catch (err) {
+      toastError(`Gagal tarik pesanan: ${err.message}`);
     }
   };
 
@@ -750,26 +866,70 @@ export default function MarketplaceView({ onBack }) {
                         </span>
                       </td>
                       <td style={{ padding: '12px 18px', textAlign: 'center' }}>
-                        <button
-                          title="Putuskan Toko"
-                          onClick={() => handleDisconnect(item.id, item.shopName)}
-                          style={{
-                            padding: '5px 10px',
-                            borderRadius: '5px',
-                            border: '1px solid #fee2e2',
-                            backgroundColor: '#fff5f5',
-                            color: '#dc2626',
-                            fontSize: '11px',
-                            fontWeight: '700',
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '4px'
-                          }}
-                        >
-                          <Trash2 size={12} />
-                          <span>Putus</span>
-                        </button>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                          <button
+                            title="Tarik Produk dari Toko Ini"
+                            onClick={() => handleSyncProduk(item)}
+                            style={{
+                              padding: '5px 9px',
+                              borderRadius: '5px',
+                              border: '1px solid #bfdbfe',
+                              backgroundColor: '#eff6ff',
+                              color: '#1d4ed8',
+                              fontSize: '11px',
+                              fontWeight: '700',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}
+                          >
+                            <Download size={12} />
+                            <span>Tarik Produk</span>
+                          </button>
+
+                          <button
+                            title="Tarik Pesanan Terbaru dari Toko Ini"
+                            onClick={() => handleSyncPesanan(item)}
+                            style={{
+                              padding: '5px 9px',
+                              borderRadius: '5px',
+                              border: '1px solid #bbf7d0',
+                              backgroundColor: '#f0fdf4',
+                              color: '#15803d',
+                              fontSize: '11px',
+                              fontWeight: '700',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}
+                          >
+                            <ShoppingCart size={12} />
+                            <span>Tarik Pesanan</span>
+                          </button>
+
+                          <button
+                            title="Putuskan Toko"
+                            onClick={() => handleDisconnect(item.id, item.shopName)}
+                            style={{
+                              padding: '5px 8px',
+                              borderRadius: '5px',
+                              border: '1px solid #fee2e2',
+                              backgroundColor: '#fff5f5',
+                              color: '#dc2626',
+                              fontSize: '11px',
+                              fontWeight: '700',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}
+                          >
+                            <Trash2 size={12} />
+                            <span>Putus</span>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
