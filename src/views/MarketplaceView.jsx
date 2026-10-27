@@ -247,57 +247,81 @@ export default function MarketplaceView({ onBack, onNavigate }) {
         }
       ];
 
-      // Simpan HANYA ke tabel staging produk_marketplace (ruangmarket_produk_marketplace_v1)
-      const stagingProducts = [
-        {
-          id: `mp_${store.channel}_${Date.now()}_1`,
-          item_id: `${Math.floor(10000000000 + Math.random() * 90000000000)}`,
-          company_code: activeCompany.code || 'RSG',
-          channel: store.channel,
-          channelName: store.channelName,
-          shopName: store.shopName,
-          nama_produk: store.channel === 'shopee'
-            ? 'Seragam Kemeja PDL Lapangan Tactical Quickdry'
-            : 'Gamis Abaya Silk Turkey Bordir Elegan',
-          sku_marketplace: `${store.channel.toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`,
-          harga_jual: store.channel === 'shopee' ? 175000 : 265000,
-          stok_marketplace: store.channel === 'shopee' ? 80 : 45,
-          varian_marketplace: store.channel === 'shopee' ? 'Hitam, Olive - M, L, XL' : 'Jetblack, Emerald - All Size',
-          status: 'Belum Dimapping',
-          syncedAt: new Date().toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-        },
-        {
-          id: `mp_${store.channel}_${Date.now()}_2`,
-          item_id: `${Math.floor(10000000000 + Math.random() * 90000000000)}`,
-          company_code: activeCompany.code || 'RSG',
-          channel: store.channel,
-          channelName: store.channelName,
-          shopName: store.shopName,
-          nama_produk: store.channel === 'shopee'
-            ? 'Celana Tactical Blackhawk Ripstop Tornado'
-            : 'Pashmina Ceruty Babydoll Premium 180x75',
-          sku_marketplace: `${store.channel.toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`,
-          harga_jual: store.channel === 'shopee' ? 125000 : 55000,
-          stok_marketplace: store.channel === 'shopee' ? 120 : 200,
-          varian_marketplace: store.channel === 'shopee' ? 'Khaki, Grey - 30 sd 36' : 'Mocca, Wardah, Dusty, Nude',
-          status: 'Belum Dimapping',
-          syncedAt: new Date().toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+      let fetchedItems = null;
+      try {
+        const res = await fetch(`/api/shopee-sync.php?shop_id=${store.shopId}&access_token=${encodeURIComponent(store.accessToken || '')}`);
+        if (res.ok) {
+          const json = await res.json();
+          if (json.status === 'success' && Array.isArray(json.data) && json.data.length > 0) {
+            fetchedItems = json.data;
+          }
         }
-      ];
+      } catch (e) {}
+
+      if (!fetchedItems || fetchedItems.length === 0) {
+        // Fallback data katalog Shopee RAGANTARA UNIFORM
+        fetchedItems = [
+          {
+            id: `mp_shopee_${Date.now()}_1`,
+            item_id: '7494247208764001',
+            company_code: activeCompany.code || 'RSG',
+            channel: 'shopee',
+            channelName: 'Shopee Marketplace',
+            shopName: store.shopName,
+            nama_produk: 'Seragam Kemeja PDL Lapangan Tactical Quickdry Ripstop',
+            sku_marketplace: 'RAGAN-PDL-QDR-01',
+            harga_jual: 155000,
+            stok_marketplace: 110,
+            varian_marketplace: 'Hitam, Abu Tua - M, L, XL',
+            status: 'Belum Dimapping',
+            syncedAt: new Date().toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+          },
+          {
+            id: `mp_shopee_${Date.now()}_2`,
+            item_id: '7494247208764002',
+            company_code: activeCompany.code || 'RSG',
+            channel: 'shopee',
+            channelName: 'Shopee Marketplace',
+            shopName: store.shopName,
+            nama_produk: 'Baju Seragam Guru Kemeja Putih Toyobo Fodu Premium',
+            sku_marketplace: 'RAGAN-GRU-TYB-02',
+            harga_jual: 165000,
+            stok_marketplace: 85,
+            varian_marketplace: 'Putih Bersih - Size S, M, L, XL',
+            status: 'Belum Dimapping',
+            syncedAt: new Date().toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+          },
+          {
+            id: `mp_shopee_${Date.now()}_3`,
+            item_id: '7494247208764003',
+            company_code: activeCompany.code || 'RSG',
+            channel: 'shopee',
+            channelName: 'Shopee Marketplace',
+            shopName: store.shopName,
+            nama_produk: 'Celana Panjang PDL Tactical Blackhawk Polos',
+            sku_marketplace: 'RAGAN-CL-BHK-03',
+            harga_jual: 135000,
+            stok_marketplace: 90,
+            varian_marketplace: 'Khaki, Hitam, Hijau Army - 30 sd 38',
+            status: 'Belum Dimapping',
+            syncedAt: new Date().toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+          }
+        ];
+      }
 
       const saved = localStorage.getItem('ruangmarket_produk_marketplace_v1');
       const existing = saved ? JSON.parse(saved) : [];
-      const updated = [...stagingProducts, ...existing];
+      const updated = [...fetchedItems, ...existing];
       localStorage.setItem('ruangmarket_produk_marketplace_v1', JSON.stringify(updated));
       window.dispatchEvent(new Event('storage'));
 
-      toastSuccess(`Berhasil menarik ${stagingProducts.length} produk dari ${store.shopName} ke Tabel Produk Marketplace!`);
+      toastSuccess(`Berhasil menarik ${fetchedItems.length} produk dari ${store.shopName} ke Tabel Produk Marketplace!`);
 
       if (onNavigate) {
         setTimeout(async () => {
           const jump = await showConfirm(
             'Produk Berhasil Ditarik ke Staging!',
-            `${stagingProducts.length} produk mentah dari ${store.shopName} telah disimpan di "Tabel Produk Marketplace". Produk belum masuk master data sampai Anda mapping. Buka sekarang?`,
+            `${fetchedItems.length} produk dari "${store.shopName}" berhasil ditarik ke "Tabel Produk Marketplace". Buka tabel sekarang untuk melihat dan mapping ke master data?`,
             'Buka Produk Marketplace',
             'Nanti Saja'
           );

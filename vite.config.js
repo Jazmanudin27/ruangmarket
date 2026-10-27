@@ -61,6 +61,41 @@ function marketplacePlugin() {
         res.writeHead(302, { Location: `/#marketplace?channel=tiktok&code=${code || ''}` });
         res.end();
       });
+
+      // 4. Proxy Fetch Produk Shopee Open API
+      server.middlewares.use('/api/marketplace/sync-shopee', async (req, res) => {
+        const partnerId = 2036279;
+        const partnerKey = 'shpk59526e67746975637544656f774b525973634654617446624f6867646677';
+        const urlObj = new URL(req.url, 'http://localhost:3000');
+        const shopId = urlObj.searchParams.get('shop_id') || '7494247208764540234';
+        const accessToken = urlObj.searchParams.get('access_token') || 'ROW_vxeWOQAAAADXzfcAbFNM2vF4sGvyrLklGCfVKYb9V5U-xAv3eYbj0WBp9k2DaBWQbhCs-Nbbf4CSvM0IRczhb3W_CpJb8PFK9NI72ydb0H8KkODzV-mB_tm_ZKGrQzybH1Btsfmr9OrmweBcvcbahhhqu7HsWUmifb_YB8gx-vonfi12uUm364iWKOTekkTQD2SUc4xrQKH2a1pKTA4mG4_5ftCNdi9B';
+
+        try {
+          const timestamp = Math.floor(Date.now() / 1000);
+          const path = '/api/v2/product/get_item_list';
+          const baseString = `${partnerId}${path}${timestamp}${accessToken}${shopId}`;
+          const sign = crypto.createHmac('sha256', partnerKey).update(baseString).digest('hex');
+
+          const shopeeUrl = `https://partner.shopeemobile.com${path}?partner_id=${partnerId}&timestamp=${timestamp}&access_token=${accessToken}&shop_id=${shopId}&sign=${sign}&offset=0&page_size=20&item_status=NORMAL`;
+          
+          const https = await import('https');
+          const fetchPromise = new Promise((resolve, reject) => {
+            https.get(shopeeUrl, (shopeeRes) => {
+              let data = '';
+              shopeeRes.on('data', chunk => data += chunk);
+              shopeeRes.on('end', () => resolve(JSON.parse(data)));
+            }).on('error', err => reject(err));
+          });
+
+          const json = await fetchPromise;
+          res.setHeader('Content-Type', 'application/json');
+          return res.end(JSON.stringify(json));
+        } catch (err) {
+          res.statusCode = 500;
+          res.setHeader('Content-Type', 'application/json');
+          return res.end(JSON.stringify({ error: err.message }));
+        }
+      });
     }
   };
 }
