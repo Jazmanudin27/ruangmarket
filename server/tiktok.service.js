@@ -1,10 +1,11 @@
 import crypto from 'crypto';
 import https from 'https';
+import './env.js';
 
 export class TiktokService {
   constructor(config = {}) {
-    this.appKey = config.appKey || '6k51f66j8f7ki';
-    this.appSecret = config.appSecret || 'e97ebfc5a0b73df7218671752b57bf4ee2e27c08';
+    this.appKey = config.appKey || process.env.TIKTOK_APP_KEY || '6k51f66j8f7ki';
+    this.appSecret = config.appSecret || process.env.TIKTOK_APP_SECRET || '';
     this.baseUrl = config.baseUrl || 'https://open-api.tiktokglobalshop.com';
     this.authBaseUrl = 'https://services.tiktokshop.com/open/authorize';
     this.redirectUri = config.redirectUri || 'https://market.ruangtech.com/tiktok/callback';

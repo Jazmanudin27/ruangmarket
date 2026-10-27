@@ -1,10 +1,11 @@
 import crypto from 'crypto';
 import https from 'https';
+import './env.js';
 
 export class ShopeeService {
   constructor(config = {}) {
-    this.partnerId = Number(config.partnerId || 2036279);
-    this.partnerKey = config.partnerKey || 'shpk59526e67746975637544656f774b525973634654617446624f6867646677';
+    this.partnerId = Number(config.partnerId || process.env.SHOPEE_PARTNER_ID || 2036279);
+    this.partnerKey = config.partnerKey || process.env.SHOPEE_PARTNER_KEY || 'shpk59526e67746975637544656f774b525973634654617446624f6867646677';
     this.baseUrl = config.baseUrl || 'https://partner.shopeemobile.com';
   }
 
