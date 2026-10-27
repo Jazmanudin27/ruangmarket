@@ -197,26 +197,38 @@ export class ShopeeService {
     const details = await this.getItemBaseInfo(sId, accessToken, itemIds.slice(0, 20));
 
     return details.map(d => {
+      // 1. Ekstraksi Harga
       let harga = 0;
-      if (d.price_info?.[0]?.current_price) harga = d.price_info[0].current_price;
-      else if (d.price_info?.[0]?.original_price) harga = d.price_info[0].original_price;
+      if (d.price_info && Array.isArray(d.price_info) && d.price_info.length > 0) {
+        harga = d.price_info[0].current_price || d.price_info[0].original_price || 0;
+      } else if (d.price) {
+        harga = d.price;
+      }
 
+      // 2. Ekstraksi Stok
       let stok = 0;
       if (d.stock_info_v2?.summary_info?.total_available_stock !== undefined) {
         stok = d.stock_info_v2.summary_info.total_available_stock;
+      } else if (d.stock_info && Array.isArray(d.stock_info) && d.stock_info[0]?.normal_stock !== undefined) {
+        stok = d.stock_info[0].normal_stock;
+      } else if (d.stock !== undefined) {
+        stok = d.stock;
       }
+
+      // 3. Nama Toko
+      const shopTitle = d.shop_name || 'Koperasi Sahabat Anak Bangsa';
 
       return {
         id: `shopee_${d.item_id}`,
         item_id: String(d.item_id),
         channel: 'shopee',
         channelName: 'Shopee Marketplace',
-        shopName: 'RAGANTARA UNIFORM',
+        shopName: shopTitle,
         nama_produk: d.item_name || 'Produk Shopee',
         sku_marketplace: d.item_sku || `SHOPEE-${d.item_id}`,
-        harga_jual: harga,
-        stok_marketplace: stok,
-        varian_marketplace: 'Standard',
+        harga_jual: Number(harga) || 0,
+        stok_marketplace: Number(stok) || 0,
+        varian_marketplace: d.has_model ? 'Ada Varian' : 'Standard',
         status: 'Belum Dimapping',
         syncedAt: new Date().toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
       };
