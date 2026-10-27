@@ -79,14 +79,83 @@ const server = http.createServer(async (req, res) => {
     return res.end();
   }
 
-  // 5. Shopee Products Sync API
+  // 5. API Toko Terhubung dari Database MySQL
+  if (pathname === '/api/marketplace/stores' && req.method === 'GET') {
+    try {
+      const [rows] = await pool.query(`
+        SELECT 
+          id, kode_perusahaan as company_code, saluran as channel, 
+          nama_saluran as channelName, nama_toko as shopName, id_toko as shopId,
+          logo_toko as logo, cipher_toko as cipher, token_akses as accessToken,
+          token_refresh as refreshToken, kadaluarsa_pada as expiresAt,
+          status_koneksi as status, sinkron_stok_otomatis as autoSyncStok
+        FROM toko_marketplace
+      `);
+      return sendJson(res, 200, { status: 'success', data: rows });
+    } catch (err) {
+      return sendJson(res, 500, { status: 'error', message: err.message });
+    }
+  }
+
+  // 6. API Ambil Data Produk Marketplace Staging dari MySQL
+  if (pathname === '/api/marketplace/products' && req.method === 'GET') {
+    try {
+      const [rows] = await pool.query(`
+        SELECT 
+          id, id_produk_marketplace as item_id, kode_perusahaan as company_code,
+          saluran as channel, nama_saluran as channelName, nama_toko as shopName,
+          id_toko as shopId, nama_produk, sku_marketplace, harga_jual,
+          stok_marketplace, varian as varian_marketplace, status_mapping as status,
+          DATE_FORMAT(ditarik_pada, '%d %b %Y, %H:%i') as syncedAt
+        FROM produk_marketplace
+        ORDER BY ditarik_pada DESC
+      `);
+      return sendJson(res, 200, { status: 'success', data: rows });
+    } catch (err) {
+      return sendJson(res, 500, { status: 'error', message: err.message });
+    }
+  }
+
+  // 7. Shopee Products Sync API (Langsung simpan ke MySQL)
   if (pathname === '/api/marketplace/shopee/products' && req.method === 'GET') {
     const shopId = urlObj.searchParams.get('shop_id') || '1030191310';
-    const accessToken = urlObj.searchParams.get('access_token') || 'eyJhbGciOiJIUzI1NiJ9.CLekfBABGM7xnesDIAEozLKC1wYw_4S4xwk4AUABSAc.Akf_2_Oh892XxGfWUbY4HXNPqIn3DsQUBZpI1DTivMY';
+    let accessToken = urlObj.searchParams.get('access_token');
 
     try {
+      // Ambil token dari MySQL jika tidak dikirim dari frontend
+      if (!accessToken) {
+        const [storeRows] = await pool.query('SELECT token_akses FROM toko_marketplace WHERE id_toko = ?', [shopId]);
+        if (storeRows.length > 0 && storeRows[0].token_akses) {
+          accessToken = storeRows[0].token_akses;
+        }
+      }
+
       console.log(`[Shopee] Syncing products for shopId: ${shopId}...`);
       const products = await shopeeService.syncProducts(shopId, accessToken);
+
+      // Simpan langsung ke database MySQL (produk_marketplace)
+      for (const p of products) {
+        await pool.query(`
+          INSERT INTO produk_marketplace (
+            id, id_produk_marketplace, kode_perusahaan, saluran, 
+            nama_saluran, nama_toko, id_toko, nama_produk, 
+            sku_marketplace, harga_jual, stok_marketplace, varian, status_mapping
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON DUPLICATE KEY UPDATE
+            nama_produk = VALUES(nama_produk),
+            sku_marketplace = VALUES(sku_marketplace),
+            harga_jual = VALUES(harga_jual),
+            stok_marketplace = VALUES(stok_marketplace),
+            varian = VALUES(varian),
+            diperbarui_pada = CURRENT_TIMESTAMP
+        `, [
+          p.id, p.item_id, 'RSG', 'shopee',
+          'Shopee Marketplace', p.shopName || 'Koperasi Sahabat Anak Bangsa', shopId,
+          p.nama_produk, p.sku_marketplace, p.harga_jual, p.stok_marketplace,
+          p.varian_marketplace, p.status || 'Belum Dimapping'
+        ]);
+      }
+
       return sendJson(res, 200, {
         status: 'success',
         count: products.length,
@@ -101,7 +170,7 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
-  // 6. TikTok Products Sync API
+  // 8. TikTok Products Sync API (Langsung simpan ke MySQL)
   if (pathname === '/api/marketplace/tiktok/products' && req.method === 'GET') {
     const accessToken = urlObj.searchParams.get('access_token');
     const shopCipher = urlObj.searchParams.get('shop_cipher') || 'ROW_Hbd_fAAAAACqX58asQX4uCOsoefXXn4c';
@@ -113,6 +182,28 @@ const server = http.createServer(async (req, res) => {
     try {
       console.log(`[TikTok] Syncing products...`);
       const products = await tiktokService.syncProducts(accessToken, shopCipher);
+
+      for (const p of products) {
+        await pool.query(`
+          INSERT INTO produk_marketplace (
+            id, id_produk_marketplace, kode_perusahaan, saluran, 
+            nama_saluran, nama_toko, id_toko, nama_produk, 
+            sku_marketplace, harga_jual, stok_marketplace, varian, status_mapping
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON DUPLICATE KEY UPDATE
+            nama_produk = VALUES(nama_produk),
+            sku_marketplace = VALUES(sku_marketplace),
+            harga_jual = VALUES(harga_jual),
+            stok_marketplace = VALUES(stok_marketplace),
+            diperbarui_pada = CURRENT_TIMESTAMP
+        `, [
+          p.id, p.item_id, 'RSG', 'tiktok',
+          'TikTok Shop', p.shopName || 'TikTok Store', p.shopId || '',
+          p.nama_produk, p.sku_marketplace, p.harga_jual, p.stok_marketplace,
+          p.varian_marketplace, p.status || 'Belum Dimapping'
+        ]);
+      }
+
       return sendJson(res, 200, {
         status: 'success',
         count: products.length,
