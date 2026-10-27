@@ -16,7 +16,10 @@ import {
   Plus,
   DownloadCloud,
   FileText,
-  X
+  X,
+  Copy,
+  ShieldAlert,
+  HelpCircle
 } from 'lucide-react';
 import { showConfirm, toastSuccess, toastError } from '../utils/alert.util';
 import { getActiveCompany } from '../utils/tenant.util';
@@ -31,6 +34,7 @@ export default function ProdukMarketplaceView({ onNavigate }) {
   const [filterChannel, setFilterChannel] = useState('Semua');
   const [isLoadingSync, setIsLoadingSync] = useState(false);
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
+  const [apiErrorModal, setApiErrorModal] = useState(null);
 
   // Form input manual / paste
   const [manualForm, setManualForm] = useState({
@@ -48,59 +52,28 @@ export default function ProdukMarketplaceView({ onNavigate }) {
     return () => window.removeEventListener('companyChange', handleCompanyChange);
   }, []);
 
-  // Data staging produk marketplace (sebelum masuk ke master produk)
+  // Data staging produk marketplace (KOSONG secara default, bersihkan sample dummy lama)
   const [mktProdukList, setMktProdukList] = useState(() => {
     try {
       const saved = localStorage.getItem(PRODUK_MARKETPLACE_KEY);
-      if (saved) return JSON.parse(saved);
-    } catch (e) {}
-    return [
-      {
-        id: 'mp_ragan_01',
-        item_id: '25983719283',
-        company_code: 'RSG',
-        channel: 'shopee',
-        channelName: 'Shopee Marketplace',
-        shopName: 'RAGANTARA UNIFORM',
-        nama_produk: 'Seragam Kemeja PDL Lapangan Tactical Ripstop',
-        sku_marketplace: 'RAGAN-PDL-001',
-        harga_jual: 145000,
-        stok_marketplace: 120,
-        varian_marketplace: 'Khaki Army - Size L, XL',
-        status: 'Belum Dimapping',
-        syncedAt: '27 Okt 2026, 19:35'
-      },
-      {
-        id: 'mp_ragan_02',
-        item_id: '25983719284',
-        company_code: 'RSG',
-        channel: 'shopee',
-        channelName: 'Shopee Marketplace',
-        shopName: 'RAGANTARA UNIFORM',
-        nama_produk: 'Baju Seragam Guru Kemeja Putih Toyobo Fodu',
-        sku_marketplace: 'RAGAN-GRU-002',
-        harga_jual: 165000,
-        stok_marketplace: 85,
-        varian_marketplace: 'Putih Bersih - Size M, L',
-        status: 'Belum Dimapping',
-        syncedAt: '27 Okt 2026, 19:35'
-      },
-      {
-        id: 'mp_ragan_03',
-        item_id: '25983719285',
-        company_code: 'RSG',
-        channel: 'shopee',
-        channelName: 'Shopee Marketplace',
-        shopName: 'RAGANTARA UNIFORM',
-        nama_produk: 'Celana Panjang Tactical Blackhawk Ripstop Tornado',
-        sku_marketplace: 'RAGAN-CL-003',
-        harga_jual: 135000,
-        stok_marketplace: 95,
-        varian_marketplace: 'Hitam, Cream - Size 30-36',
-        status: 'Belum Dimapping',
-        syncedAt: '27 Okt 2026, 19:35'
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          // Bersihkan data dummy sample lama yang terduplikasi
+          const cleaned = parsed.filter(p => 
+            !p.id?.startsWith('mp_ragan_') && 
+            !p.id?.startsWith('mp_shopee_') && 
+            !p.item_id?.startsWith('749424720876400')
+          );
+          localStorage.setItem(PRODUK_MARKETPLACE_KEY, JSON.stringify(cleaned));
+          return cleaned;
+        }
       }
-    ];
+    } catch (e) {}
+    try {
+      localStorage.setItem(PRODUK_MARKETPLACE_KEY, JSON.stringify([]));
+    } catch (e) {}
+    return [];
   });
 
   useEffect(() => {
@@ -125,13 +98,31 @@ export default function ProdukMarketplaceView({ onNavigate }) {
     return true;
   });
 
-  // Fungsi Tarik Produk Shopee (Call Shopee API atau Proxy)
+  // Kosongkan seluruh isi staging
+  const handleClearAll = async () => {
+    if (mktProdukList.length === 0) {
+      toastSuccess('Tabel produk marketplace sudah kosong.');
+      return;
+    }
+    const confirmed = await showConfirm(
+      'Kosongkan Tabel Marketplace?',
+      `Hapus semua ${mktProdukList.length} produk dari antrian staging marketplace?`,
+      'Ya, Kosongkan',
+      'Batal'
+    );
+    if (confirmed) {
+      setMktProdukList([]);
+      localStorage.setItem(PRODUK_MARKETPLACE_KEY, JSON.stringify([]));
+      toastSuccess('Tabel produk marketplace berhasil dikosongkan!');
+    }
+  };
+
+  // Fungsi Tarik Produk Shopee Resmi
   const handleSyncFromShopee = async () => {
     setIsLoadingSync(true);
     toastSuccess('Menghubungi Shopee Open API v2 (Shop ID: 7494247208764540234)...');
 
     try {
-      // Ambil token dari storage toko terhubung
       let shopId = '7494247208764540234';
       let accessToken = 'ROW_vxeWOQAAAADXzfcAbFNM2vF4sGvyrLklGCfVKYb9V5U-xAv3eYbj0WBp9k2DaBWQbhCs-Nbbf4CSvM0IRczhb3W_CpJb8PFK9NI72ydb0H8KkODzV-mB_tm_ZKGrQzybH1Btsfmr9OrmweBcvcbahhhqu7HsWUmifb_YB8gx-vonfi12uUm364iWKOTekkTQD2SUc4xrQKH2a1pKTA4mG4_5ftCNdi9B';
 
@@ -147,123 +138,66 @@ export default function ProdukMarketplaceView({ onNavigate }) {
         }
       } catch (e) {}
 
-      // Coba fetch backend proxy
-      let fetchedItems = null;
+      let apiResponse = null;
+      let isSuccess = false;
+
+      // Coba fetch backend
       try {
         const res = await fetch(`/api/shopee-sync.php?shop_id=${shopId}&access_token=${encodeURIComponent(accessToken)}`);
-        if (res.ok) {
-          const json = await res.json();
-          if (json.status === 'success' && Array.isArray(json.data) && json.data.length > 0) {
-            fetchedItems = json.data;
-          } else if (json.message) {
-            console.warn('Shopee API response:', json.message);
+        const text = await res.text();
+        if (text.startsWith('{')) {
+          apiResponse = JSON.parse(text);
+          if (apiResponse.status === 'success' && Array.isArray(apiResponse.data) && apiResponse.data.length > 0) {
+            isSuccess = true;
+            setMktProdukList(prev => [...apiResponse.data, ...prev]);
+            toastSuccess(`Berhasil menarik ${apiResponse.data.length} produk asli dari Shopee!`);
           }
         }
-      } catch (err) {
-        // Fallback dev proxy
+      } catch (e) {}
+
+      // Jika tidak sukses via PHP, coba dev server proxy
+      if (!isSuccess) {
         try {
           const devRes = await fetch(`/api/marketplace/sync-shopee?shop_id=${shopId}&access_token=${encodeURIComponent(accessToken)}`);
-          if (devRes.ok) {
-            const devJson = await devRes.json();
-            if (devJson.response && devJson.response.item) {
-              fetchedItems = devJson.response.item.map((item, idx) => ({
-                id: `shopee_${item.item_id}`,
-                item_id: String(item.item_id),
-                company_code: activeCompany.code || 'RSG',
-                channel: 'shopee',
-                channelName: 'Shopee Marketplace',
-                shopName: 'RAGANTARA UNIFORM',
-                nama_produk: `Produk Shopee #${item.item_id}`,
-                sku_marketplace: `SHOPEE-${item.item_id}`,
-                harga_jual: 150000,
-                stok_marketplace: 50,
-                varian_marketplace: 'Standard',
-                status: 'Belum Dimapping',
-                syncedAt: new Date().toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-              }));
-            }
+          const devJson = await devRes.json();
+          apiResponse = devJson;
+          if (devJson.response && devJson.response.item && devJson.response.item.length > 0) {
+            isSuccess = true;
+            const items = devJson.response.item.map((item) => ({
+              id: `shopee_${item.item_id}`,
+              item_id: String(item.item_id),
+              company_code: activeCompany.code || 'RSG',
+              channel: 'shopee',
+              channelName: 'Shopee Marketplace',
+              shopName: 'RAGANTARA UNIFORM',
+              nama_produk: `Produk Shopee #${item.item_id}`,
+              sku_marketplace: `SHOPEE-${item.item_id}`,
+              harga_jual: 150000,
+              stok_marketplace: 50,
+              varian_marketplace: 'Standard',
+              status: 'Belum Dimapping',
+              syncedAt: new Date().toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+            }));
+            setMktProdukList(prev => [...items, ...prev]);
+            toastSuccess(`Berhasil menarik ${items.length} produk asli dari Shopee!`);
           }
         } catch (e) {}
       }
 
-      // Jika koneksi langsung API Shopee memerlukan whitelist IP di Shopee Open Platform Console,
-      // kita sajikan katalog resmi produk Toko RAGANTARA UNIFORM agar workflow tidak terhenti
-      if (!fetchedItems || fetchedItems.length === 0) {
-        const sampleCatalog = [
-          {
-            id: `mp_shopee_${Date.now()}_1`,
-            item_id: '7494247208764001',
-            company_code: activeCompany.code || 'RSG',
-            channel: 'shopee',
-            channelName: 'Shopee Marketplace',
-            shopName: 'RAGANTARA UNIFORM',
-            nama_produk: 'Seragam Kemeja PDL Lapangan Tactical Quickdry Ripstop',
-            sku_marketplace: 'RAGAN-PDL-QDR-01',
-            harga_jual: 155000,
-            stok_marketplace: 110,
-            varian_marketplace: 'Hitam, Abu Tua - M, L, XL, XXL',
-            status: 'Belum Dimapping',
-            syncedAt: new Date().toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-          },
-          {
-            id: `mp_shopee_${Date.now()}_2`,
-            item_id: '7494247208764002',
-            company_code: activeCompany.code || 'RSG',
-            channel: 'shopee',
-            channelName: 'Shopee Marketplace',
-            shopName: 'RAGANTARA UNIFORM',
-            nama_produk: 'Baju Seragam Guru Kemeja Putih Toyobo Fodu Premium',
-            sku_marketplace: 'RAGAN-GRU-TYB-02',
-            harga_jual: 165000,
-            stok_marketplace: 85,
-            varian_marketplace: 'Putih Bersih - Size S, M, L, XL',
-            status: 'Belum Dimapping',
-            syncedAt: new Date().toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-          },
-          {
-            id: `mp_shopee_${Date.now()}_3`,
-            item_id: '7494247208764003',
-            company_code: activeCompany.code || 'RSG',
-            channel: 'shopee',
-            channelName: 'Shopee Marketplace',
-            shopName: 'RAGANTARA UNIFORM',
-            nama_produk: 'Celana Panjang PDL Tactical Blackhawk Polos',
-            sku_marketplace: 'RAGAN-CL-BHK-03',
-            harga_jual: 135000,
-            stok_marketplace: 90,
-            varian_marketplace: 'Khaki, Hitam, Hijau Army - 30 sd 38',
-            status: 'Belum Dimapping',
-            syncedAt: new Date().toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-          },
-          {
-            id: `mp_shopee_${Date.now()}_4`,
-            item_id: '7494247208764004',
-            company_code: activeCompany.code || 'RSG',
-            channel: 'shopee',
-            channelName: 'Shopee Marketplace',
-            shopName: 'RAGANTARA UNIFORM',
-            nama_produk: 'Kemeja Safari Seragam Pria Drill Lengan Pendek / Panjang',
-            sku_marketplace: 'RAGAN-SFR-DRL-04',
-            harga_jual: 185000,
-            stok_marketplace: 65,
-            varian_marketplace: 'Coklat Tua, Biru Dongker - Size L, XL',
-            status: 'Belum Dimapping',
-            syncedAt: new Date().toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-          }
-        ];
-        fetchedItems = sampleCatalog;
+      // Jika Shopee menolak karena IP Whitelist / Security Shopee Open Platform:
+      if (!isSuccess) {
+        setApiErrorModal({
+          title: 'Shopee Open API: Butuh Whitelist IP Server',
+          serverIp: '31.97.109.165',
+          domain: 'market.ruangtech.com',
+          shopId,
+          rawError: apiResponse?.message || apiResponse?.error || 'source_ip_undeclared',
+          message: 'Shopee Open Platform mewajibkan IP Server dideklarasikan terlebih dahulu sebelum API /api/v2/product diizinkan mengambil data toko.'
+        });
       }
 
-      setMktProdukList(prev => {
-        // Jangan duplikat item_id
-        const existingItemIds = new Set(prev.map(p => p.item_id));
-        const newOnes = fetchedItems.filter(f => !existingItemIds.has(f.item_id));
-        return [...newOnes, ...prev];
-      });
-
-      toastSuccess(`Berhasil menarik ${fetchedItems.length} produk dari Shopee Toko RAGANTARA UNIFORM!`);
     } catch (err) {
-      toastError(`Gagal tarik Shopee: ${err.message}`);
+      toastError(`Gagal menghubungi API: ${err.message}`);
     } finally {
       setIsLoadingSync(false);
     }
@@ -329,7 +263,6 @@ export default function ProdukMarketplaceView({ onNavigate }) {
   const handleSaveManual = (e) => {
     e.preventDefault();
     if (manualForm.batchText.trim()) {
-      // Parse multi line
       const lines = manualForm.batchText.split('\n').filter(l => l.trim());
       const newItems = lines.map((line, idx) => {
         const parts = line.split('\t');
@@ -355,7 +288,7 @@ export default function ProdukMarketplaceView({ onNavigate }) {
       });
 
       setMktProdukList(prev => [...newItems, ...prev]);
-      toastSuccess(`Berhasil mengimpor ${newItems.length} produk dari teks!`);
+      toastSuccess(`Berhasil mengimpor ${newItems.length} produk!`);
       setIsManualModalOpen(false);
       setManualForm({ nama_produk: '', sku_marketplace: '', harga_jual: '', stok_marketplace: '', varian_marketplace: 'All Size', batchText: '' });
       return;
@@ -489,6 +422,28 @@ export default function ProdukMarketplaceView({ onNavigate }) {
             <span>+ Input / Paste Katalog</span>
           </button>
 
+          {/* Tombol Kosongkan Tabel */}
+          <button
+            onClick={handleClearAll}
+            title="Kosongkan seluruh data di antrian staging"
+            style={{
+              padding: '8px 12px',
+              borderRadius: '6px',
+              backgroundColor: '#fff1f2',
+              color: '#e11d48',
+              border: '1px solid #fecdd3',
+              fontSize: '12px',
+              fontWeight: '700',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+          >
+            <Trash2 size={14} />
+            <span>Kosongkan Tabel</span>
+          </button>
+
           <button
             onClick={() => onNavigate && onNavigate('marketplace')}
             style={{
@@ -571,34 +526,68 @@ export default function ProdukMarketplaceView({ onNavigate }) {
 
         {/* TABEL PRODUK */}
         {filteredItems.length === 0 ? (
-          <div style={{ padding: '48px 20px', textAlign: 'center' }}>
-            <ShoppingBag size={48} color="#cbd5e1" style={{ margin: '0 auto 12px' }} />
-            <h3 style={{ margin: '0 0 6px', fontSize: '15px', fontWeight: '700', color: '#1e293b' }}>
-              Belum Ada Produk di Staging
+          <div style={{ padding: '60px 20px', textAlign: 'center' }}>
+            <div style={{
+              width: '64px',
+              height: '64px',
+              borderRadius: '50%',
+              backgroundColor: '#f8fafc',
+              border: '1px dashed #cbd5e1',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 16px',
+              color: '#94a3b8'
+            }}>
+              <ShoppingBag size={30} />
+            </div>
+            <h3 style={{ margin: '0 0 6px', fontSize: '16px', fontWeight: '800', color: '#1e293b' }}>
+              Tabel Produk Marketplace Kosong
             </h3>
-            <p style={{ margin: '0 0 16px', fontSize: '12px', color: '#64748b' }}>
-              Klik tombol "Tarik Produk dari Shopee" di atas untuk menyinkronkan data katalog produk dari toko RAGANTARA UNIFORM.
+            <p style={{ margin: '0 auto 20px', fontSize: '12.5px', color: '#64748b', maxWidth: '480px', lineHeight: '1.5' }}>
+              Belum ada produk di antrian. Anda dapat menarik langsung dari Shopee Open API atau mengimpor data produk dari Shopee Seller Centre via tombol di bawah.
             </p>
-            <button
-              onClick={handleSyncFromShopee}
-              disabled={isLoadingSync}
-              style={{
-                padding: '8px 16px',
-                borderRadius: '6px',
-                backgroundColor: '#ee4d2d',
-                color: '#ffffff',
-                border: 'none',
-                fontSize: '12px',
-                fontWeight: '700',
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}
-            >
-              <RefreshCw size={14} />
-              <span>Tarik Produk Shopee Sekarang</span>
-            </button>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', flexWrap: 'wrap' }}>
+              <button
+                onClick={handleSyncFromShopee}
+                disabled={isLoadingSync}
+                style={{
+                  padding: '9px 18px',
+                  borderRadius: '6px',
+                  backgroundColor: '#ee4d2d',
+                  color: '#ffffff',
+                  border: 'none',
+                  fontSize: '12px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                <RefreshCw size={14} />
+                <span>Tarik dari Shopee API</span>
+              </button>
+              <button
+                onClick={() => setIsManualModalOpen(true)}
+                style={{
+                  padding: '9px 18px',
+                  borderRadius: '6px',
+                  backgroundColor: '#10b981',
+                  color: '#ffffff',
+                  border: 'none',
+                  fontSize: '12px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                <Plus size={14} />
+                <span>+ Paste Katalog Shopee</span>
+              </button>
+            </div>
           </div>
         ) : (
           <div style={{ overflowX: 'auto', width: '100%' }}>
@@ -754,6 +743,163 @@ export default function ProdukMarketplaceView({ onNavigate }) {
         )}
 
       </div>
+
+      {/* MODAL PENJELASAN SHOPEE API WHITELIST */}
+      {apiErrorModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(15, 23, 42, 0.7)',
+          zIndex: 9999,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '20px'
+        }}>
+          <div style={{
+            backgroundColor: '#ffffff',
+            borderRadius: '12px',
+            width: '100%',
+            maxWidth: '560px',
+            boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
+            overflow: 'hidden'
+          }}>
+            <div style={{
+              padding: '16px 20px',
+              backgroundColor: '#fff7ed',
+              borderBottom: '1px solid #fed7aa',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <ShieldAlert size={22} color="#ea580c" />
+                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '800', color: '#9a3412' }}>
+                  {apiErrorModal.title}
+                </h3>
+              </div>
+              <button
+                onClick={() => setApiErrorModal(null)}
+                style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#9a3412' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ padding: '20px' }}>
+              <div style={{
+                backgroundColor: '#fef2f2',
+                border: '1px solid #fecaca',
+                padding: '10px 12px',
+                borderRadius: '6px',
+                marginBottom: '14px',
+                fontSize: '12px',
+                color: '#991b1b',
+                fontFamily: 'monospace'
+              }}>
+                Error Shopee: <strong>{apiErrorModal.rawError}</strong>
+              </div>
+
+              <p style={{ margin: '0 0 12px', fontSize: '12.5px', color: '#334155', lineHeight: '1.5' }}>
+                Shopee Open Platform mewajibkan <strong>IP Address Server</strong> Anda didaftarkan (whitelist) agar API dapat menarik produk toko secara otomatis.
+              </p>
+
+              <div style={{
+                backgroundColor: '#f8fafc',
+                border: '1px solid #e2e8f0',
+                borderRadius: '8px',
+                padding: '12px 14px',
+                marginBottom: '16px'
+              }}>
+                <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', marginBottom: '4px' }}>
+                  IP SERVER VPS ANDA (Tambahkan ini ke Shopee Console):
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                  <code style={{ fontSize: '14px', fontWeight: '800', color: '#0369a1', backgroundColor: '#e0f2fe', padding: '4px 8px', borderRadius: '4px' }}>
+                    {apiErrorModal.serverIp}
+                  </code>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(apiErrorModal.serverIp);
+                      toastSuccess('IP Server 31.97.109.165 disalin ke clipboard!');
+                    }}
+                    style={{
+                      padding: '5px 10px',
+                      borderRadius: '4px',
+                      backgroundColor: '#0284c7',
+                      color: '#ffffff',
+                      border: 'none',
+                      fontSize: '11px',
+                      fontWeight: '700',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}
+                  >
+                    <Copy size={12} />
+                    <span>Salin IP</span>
+                  </button>
+                </div>
+                <div style={{ fontSize: '11px', color: '#64748b', marginTop: '6px' }}>
+                  Domain: <code>{apiErrorModal.domain}</code> • Shop ID: <code>{apiErrorModal.shopId}</code>
+                </div>
+              </div>
+
+              <div style={{ fontSize: '12px', color: '#334155', lineHeight: '1.6', marginBottom: '16px' }}>
+                <strong>Langkah di Shopee Open Platform Console:</strong>
+                <ol style={{ margin: '4px 0 0', paddingLeft: '18px' }}>
+                  <li>Buka <a href="https://console.open.shopee.com" target="_blank" rel="noreferrer" style={{ color: '#ee4d2d', fontWeight: '700' }}>console.open.shopee.com</a></li>
+                  <li>Pilih menu <strong>App list</strong> &gt; Klik App ID <code>2036279</code></li>
+                  <li>Masuk ke tab <strong>App Details</strong> &gt; bagian <strong>IP Address Whitelist</strong></li>
+                  <li>Masukkan IP <code>{apiErrorModal.serverIp}</code> lalu klik <strong>Save</strong></li>
+                </ol>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setApiErrorModal(null);
+                    setIsManualModalOpen(true);
+                  }}
+                  style={{
+                    padding: '8px 14px',
+                    borderRadius: '6px',
+                    backgroundColor: '#10b981',
+                    color: '#ffffff',
+                    border: 'none',
+                    fontSize: '12px',
+                    fontWeight: '700',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Gunakan Paste Katalog Dulu →
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setApiErrorModal(null)}
+                  style={{
+                    padding: '8px 14px',
+                    borderRadius: '6px',
+                    backgroundColor: '#f1f5f9',
+                    color: '#334155',
+                    border: '1px solid #cbd5e1',
+                    fontSize: '12px',
+                    fontWeight: '700',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Tutup
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* MODAL INPUT / PASTE PRODUK MANUAL */}
       {isManualModalOpen && (
