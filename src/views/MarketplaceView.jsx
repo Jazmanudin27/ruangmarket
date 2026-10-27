@@ -248,25 +248,62 @@ export default function MarketplaceView({ onBack, onNavigate }) {
         }
       ];
 
-      // Simpan ke local storage produk master
-      const saved = localStorage.getItem('ruangmarket_produk_gamis_v4');
+      // Simpan HANYA ke tabel staging produk_marketplace (ruangmarket_produk_marketplace_v1)
+      const stagingProducts = [
+        {
+          id: `mp_${store.channel}_${Date.now()}_1`,
+          item_id: `${Math.floor(10000000000 + Math.random() * 90000000000)}`,
+          company_code: activeCompany.code || 'RSG',
+          channel: store.channel,
+          channelName: store.channelName,
+          shopName: store.shopName,
+          nama_produk: store.channel === 'shopee'
+            ? 'Seragam Kemeja PDL Lapangan Tactical Quickdry'
+            : 'Gamis Abaya Silk Turkey Bordir Elegan',
+          sku_marketplace: `${store.channel.toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`,
+          harga_jual: store.channel === 'shopee' ? 175000 : 265000,
+          stok_marketplace: store.channel === 'shopee' ? 80 : 45,
+          varian_marketplace: store.channel === 'shopee' ? 'Hitam, Olive - M, L, XL' : 'Jetblack, Emerald - All Size',
+          status: 'Belum Dimapping',
+          syncedAt: new Date().toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+        },
+        {
+          id: `mp_${store.channel}_${Date.now()}_2`,
+          item_id: `${Math.floor(10000000000 + Math.random() * 90000000000)}`,
+          company_code: activeCompany.code || 'RSG',
+          channel: store.channel,
+          channelName: store.channelName,
+          shopName: store.shopName,
+          nama_produk: store.channel === 'shopee'
+            ? 'Celana Tactical Blackhawk Ripstop Tornado'
+            : 'Pashmina Ceruty Babydoll Premium 180x75',
+          sku_marketplace: `${store.channel.toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`,
+          harga_jual: store.channel === 'shopee' ? 125000 : 55000,
+          stok_marketplace: store.channel === 'shopee' ? 120 : 200,
+          varian_marketplace: store.channel === 'shopee' ? 'Khaki, Grey - 30 sd 36' : 'Mocca, Wardah, Dusty, Nude',
+          status: 'Belum Dimapping',
+          syncedAt: new Date().toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+        }
+      ];
+
+      const saved = localStorage.getItem('ruangmarket_produk_marketplace_v1');
       const existing = saved ? JSON.parse(saved) : [];
-      const updated = [...sampleImportedProducts, ...existing];
-      localStorage.setItem('ruangmarket_produk_gamis_v4', JSON.stringify(updated));
+      const updated = [...stagingProducts, ...existing];
+      localStorage.setItem('ruangmarket_produk_marketplace_v1', JSON.stringify(updated));
       window.dispatchEvent(new Event('storage'));
 
-      toastSuccess(`Berhasil menarik ${sampleImportedProducts.length} produk dari ${store.shopName}!`);
+      toastSuccess(`Berhasil menarik ${stagingProducts.length} produk dari ${store.shopName} ke Tabel Produk Marketplace!`);
 
       if (onNavigate) {
         setTimeout(async () => {
           const jump = await showConfirm(
-            'Produk Berhasil Ditarik!',
-            `${sampleImportedProducts.length} produk baru dari ${store.shopName} telah masuk ke master produk. Buka halaman Data Produk sekarang?`,
-            'Ya, Lihat Produk',
+            'Produk Berhasil Ditarik ke Staging!',
+            `${stagingProducts.length} produk mentah dari ${store.shopName} telah disimpan di "Tabel Produk Marketplace". Produk belum masuk master data sampai Anda mapping. Buka sekarang?`,
+            'Buka Produk Marketplace',
             'Nanti Saja'
           );
           if (jump) {
-            onNavigate('produk');
+            onNavigate('produk_marketplace');
           }
         }, 500);
       }

@@ -212,7 +212,10 @@ export default function ProdukView() {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].tipe_set && !('supplier' in parsed[0])) {
-          return parsed.map(p => ({
+          // Bersihkan data dummy impor marketplace yang sempat masuk langsung
+          const cleaned = parsed.filter(p => !p.sku?.includes('-MKT-') && !p.nama_produk?.includes('(TikTok)') && !p.nama_produk?.includes('(Shopee)'));
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(cleaned));
+          return cleaned.map(p => ({
             ...p,
             estimasi_kain: p.estimasi_kain || 'Kain Polos',
             panjang_kain_cm: p.panjang_kain_cm !== undefined ? p.panjang_kain_cm : 200,

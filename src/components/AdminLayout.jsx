@@ -32,6 +32,7 @@ import KaryawanView from '../views/KaryawanView';
 import ProduksiView from '../views/ProduksiView';
 import SPKView from '../views/SPKView';
 import MarketplaceView from '../views/MarketplaceView';
+import ProdukMarketplaceView from '../views/ProdukMarketplaceView';
 import BlankTemplateView from '../views/BlankTemplateView';
 import { showConfirm, toastSuccess } from '../utils/alert.util';
 import { INITIAL_PRODUK_DATA } from '../data/initialProduk';
@@ -210,6 +211,8 @@ export default function AdminLayout() {
       case 'marketplace':
       case 'toko':
         return <MarketplaceView onBack={() => changeTab('dashboard')} onNavigate={changeTab} />;
+      case 'produk_marketplace':
+        return <ProdukMarketplaceView onNavigate={changeTab} />;
       case 'blank':
         return <BlankTemplateView />;
       default:
@@ -868,6 +871,41 @@ export default function AdminLayout() {
                   >
                     <Store size={14} color={activeTab === 'marketplace' ? '#38bdf8' : '#94a3b8'} style={{ flexShrink: 0 }} />
                     <span style={{ textAlign: 'left', flex: 1 }}>Tambah Toko Marketplace</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      changeTab('produk_marketplace');
+                      setIsMarketplaceOpen(false);
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'flex-start',
+                      gap: '8px',
+                      width: '100%',
+                      padding: '7px 10px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      backgroundColor: activeTab === 'produk_marketplace' ? 'rgba(2, 132, 199, 0.2)' : 'transparent',
+                      color: activeTab === 'produk_marketplace' ? '#38bdf8' : '#cbd5e1',
+                      fontSize: '11.5px',
+                      fontWeight: activeTab === 'produk_marketplace' ? '800' : '600',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'background-color 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (activeTab !== 'produk_marketplace') e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (activeTab !== 'produk_marketplace') e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
+                  >
+                    <ShoppingBag size={14} color={activeTab === 'produk_marketplace' ? '#38bdf8' : '#94a3b8'} style={{ flexShrink: 0 }} />
+                    <span style={{ textAlign: 'left', flex: 1 }}>Tabel Produk Marketplace</span>
                   </button>
                 </div>
               )}
