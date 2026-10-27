@@ -188,13 +188,20 @@ export class ShopeeService {
   }
 
   // 5. Sinkronisasi Lengkap: Ambil Item List + Detail Base Info
-  async syncProducts(shopId, accessToken, pageSize = 20) {
+  async syncProducts(shopId, accessToken, pageSize = 100) {
     const sId = String(shopId);
     const items = await this.getItemList(sId, accessToken, pageSize);
     if (!items || items.length === 0) return [];
 
     const itemIds = items.map(i => i.item_id);
-    const details = await this.getItemBaseInfo(sId, accessToken, itemIds.slice(0, 20));
+    
+    // Shopee get_item_base_info maksimal 50 item per call
+    let details = [];
+    for (let i = 0; i < itemIds.length; i += 50) {
+      const batchIds = itemIds.slice(i, i + 50);
+      const batchDetails = await this.getItemBaseInfo(sId, accessToken, batchIds);
+      details = details.concat(batchDetails);
+    }
 
     return details.map(d => {
       // 1. Ekstraksi Harga
