@@ -19,17 +19,26 @@ export class ShopeeService {
     return crypto.createHmac('sha256', this.partnerKey).update(baseString).digest('hex');
   }
 
-  // Helper request HTTP(S) GET
-  requestGet(url) {
+  // Helper request HTTP(S) GET dengan redirect follower
+  requestGet(url, maxRedirects = 3) {
     return new Promise((resolve, reject) => {
       https.get(url, (res) => {
+        // Handle redirect (301, 302, 307)
+        if ([301, 302, 307, 308].includes(res.statusCode) && res.headers.location && maxRedirects > 0) {
+          const redirectUrl = new URL(res.headers.location, url).toString();
+          return resolve(this.requestGet(redirectUrl, maxRedirects - 1));
+        }
+
         let raw = '';
         res.on('data', chunk => raw += chunk);
         res.on('end', () => {
+          if (!raw || raw.trim() === '') {
+            return reject(new Error(`Empty Response from Shopee (HTTP ${res.statusCode})`));
+          }
           try {
             resolve(JSON.parse(raw));
           } catch (e) {
-            reject(new Error(`Invalid JSON Response: ${raw}`));
+            reject(new Error(`Invalid JSON Response (HTTP ${res.statusCode}): ${raw.slice(0, 150)}`));
           }
         });
       }).on('error', err => reject(err));
