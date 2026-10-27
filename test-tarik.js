@@ -2,16 +2,10 @@ import { ShopeeService } from './server/shopee.service.js';
 
 const stores = [
   {
-    name: 'RUANG SERAGAM (Shopee)',
-    shopId: '7495487525216094891',
-    accessToken: 'ROW_hrW2eAAAAADXzfcAbFNM2vF4sGvyrLklzSslk4uklv4KXG8FDCL8TMDVZVSXm1QNwF3HkXc-CfZT-WsF6yF-qO2wOSJKCKh0f2aji_gApWDGMP1FFNH5ZYrC2D-6o9YEAajZdQ7cQvPYE1BZu2jAwSLxLaUzYOX0JwzW6ZUsu5Tj1dxn343kAe1TMZ5nydARMQJ94b20hIGW2ibwtqaqCkw8yQz8wQjW',
-    refreshToken: 'ROW_rfVKJgAAAACQMhMaQ5QXpCAhk_jChhoWo0KgxyEvuEVSbCvPTxxl3OU0jfV_dLTlJcuRIEhLVNQ'
-  },
-  {
-    name: 'RAGANTARA UNIFORM (Shopee)',
-    shopId: '7494247208764540234',
-    accessToken: 'ROW_vxeWOQAAAADXzfcAbFNM2vF4sGvyrLklGCfVKYb9V5U-xAv3eYbj0WBp9k2DaBWQbhCs-Nbbf4CSvM0IRczhb3W_CpJb8PFK9NI72ydb0H8KkODzV-mB_tm_ZKGrQzybH1Btsfmr9OrmweBcvcbahhhqu7HsWUmifb_YB8gx-vonfi12uUm364iWKOTekkTQD2SUc4xrQKH2a1pKTA4mG4_5ftCNdi9B',
-    refreshToken: 'ROW_U5GyVAAAAACQMhMaQ5QXpCAhk_jChhoWhZBMQOdJg46oqHXZXnJS8cIfKb6AxdbslxXsUdLtCDA'
+    name: 'Koperasi Sahabat Anak Bangsa (Shopee)',
+    shopId: '1030191310',
+    accessToken: 'eyJhbGciOiJIUzI1NiJ9.CLekfBABGM7xnesDIAEozLKC1wYw_4S4xwk4AUABSAc.Akf_2_Oh892XxGfWUbY4HXNPqIn3DsQUBZpI1DTivMY',
+    refreshToken: 'eyJhbGciOiJIUzI1NiJ9.CLekfBABGM7xnesDIAIozLKC1wYwrduHtAQ4AUABSAc.WM8feqDMjMxCNQcvMwwvCLiHCMN0A0AKjS8Z5JopdKY'
   }
 ];
 

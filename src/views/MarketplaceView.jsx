@@ -45,19 +45,19 @@ export default function MarketplaceView({ onBack, onNavigate }) {
 
   const SINGLE_OFFICIAL_STORE = [
     {
-      id: 'tk_shopee_ragantara',
+      id: 'tk_shopee_sahabat',
       company_code: 'RSG',
       channel: 'shopee',
       channelName: 'Shopee Marketplace',
-      shopName: 'RAGANTARA UNIFORM',
-      shopId: '7494247208764540234',
-      logo: 'store-logos/zbp3kiQPJWMwwdGq6OCIjv0lj0jPKDwGhfiwk6yL.jpg',
-      cipher: 'ROW_a8jKrQAAAACAttXT_EuXnKiQASXs4q8z',
-      accessToken: 'ROW_vxeWOQAAAADXzfcAbFNM2vF4sGvyrLklGCfVKYb9V5U-xAv3eYbj0WBp9k2DaBWQbhCs-Nbbf4CSvM0IRczhb3W_CpJb8PFK9NI72ydb0H8KkODzV-mB_tm_ZKGrQzybH1Btsfmr9OrmweBcvcbahhhqu7HsWUmifb_YB8gx-vonfi12uUm364iWKOTekkTQD2SUc4xrQKH2a1pKTA4mG4_5ftCNdi9B',
-      refreshToken: 'ROW_U5GyVAAAAACQMhMaQ5QXpCAhk_jChhoWhZBMQOdJg46oqHXZXnJS8cIfKb6AxdbslxXsUdLtCDA',
-      expiresAt: '2026-10-30 03:00:05',
-      connectedAt: '24 Jul 2026, 07:57',
-      lastSyncAt: '27 Okt 2026, 19:56',
+      shopName: 'Koperasi Sahabat Anak Bangsa',
+      shopId: '1030191310',
+      logo: 'store-logos/Vh3cR1kfR2HNhWFVqpEdtZdr82NDQk6lorx7ktKK.jpg',
+      cipher: '',
+      accessToken: 'eyJhbGciOiJIUzI1NiJ9.CLekfBABGM7xnesDIAEozLKC1wYw_4S4xwk4AUABSAc.Akf_2_Oh892XxGfWUbY4HXNPqIn3DsQUBZpI1DTivMY',
+      refreshToken: 'eyJhbGciOiJIUzI1NiJ9.CLekfBABGM7xnesDIAIozLKC1wYwrduHtAQ4AUABSAc.WM8feqDMjMxCNQcvMwwvCLiHCMN0A0AKjS8Z5JopdKY',
+      expiresAt: '2026-10-27 23:30:04',
+      connectedAt: '27 Okt 2026, 19:30',
+      lastSyncAt: '27 Okt 2026, 22:15',
       status: 'Active (Connected)',
       deliveryType: 'DROP_OFF',
       autoSyncStok: true
@@ -71,8 +71,8 @@ export default function MarketplaceView({ onBack, onNavigate }) {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          // Hanya izinkan toko RAGANTARA UNIFORM
-          const filtered = parsed.filter(s => s.shopId === '7494247208764540234' || s.shopName?.includes('RAGANTARA'));
+          // Izinkan toko resmi Shopee (Koperasi Sahabat Anak Bangsa)
+          const filtered = parsed.filter(s => s.shopId === '1030191310' || s.shopName?.includes('Sahabat'));
           if (filtered.length > 0) {
             localStorage.setItem(STORAGE_KEY_TOKO, JSON.stringify(filtered));
             return filtered;

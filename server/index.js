@@ -77,8 +77,8 @@ const server = http.createServer(async (req, res) => {
 
   // 5. Shopee Products Sync API
   if (pathname === '/api/marketplace/shopee/products' && req.method === 'GET') {
-    const shopId = urlObj.searchParams.get('shop_id') || '7494247208764540234';
-    const accessToken = urlObj.searchParams.get('access_token') || '';
+    const shopId = urlObj.searchParams.get('shop_id') || '1030191310';
+    const accessToken = urlObj.searchParams.get('access_token') || 'eyJhbGciOiJIUzI1NiJ9.CLekfBABGM7xnesDIAEozLKC1wYw_4S4xwk4AUABSAc.Akf_2_Oh892XxGfWUbY4HXNPqIn3DsQUBZpI1DTivMY';
 
     try {
       console.log(`[Shopee] Syncing products for shopId: ${shopId}...`);

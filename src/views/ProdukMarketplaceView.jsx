@@ -123,8 +123,8 @@ export default function ProdukMarketplaceView({ onNavigate }) {
     toastSuccess('Menghubungi Shopee Open API v2 (Shop ID: 7494247208764540234)...');
 
     try {
-      let shopId = '7494247208764540234';
-      let accessToken = 'ROW_vxeWOQAAAADXzfcAbFNM2vF4sGvyrLklGCfVKYb9V5U-xAv3eYbj0WBp9k2DaBWQbhCs-Nbbf4CSvM0IRczhb3W_CpJb8PFK9NI72ydb0H8KkODzV-mB_tm_ZKGrQzybH1Btsfmr9OrmweBcvcbahhhqu7HsWUmifb_YB8gx-vonfi12uUm364iWKOTekkTQD2SUc4xrQKH2a1pKTA4mG4_5ftCNdi9B';
+      let shopId = '1030191310';
+      let accessToken = 'eyJhbGciOiJIUzI1NiJ9.CLekfBABGM7xnesDIAEozLKC1wYw_4S4xwk4AUABSAc.Akf_2_Oh892XxGfWUbY4HXNPqIn3DsQUBZpI1DTivMY';
 
       try {
         const savedStores = localStorage.getItem(STORAGE_KEY_TOKO);
