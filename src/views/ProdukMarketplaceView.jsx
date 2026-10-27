@@ -141,21 +141,32 @@ export default function ProdukMarketplaceView({ onNavigate }) {
       let apiResponse = null;
       let isSuccess = false;
 
-      // Coba fetch backend
+      // Coba fetch backend Node.js service
       try {
-        const res = await fetch(`/api/shopee-sync.php?shop_id=${shopId}&access_token=${encodeURIComponent(accessToken)}`);
-        const text = await res.text();
-        if (text.startsWith('{')) {
-          apiResponse = JSON.parse(text);
-          if (apiResponse.status === 'success' && Array.isArray(apiResponse.data) && apiResponse.data.length > 0) {
-            isSuccess = true;
-            setMktProdukList(prev => [...apiResponse.data, ...prev]);
-            toastSuccess(`Berhasil menarik ${apiResponse.data.length} produk asli dari Shopee!`);
-          }
+        const endpoints = [
+          `/api/marketplace/shopee/products?shop_id=${shopId}&access_token=${encodeURIComponent(accessToken)}`,
+          `http://localhost:3001/api/marketplace/shopee/products?shop_id=${shopId}&access_token=${encodeURIComponent(accessToken)}`,
+          `/api/shopee-sync.php?shop_id=${shopId}&access_token=${encodeURIComponent(accessToken)}`
+        ];
+
+        for (const ep of endpoints) {
+          try {
+            const res = await fetch(ep);
+            const json = await res.json();
+            if (json.status === 'success' && Array.isArray(json.data) && json.data.length > 0) {
+              isSuccess = true;
+              apiResponse = json;
+              setMktProdukList(prev => [...json.data, ...prev]);
+              toastSuccess(`Berhasil menarik ${json.data.length} produk asli dari Shopee!`);
+              break;
+            } else if (json.message || json.error) {
+              apiResponse = json;
+            }
+          } catch (e) {}
         }
       } catch (e) {}
 
-      // Jika tidak sukses via PHP, coba dev server proxy
+      // Jika tidak sukses via Node service, coba dev proxy
       if (!isSuccess) {
         try {
           const devRes = await fetch(`/api/marketplace/sync-shopee?shop_id=${shopId}&access_token=${encodeURIComponent(accessToken)}`);
