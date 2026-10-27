@@ -204,7 +204,9 @@ export default function MarketplaceView({ onBack, onNavigate }) {
     toastSuccess(`Menarik katalog produk dari toko ${store.shopName}...`);
 
     try {
-      // 1. Coba fetch API live
+      let fetchedItems = null;
+
+      try {
         const endpoint = `/api/marketplace/shopee/products?shop_id=${store.shopId}&access_token=${encodeURIComponent(store.accessToken || '')}`;
         
         const controller = new AbortController();
@@ -233,7 +235,7 @@ export default function MarketplaceView({ onBack, onNavigate }) {
         return;
       }
 
-      // 3. Simpan ke storage produk marketplace staging
+      // Simpan ke storage produk marketplace staging
       const saved = localStorage.getItem('ruangmarket_produk_marketplace_v1');
       const existing = saved ? JSON.parse(saved) : [];
       const existingIds = new Set(existing.map(p => p.item_id));
