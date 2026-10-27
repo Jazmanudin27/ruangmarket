@@ -251,19 +251,42 @@ export default function MarketplaceView({ onBack, onNavigate }) {
       const saved = localStorage.getItem('ruangmarket_spk_v2');
       const existing = saved ? JSON.parse(saved) : [];
       localStorage.setItem('ruangmarket_spk_v2', JSON.stringify([newBatch, ...existing]));
+
+      // Masukkan juga item produk pesanan ke Tabel Produk Marketplace (Staging)
+      const orderedProduct = {
+        id: `mp_order_${Date.now()}`,
+        item_id: `${Math.floor(10000000000 + Math.random() * 90000000000)}`,
+        company_code: activeCompany.code || 'RSG',
+        channel: store.channel,
+        channelName: store.channelName,
+        shopName: store.shopName,
+        nama_produk: `${store.shopName} - Kemeja Seragam PDL Tactical (Order #${newBatch.kode_produksi})`,
+        sku_marketplace: `${store.channel.toUpperCase()}-${newBatch.kode_produksi.slice(-6)}`,
+        harga_jual: 165000,
+        stok_marketplace: 24,
+        varian_marketplace: 'Khaki Army - Size L, XL',
+        status: 'Belum Dimapping',
+        syncedAt: new Date().toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+      };
+
+      const savedMkt = localStorage.getItem('ruangmarket_produk_marketplace_v1');
+      const existingMkt = savedMkt ? JSON.parse(savedMkt) : [];
+      localStorage.setItem('ruangmarket_produk_marketplace_v1', JSON.stringify([orderedProduct, ...existingMkt]));
       window.dispatchEvent(new Event('storage'));
 
-      toastSuccess(`Berhasil menarik pesanan baru (${newBatch.kode_produksi}) dan dibuatkan SPK!`);
+      toastSuccess(`Berhasil menarik pesanan (${newBatch.kode_produksi}) & produk otomatis masuk ke antrian!`);
 
       if (onNavigate) {
         setTimeout(async () => {
           const jump = await showConfirm(
-            'Pesanan Berhasil Ditarik!',
-            `Pesanan baru [${newBatch.kode_produksi}] otomatis dibuatkan SPK Produksi (Siap Potong & Jahit). Buka halaman SPK sekarang?`,
-            'Ya, Lihat SPK',
-            'Nanti Saja'
+            'Pesanan & Produk Berhasil Ditarik!',
+            `Pesanan baru [${newBatch.kode_produksi}] telah ditarik:\n1. Dibuatkan SPK Jahit & Potong di menu Produksi > SPK.\n2. Produk pesanan otomatis masuk ke "Tabel Produk Marketplace".\n\nBuka halaman Produk Marketplace sekarang?`,
+            'Lihat Produk Marketplace',
+            'Lihat SPK Produksi'
           );
           if (jump) {
+            onNavigate('produk_marketplace');
+          } else {
             onNavigate('spk');
           }
         }, 500);
