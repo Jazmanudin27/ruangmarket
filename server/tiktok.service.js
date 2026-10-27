@@ -21,6 +21,44 @@ export class TiktokService {
     return `${this.authBaseUrl}?${params.toString()}`;
   }
 
+  // Refresh Access Token TikTok
+  async refreshAccessToken(refreshToken) {
+    const path = '/api/v2/token/refresh';
+    const query = new URLSearchParams({
+      app_key: this.appKey,
+      app_secret: this.appSecret,
+      refresh_token: refreshToken,
+      grant_type: 'refresh_token'
+    });
+    const url = `https://auth.tiktok-shops.com${path}?${query.toString()}`;
+    const res = await this.request('GET', url);
+    if (res.code !== 0) {
+      throw new Error(`TikTok Refresh Token Error: ${res.message || 'Unknown Error'}`);
+    }
+    return res.data; // { access_token, refresh_token, expire_in, open_id, seller_name }
+  }
+
+  // Dapatkan daftar toko resmi dan shop_cipher aktif dari token
+  async getShopInfo(accessToken) {
+    const path = '/authorization/202309/shops';
+    const queryParams = {
+      app_key: this.appKey,
+      timestamp: Math.floor(Date.now() / 1000)
+    };
+    const sign = this.generateSignature(path, queryParams);
+    queryParams.sign = sign;
+    queryParams.access_token = accessToken;
+
+    const url = `${this.baseUrl}${path}?${new URLSearchParams(queryParams).toString()}`;
+    const res = await this.request('GET', url, {
+      'x-tts-access-token': accessToken
+    });
+    if (res.code !== 0) {
+      throw new Error(`TikTok Shop Info Error: ${res.message || 'Unknown Error'}`);
+    }
+    return res.data?.shops || [];
+  }
+
   // 2. Signature TikTok Shop v202309 HMAC-SHA256
   generateSignature(path, query = {}, bodyJson = '') {
     const params = { ...query };
