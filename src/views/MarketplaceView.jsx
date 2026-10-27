@@ -25,9 +25,9 @@ import { getActiveCompany } from '../utils/tenant.util';
 
 const STORAGE_KEY_TOKO = 'ruangmarket_connected_stores_v1';
 
-export default function MarketplaceView({ onBack }) {
+export default function MarketplaceView({ onBack, onNavigate }) {
   // Mode: 'create' (persis seperti screenshot) atau 'list' (daftar toko)
-  const [viewMode, setViewMode] = useState('create');
+  const [viewMode, setViewMode] = useState('list');
   const [loadingChannel, setLoadingChannel] = useState(null);
   const [activeCompany, setActiveCompany] = useState(getActiveCompany);
 
@@ -255,7 +255,21 @@ export default function MarketplaceView({ onBack }) {
       localStorage.setItem('ruangmarket_produk_gamis_v4', JSON.stringify(updated));
       window.dispatchEvent(new Event('storage'));
 
-      toastSuccess(`Berhasil menarik ${sampleImportedProducts.length} produk dari ${store.shopName} ke Data Produk!`);
+      toastSuccess(`Berhasil menarik ${sampleImportedProducts.length} produk dari ${store.shopName}!`);
+
+      if (onNavigate) {
+        setTimeout(async () => {
+          const jump = await showConfirm(
+            'Produk Berhasil Ditarik!',
+            `${sampleImportedProducts.length} produk baru dari ${store.shopName} telah masuk ke master produk. Buka halaman Data Produk sekarang?`,
+            'Ya, Lihat Produk',
+            'Nanti Saja'
+          );
+          if (jump) {
+            onNavigate('produk');
+          }
+        }, 500);
+      }
     } catch (err) {
       toastError(`Gagal tarik produk: ${err.message}`);
     }
@@ -308,6 +322,20 @@ export default function MarketplaceView({ onBack }) {
       window.dispatchEvent(new Event('storage'));
 
       toastSuccess(`Berhasil menarik pesanan baru (${newBatch.kode_produksi}) dan dibuatkan SPK!`);
+
+      if (onNavigate) {
+        setTimeout(async () => {
+          const jump = await showConfirm(
+            'Pesanan Berhasil Ditarik!',
+            `Pesanan baru [${newBatch.kode_produksi}] otomatis dibuatkan SPK Produksi (Siap Potong & Jahit). Buka halaman SPK sekarang?`,
+            'Ya, Lihat SPK',
+            'Nanti Saja'
+          );
+          if (jump) {
+            onNavigate('spk');
+          }
+        }, 500);
+      }
     } catch (err) {
       toastError(`Gagal tarik pesanan: ${err.message}`);
     }

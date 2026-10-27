@@ -209,7 +209,7 @@ export default function AdminLayout() {
         return <SPKView />;
       case 'marketplace':
       case 'toko':
-        return <MarketplaceView onBack={() => changeTab('dashboard')} />;
+        return <MarketplaceView onBack={() => changeTab('dashboard')} onNavigate={changeTab} />;
       case 'blank':
         return <BlankTemplateView />;
       default:
