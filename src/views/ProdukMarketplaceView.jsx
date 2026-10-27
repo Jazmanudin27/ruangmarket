@@ -134,8 +134,9 @@ export default function ProdukMarketplaceView({ onNavigate }) {
       // Coba fetch backend Node.js service
       try {
         const endpoints = [
-          `https://erp.aspartech.com/api/marketplace/shopee/products?shop_id=${shopId}&access_token=${encodeURIComponent(accessToken)}`,
           `/api/marketplace/shopee/products?shop_id=${shopId}&access_token=${encodeURIComponent(accessToken)}`,
+          `https://market.ruangtech.com:3008/api/marketplace/shopee/products?shop_id=${shopId}&access_token=${encodeURIComponent(accessToken)}`,
+          `http://31.97.109.165:3008/api/marketplace/shopee/products?shop_id=${shopId}&access_token=${encodeURIComponent(accessToken)}`,
           `/api/shopee-sync.php?shop_id=${shopId}&access_token=${encodeURIComponent(accessToken)}`
         ];
 
