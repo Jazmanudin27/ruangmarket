@@ -528,7 +528,19 @@ const server = http.createServer(async (req, res) => {
 
 
       // Ambil seluruh data produk_master untuk menghitung HPP otomatis berdasarkan SKU / nama produk
-      const [masterRows] = await pool.query('SELECT kode_sku, nama_produk, COALESCE(hpp, harga_pokok, 0) as hpp FROM produk_master');
+      let masterRows = [];
+      try {
+        const [mRows] = await pool.query('SELECT kode_sku, nama_produk, harga_modal as hpp FROM produk_master');
+        masterRows = mRows;
+      } catch (errM) {
+        try {
+          const [mRows] = await pool.query('SELECT kode_sku, nama_produk, harga_pokok as hpp FROM produk_master');
+          masterRows = mRows;
+        } catch (e2) {
+          masterRows = [];
+        }
+      }
+
       const hppMap = new Map();
       masterRows.forEach(m => {
         if (m.kode_sku) {
