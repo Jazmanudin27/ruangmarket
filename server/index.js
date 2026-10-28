@@ -551,6 +551,38 @@ const server = http.createServer(async (req, res) => {
         }
       });
 
+      // Mapping ke ID asli tabel orders di ERP Aspartech (Laravel)
+      const laravelIdMap = new Map();
+      try {
+        const orderMarketplaceIds = rows.map(r => r.no_pesanan).filter(Boolean);
+        if (orderMarketplaceIds.length > 0) {
+          const [lRows] = await laravelPool.query(
+            'SELECT id, order_marketplace_id FROM orders WHERE order_marketplace_id IN (?)',
+            [orderMarketplaceIds]
+          );
+          (lRows || []).forEach(lr => {
+            if (lr.order_marketplace_id) {
+              laravelIdMap.set(String(lr.order_marketplace_id).trim(), lr.id);
+            }
+          });
+        }
+      } catch (errL) {
+        try {
+          const orderMarketplaceIds = rows.map(r => r.no_pesanan).filter(Boolean);
+          if (orderMarketplaceIds.length > 0) {
+            const [lRows] = await pool.query(
+              'SELECT id, order_marketplace_id FROM orders WHERE order_marketplace_id IN (?)',
+              [orderMarketplaceIds]
+            );
+            (lRows || []).forEach(lr => {
+              if (lr.order_marketplace_id) {
+                laravelIdMap.set(String(lr.order_marketplace_id).trim(), lr.id);
+              }
+            });
+          }
+        } catch (e2) {}
+      }
+
       const formatted = rows.map(r => {
         let items = [];
         try {
@@ -595,6 +627,7 @@ const server = http.createServer(async (req, res) => {
 
         return {
           ...r,
+          laravel_order_id: laravelIdMap.get(String(r.no_pesanan).trim()) || (typeof r.id === 'number' ? r.id : null),
           totalPrice: subtotalPesanan,
           hpp_total: hppTotal,
           net_profit: netProfit,
@@ -710,6 +743,25 @@ const server = http.createServer(async (req, res) => {
     }
 
     try {
+      // 0. Cek apakah pesanan ini memiliki ID di tabel orders Laravel ERP Aspartech
+      let laravelId = null;
+      try {
+        const [lRows] = await laravelPool.query('SELECT id FROM orders WHERE order_marketplace_id = ? OR id = ? LIMIT 1', [orderSn, orderSn]);
+        if (lRows && lRows.length > 0) laravelId = lRows[0].id;
+      } catch (e) {
+        try {
+          const [lRows] = await pool.query('SELECT id FROM orders WHERE order_marketplace_id = ? OR id = ? LIMIT 1', [orderSn, orderSn]);
+          if (lRows && lRows.length > 0) laravelId = lRows[0].id;
+        } catch (e2) {}
+      }
+
+      if (laravelId) {
+        res.writeHead(302, {
+          Location: `https://erp.aspartech.com/orders/${laravelId}/print`
+        });
+        return res.end();
+      }
+
       // 1. Ambil info pesanan dari MySQL pesanan_marketplace
       let [orderRows] = await pool.query('SELECT * FROM pesanan_marketplace WHERE no_pesanan = ? OR id = ? LIMIT 1', [orderSn, orderSn]);
       const order = orderRows[0];

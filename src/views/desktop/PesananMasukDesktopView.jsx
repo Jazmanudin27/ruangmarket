@@ -47,145 +47,22 @@ export default function PesananMasukDesktopView() {
   const [detailOrder, setDetailOrder] = useState(null);
   const [isFullScreen, setIsFullScreen] = useState(false);
 
-  // Helper Render Resi Cadangan (Fallback jika marketplace belum merilis PDF)
-  const renderFallbackResi = (printWindow, ord) => {
-    if (!printWindow || printWindow.closed) return;
-    const items = ord.items || [];
-    const courier = ord.kurir || 'SPX Express';
-    const trackingNo = ord.no_resi || ord.tracking_number || '-';
-    const shopName = ord.nama_toko || ord.shopName || 'Koperasi Sahabat Anak Bangsa';
-    const channel = String(ord.saluran || ord.channel || 'Shopee').toUpperCase();
-
-    const html = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Label Pengiriman - ${trackingNo}</title>
-        <style>
-          @page { size: 100mm 150mm; margin: 4mm; }
-          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; font-size: 11px; color: #000; margin: 0; padding: 6px; }
-          .resi-box { border: 2px solid #000; padding: 8px; border-radius: 4px; max-width: 380px; margin: 0 auto; }
-          .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #000; padding-bottom: 6px; margin-bottom: 6px; }
-          .courier-title { font-size: 18px; font-weight: 900; }
-          .channel-tag { font-size: 11px; font-weight: 800; border: 1px solid #000; padding: 2px 6px; border-radius: 3px; }
-          .barcode-box { text-align: center; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 8px; }
-          .barcode-line { height: 42px; background: repeating-linear-gradient(90deg, #000 0px, #000 2px, #fff 2px, #fff 4px, #000 4px, #000 7px, #fff 7px, #fff 9px); margin-bottom: 4px; }
-          .tracking-no { font-size: 16px; font-weight: 900; letter-spacing: 1px; }
-          .info-grid { border-bottom: 1px dashed #000; padding-bottom: 6px; margin-bottom: 6px; font-size: 11px; }
-          .info-title { font-size: 9.5px; font-weight: 800; color: #444; }
-          .receiver-name { font-size: 13px; font-weight: 800; margin-bottom: 2px; }
-          .product-table { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 10px; }
-          .product-table th, .product-table td { border: 1px solid #999; padding: 4px; text-align: left; }
-          .footer-note { font-size: 9px; text-align: center; margin-top: 8px; color: #444; }
-        </style>
-      </head>
-      <body>
-        <div class="resi-box">
-          <div class="header">
-            <div class="courier-title">${courier}</div>
-            <div class="channel-tag">${channel}</div>
-          </div>
-          <div class="barcode-box">
-            <div class="barcode-line"></div>
-            <div class="tracking-no">${trackingNo}</div>
-            <div style="font-size: 10px; margin-top: 2px;">No. Pesanan: <b>${ord.no_pesanan}</b></div>
-          </div>
-          <div class="info-grid">
-            <div class="info-title">PENERIMA:</div>
-            <div class="receiver-name">${ord.nama_pembeli || ord.customerName || 'Pembeli'}</div>
-            <div>${ord.telepon || '-'}</div>
-            <div style="margin-top: 3px;">${ord.alamat || 'Alamat Penerima Lengkap'}</div>
-          </div>
-          <div class="info-grid">
-            <div class="info-title">PENGIRIM:</div>
-            <div style="font-weight: 700;">${shopName}</div>
-            <div>Kota Bandung / Jawa Barat</div>
-          </div>
-          <div style="font-size: 9.5px; font-weight: 800; margin-top: 4px;">DAFTAR ISI PAKET:</div>
-          <table class="product-table">
-            <thead>
-              <tr style="background: #eee;">
-                <th>SKU / Produk</th>
-                <th style="width: 30px; text-align: center;">Qty</th>
-                <th style="width: 80px;">Variasi</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${items.map(it => `
-                <tr>
-                  <td><b>${it.sku || it.nama_produk || 'Produk'}</b></td>
-                  <td style="text-align: center;"><b>${it.qty || 1}</b></td>
-                  <td>${it.varian || '-'}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-          <div class="footer-note">Cetak Resi Cadangan - Sistem RuangMarket</div>
-        </div>
-        <script>
-          window.onload = function() { window.print(); }
-        </script>
-      </body>
-      </html>
-    `;
-    printWindow.document.open();
-    printWindow.document.write(html);
-    printWindow.document.close();
-  };
-
-  // Helper Cetak Resi / Label Pengiriman Langsung dari API Marketplace Resmi (PDF Asli)
-  const handlePrintResi = async (ord) => {
+  // Helper Cetak Resi / Label Pengiriman Langsung dari Marketplace Resmi (PDF Asli)
+  const handlePrintResi = (ord) => {
     if (!ord) return;
     const channel = String(ord.saluran || ord.channel || 'shopee').toLowerCase();
     const orderSn = ord.no_pesanan || ord.id;
-    const printUrl = `/api/marketplace/orders/print-label?order_sn=${encodeURIComponent(orderSn)}&channel=${encodeURIComponent(channel)}`;
-
-    const printWindow = window.open('about:blank', '_blank');
-    if (!printWindow) {
-      toastError('Popup blocker aktif. Izinkan popup browser untuk mencetak resi.');
+    
+    // 1. Jika ada ID order Laravel (ERP Aspartech), buka langsung URL PDF resi asli seperti di screenshot
+    const targetId = ord.laravel_order_id || (typeof ord.id === 'number' || /^\d+$/.test(String(ord.id)) ? ord.id : null);
+    if (targetId) {
+      window.open(`https://erp.aspartech.com/orders/${targetId}/print`, '_blank');
       return;
     }
 
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Mengunduh PDF Resi ${orderSn}...</title>
-        <style>
-          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 90vh; color: #1e293b; background: #f8fafc; margin: 0; }
-          .card { background: white; padding: 28px 36px; border-radius: 12px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1); text-align: center; max-width: 420px; border: 1px solid #e2e8f0; }
-          .spinner { border: 3px solid #f1f5f9; border-top: 3px solid #0284c7; border-radius: 50%; width: 36px; height: 36px; animation: spin 0.8s linear infinite; margin: 0 auto 16px; }
-          @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        </style>
-      </head>
-      <body>
-        <div class="card">
-          <div class="spinner"></div>
-          <div style="font-size: 15px; font-weight: 800; margin-bottom: 6px;">Mengunduh PDF Resi Marketplace Resmi...</div>
-          <div style="font-size: 12px; color: #64748b; margin-bottom: 6px;">Menghubungkan ke API ${channel === 'tiktok' ? 'TikTok Shop' : 'Shopee'}</div>
-          <div style="font-size: 12px; font-weight: 700; color: #0284c7; font-family: monospace;">No. Pesanan: ${orderSn}</div>
-          <div style="font-size: 11px; color: #94a3b8; margin-top: 14px;">Memuat dokumen AWB asli...</div>
-        </div>
-      </body>
-      </html>
-    `);
-
-    try {
-      const resp = await fetch(printUrl, { method: 'HEAD' });
-      const contentType = resp.headers.get('content-type') || '';
-      if (resp.ok && contentType.includes('application/pdf')) {
-        printWindow.location.href = printUrl;
-        return;
-      }
-
-      // Jika error, ambil pesan error dari response
-      const errJson = await fetch(printUrl).then(r => r.json()).catch(() => ({}));
-      toastError(errJson.message || `Marketplace ${channel.toUpperCase()} belum merilis PDF label resi.`);
-      renderFallbackResi(printWindow, ord);
-    } catch (err) {
-      console.warn('Gagal fetch PDF resi marketplace:', err.message);
-      renderFallbackResi(printWindow, ord);
-    }
+    // 2. Buka endpoint backend yang mengunduh dan menyajikan streaming PDF resmi langsung dari API marketplace
+    const printUrl = `/api/marketplace/orders/print-label?order_sn=${encodeURIComponent(orderSn)}&channel=${encodeURIComponent(channel)}`;
+    window.open(printUrl, '_blank');
   };
 
   // Helper Cetak Invoice Pesanan
