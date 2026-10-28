@@ -169,13 +169,6 @@
 .pm-select--stok    { min-width: 115px; }
 .pm-select--rows    { min-width: 105px; }
 
-.pm-total {
-  font-size: 11.5px;
-  color: #64748b;
-  font-weight: 700;
-  margin-left: auto;
-}
-
 /* ---------- TABLE ---------- */
 .pm-table-card {
   background-color: #ffffff;

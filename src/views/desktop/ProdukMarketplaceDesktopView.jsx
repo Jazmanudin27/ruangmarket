@@ -349,10 +349,6 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
           <option value={50}>50 Baris</option>
           <option value={100}>100 Baris</option>
         </select>
-
-        <span className="pm-total">
-          Total <strong>{filteredItems.length}</strong> produk (Halaman {currentPage} dari {totalPages})
-        </span>
       </div>
 
       {/* 4. DATA TABLE */}
