@@ -206,29 +206,63 @@ function SearchableSelect({ label, value, onChange, options, placeholder = "Pili
 }
 
 export default function ProdukView() {
-  const [produkList, setProdukList] = useState(() => {
+  const [produkList, setProdukList] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Fetch data produk langsung dari MySQL
+  const loadMasterProduk = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/produk/master');
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          const mapped = data.map(p => ({
+            id: p.id,
+            company_code: p.kode_perusahaan || 'RSG',
+            nama_produk: p.nama_produk,
+            sku: p.kode_sku,
+            barcode: `899${String(1000 + (p.id || 1))}`,
+            kategori: p.kategori || 'Gamis Casual',
+            tipe_set: 'Single',
+            status_order: 'Ready Stok',
+            varian: 'Standar',
+            stok: Number(p.stok_fisik || 0),
+            min_stok: 5,
+            satuan: p.satuan || 'PCS',
+            harga_beli: Number(p.harga_modal || 0),
+            harga_jual: Number(p.harga_jual || 0),
+            estimasi_kain: 'Kain Polos',
+            panjang_kain_cm: 200,
+            harga_kain_cm: 150
+          }));
+          setProdukList(mapped);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(mapped));
+          setIsLoading(false);
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn('Gagal load produk dari database:', err.message);
+    }
+
+    // Fallback jika API offline: baca dari localStorage saja tanpa memaksa INITIAL_PRODUK_DATA
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].tipe_set && !('supplier' in parsed[0])) {
-          // Bersihkan data dummy impor marketplace yang sempat masuk langsung
-          const cleaned = parsed.filter(p => !p.sku?.includes('-MKT-') && !p.nama_produk?.includes('(TikTok)') && !p.nama_produk?.includes('(Shopee)'));
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(cleaned));
-          return cleaned.map(p => ({
-            ...p,
-            estimasi_kain: p.estimasi_kain || 'Kain Polos',
-            panjang_kain_cm: p.panjang_kain_cm !== undefined ? p.panjang_kain_cm : 200,
-            harga_kain_cm: p.harga_kain_cm !== undefined ? p.harga_kain_cm : 150
-          }));
-        }
+        setProdukList(JSON.parse(saved));
+      } else {
+        setProdukList([]);
       }
-    } catch (e) {}
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_PRODUK_DATA));
-    } catch (e) {}
-    return INITIAL_PRODUK_DATA;
-  });
+    } catch (e) {
+      setProdukList([]);
+    }
+    setIsLoading(false);
+  };
+
+  useEffect(() => {
+    loadMasterProduk();
+  }, []);
 
   const [activeCompany, setActiveCompany] = useState(getActiveCompany);
 
@@ -365,7 +399,8 @@ export default function ProdukView() {
     setFilterTipeSet('Semua');
     setFilterStatusOrder('Semua');
     setFilterStatus('Semua');
-    toastSuccess('Data produk berhasil diperbarui');
+    loadMasterProduk();
+    toastSuccess('Data produk berhasil diperbarui dari database');
   };
 
   const handleOpenAdd = () => {
@@ -409,12 +444,15 @@ export default function ProdukView() {
       'Batal'
     );
     if (confirmed) {
+      try {
+        await fetch(`/api/produk/master/${item.id}`, { method: 'DELETE' });
+      } catch (e) {}
       setProdukList(prev => prev.filter(p => p.id !== item.id));
       toastSuccess('Produk berhasil dihapus');
     }
   };
 
-  const handleFormSubmit = (e) => {
+  const handleFormSubmit = async (e) => {
     e.preventDefault();
     if (!formData.nama_produk.trim()) {
       toastError('Nama produk wajib diisi!');
@@ -422,6 +460,22 @@ export default function ProdukView() {
     }
 
     if (editingId) {
+      try {
+        await fetch(`/api/produk/master/${editingId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            nama_produk: formData.nama_produk,
+            kategori: formData.kategori,
+            satuan: formData.satuan,
+            harga_jual: formData.harga_jual,
+            harga_modal: formData.harga_beli,
+            stok_fisik: formData.stok,
+            status: formData.status || 'Aktif',
+            kode_sku: formData.sku
+          })
+        });
+      } catch (err) {}
       setProdukList(prev => prev.map(p => p.id === editingId ? { ...formData, id: editingId } : p));
       toastSuccess('Data produk berhasil diperbarui');
     } else {
@@ -431,6 +485,25 @@ export default function ProdukView() {
         id: newId,
         company_code: activeCompany.code || 'RSG'
       };
+
+      try {
+        await fetch('/api/produk/master', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            kode_perusahaan: newProduk.company_code,
+            kode_sku: newProduk.sku,
+            nama_produk: newProduk.nama_produk,
+            kategori: newProduk.kategori,
+            satuan: newProduk.satuan,
+            harga_jual: newProduk.harga_jual,
+            harga_modal: newProduk.harga_beli,
+            stok_fisik: newProduk.stok,
+            status: 'Aktif'
+          })
+        });
+      } catch (err) {}
+
       setProdukList(prev => [newProduk, ...prev]);
       toastSuccess('Produk baru berhasil ditambahkan');
     }

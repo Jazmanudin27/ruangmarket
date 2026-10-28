@@ -223,6 +223,27 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
 
       const targetIds = unmappedList.map(i => i.id);
 
+      // Simpan langsung ke database MySQL produk_master
+      try {
+        await fetch('/api/produk/master', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newProducts.map(p => ({
+            kode_perusahaan: p.company_code,
+            kode_sku: p.sku,
+            nama_produk: p.nama_produk,
+            kategori: p.kategori,
+            satuan: p.satuan,
+            harga_jual: p.harga_jual,
+            harga_modal: p.harga_beli,
+            stok_fisik: p.stok,
+            status: 'Aktif'
+          })))
+        });
+      } catch (err) {
+        console.warn('Gagal simpan ke MySQL produk_master:', err);
+      }
+
       // Update di state
       setMktProdukList(prev => prev.map(p => targetIds.includes(p.id) ? { ...p, status: 'Sudah di Master' } : p));
 
@@ -233,7 +254,7 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
         body: JSON.stringify({ ids: targetIds, status: 'Sudah di Master' })
       });
 
-      toastSuccess(`Berhasil menyalin ${newProducts.length} produk ke Master Data ERP!`);
+      toastSuccess(`Berhasil menyalin ${newProducts.length} produk ke Master Data ERP & MySQL!`);
       setSelectedIds([]);
     } catch (e) {
       toastError(`Gagal proses masal: ${e.message}`);
@@ -281,11 +302,32 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
       localStorage.setItem(PRODUK_MASTER_KEY, JSON.stringify([newMasterProduct, ...masterList]));
       window.dispatchEvent(new Event('storage'));
 
+      // Simpan langsung ke database MySQL produk_master
+      try {
+        await fetch('/api/produk/master', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            kode_perusahaan: newMasterProduct.company_code,
+            kode_sku: newMasterProduct.sku,
+            nama_produk: newMasterProduct.nama_produk,
+            kategori: newMasterProduct.kategori,
+            satuan: newMasterProduct.satuan,
+            harga_jual: newMasterProduct.harga_jual,
+            harga_modal: newMasterProduct.harga_beli,
+            stok_fisik: newMasterProduct.stok,
+            status: 'Aktif'
+          })
+        });
+      } catch (err) {
+        console.warn('Gagal simpan ke MySQL produk_master:', err);
+      }
+
       // Update status staging (state + database)
       setMktProdukList(prev => prev.map(p => p.id === item.id ? { ...p, status: 'Sudah di Master' } : p));
       apiUpdateProduct(item.id, { status: 'Sudah di Master' }).catch(() => {});
 
-      toastSuccess(`Produk "${item.nama_produk}" berhasil disalin ke Data Master Produk!`);
+      toastSuccess(`Produk "${item.nama_produk}" berhasil disalin ke Data Master Produk & MySQL!`);
     } catch (e) {
       toastError(`Gagal: ${e.message}`);
     }

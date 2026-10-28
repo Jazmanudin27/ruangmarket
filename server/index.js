@@ -195,6 +195,97 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
+  // 6d. API Master Produk ERP (produk_master MySQL)
+  if (pathname === '/api/produk/master' && req.method === 'GET') {
+    try {
+      const kodePerusahaan = urlObj.searchParams.get('kode_perusahaan');
+      let sql = 'SELECT * FROM produk_master';
+      const params = [];
+      if (kodePerusahaan) {
+        sql += ' WHERE kode_perusahaan = ?';
+        params.push(kodePerusahaan);
+      }
+      sql += ' ORDER BY id DESC';
+      const [rows] = await pool.query(sql, params);
+      return sendJson(res, 200, rows);
+    } catch (err) {
+      return sendJson(res, 500, { status: 'error', message: err.message });
+    }
+  }
+
+  // 6e. Simpan/Batch Simpan ke Master Produk ERP
+  if (pathname === '/api/produk/master' && req.method === 'POST') {
+    try {
+      const body = await parseJsonBody(req);
+      const items = Array.isArray(body) ? body : [body];
+      
+      for (const item of items) {
+        const kodePerusahaan = item.kode_perusahaan || item.company_code || 'RSG';
+        const kodeSku = item.kode_sku || item.sku || `SKU-${Date.now()}`;
+        const namaProduk = item.nama_produk || 'Produk';
+        const kategori = item.kategori || 'Gamis Casual';
+        const satuan = item.satuan || 'PCS';
+        const hargaJual = Number(item.harga_jual) || 0;
+        const hargaModal = Number(item.harga_modal || item.harga_beli) || 0;
+        const stokFisik = Number(item.stok_fisik || item.stok) || 0;
+        const status = item.status || 'Aktif';
+
+        await pool.query(`
+          INSERT INTO produk_master (
+            kode_perusahaan, kode_sku, nama_produk, kategori, satuan,
+            harga_jual, harga_modal, stok_fisik, status
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON DUPLICATE KEY UPDATE
+            nama_produk = VALUES(nama_produk),
+            kategori = VALUES(kategori),
+            satuan = VALUES(satuan),
+            harga_jual = VALUES(harga_jual),
+            harga_modal = VALUES(harga_modal),
+            stok_fisik = VALUES(stok_fisik),
+            status = VALUES(status)
+        `, [kodePerusahaan, kodeSku, namaProduk, kategori, satuan, hargaJual, hargaModal, stokFisik, status]);
+      }
+
+      return sendJson(res, 200, { status: 'success', count: items.length });
+    } catch (err) {
+      return sendJson(res, 500, { status: 'error', message: err.message });
+    }
+  }
+
+  // 6f. Update / Delete Master Produk by ID
+  const masterIdMatch = pathname.match(/^\/api\/produk\/master\/([^/]+)$/);
+  if (masterIdMatch && req.method === 'PUT') {
+    try {
+      const body = await parseJsonBody(req);
+      const sets = [];
+      const values = [];
+      const allowed = ['nama_produk', 'kategori', 'satuan', 'harga_jual', 'harga_modal', 'stok_fisik', 'status', 'kode_sku', 'kode_perusahaan'];
+      for (const col of allowed) {
+        if (body[col] !== undefined) {
+          sets.push(`${col} = ?`);
+          values.push(body[col]);
+        }
+      }
+      if (sets.length === 0) {
+        return sendJson(res, 400, { status: 'error', message: 'Tidak ada data diubah' });
+      }
+      values.push(masterIdMatch[1]);
+      await pool.query(`UPDATE produk_master SET ${sets.join(', ')} WHERE id = ?`, values);
+      return sendJson(res, 200, { status: 'success' });
+    } catch (err) {
+      return sendJson(res, 500, { status: 'error', message: err.message });
+    }
+  }
+
+  if (masterIdMatch && req.method === 'DELETE') {
+    try {
+      await pool.query('DELETE FROM produk_master WHERE id = ?', [masterIdMatch[1]]);
+      return sendJson(res, 200, { status: 'success' });
+    } catch (err) {
+      return sendJson(res, 500, { status: 'error', message: err.message });
+    }
+  }
+
   // 7. Shopee Products Sync API (Langsung simpan ke MySQL)
   if (pathname === '/api/marketplace/shopee/products' && req.method === 'GET') {
     const shopId = urlObj.searchParams.get('shop_id') || '1030191310';
