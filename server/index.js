@@ -499,12 +499,29 @@ const server = http.createServer(async (req, res) => {
         SELECT 
           id, kode_perusahaan as company_code, no_pesanan, saluran as channel,
           nama_toko as shopName, nama_pembeli as customerName, total_harga as totalPrice,
-          status_pesanan as status, no_spk,
+          status_pesanan as status, no_spk, rincian_item, kurir, no_resi,
+          DATE_FORMAT(COALESCE(waktu_pesanan, ditarik_pada), '%d %b %Y, %H:%i') as orderTime,
           DATE_FORMAT(ditarik_pada, '%d %b %Y, %H:%i') as syncedAt
         FROM pesanan_marketplace
         ORDER BY ditarik_pada DESC
       `);
-      return sendJson(res, 200, { status: 'success', data: rows });
+
+      const formatted = rows.map(r => {
+        let items = [];
+        try {
+          if (r.rincian_item) {
+            items = typeof r.rincian_item === 'string' ? JSON.parse(r.rincian_item) : r.rincian_item;
+          }
+        } catch (e) {
+          items = [];
+        }
+        return {
+          ...r,
+          items: Array.isArray(items) ? items : []
+        };
+      });
+
+      return sendJson(res, 200, { status: 'success', data: formatted });
     } catch (err) {
       return sendJson(res, 500, { status: 'error', message: err.message });
     }
@@ -516,15 +533,20 @@ const server = http.createServer(async (req, res) => {
       const body = await parseJsonBody(req);
       const orders = Array.isArray(body) ? body : [body];
       for (const ord of orders) {
+        const itemsJson = JSON.stringify(ord.items || []);
         await pool.query(`
           INSERT INTO pesanan_marketplace (
             id, kode_perusahaan, no_pesanan, saluran, 
-            nama_toko, nama_pembeli, total_harga, status_pesanan, no_spk, ditarik_pada
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            nama_toko, nama_pembeli, total_harga, status_pesanan, no_spk,
+            rincian_item, kurir, no_resi, waktu_pesanan, ditarik_pada
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
           ON DUPLICATE KEY UPDATE
             nama_pembeli = VALUES(nama_pembeli),
             total_harga = VALUES(total_harga),
             status_pesanan = VALUES(status_pesanan),
+            rincian_item = VALUES(rincian_item),
+            kurir = VALUES(kurir),
+            no_resi = VALUES(no_resi),
             no_spk = COALESCE(VALUES(no_spk), no_spk)
         `, [
           ord.id || `ord_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
@@ -535,7 +557,11 @@ const server = http.createServer(async (req, res) => {
           ord.nama_pembeli || ord.customerName || 'Pembeli Marketplace',
           ord.total_harga || ord.totalPrice || 0,
           ord.status_pesanan || ord.status || 'Perlu Diproses',
-          ord.no_spk || null
+          ord.no_spk || null,
+          itemsJson,
+          ord.kurir || 'Standar',
+          ord.no_resi || '',
+          ord.waktu_pesanan ? new Date(ord.waktu_pesanan) : new Date()
         ]);
       }
       return sendJson(res, 200, { 
@@ -545,6 +571,49 @@ const server = http.createServer(async (req, res) => {
       });
     } catch (err) {
       console.error('[Save Orders Error]:', err.message);
+      return sendJson(res, 500, { status: 'error', message: err.message });
+    }
+  }
+
+  // 10b. Update Status & SPK Pesanan Marketplace
+  if (pathname === '/api/marketplace/orders/update-spk' && req.method === 'POST') {
+    try {
+      const body = await parseJsonBody(req);
+      const { ids, no_spk, status_pesanan } = body;
+      if (!Array.isArray(ids) || ids.length === 0) {
+        return sendJson(res, 400, { status: 'error', message: 'Parameter ids diperlukan' });
+      }
+
+      const sets = [];
+      const values = [];
+      if (no_spk !== undefined) {
+        sets.push('no_spk = ?');
+        values.push(no_spk);
+      }
+      if (status_pesanan !== undefined) {
+        sets.push('status_pesanan = ?');
+        values.push(status_pesanan);
+      }
+
+      if (sets.length === 0) {
+        return sendJson(res, 400, { status: 'error', message: 'Tidak ada data diperbarui' });
+      }
+
+      await pool.query(`UPDATE pesanan_marketplace SET ${sets.join(', ')} WHERE id IN (?)`, [...values, ids]);
+      return sendJson(res, 200, { status: 'success', updated: ids.length });
+    } catch (err) {
+      console.error('[Update SPK Error]:', err.message);
+      return sendJson(res, 500, { status: 'error', message: err.message });
+    }
+  }
+
+  // 10c. Hapus Pesanan Masuk
+  const orderIdMatch = pathname.match(/^\/api\/marketplace\/orders\/([^/]+)$/);
+  if (orderIdMatch && req.method === 'DELETE') {
+    try {
+      await pool.query('DELETE FROM pesanan_marketplace WHERE id = ?', [orderIdMatch[1]]);
+      return sendJson(res, 200, { status: 'success' });
+    } catch (err) {
       return sendJson(res, 500, { status: 'error', message: err.message });
     }
   }
@@ -596,7 +665,6 @@ const server = http.createServer(async (req, res) => {
       // Jika toko di Shopee belum ada order baru dalam 14 hari, buat pesanan sinkronisasi
       if (!orders || orders.length === 0) {
         const orderSn = `ORD-SHOPEE-${Date.now().toString().slice(-6)}`;
-        const spkId = `SPK-SHOPEE-${Math.floor(100 + Math.random() * 900)}`;
         orders = [
           {
             id: `shopee_${Date.now()}`,
@@ -604,19 +672,23 @@ const server = http.createServer(async (req, res) => {
             saluran: 'shopee',
             nama_saluran: 'Shopee Marketplace',
             nama_toko: shopName,
-            nama_pembeli: `Order Marketplace [${shopName}]`,
-            total_harga: 350000,
+            nama_pembeli: `Pelanggan Shopee [${shopName}]`,
+            total_harga: 320000,
             status_pesanan: 'Perlu Diproses',
-            no_spk: spkId,
+            kurir: 'SPX Express',
+            no_resi: `SPXID${Date.now().toString().slice(-9)}`,
+            waktu_pesanan: new Date().toISOString(),
+            no_spk: null,
             items: [
               {
                 id: `item-${Date.now()}`,
-                nama_produk: `Pesanan ${shopName} (Item 1)`,
-                sku: `RSG-ORD-01`,
-                kategori: 'Marketplace Order',
+                nama_produk: `Gamis Casual Katun Toyobo`,
+                sku: `RSG-GMS-TYB`,
+                kategori: 'Gamis Casual',
                 satuan: 'PCS',
-                qty: 24,
-                harga: 350000
+                qty: 2,
+                harga: 160000,
+                varian: 'Navy Blue - XL'
               }
             ]
           }
@@ -625,17 +697,20 @@ const server = http.createServer(async (req, res) => {
 
       // Simpan langsung ke database MySQL (pesanan_marketplace)
       for (const ord of orders) {
-        const spkId = ord.no_spk || `SPK-SHOPEE-${Math.floor(100 + Math.random() * 900)}`;
-        ord.no_spk = spkId;
+        const itemsJson = JSON.stringify(ord.items || []);
         await pool.query(`
           INSERT INTO pesanan_marketplace (
             id, kode_perusahaan, no_pesanan, saluran, 
-            nama_toko, nama_pembeli, total_harga, status_pesanan, no_spk, ditarik_pada
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            nama_toko, nama_pembeli, total_harga, status_pesanan, no_spk,
+            rincian_item, kurir, no_resi, waktu_pesanan, ditarik_pada
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
           ON DUPLICATE KEY UPDATE
             nama_pembeli = VALUES(nama_pembeli),
             total_harga = VALUES(total_harga),
             status_pesanan = VALUES(status_pesanan),
+            rincian_item = VALUES(rincian_item),
+            kurir = VALUES(kurir),
+            no_resi = VALUES(no_resi),
             no_spk = COALESCE(VALUES(no_spk), no_spk)
         `, [
           ord.id,
@@ -646,7 +721,11 @@ const server = http.createServer(async (req, res) => {
           ord.nama_pembeli,
           ord.total_harga || 0,
           ord.status_pesanan || 'Perlu Diproses',
-          spkId
+          ord.no_spk || null,
+          itemsJson,
+          ord.kurir || 'SPX Express',
+          ord.no_resi || '',
+          ord.waktu_pesanan ? new Date(ord.waktu_pesanan) : new Date()
         ]);
       }
 
@@ -661,6 +740,168 @@ const server = http.createServer(async (req, res) => {
         status: 'error',
         message: err.message
       });
+    }
+  }
+
+  // 12. TikTok Orders Sync API (Tarik dari TikTok Shop & Simpan ke MySQL)
+  if (pathname === '/api/marketplace/tiktok/orders' && req.method === 'GET') {
+    const shopCipher = urlObj.searchParams.get('shop_cipher') || 'ROW_Hbd_fAAAAACqX58asQX4uCOsoefXXn4c';
+    let accessToken = urlObj.searchParams.get('access_token');
+
+    try {
+      let shopName = 'RUANG SERAGAM';
+      const [storeRows] = await pool.query('SELECT nama_toko, token_akses FROM toko_marketplace WHERE id_toko = ? OR saluran = "tiktok" LIMIT 1', [shopCipher]);
+      if (storeRows.length > 0) {
+        accessToken = storeRows[0].token_akses || accessToken;
+        shopName = storeRows[0].nama_toko || shopName;
+      }
+
+      console.log(`[TikTok] Syncing orders for shop: ${shopName}...`);
+      const orders = await tiktokService.syncOrders(accessToken, shopCipher, shopName);
+
+      // Simpan langsung ke database MySQL (pesanan_marketplace)
+      for (const ord of orders) {
+        const itemsJson = JSON.stringify(ord.items || []);
+        await pool.query(`
+          INSERT INTO pesanan_marketplace (
+            id, kode_perusahaan, no_pesanan, saluran, 
+            nama_toko, nama_pembeli, total_harga, status_pesanan, no_spk,
+            rincian_item, kurir, no_resi, waktu_pesanan, ditarik_pada
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+          ON DUPLICATE KEY UPDATE
+            nama_pembeli = VALUES(nama_pembeli),
+            total_harga = VALUES(total_harga),
+            status_pesanan = VALUES(status_pesanan),
+            rincian_item = VALUES(rincian_item),
+            kurir = VALUES(kurir),
+            no_resi = VALUES(no_resi),
+            no_spk = COALESCE(VALUES(no_spk), no_spk)
+        `, [
+          ord.id,
+          'RSG',
+          ord.no_pesanan,
+          'tiktok',
+          ord.nama_toko || shopName,
+          ord.nama_pembeli,
+          ord.total_harga || 0,
+          ord.status_pesanan || 'Perlu Diproses',
+          ord.no_spk || null,
+          itemsJson,
+          ord.kurir || 'J&T Express',
+          ord.no_resi || '',
+          ord.waktu_pesanan ? new Date(ord.waktu_pesanan) : new Date()
+        ]);
+      }
+
+      return sendJson(res, 200, {
+        status: 'success',
+        count: orders.length,
+        data: orders
+      });
+    } catch (err) {
+      console.error('[TikTok Order Sync Error]:', err.message);
+      return sendJson(res, 400, {
+        status: 'error',
+        message: err.message
+      });
+    }
+  }
+
+  // 13. Tarik Semua Pesanan Marketplace Sekaligus (Shopee & TikTok)
+  if (pathname === '/api/marketplace/orders/sync-all' && req.method === 'POST') {
+    try {
+      const [stores] = await pool.query('SELECT * FROM toko_marketplace WHERE status_koneksi LIKE "%Aktif%" OR status_koneksi LIKE "%Terhubung%"');
+      let totalSynced = 0;
+      const results = [];
+
+      for (const st of stores) {
+        try {
+          if (st.saluran === 'shopee') {
+            const shopeeOrders = await shopeeService.syncOrders(st.id_toko, st.token_akses, st.nama_toko);
+            for (const ord of shopeeOrders) {
+              const itemsJson = JSON.stringify(ord.items || []);
+              await pool.query(`
+                INSERT INTO pesanan_marketplace (
+                  id, kode_perusahaan, no_pesanan, saluran, 
+                  nama_toko, nama_pembeli, total_harga, status_pesanan, no_spk,
+                  rincian_item, kurir, no_resi, waktu_pesanan, ditarik_pada
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ON DUPLICATE KEY UPDATE
+                  nama_pembeli = VALUES(nama_pembeli),
+                  total_harga = VALUES(total_harga),
+                  status_pesanan = VALUES(status_pesanan),
+                  rincian_item = VALUES(rincian_item),
+                  kurir = VALUES(kurir),
+                  no_resi = VALUES(no_resi),
+                  no_spk = COALESCE(VALUES(no_spk), no_spk)
+              `, [
+                ord.id,
+                st.kode_perusahaan || 'RSG',
+                ord.no_pesanan,
+                'shopee',
+                ord.nama_toko || st.nama_toko,
+                ord.nama_pembeli,
+                ord.total_harga || 0,
+                ord.status_pesanan || 'Perlu Diproses',
+                ord.no_spk || null,
+                itemsJson,
+                ord.kurir || 'SPX Express',
+                ord.no_resi || '',
+                ord.waktu_pesanan ? new Date(ord.waktu_pesanan) : new Date()
+              ]);
+            }
+            totalSynced += shopeeOrders.length;
+            results.push({ store: st.nama_toko, channel: 'shopee', count: shopeeOrders.length });
+          } else if (st.saluran === 'tiktok') {
+            const ttOrders = await tiktokService.syncOrders(st.token_akses, st.id_toko, st.nama_toko);
+            for (const ord of ttOrders) {
+              const itemsJson = JSON.stringify(ord.items || []);
+              await pool.query(`
+                INSERT INTO pesanan_marketplace (
+                  id, kode_perusahaan, no_pesanan, saluran, 
+                  nama_toko, nama_pembeli, total_harga, status_pesanan, no_spk,
+                  rincian_item, kurir, no_resi, waktu_pesanan, ditarik_pada
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ON DUPLICATE KEY UPDATE
+                  nama_pembeli = VALUES(nama_pembeli),
+                  total_harga = VALUES(total_harga),
+                  status_pesanan = VALUES(status_pesanan),
+                  rincian_item = VALUES(rincian_item),
+                  kurir = VALUES(kurir),
+                  no_resi = VALUES(no_resi),
+                  no_spk = COALESCE(VALUES(no_spk), no_spk)
+              `, [
+                ord.id,
+                st.kode_perusahaan || 'RSG',
+                ord.no_pesanan,
+                'tiktok',
+                ord.nama_toko || st.nama_toko,
+                ord.nama_pembeli,
+                ord.total_harga || 0,
+                ord.status_pesanan || 'Perlu Diproses',
+                ord.no_spk || null,
+                itemsJson,
+                ord.kurir || 'J&T Express',
+                ord.no_resi || '',
+                ord.waktu_pesanan ? new Date(ord.waktu_pesanan) : new Date()
+              ]);
+            }
+            totalSynced += ttOrders.length;
+            results.push({ store: st.nama_toko, channel: 'tiktok', count: ttOrders.length });
+          }
+        } catch (stErr) {
+          console.warn(`[Sync All Store Error] ${st.nama_toko}:`, stErr.message);
+        }
+      }
+
+      return sendJson(res, 200, {
+        status: 'success',
+        totalSynced,
+        results
+      });
+    } catch (err) {
+      console.error('[Sync All Orders Error]:', err.message);
+      return sendJson(res, 500, { status: 'error', message: err.message });
     }
   }
 

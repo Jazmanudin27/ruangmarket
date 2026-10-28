@@ -303,9 +303,9 @@ export default function MarketplaceView({ onBack, onNavigate }) {
 
     try {
       let orders = [];
-      const endpoint = store.channel === 'shopee'
-        ? `/api/marketplace/shopee/orders?shop_id=${store.shopId}&access_token=${encodeURIComponent(store.accessToken || '')}`
-        : `/api/marketplace/orders`;
+      const endpoint = store.channel === 'tiktok'
+        ? `/api/marketplace/tiktok/orders?shop_cipher=${encodeURIComponent(store.shopId || '')}&access_token=${encodeURIComponent(store.accessToken || '')}`
+        : `/api/marketplace/shopee/orders?shop_id=${store.shopId}&access_token=${encodeURIComponent(store.accessToken || '')}`;
 
       try {
         const controller = new AbortController();

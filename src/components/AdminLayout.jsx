@@ -36,6 +36,7 @@ import ProduksiDesktopView from '../views/desktop/ProduksiDesktopView';
 import SPKDesktopView from '../views/desktop/SPKDesktopView';
 import MarketplaceDesktopView from '../views/desktop/MarketplaceDesktopView';
 import ProdukMarketplaceDesktopView from '../views/desktop/ProdukMarketplaceDesktopView';
+import PesananMasukDesktopView from '../views/desktop/PesananMasukDesktopView';
 import BlankTemplateDesktopView from '../views/desktop/BlankTemplateDesktopView';
 
 // Mobile Views
@@ -231,6 +232,9 @@ export default function AdminLayout() {
         ) : (
           <ProdukMarketplaceDesktopView onNavigate={changeTab} />
         );
+      case 'pesanan_masuk':
+      case 'pesanan':
+        return <PesananMasukDesktopView onNavigate={changeTab} />;
       case 'blank':
         return <BlankTemplateDesktopView />;
       default:
@@ -819,6 +823,48 @@ export default function AdminLayout() {
               )}
             </div>
 
+            {/* 3b. Tab Pesanan Masuk Langsung di Top Nav */}
+            <button
+              type="button"
+              onClick={() => changeTab('pesanan_masuk')}
+              style={{
+                height: '24px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '4px',
+                padding: '0 8px',
+                borderRadius: '5px',
+                border: (activeTab === 'pesanan_masuk' || activeTab === 'pesanan') ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.08)',
+                backgroundColor: (activeTab === 'pesanan_masuk' || activeTab === 'pesanan') ? '#0284c7' : 'rgba(255, 255, 255, 0.05)',
+                color: (activeTab === 'pesanan_masuk' || activeTab === 'pesanan') ? '#ffffff' : '#cbd5e1',
+                fontSize: '11px',
+                fontWeight: (activeTab === 'pesanan_masuk' || activeTab === 'pesanan') ? '800' : '600',
+                lineHeight: 1,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+                whiteSpace: 'nowrap',
+                boxShadow: (activeTab === 'pesanan_masuk' || activeTab === 'pesanan') ? '0 0 10px rgba(2, 132, 199, 0.5)' : 'none'
+              }}
+              onMouseEnter={(e) => {
+                if (activeTab !== 'pesanan_masuk' && activeTab !== 'pesanan') {
+                  e.currentTarget.style.backgroundColor = 'rgba(56, 189, 248, 0.15)';
+                  e.currentTarget.style.borderColor = 'rgba(56, 189, 248, 0.3)';
+                  e.currentTarget.style.color = '#ffffff';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (activeTab !== 'pesanan_masuk' && activeTab !== 'pesanan') {
+                  e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
+                  e.currentTarget.style.color = '#cbd5e1';
+                }
+              }}
+            >
+              <ShoppingBag size={13} color={(activeTab === 'pesanan_masuk' || activeTab === 'pesanan') ? '#ffffff' : '#38bdf8'} style={{ flexShrink: 0 }} />
+              <span>Pesanan Masuk</span>
+            </button>
+
             {/* 4. Marketplace & Toko Online */}
             <div style={{ position: 'relative' }} ref={marketplaceRef}>
               <button
@@ -892,6 +938,43 @@ export default function AdminLayout() {
                   flexDirection: 'column',
                   gap: '3px'
                 }}>
+                  {/* Submenu 1: Pesanan Masuk (Shopee & TikTok) */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      changeTab('pesanan_masuk');
+                      setIsMarketplaceOpen(false);
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'flex-start',
+                      gap: '8px',
+                      width: '100%',
+                      padding: '7px 10px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      backgroundColor: activeTab === 'pesanan_masuk' ? 'rgba(2, 132, 199, 0.2)' : 'transparent',
+                      color: activeTab === 'pesanan_masuk' ? '#38bdf8' : '#cbd5e1',
+                      fontSize: '11.5px',
+                      fontWeight: activeTab === 'pesanan_masuk' ? '800' : '600',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'background-color 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (activeTab !== 'pesanan_masuk') e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (activeTab !== 'pesanan_masuk') e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
+                  >
+                    <ShoppingBag size={14} color={activeTab === 'pesanan_masuk' ? '#38bdf8' : '#94a3b8'} style={{ flexShrink: 0 }} />
+                    <span style={{ textAlign: 'left', flex: 1 }}>Pesanan Masuk</span>
+                  </button>
+
+                  {/* Submenu 2: Tambah Toko Marketplace */}
                   <button
                     type="button"
                     onClick={(e) => {
@@ -1274,6 +1357,26 @@ export default function AdminLayout() {
             }}>
               Marketplace & POS
             </div>
+            <button
+              onClick={() => changeTab('pesanan_masuk')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '8px 12px 8px 20px',
+                borderRadius: '6px',
+                border: activeTab === 'pesanan_masuk' ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.08)',
+                backgroundColor: activeTab === 'pesanan_masuk' ? '#0284c7' : 'rgba(255, 255, 255, 0.05)',
+                color: '#ffffff',
+                fontSize: '12px',
+                fontWeight: activeTab === 'pesanan_masuk' ? '800' : '600',
+                cursor: 'pointer',
+                textAlign: 'left'
+              }}
+            >
+              <ShoppingBag size={15} color={activeTab === 'pesanan_masuk' ? '#ffffff' : '#38bdf8'} />
+              <span>Pesanan Masuk</span>
+            </button>
             <button
               onClick={() => changeTab('marketplace')}
               style={{

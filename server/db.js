@@ -112,9 +112,27 @@ export async function initDb() {
         total_harga DECIMAL(15,2) DEFAULT 0,
         status_pesanan VARCHAR(32) DEFAULT 'Perlu Diproses',
         no_spk VARCHAR(64),
+        rincian_item LONGTEXT,
+        kurir VARCHAR(64),
+        no_resi VARCHAR(64),
+        waktu_pesanan DATETIME,
         ditarik_pada TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Daftar pesanan marketplace yang terhubung ke SPK';
     `);
+
+    // Auto-migrate column untuk rincian pesanan marketplace
+    try {
+      await conn.query(`ALTER TABLE pesanan_marketplace ADD COLUMN rincian_item LONGTEXT`);
+    } catch (e) {}
+    try {
+      await conn.query(`ALTER TABLE pesanan_marketplace ADD COLUMN kurir VARCHAR(64)`);
+    } catch (e) {}
+    try {
+      await conn.query(`ALTER TABLE pesanan_marketplace ADD COLUMN no_resi VARCHAR(64)`);
+    } catch (e) {}
+    try {
+      await conn.query(`ALTER TABLE pesanan_marketplace ADD COLUMN waktu_pesanan DATETIME`);
+    } catch (e) {}
 
     // 5. Masukkan Akun Toko Shopee Resmi jika belum ada
     await conn.query(`
