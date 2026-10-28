@@ -412,54 +412,6 @@ export default function PesananMasukDesktopView() {
 
         {/* Header Action Buttons */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-          <button
-            type="button"
-            onClick={handleSyncAll}
-            disabled={isSyncing}
-            style={{
-              height: '32px',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '7px',
-              padding: '0 16px',
-              borderRadius: '7px',
-              border: 'none',
-              background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
-              color: '#ffffff',
-              fontSize: '12px',
-              fontWeight: '700',
-              cursor: isSyncing ? 'not-allowed' : 'pointer',
-              boxShadow: '0 2px 8px rgba(2, 132, 199, 0.4)',
-              transition: 'all 0.15s ease'
-            }}
-          >
-            <RotateCw size={14} className={isSyncing ? 'spin-icon' : ''} />
-            <span>{isSyncing ? (syncMessage || 'Menarik...') : 'Tarik Pesanan Shopee & TikTok'}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={loadOrders}
-            disabled={isLoading}
-            style={{
-              height: '32px',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '0 14px',
-              borderRadius: '7px',
-              border: '1px solid rgba(255, 255, 255, 0.15)',
-              backgroundColor: 'rgba(255, 255, 255, 0.08)',
-              color: '#e2e8f0',
-              fontSize: '12px',
-              fontWeight: '600',
-              cursor: 'pointer',
-              transition: 'all 0.15s ease'
-            }}
-          >
-            <RotateCw size={13} className={isLoading ? 'spin-icon' : ''} />
-            <span>Refresh</span>
-          </button>
         </div>
       </div>
 
