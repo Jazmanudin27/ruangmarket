@@ -237,7 +237,11 @@ export default function ProdukView() {
             harga_kain_cm: 150
           }));
           setProdukList(mapped);
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(mapped));
+          try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(mapped));
+          } catch (storageErr) {
+            console.warn('LocalStorage penuh, data tetap tersimpan di memory & database');
+          }
           setIsLoading(false);
           return;
         }

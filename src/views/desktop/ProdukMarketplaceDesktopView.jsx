@@ -254,9 +254,6 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
         };
       });
 
-      localStorage.setItem(PRODUK_MASTER_KEY, JSON.stringify([...newProducts, ...masterList]));
-      window.dispatchEvent(new Event('storage'));
-
       const targetIds = unmappedList.map(i => i.id);
 
       // Simpan langsung ke database MySQL produk_master (Bulk Insert)
@@ -280,6 +277,13 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
       if (!masterRes.ok || masterJson.status !== 'success') {
         throw new Error(masterJson.message || `Gagal menyimpan ke database (HTTP ${masterRes.status})`);
       }
+
+      // Bersihkan atau update cache localStorage secara aman tanpa crash quota
+      try {
+        localStorage.removeItem(PRODUK_MASTER_KEY);
+      } catch (e) {}
+
+      window.dispatchEvent(new Event('storage'));
 
       // Update di state
       setMktProdukList(prev => prev.map(p => targetIds.includes(p.id) ? { ...p, status: 'Sudah di Master' } : p));
