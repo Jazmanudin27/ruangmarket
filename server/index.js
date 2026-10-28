@@ -437,6 +437,10 @@ const server = http.createServer(async (req, res) => {
   sendJson(res, 404, { error: 'Endpoint tidak ditemukan' });
 });
 
+server.keepAliveTimeout = 120000;
+server.headersTimeout = 125000;
+server.setTimeout(120000);
+
 server.listen(PORT, () => {
   console.log(`RuangMarket Marketplace API Server berjalan di port ${PORT}`);
 });

@@ -335,7 +335,7 @@ export class ShopeeService {
     const itemsNeedModel = details.filter(d => d.has_model || !d.price_info || d.price_info.length === 0);
     const modelMap = new Map();
 
-    const concurrency = 8;
+    const concurrency = 15;
     for (let i = 0; i < itemsNeedModel.length; i += concurrency) {
       const chunk = itemsNeedModel.slice(i, i + concurrency);
       const chunkResults = await Promise.all(

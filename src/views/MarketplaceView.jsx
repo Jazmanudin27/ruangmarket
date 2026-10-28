@@ -210,7 +210,7 @@ export default function MarketplaceView({ onBack, onNavigate }) {
         const endpoint = `/api/marketplace/shopee/products?shop_id=${store.shopId}&access_token=${encodeURIComponent(store.accessToken || '')}`;
         
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 12000);
+        const timeoutId = setTimeout(() => controller.abort(), 120000); // 120s untuk ambil semua produk + varian detail
 
         const res = await fetch(endpoint, { signal: controller.signal });
         clearTimeout(timeoutId);
@@ -226,7 +226,7 @@ export default function MarketplaceView({ onBack, onNavigate }) {
           return;
         }
       } catch (fetchErr) {
-        toastError(`Koneksi API gagal: ${fetchErr.name === 'AbortError' ? 'Timeout (Server tidak merespon)' : fetchErr.message}`);
+        toastError(`Koneksi API gagal: ${fetchErr.name === 'AbortError' ? 'Timeout (Server sedang memproses banyak data produk Shopee, coba klik lagi)' : fetchErr.message}`);
         return;
       }
 
