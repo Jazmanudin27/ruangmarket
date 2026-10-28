@@ -527,6 +527,18 @@ const server = http.createServer(async (req, res) => {
       `);
 
 
+      // Ambil seluruh data produk_master untuk menghitung HPP otomatis berdasarkan SKU / nama produk
+      const [masterRows] = await pool.query('SELECT kode_sku, nama_produk, COALESCE(hpp, harga_pokok, 0) as hpp FROM produk_master');
+      const hppMap = new Map();
+      masterRows.forEach(m => {
+        if (m.kode_sku) {
+          hppMap.set(String(m.kode_sku).trim().toLowerCase(), Number(m.hpp) || 0);
+        }
+        if (m.nama_produk) {
+          hppMap.set(String(m.nama_produk).trim().toLowerCase(), Number(m.hpp) || 0);
+        }
+      });
+
       const formatted = rows.map(r => {
         let items = [];
         try {
@@ -536,9 +548,44 @@ const server = http.createServer(async (req, res) => {
         } catch (e) {
           items = [];
         }
+
+        const enrichedItems = (Array.isArray(items) ? items : []).map(it => {
+          const itemSku = String(it.sku || it.kode_sku || '').trim().toLowerCase();
+          const itemName = String(it.nama_produk || '').trim().toLowerCase();
+          const cleanSku = itemSku.replace(/^rsg-/, '');
+          
+          let hpp = Number(it.hpp || it.cost_price || 0);
+          if (hpp <= 0) {
+            hpp = hppMap.get(itemSku) || hppMap.get(cleanSku) || hppMap.get(itemName) || 0;
+          }
+
+          const qty = Number(it.qty || it.quantity || 1);
+          const price = Number(it.harga || it.price || 0);
+          const subtotal = Number(it.subtotal || (price * qty));
+          const hppSubtotal = Number(it.hpp_subtotal || (hpp * qty));
+
+          return {
+            ...it,
+            hpp,
+            cost_price: hpp,
+            hpp_subtotal: hppSubtotal,
+            subtotal
+          };
+        });
+
+        const subtotalPesanan = enrichedItems.reduce((acc, it) => acc + (Number(it.subtotal) || 0), 0) || Number(r.totalPrice || 0);
+        const hppTotal = enrichedItems.reduce((acc, it) => acc + (Number(it.hpp_subtotal) || 0), 0);
+        const netAmount = Number(r.net_amount || (subtotalPesanan + Number(r.ongkir || 0) - Number(r.marketplace_fee || 0)));
+        const netProfit = netAmount - hppTotal;
+        const profitMargin = netAmount > 0 ? ((netProfit / netAmount) * 100).toFixed(2) : '0';
+
         return {
           ...r,
-          items: Array.isArray(items) ? items : []
+          totalPrice: subtotalPesanan,
+          hpp_total: hppTotal,
+          net_profit: netProfit,
+          profit_margin: profitMargin,
+          items: enrichedItems
         };
       });
 
@@ -723,8 +770,10 @@ const server = http.createServer(async (req, res) => {
           INSERT INTO pesanan_marketplace (
             id, kode_perusahaan, no_pesanan, saluran, 
             nama_toko, nama_pembeli, total_harga, status_pesanan, no_spk,
-            rincian_item, kurir, no_resi, waktu_pesanan, ditarik_pada
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            rincian_item, kurir, no_resi, waktu_pesanan,
+            ongkir, marketplace_fee, fee_platform, fee_free_shipping, fee_service, net_amount,
+            ditarik_pada
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
           ON DUPLICATE KEY UPDATE
             nama_pembeli = VALUES(nama_pembeli),
             total_harga = VALUES(total_harga),
@@ -732,6 +781,12 @@ const server = http.createServer(async (req, res) => {
             rincian_item = VALUES(rincian_item),
             kurir = VALUES(kurir),
             no_resi = VALUES(no_resi),
+            ongkir = VALUES(ongkir),
+            marketplace_fee = VALUES(marketplace_fee),
+            fee_platform = VALUES(fee_platform),
+            fee_free_shipping = VALUES(fee_free_shipping),
+            fee_service = VALUES(fee_service),
+            net_amount = VALUES(net_amount),
             no_spk = COALESCE(VALUES(no_spk), no_spk)
         `, [
           ord.id,
@@ -746,7 +801,13 @@ const server = http.createServer(async (req, res) => {
           itemsJson,
           ord.kurir || 'SPX Express',
           ord.no_resi || '',
-          ord.waktu_pesanan ? new Date(ord.waktu_pesanan) : new Date()
+          ord.waktu_pesanan ? new Date(ord.waktu_pesanan) : new Date(),
+          ord.ongkir || 0,
+          ord.marketplace_fee || 0,
+          ord.fee_platform || 0,
+          ord.fee_free_shipping || 0,
+          ord.fee_service || 0,
+          ord.net_amount || ord.total_harga || 0
         ]);
       }
 
@@ -845,8 +906,10 @@ const server = http.createServer(async (req, res) => {
                 INSERT INTO pesanan_marketplace (
                   id, kode_perusahaan, no_pesanan, saluran, 
                   nama_toko, nama_pembeli, total_harga, status_pesanan, no_spk,
-                  rincian_item, kurir, no_resi, waktu_pesanan, ditarik_pada
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                  rincian_item, kurir, no_resi, waktu_pesanan,
+                  ongkir, marketplace_fee, fee_platform, fee_free_shipping, fee_service, net_amount,
+                  ditarik_pada
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 ON DUPLICATE KEY UPDATE
                   nama_pembeli = VALUES(nama_pembeli),
                   total_harga = VALUES(total_harga),
@@ -854,6 +917,12 @@ const server = http.createServer(async (req, res) => {
                   rincian_item = VALUES(rincian_item),
                   kurir = VALUES(kurir),
                   no_resi = VALUES(no_resi),
+                  ongkir = VALUES(ongkir),
+                  marketplace_fee = VALUES(marketplace_fee),
+                  fee_platform = VALUES(fee_platform),
+                  fee_free_shipping = VALUES(fee_free_shipping),
+                  fee_service = VALUES(fee_service),
+                  net_amount = VALUES(net_amount),
                   no_spk = COALESCE(VALUES(no_spk), no_spk)
               `, [
                 ord.id,
@@ -868,7 +937,13 @@ const server = http.createServer(async (req, res) => {
                 itemsJson,
                 ord.kurir || 'SPX Express',
                 ord.no_resi || '',
-                ord.waktu_pesanan ? new Date(ord.waktu_pesanan) : new Date()
+                ord.waktu_pesanan ? new Date(ord.waktu_pesanan) : new Date(),
+                ord.ongkir || 0,
+                ord.marketplace_fee || 0,
+                ord.fee_platform || 0,
+                ord.fee_free_shipping || 0,
+                ord.fee_service || 0,
+                ord.net_amount || ord.total_harga || 0
               ]);
             }
             totalSynced += shopeeOrders.length;

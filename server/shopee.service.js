@@ -501,7 +501,7 @@ export class ShopeeService {
     return res.response?.order_list || [];
   }
 
-  // 7. Mendapatkan Detail Lengkap Order (Status, Buyer, Total, Items)
+  // 7. Mendapatkan Detail Lengkap Order (Status, Buyer, Total, Items, Escrow, Shipping)
   async getOrderDetail(shopId, accessToken, orderSnList = []) {
     if (!orderSnList || orderSnList.length === 0) return [];
 
@@ -517,7 +517,7 @@ export class ShopeeService {
       shop_id: sId,
       sign,
       order_sn_list: orderSnList.join(','),
-      response_optional_fields: 'buyer_user_id,buyer_username,item_list,total_amount,order_status'
+      response_optional_fields: 'buyer_user_id,buyer_username,item_list,total_amount,order_status,shipping_carrier,actual_shipping_fee,estimated_shipping_fee,recipient_address,payment_method,escrow_amount,shopee_shipping_rebate'
     });
 
     const url = `${this.baseUrl}${path}?${query.toString()}`;
@@ -530,7 +530,32 @@ export class ShopeeService {
     return res.response?.order_list || [];
   }
 
-  // 8. Sinkronisasi Pesanan Shopee
+  // 7b. Ambil Escrow Detail per Order dari Shopee
+  async getEscrowDetail(shopId, accessToken, orderSn) {
+    try {
+      const path = '/api/v2/payment/get_escrow_detail';
+      const timestamp = Math.floor(Date.now() / 1000);
+      const sId = String(shopId);
+      const sign = this.generateSignature(path, timestamp, accessToken, sId);
+
+      const query = new URLSearchParams({
+        partner_id: this.partnerId,
+        timestamp,
+        access_token: accessToken,
+        shop_id: sId,
+        sign,
+        order_sn: orderSn
+      });
+
+      const url = `${this.baseUrl}${path}?${query.toString()}`;
+      const res = await this.requestGet(url);
+      return res.response?.order_income || null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // 8. Sinkronisasi Pesanan Shopee Lengkap dengan Finansial & HPP
   async syncOrders(shopId, accessToken, fallbackShopName = 'Koperasi Sahabat Anak Bangsa') {
     const sId = String(shopId);
     const orderList = await this.getOrderList(sId, accessToken, 50);
@@ -544,31 +569,82 @@ export class ShopeeService {
       details = details.concat(batchDetails);
     }
 
-    return details.map(d => {
-      const items = (d.item_list || []).map(it => ({
-        id: `item-${it.item_id}`,
-        item_id: it.item_id,
-        nama_produk: it.item_name || 'Produk Pesanan',
-        sku: it.item_sku || `SKU-${it.item_id}`,
-        kategori: 'Marketplace Order',
-        satuan: 'PCS',
-        qty: it.model_quantity_purchased || 1,
-        harga: it.model_discounted_price || it.model_original_price || 0,
-        varian: it.model_name || 'Standard'
-      }));
+    // Ambil escrow detail untuk tiap pesanan
+    const orders = [];
+    for (const d of details) {
+      const escrow = await this.getEscrowDetail(sId, accessToken, d.order_sn);
 
-      return {
+      const items = (d.item_list || []).map(it => {
+        const cleanSku = it.model_sku || it.item_sku || `SKU-${it.item_id}`;
+        return {
+          id: `item-${it.item_id}`,
+          item_id: it.item_id,
+          nama_produk: it.item_name || 'Produk Pesanan',
+          sku: cleanSku,
+          kategori: 'Marketplace Order',
+          satuan: 'PCS',
+          qty: it.model_quantity_purchased || 1,
+          harga: it.model_discounted_price || it.model_original_price || 0,
+          subtotal: (it.model_discounted_price || it.model_original_price || 0) * (it.model_quantity_purchased || 1),
+          varian: it.model_name || 'Standard',
+          foto_produk: it.image_info?.image_url || ''
+        };
+      });
+
+      const subtotalPesanan = items.reduce((acc, it) => acc + (Number(it.subtotal) || 0), 0);
+      const shippingFee = Number(escrow?.actual_shipping_fee || d.actual_shipping_fee || d.estimated_shipping_fee || 10000);
+
+      // Hitung fee breakdown persis seperti Laravel Order.php & PullOrdersFromShopee.php
+      let marketplaceFee = 0;
+      let platformFee = 0;
+      let freeShipping = 0;
+      let serviceFee = 0;
+      let netAmount = Number(d.total_amount) || 0;
+
+      if (escrow) {
+        platformFee = Math.abs(Number(escrow.commission_fee || 0));
+        freeShipping = Math.abs(Number(escrow.service_fee || 0));
+        serviceFee = Math.abs(Number(escrow.seller_order_processing_fee || 0));
+        
+        const sellerFee = Math.abs(Number(escrow.seller_coin_cash_back || 0))
+          + platformFee
+          + freeShipping
+          + serviceFee
+          + Math.abs(Number(escrow.seller_transaction_fee || 0))
+          + Math.abs(Number(escrow.ams_commission_fee || 0));
+
+        marketplaceFee = sellerFee;
+        const rawEscrow = Number(escrow.escrow_amount_after_adjustment || escrow.escrow_amount || 0);
+        netAmount = rawEscrow > 0 ? rawEscrow : Math.max(0, subtotalPesanan + shippingFee - marketplaceFee);
+      } else {
+        marketplaceFee = Math.round(subtotalPesanan * 0.095);
+        netAmount = Math.max(0, subtotalPesanan + shippingFee - marketplaceFee);
+      }
+
+      orders.push({
         id: `shopee_${d.order_sn}`,
         no_pesanan: d.order_sn,
         saluran: 'shopee',
         nama_saluran: 'Shopee Marketplace',
         nama_toko: fallbackShopName,
         nama_pembeli: d.buyer_username || `Buyer #${d.buyer_user_id || 'Shopee'}`,
-        total_harga: Number(d.total_amount) || 0,
+        telepon: d.recipient_address?.phone || '',
+        alamat: d.recipient_address?.full_address || '',
+        kurir: d.shipping_carrier || 'SPX Express',
+        total_harga: subtotalPesanan > 0 ? subtotalPesanan : (Number(d.total_amount) || 0),
+        ongkir: shippingFee,
+        shipping_fee: shippingFee,
+        marketplace_fee: marketplaceFee,
+        fee_platform: platformFee,
+        fee_free_shipping: freeShipping,
+        fee_service: serviceFee,
+        net_amount: netAmount,
         status_pesanan: d.order_status || 'Perlu Diproses',
         items: items
-      };
-    });
+      });
+    }
+
+    return orders;
   }
 }
 
