@@ -19,8 +19,8 @@ export class ShopeeService {
     return crypto.createHmac('sha256', this.partnerKey).update(baseString).digest('hex');
   }
 
-  // Helper request HTTP(S) GET dengan Auto-Retry 3x & Timeout 30s (Persis seperti Laravel)
-  async requestGet(url, retries = 3) {
+  // Helper request HTTP(S) GET dengan Auto-Retry 2x & Timeout 10s (Cepat & Responsif)
+  async requestGet(url, retries = 2) {
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {
         return await new Promise((resolve, reject) => {
@@ -34,7 +34,7 @@ export class ShopeeService {
               'User-Agent': 'GuzzleHttp/7 RuangMarket-Shopee/2.0',
               'Accept': 'application/json'
             },
-            timeout: 30000
+            timeout: 10000
           }, (res) => {
             let raw = '';
             res.on('data', chunk => raw += chunk);
@@ -53,13 +53,13 @@ export class ShopeeService {
           req.on('error', reject);
           req.on('timeout', () => {
             req.destroy();
-            reject(new Error('Koneksi ke Shopee Timeout (30s)'));
+            reject(new Error('Koneksi ke Shopee Timeout (10s)'));
           });
           req.end();
         });
       } catch (err) {
         if (attempt === retries) throw err;
-        await new Promise(r => setTimeout(r, 1000));
+        await new Promise(r => setTimeout(r, 500));
       }
     }
   }
@@ -335,7 +335,7 @@ export class ShopeeService {
     const itemsNeedModel = details.filter(d => d.has_model || !d.price_info || d.price_info.length === 0);
     const modelMap = new Map();
 
-    const concurrency = 15;
+    const concurrency = 30;
     for (let i = 0; i < itemsNeedModel.length; i += concurrency) {
       const chunk = itemsNeedModel.slice(i, i + concurrency);
       const chunkResults = await Promise.all(
