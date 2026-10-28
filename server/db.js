@@ -184,6 +184,21 @@ export async function initDb() {
     try {
       await conn.query(`ALTER TABLE pesanan_marketplace ADD COLUMN ongkir DECIMAL(15,2) DEFAULT 0`);
     } catch (e) {}
+    try {
+      await conn.query(`ALTER TABLE pesanan_marketplace ADD COLUMN marketplace_fee DECIMAL(15,2) DEFAULT 0`);
+    } catch (e) {}
+    try {
+      await conn.query(`ALTER TABLE pesanan_marketplace ADD COLUMN fee_platform DECIMAL(15,2) DEFAULT 0`);
+    } catch (e) {}
+    try {
+      await conn.query(`ALTER TABLE pesanan_marketplace ADD COLUMN fee_free_shipping DECIMAL(15,2) DEFAULT 0`);
+    } catch (e) {}
+    try {
+      await conn.query(`ALTER TABLE pesanan_marketplace ADD COLUMN fee_service DECIMAL(15,2) DEFAULT 0`);
+    } catch (e) {}
+    try {
+      await conn.query(`ALTER TABLE pesanan_marketplace ADD COLUMN net_amount DECIMAL(15,2) DEFAULT 0`);
+    } catch (e) {}
 
     // 5. Masukkan Akun Toko Shopee Resmi jika belum ada
     await conn.query(`
