@@ -122,16 +122,45 @@ const server = http.createServer(async (req, res) => {
     let accessToken = urlObj.searchParams.get('access_token');
 
     try {
-      // Ambil token dari MySQL jika tidak dikirim dari frontend
+      // Ambil token dan refresh token dari MySQL jika tidak dikirim dari frontend
+      let refreshToken = null;
       if (!accessToken) {
-        const [storeRows] = await pool.query('SELECT token_akses FROM toko_marketplace WHERE id_toko = ?', [shopId]);
-        if (storeRows.length > 0 && storeRows[0].token_akses) {
+        const [storeRows] = await pool.query('SELECT token_akses, token_refresh FROM toko_marketplace WHERE id_toko = ?', [shopId]);
+        if (storeRows.length > 0) {
           accessToken = storeRows[0].token_akses;
+          refreshToken = storeRows[0].token_refresh;
         }
       }
 
       console.log(`[Shopee] Syncing products for shopId: ${shopId}...`);
-      const products = await shopeeService.syncProducts(shopId, accessToken);
+      let products = null;
+
+      try {
+        products = await shopeeService.syncProducts(shopId, accessToken);
+      } catch (syncErr) {
+        if ((syncErr.message.includes('access_token') || syncErr.message.includes('error_auth')) && refreshToken) {
+          console.log('[Shopee] Access token expired, auto-refreshing token...');
+          const ref = await shopeeService.refreshAccessToken(refreshToken, shopId, false);
+          if (ref && ref.access_token) {
+            accessToken = ref.access_token;
+            refreshToken = ref.refresh_token || refreshToken;
+            
+            // Simpan token baru ke database MySQL toko_marketplace
+            await pool.query(`
+              UPDATE toko_marketplace 
+              SET token_akses = ?, token_refresh = ?, diperbarui_pada = CURRENT_TIMESTAMP 
+              WHERE id_toko = ?
+            `, [accessToken, refreshToken, shopId]);
+
+            console.log('[Shopee] Token berhasil di-refresh dan disimpan ke MySQL!');
+            products = await shopeeService.syncProducts(shopId, accessToken);
+          } else {
+            throw syncErr;
+          }
+        } else {
+          throw syncErr;
+        }
+      }
 
       // Simpan langsung ke database MySQL (produk_marketplace)
       for (const p of products) {
