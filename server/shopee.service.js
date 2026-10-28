@@ -368,13 +368,15 @@ export class ShopeeService {
       details = details.concat(batchDetails);
     }
 
-    // 3. Ambil varian hanya untuk produk yang harga/stoknya kosong atau ada model
-    const itemsNeedModel = details.filter(d => d.has_model && (!d.price_info || d.price_info.length === 0 || Number(d.price || 0) === 0)).slice(0, 20);
+    // 3. Ambil data model / varian untuk SEMUA produk yang memiliki varian (has_model)
+    const itemsNeedModel = details.filter(d => d.has_model);
     const modelMap = new Map();
 
-    if (itemsNeedModel.length > 0) {
+    const concurrency = 20;
+    for (let i = 0; i < itemsNeedModel.length; i += concurrency) {
+      const chunk = itemsNeedModel.slice(i, i + concurrency);
       const chunkResults = await Promise.all(
-        itemsNeedModel.map(async item => {
+        chunk.map(async item => {
           const mRes = await this.getModelList(sId, accessToken, item.item_id);
           return { itemId: item.item_id, modelData: mRes };
         })
@@ -386,92 +388,79 @@ export class ShopeeService {
       }
     }
 
-    return details.map(d => {
-      let harga = 0;
-      let stok = 0;
-      let sku = (d.item_sku || '').trim();
-      let varianText = d.has_model ? 'Ada Varian' : 'Standard';
+    const flatProducts = [];
 
-      // 1. Cek dari base info terlebih dahulu
-      if (d.price_info && Array.isArray(d.price_info) && d.price_info.length > 0) {
-        harga = d.price_info[0].current_price || d.price_info[0].original_price || 0;
-      } else if (d.price) {
-        harga = d.price;
-      }
-
-      if (d.stock_info_v2?.summary_info?.total_available_stock !== undefined) {
-        stok = d.stock_info_v2.summary_info.total_available_stock;
-      } else if (d.stock_info && Array.isArray(d.stock_info) && d.stock_info[0]?.normal_stock !== undefined) {
-        stok = d.stock_info[0].normal_stock;
-      } else if (d.stock !== undefined) {
-        stok = d.stock;
-      }
-
-      // 2. Jika item punya model / varian, ambil info lengkap dari get_model_list
-      const mData = modelMap.get(String(d.item_id));
-      if (mData && Array.isArray(mData.model) && mData.model.length > 0) {
-        const models = mData.model;
-
-        // Ambil harga terendah / aktif dari varian
-        const validPrices = models.map(m => {
-          const p = m.price_info?.[0]?.current_price || m.price_info?.[0]?.original_price || m.price || 0;
-          return Number(p);
-        }).filter(p => p > 0);
-        if (validPrices.length > 0) {
-          harga = Math.min(...validPrices);
-        }
-
-        // Total akumulasi stok dari semua varian
-        const totalStock = models.reduce((acc, m) => {
-          const s = m.stock_info_v2?.summary_info?.total_available_stock 
-                 ?? m.stock_info?.[0]?.normal_stock 
-                 ?? m.stock 
-                 ?? 0;
-          return acc + Number(s);
-        }, 0);
-        stok = totalStock;
-
-        // Jika parent SKU kosong, ambil SKU dari varian yang memiliki SKU
-        if (!sku) {
-          const foundModelSku = models.find(m => m.model_sku && m.model_sku.trim() !== '');
-          if (foundModelSku) {
-            sku = foundModelSku.model_sku.trim();
-          }
-        }
-
-        // Susun teks varian yang jelas (misal: "Ukuran: S, M, L, XL")
-        if (mData.tier_variation && mData.tier_variation.length > 0) {
-          varianText = mData.tier_variation.map(tv => {
-            const opts = (tv.option_list || []).map(o => o.option).join(', ');
-            return `${tv.name}: ${opts}`;
-          }).join(' | ');
-        } else {
-          varianText = models.map(m => m.model_name).filter(Boolean).join(', ');
-        }
-      }
-
-      // Fallback SKU jika seller tidak mengisi SKU
-      if (!sku) {
-        sku = `SHOPEE-${d.item_id}`;
-      }
-
+    for (const d of details) {
       const shopTitle = d.shop_name || 'Koperasi Sahabat Anak Bangsa';
+      const mData = modelMap.get(String(d.item_id));
 
-      return {
-        id: `shopee_${d.item_id}`,
-        item_id: String(d.item_id),
-        channel: 'shopee',
-        channelName: 'Shopee Marketplace',
-        shopName: shopTitle,
-        nama_produk: d.item_name || 'Produk Shopee',
-        sku_marketplace: sku,
-        harga_jual: Number(harga) || 0,
-        stok_marketplace: Number(stok) || 0,
-        varian_marketplace: varianText,
-        status: 'Belum Dimapping',
-        syncedAt: new Date().toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-      };
-    });
+      // Jika produk punya variasi/model di Shopee, simpan setiap varian sebagai 1 baris produk mandiri
+      if (mData && Array.isArray(mData.model) && mData.model.length > 0) {
+        for (const m of mData.model) {
+          const modelSku = (m.model_sku || '').trim() || (d.item_sku ? `${d.item_sku.trim()}-${m.model_id}` : `SHOPEE-${d.item_id}-${m.model_id}`);
+          const modelName = m.model_name || 'Standard';
+
+          const mPrice = m.price_info?.[0]?.current_price || m.price_info?.[0]?.original_price || m.price || 0;
+          const mStock = m.stock_info_v2?.summary_info?.total_available_stock 
+                      ?? m.stock_info?.[0]?.normal_stock 
+                      ?? m.stock 
+                      ?? 0;
+
+          flatProducts.push({
+            id: `shopee_${d.item_id}_${m.model_id}`,
+            item_id: String(d.item_id),
+            model_id: String(m.model_id),
+            channel: 'shopee',
+            channelName: 'Shopee Marketplace',
+            shopName: shopTitle,
+            nama_produk: d.item_name || 'Produk Shopee',
+            sku_marketplace: modelSku,
+            harga_jual: Number(mPrice) || 0,
+            stok_marketplace: Number(mStock) || 0,
+            varian_marketplace: modelName,
+            status: 'Belum Dimapping',
+            syncedAt: new Date().toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+          });
+        }
+      } else {
+        // Produk tunggal tanpa varian
+        let harga = 0;
+        let stok = 0;
+        let sku = (d.item_sku || '').trim() || `SHOPEE-${d.item_id}`;
+
+        if (d.price_info && Array.isArray(d.price_info) && d.price_info.length > 0) {
+          harga = d.price_info[0].current_price || d.price_info[0].original_price || 0;
+        } else if (d.price) {
+          harga = d.price;
+        }
+
+        if (d.stock_info_v2?.summary_info?.total_available_stock !== undefined) {
+          stok = d.stock_info_v2.summary_info.total_available_stock;
+        } else if (d.stock_info && Array.isArray(d.stock_info) && d.stock_info[0]?.normal_stock !== undefined) {
+          stok = d.stock_info[0].normal_stock;
+        } else if (d.stock !== undefined) {
+          stok = d.stock;
+        }
+
+        flatProducts.push({
+          id: `shopee_${d.item_id}`,
+          item_id: String(d.item_id),
+          model_id: '',
+          channel: 'shopee',
+          channelName: 'Shopee Marketplace',
+          shopName: shopTitle,
+          nama_produk: d.item_name || 'Produk Shopee',
+          sku_marketplace: sku,
+          harga_jual: Number(harga) || 0,
+          stok_marketplace: Number(stok) || 0,
+          varian_marketplace: 'Standard',
+          status: 'Belum Dimapping',
+          syncedAt: new Date().toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+        });
+      }
+    }
+
+    return flatProducts;
   }
 
   // 6. Mendapatkan Daftar Order SN Shopee

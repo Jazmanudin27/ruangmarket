@@ -58,13 +58,19 @@ export async function initDb() {
         status_mapping VARCHAR(32) DEFAULT 'Belum Dimapping',
         ditarik_pada TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         diperbarui_pada TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        UNIQUE KEY uq_produk_toko (id_produk_marketplace, saluran)
+        UNIQUE KEY uq_produk_sku (id_produk_marketplace, saluran, sku_marketplace)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Tabel staging produk marketplace sebelum ke master data';
     `);
 
-    // Auto-migrate column varian jika masih VARCHAR(128)
+    // Auto-migrate column varian jika masih VARCHAR(128) dan update unique index agar setiap varian/SKU tersimpan
     try {
       await conn.query(`ALTER TABLE produk_marketplace MODIFY COLUMN varian TEXT`);
+    } catch (e) {}
+    try {
+      await conn.query(`ALTER TABLE produk_marketplace DROP INDEX uq_produk_toko`);
+    } catch (e) {}
+    try {
+      await conn.query(`ALTER TABLE produk_marketplace ADD UNIQUE KEY uq_produk_sku (id_produk_marketplace, saluran, sku_marketplace)`);
     } catch (e) {}
 
     // 3. Tabel Master Produk ERP (produk_master)
