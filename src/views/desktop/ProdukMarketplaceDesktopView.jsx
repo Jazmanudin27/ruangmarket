@@ -1,19 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Search, 
-  RefreshCw, 
-  RotateCw,
   ArrowRight, 
   CheckCircle, 
   Trash2, 
   AlertCircle,
   Tag,
-  Store,
   Layers,
   Boxes,
   AlertTriangle,
   Package,
-  Clock,
   Eye,
   Edit3,
   Save,
@@ -24,7 +20,6 @@ import { getActiveCompany } from '../../utils/tenant.util';
 
 export const PRODUK_MARKETPLACE_KEY = 'ruangmarket_produk_marketplace_v1';
 const PRODUK_MASTER_KEY = 'ruangmarket_produk_gamis_v4';
-const STORAGE_KEY_TOKO = 'ruangmarket_connected_stores_v1';
 
 function formatRupiah(val) {
   return 'Rp ' + Number(val || 0).toLocaleString('id-ID');
@@ -58,7 +53,6 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
   const [activeFilterTab, setActiveFilterTab] = useState('semua');
   const [filterMapping, setFilterMapping] = useState('Semua');
   const [filterStok, setFilterStok] = useState('Semua');
-  const [isLoadingSync, setIsLoadingSync] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [entriesPerPage, setEntriesPerPage] = useState(25);
   const [detailItem, setDetailItem] = useState(null);
@@ -154,71 +148,6 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
 
   const totalPages = Math.ceil(filteredItems.length / entriesPerPage) || 1;
   const paginatedItems = filteredItems.slice((currentPage - 1) * entriesPerPage, currentPage * entriesPerPage);
-
-  // Fungsi Tarik Produk Shopee Resmi
-  const handleSyncFromShopee = async () => {
-    setIsLoadingSync(true);
-    toastSuccess('Menghubungi Shopee Open API v2 (Shop ID: 7494247208764540234)...');
-
-    try {
-      let shopId = '1030191310';
-      let accessToken = 'eyJhbGciOiJIUzI1NiJ9.CLekfBABGM7xnesDIAEozLKC1wYw_4S4xwk4AUABSAc.Akf_2_Oh892XxGfWUbY4HXNPqIn3DsQUBZpI1DTivMY';
-
-      try {
-        const savedStores = localStorage.getItem(STORAGE_KEY_TOKO);
-        if (savedStores) {
-          const list = JSON.parse(savedStores);
-          const found = list.find(s => s.channel === 'shopee');
-          if (found) {
-            shopId = found.shopId || shopId;
-            accessToken = found.accessToken || accessToken;
-          }
-        }
-      } catch (e) {}
-
-      let apiResponse = null;
-      let isSuccess = false;
-
-      // Fetch backend Node.js service via Nginx proxy
-      try {
-        const endpoint = `/api/marketplace/shopee/products?shop_id=${shopId}&access_token=${encodeURIComponent(accessToken)}`;
-        const res = await fetch(endpoint);
-        const json = await res.json();
-        if (json.status === 'success' && Array.isArray(json.data) && json.data.length > 0) {
-          isSuccess = true;
-          apiResponse = json;
-          const formattedItems = json.data.map(item => ({
-            ...item,
-            company_code: activeCompany.code || 'RSG'
-          }));
-
-          setMktProdukList(prev => {
-            const incomingMap = new Map(formattedItems.map(f => [String(f.item_id), f]));
-            const updated = formattedItems.concat(prev.filter(p => !incomingMap.has(String(p.item_id))));
-            try {
-              localStorage.setItem(PRODUK_MARKETPLACE_KEY, JSON.stringify(updated));
-            } catch (e) {}
-            return updated;
-          });
-
-          toastSuccess(`Berhasil menarik ${formattedItems.length} produk asli dari Shopee!`);
-        } else if (json.message || json.error) {
-          apiResponse = json;
-        }
-      } catch (e) {
-        apiResponse = { message: e.message };
-      }
-
-      if (!isSuccess) {
-        toastError(apiResponse?.message || 'Gagal menarik produk dari API Shopee');
-      }
-
-    } catch (err) {
-      toastError(`Gagal menghubungi API: ${err.message}`);
-    } finally {
-      setIsLoadingSync(false);
-    }
-  };
 
   // Action: Salin produk marketplace terpilih ke Data Master Produk
   const handleImportToMaster = async (item) => {
@@ -349,36 +278,6 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
               Hasil sinkronisasi Shopee Open API ({companyItems.length} produk). Kelola katalog staging sebelum disalin ke Master Data ERP
             </p>
           </div>
-        </div>
-
-        <div className="pm-header-actions">
-          <button
-            type="button"
-            className="pm-btn pm-btn--shopee"
-            onClick={handleSyncFromShopee}
-            disabled={isLoadingSync}
-          >
-            <RefreshCw size={13} className={isLoadingSync ? 'pm-spin' : ''} />
-            <span>{isLoadingSync ? 'Menarik API...' : 'Tarik Shopee'}</span>
-          </button>
-
-          <button
-            type="button"
-            className="pm-btn pm-btn--slate"
-            onClick={() => onNavigate && onNavigate('marketplace')}
-          >
-            <Store size={13} />
-            <span>Daftar Toko</span>
-          </button>
-
-          <button
-            type="button"
-            className="pm-btn pm-btn--white"
-            onClick={() => onNavigate && onNavigate('produk')}
-          >
-            <Boxes size={13} />
-            <span>Master Produk</span>
-          </button>
         </div>
       </div>
 
@@ -674,37 +573,6 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
               <button type="submit" className="btn btn-primary" disabled={isSaving}><Save size={14} /> {isSaving ? 'Menyimpan...' : 'Simpan'}</button>
             </div>
           </form>
-        </div>
-      )}
-
-      {/* MODAL PROSES TARIK PRODUK */}
-      {isLoadingSync && (
-        <div className="pm-loading-overlay">
-          <div className="pm-loading-box">
-            <div className="pm-loading-icon">
-              <RotateCw size={34} className="pm-loading-spinner" />
-            </div>
-
-            <h2 className="pm-loading-title">Sedang Menarik Seluruh Produk Shopee...</h2>
-
-            <div className="pm-loading-chip">
-              <Boxes size={12} />
-              <span>Koperasi Sahabat Anak Bangsa (1030191310)</span>
-            </div>
-
-            <p className="pm-loading-desc">
-              Menghubungi Shopee Open API v2, membaca katalog lengkap, SKU, rincian varian, harga asli, dan stok tersedia.
-            </p>
-
-            <div className="pm-loading-track">
-              <div className="pm-loading-bar" />
-            </div>
-
-            <div className="pm-loading-hint">
-              <Clock size={12} />
-              <span>Silakan tunggu sebentar, data sedang dipersiapkan...</span>
-            </div>
-          </div>
         </div>
       )}
 
