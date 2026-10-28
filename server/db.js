@@ -128,25 +128,29 @@ export async function initDb() {
         token_refresh = VALUES(token_refresh);
     `);
 
-    // 6. Masukkan Akun Toko TikTok Shop RUANG SERAGAM jika belum ada
+    // 6. Masukkan Akun Toko TikTok Shop RUANG SERAGAM yang benar
+    await conn.query(`DELETE FROM toko_marketplace WHERE id_toko = '943001511'`);
     await conn.query(`
       INSERT INTO toko_marketplace (
         id, kode_perusahaan, saluran, nama_saluran, nama_toko, id_toko, 
-        logo_toko, token_akses, token_refresh, kadaluarsa_pada, status_koneksi, cipher_toko
+        logo_toko, cipher_toko, token_akses, token_refresh, kadaluarsa_pada, status_koneksi
       ) VALUES (
         'tk_tiktok_ruangseragam',
         'RSG',
         'tiktok',
         'TikTok Shop',
         'RUANG SERAGAM',
-        '943001511',
-        'store-logos/RHpinX96Guj27mmJvXhS5f0ln85cdS7mHKTrEqqH.png',
-        'eyJhbGciOiJIUzI1NiJ9.CLekfBABGKef1MEDIAEomouF1wYww7rjkQs4AUABSAc.yaoTf5Am1TA6wv-VhUAF5vAR51IEmp8JcwAtwyCSqMU',
-        'eyJhbGciOiJIUzI1NiJ9.CLekfBABGKef1MEDIAIomouF1wYwuLmXzwY4AUABSAc.56zyC9N1eE64c1ZW4GRmYRo0pMuiWUGz02HuHZr7Pp8',
-        '2026-10-28 11:45:14',
-        'Aktif (Terhubung)',
-        'DROP_OFF'
+        '7495487525216094891',
+        'store-logos/phX8jRSXxcz9FYAR8q5CxuzY0hzRnIJPsxJCxaRV.png',
+        'ROW_Hbd_fAAAAACqX58asQX4uCOsoefXXn4c',
+        'ROW_hrW2eAAAAADXzfcAbFNM2vF4sGvyrLklzSslk4uklv4KXG8FDCL8TMDVZVSXm1QNwF3HkXc-CfZT-WsF6yF-qO2wOSJKCKh0f2aji_gApWDGMP1FFNH5ZYrC2D-6o9YEAajZdQ7cQvPYE1BZu2jAwSLxLaUzYOX0JwzW6ZUsu5Tj1dxn343kAe1TMZ5nydARMQJ94b20hIGW2ibwtqaqCkw8yQz8wQjW',
+        'ROW_rfVKJgAAAACQMhMaQ5QXpCAhk_jChhoWo0KgxyEvuEVSbCvPTxxl3OU0jfV_dLTlJcuRIEhLVNQ',
+        '2026-11-03 13:45:04',
+        'Aktif (Terhubung)'
       ) ON DUPLICATE KEY UPDATE 
+        id_toko = VALUES(id_toko),
+        logo_toko = VALUES(logo_toko),
+        cipher_toko = VALUES(cipher_toko),
         token_akses = VALUES(token_akses),
         token_refresh = VALUES(token_refresh),
         kadaluarsa_pada = VALUES(kadaluarsa_pada),
