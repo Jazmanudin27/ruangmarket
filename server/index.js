@@ -880,9 +880,8 @@ const server = http.createServer(async (req, res) => {
 
       const collectedPdfBuffers = [];
 
-      // A. Proses Batch Shopee: Langsung panggil endpoint batch Shopee Open API v2
+      // A. Proses Shopee Orders (Unduh tiap pesanan dan gabungkan seluruh halamannya)
       if (shopeeOrders.length > 0) {
-        const shopeeSns = shopeeOrders.map(o => o.sn);
         let shopeeStore = allStores.find(s => s.saluran === 'shopee' && (s.status_koneksi?.includes('Aktif') || s.status_koneksi?.includes('Terhubung')));
         if (!shopeeStore) shopeeStore = allStores.find(s => s.saluran === 'shopee');
         if (!shopeeStore) {
@@ -894,57 +893,38 @@ const server = http.createServer(async (req, res) => {
           };
         }
 
-        // Fungsi pembantu fetch batch shopee dengan auto refresh token jika expired
-        const fetchShopeeBatchWithAuth = async (token) => {
-          return await shopeeService.getBatchShippingDocument(shopeeStore.id_toko, token, shopeeSns);
-        };
+        let currentToken = shopeeStore.token_akses;
 
-        try {
-          const batchPdf = await fetchShopeeBatchWithAuth(shopeeStore.token_akses);
-          if (batchPdf && Buffer.isBuffer(batchPdf)) {
-            collectedPdfBuffers.push(batchPdf);
-          }
-        } catch (shopeeBatchErr) {
-          const errStr = shopeeBatchErr.message.toLowerCase();
-          let currentToken = shopeeStore.token_akses;
-
-          // Jika token invalid/expired, refresh token ke Shopee API
-          if ((errStr.includes('token') || errStr.includes('auth') || errStr.includes('expired')) && shopeeStore.token_refresh) {
-            console.log('[Shopee Batch Label]: Token kadaluarsa, me-refresh token...');
-            try {
-              const ref = await shopeeService.refreshAccessToken(shopeeStore.token_refresh, shopeeStore.id_toko, false);
-              if (ref && ref.access_token) {
-                currentToken = ref.access_token;
-                shopeeStore.token_akses = currentToken;
-                await pool.query('UPDATE toko_marketplace SET token_akses = ?, token_refresh = ? WHERE id_toko = ?', [
-                  ref.access_token,
-                  ref.refresh_token || shopeeStore.token_refresh,
-                  shopeeStore.id_toko
-                ]);
-                
-                // Coba ulang batch dengan token baru
-                const retryBatch = await fetchShopeeBatchWithAuth(currentToken);
-                if (retryBatch && Buffer.isBuffer(retryBatch)) {
-                  collectedPdfBuffers.push(retryBatch);
-                }
-              }
-            } catch (refErr) {
-              console.warn('[Shopee Batch Refresh Token Error]:', refErr.message);
+        for (const sOrd of shopeeOrders) {
+          try {
+            const singlePdf = await shopeeService.getShippingDocument(shopeeStore.id_toko, currentToken, sOrd.sn);
+            if (singlePdf && Buffer.isBuffer(singlePdf)) {
+              collectedPdfBuffers.push(singlePdf);
             }
-          }
-
-          // Jika batch masih belum menghasilkan buffer, fallback unduh satu per satu
-          if (collectedPdfBuffers.length === 0) {
-            console.warn('[Shopee Batch Label]: Mencoba fallback fetch individual resi...');
-            for (const sOrd of shopeeOrders) {
+          } catch (firstErr) {
+            const errStr = firstErr.message.toLowerCase();
+            if ((errStr.includes('token') || errStr.includes('auth') || errStr.includes('expired')) && shopeeStore.token_refresh) {
+              console.log('[Shopee Batch Label]: Token kadaluarsa saat fetch order', sOrd.sn, 'me-refresh token...');
               try {
-                const singlePdf = await shopeeService.getShippingDocument(shopeeStore.id_toko, currentToken, sOrd.sn);
-                if (singlePdf && Buffer.isBuffer(singlePdf)) {
-                  collectedPdfBuffers.push(singlePdf);
+                const ref = await shopeeService.refreshAccessToken(shopeeStore.token_refresh, shopeeStore.id_toko, false);
+                if (ref && ref.access_token) {
+                  currentToken = ref.access_token;
+                  shopeeStore.token_akses = currentToken;
+                  await pool.query('UPDATE toko_marketplace SET token_akses = ?, token_refresh = ? WHERE id_toko = ?', [
+                    ref.access_token,
+                    ref.refresh_token || shopeeStore.token_refresh,
+                    shopeeStore.id_toko
+                  ]);
+                  const retryPdf = await shopeeService.getShippingDocument(shopeeStore.id_toko, currentToken, sOrd.sn);
+                  if (retryPdf && Buffer.isBuffer(retryPdf)) {
+                    collectedPdfBuffers.push(retryPdf);
+                  }
                 }
-              } catch (errOne) {
-                console.warn(`[Shopee Label] Gagal fetch ${sOrd.sn}:`, errOne.message);
+              } catch (refErr) {
+                console.warn('[Shopee Batch Refresh Token Error]:', refErr.message);
               }
+            } else {
+              console.warn(`[Shopee Label] Order ${sOrd.sn} dilewati:`, firstErr.message);
             }
           }
         }

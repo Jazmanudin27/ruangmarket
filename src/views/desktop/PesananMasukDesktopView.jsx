@@ -1007,9 +1007,8 @@ export default function PesananMasukDesktopView() {
                             statusBorder = '#ffa39e';
                           }
 
-                          // Status Cetak: dicek jika resi ada dan status bukan Belum Print
-                          const hasTracking = ord.no_resi && ord.no_resi !== '-' && ord.no_resi.trim() !== '';
-                          const isPrinted = ord.status_cetak === 'Sudah Print' || (hasTracking && ord.status_cetak !== 'Belum Print');
+                          // Status Cetak: hanya 'Sudah Print' jika memang sudah dicetak (status_cetak === 'Sudah Print')
+                          const isPrinted = ord.status_cetak === 'Sudah Print';
 
                           return (
                             <>
@@ -1032,7 +1031,7 @@ export default function PesananMasukDesktopView() {
                               </div>
 
                               {/* Print Badge */}
-                              <div style={{ marginBottom: '2px' }}>
+                              <div>
                                 <span style={{
                                   display: 'inline-flex',
                                   alignItems: 'center',
@@ -1046,24 +1045,6 @@ export default function PesananMasukDesktopView() {
                                   border: isPrinted ? '1px solid #bbf7d0' : '1px solid #dddddd'
                                 }}>
                                   <Printer size={10} /> {isPrinted ? 'Sudah Print' : 'Belum Print'}
-                                </span>
-                              </div>
-
-                              {/* Verified Badge */}
-                              <div>
-                                <span style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '3px',
-                                  padding: '1px 6px',
-                                  borderRadius: '4px',
-                                  fontSize: '10px',
-                                  fontWeight: '700',
-                                  backgroundColor: ord.status_verifikasi === 'Verified' ? '#f0fdf4' : (ord.status_verifikasi === 'Packing' ? '#fffbe6' : '#fafafa'),
-                                  color: ord.status_verifikasi === 'Verified' ? '#15803d' : (ord.status_verifikasi === 'Packing' ? '#d4b106' : '#888888'),
-                                  border: ord.status_verifikasi === 'Verified' ? '1px solid #bbf7d0' : (ord.status_verifikasi === 'Packing' ? '1px solid #ffe58f' : '1px solid #dddddd')
-                                }}>
-                                  <CheckCircle2 size={10} /> {ord.status_verifikasi || 'Verified'}
                                 </span>
                               </div>
                             </>
