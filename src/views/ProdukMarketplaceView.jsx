@@ -1269,6 +1269,128 @@ export default function ProdukMarketplaceView({ onNavigate }) {
         </div>
       )}
 
+      {/* MODAL PROSES TARIK PRODUK (ANIMASI MODERN) */}
+      {isLoadingSync && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: 'rgba(15, 23, 42, 0.75)',
+          backdropFilter: 'blur(6px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10000
+        }}>
+          <div style={{
+            backgroundColor: '#ffffff',
+            borderRadius: '16px',
+            padding: '32px 28px',
+            width: '90%',
+            maxWidth: '460px',
+            textAlign: 'center',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
+            position: 'relative'
+          }}>
+            <div style={{
+              width: '72px',
+              height: '72px',
+              borderRadius: '50%',
+              background: 'linear-gradient(135deg, #fee2e2 0%, #fecaca 100%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 20px',
+              boxShadow: '0 0 0 8px rgba(239, 68, 68, 0.12)'
+            }}>
+              <RotateCw
+                size={34}
+                color="#dc2626"
+                style={{
+                  animation: 'spin 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite'
+                }}
+              />
+            </div>
+
+            <h2 style={{
+              margin: '0 0 8px 0',
+              fontSize: '17px',
+              fontWeight: '800',
+              color: '#0f172a',
+              letterSpacing: '-0.02em'
+            }}>
+              Sedang Menarik Seluruh Produk Shopee...
+            </h2>
+
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '4px 12px',
+              borderRadius: '20px',
+              backgroundColor: '#f1f5f9',
+              color: '#334155',
+              fontSize: '11.5px',
+              fontWeight: '700',
+              marginBottom: '14px'
+            }}>
+              <Boxes size={12} color="#0284c7" />
+              <span>Koperasi Sahabat Anak Bangsa (1030191310)</span>
+            </div>
+
+            <p style={{
+              margin: '0 0 24px 0',
+              fontSize: '12.5px',
+              color: '#64748b',
+              lineHeight: 1.5
+            }}>
+              Menghubungi Shopee Open API v2, membaca katalog lengkap, SKU, rincian varian, harga asli, dan stok tersedia.
+            </p>
+
+            <div style={{
+              width: '100%',
+              height: '6px',
+              backgroundColor: '#f1f5f9',
+              borderRadius: '999px',
+              overflow: 'hidden',
+              marginBottom: '14px'
+            }}>
+              <div style={{
+                height: '100%',
+                background: 'linear-gradient(90deg, #ea580c 0%, #f97316 50%, #ea580c 100%)',
+                backgroundSize: '200% 100%',
+                borderRadius: '999px',
+                animation: 'loadingProgress 1.8s ease-in-out infinite'
+              }} />
+            </div>
+
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              fontSize: '11.5px',
+              color: '#94a3b8',
+              fontWeight: '600'
+            }}>
+              <Clock size={12} />
+              <span>Silakan tunggu sebentar, data sedang dipersiapkan...</span>
+            </div>
+
+            <style>{`
+              @keyframes spin {
+                from { transform: rotate(0deg); }
+                to { transform: rotate(360deg); }
+              }
+              @keyframes loadingProgress {
+                0% { width: 15%; margin-left: 0; }
+                50% { width: 60%; margin-left: 20%; }
+                100% { width: 30%; margin-left: 70%; }
+              }
+            `}</style>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

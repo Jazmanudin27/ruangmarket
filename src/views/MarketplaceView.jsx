@@ -39,6 +39,7 @@ export default function MarketplaceView({ onBack, onNavigate }) {
   const [statusFilter, setStatusFilter] = useState('all');
   const [entriesPerPage, setEntriesPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
+  const [syncLoading, setSyncLoading] = useState(null); // { type: 'produk' | 'pesanan', title: '', shopName: '', elapsed: 0 }
 
   useEffect(() => {
     const handleCompanyChange = () => {
@@ -210,7 +211,13 @@ export default function MarketplaceView({ onBack, onNavigate }) {
 
   // Fungsi Tarik Produk dari Toko Marketplace ke Tabel Produk Marketplace (Staging)
   const handleSyncProduk = async (store) => {
-    toastSuccess(`Menarik katalog produk dari toko ${store.shopName}...`);
+    setSyncLoading({
+      type: 'produk',
+      title: 'Sedang Menarik Seluruh Produk Shopee...',
+      subTitle: `Menghubungkan ke API ${store.shopName}. Mengambil katalog produk, SKU, variasi model, dan stok realtime.`,
+      shopName: store.shopName,
+      channel: store.channel
+    });
 
     try {
       let fetchedItems = null;
@@ -232,15 +239,18 @@ export default function MarketplaceView({ onBack, onNavigate }) {
           }));
         } else {
           toastError(json.message || 'Gagal menarik produk dari API Shopee');
+          setSyncLoading(null);
           return;
         }
       } catch (fetchErr) {
-        toastError(`Koneksi API gagal: ${fetchErr.name === 'AbortError' ? 'Timeout (Server sedang memproses banyak data produk Shopee, coba klik lagi)' : fetchErr.message}`);
+        toastError(`Koneksi API gagal: ${fetchErr.name === 'AbortError' ? 'Timeout (Server sedang memproses data, coba klik lagi)' : fetchErr.message}`);
+        setSyncLoading(null);
         return;
       }
 
       if (!fetchedItems || fetchedItems.length === 0) {
         toastError('Tidak ada produk yang berhasil ditarik dari Shopee API.');
+        setSyncLoading(null);
         return;
       }
 
@@ -253,19 +263,28 @@ export default function MarketplaceView({ onBack, onNavigate }) {
       localStorage.setItem('ruangmarket_produk_marketplace_v1', JSON.stringify(updated));
       window.dispatchEvent(new Event('storage'));
 
+      setSyncLoading(null);
       toastSuccess(`Berhasil menarik ${fetchedItems.length} produk asli dari Shopee!`);
 
       if (onNavigate) {
         onNavigate('produk_marketplace');
       }
     } catch (err) {
+      setSyncLoading(null);
       toastError(`Gagal tarik produk: ${err.message}`);
     }
   };
 
   // Fungsi Tarik Pesanan dari Toko Marketplace ke SPK / Antrian Produksi & Database MySQL
   const handleSyncPesanan = async (store) => {
-    toastSuccess(`Menarik pesanan baru dari ${store.shopName}...`);
+    setSyncLoading({
+      type: 'pesanan',
+      title: 'Sedang Menarik Pesanan Marketplace...',
+      subTitle: `Mengambil daftar pesanan terbaru dari ${store.shopName} dan menyimpan langsung ke database MySQL.`,
+      shopName: store.shopName,
+      channel: store.channel
+    });
+
     try {
       let orders = [];
       const endpoint = store.channel === 'shopee'
@@ -274,7 +293,7 @@ export default function MarketplaceView({ onBack, onNavigate }) {
 
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 12000);
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
 
         const res = await fetch(endpoint, { signal: controller.signal });
         clearTimeout(timeoutId);
@@ -408,6 +427,7 @@ export default function MarketplaceView({ onBack, onNavigate }) {
       localStorage.setItem('ruangmarket_spk_v2', JSON.stringify([...newBatches, ...existing]));
       window.dispatchEvent(new Event('storage'));
 
+      setSyncLoading(null);
       const firstBatch = newBatches[0];
       toastSuccess(`Berhasil menarik pesanan (${firstBatch.kode_produksi}) & tersimpan ke Database!`);
 
@@ -425,6 +445,7 @@ export default function MarketplaceView({ onBack, onNavigate }) {
         }, 500);
       }
     } catch (err) {
+      setSyncLoading(null);
       toastError(`Gagal tarik pesanan: ${err.message}`);
     }
   };
@@ -1589,6 +1610,138 @@ export default function MarketplaceView({ onBack, onNavigate }) {
                 Simpan & Hubungkan
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL PROSES TARIK DATA (ANIMASI MENARIK & JELAS) */}
+      {syncLoading && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: 'rgba(15, 23, 42, 0.75)',
+          backdropFilter: 'blur(6px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10000,
+          animation: 'fadeIn 0.2s ease-out'
+        }}>
+          <div style={{
+            backgroundColor: '#ffffff',
+            borderRadius: '16px',
+            padding: '32px 28px',
+            width: '90%',
+            maxWidth: '460px',
+            textAlign: 'center',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.1)',
+            position: 'relative'
+          }}>
+            {/* Animated Pulsing Icon Badge */}
+            <div style={{
+              width: '72px',
+              height: '72px',
+              borderRadius: '50%',
+              background: syncLoading.channel === 'shopee'
+                ? 'linear-gradient(135deg, #fee2e2 0%, #fecaca 100%)'
+                : 'linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 20px',
+              boxShadow: syncLoading.channel === 'shopee'
+                ? '0 0 0 8px rgba(239, 68, 68, 0.12)'
+                : '0 0 0 8px rgba(2, 132, 199, 0.12)',
+              position: 'relative'
+            }}>
+              <RefreshCw
+                size={34}
+                color={syncLoading.channel === 'shopee' ? '#dc2626' : '#0284c7'}
+                style={{
+                  animation: 'spin 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite'
+                }}
+              />
+            </div>
+
+            {/* Title & Shop Name */}
+            <h2 style={{
+              margin: '0 0 8px 0',
+              fontSize: '17px',
+              fontWeight: '800',
+              color: '#0f172a',
+              letterSpacing: '-0.02em'
+            }}>
+              {syncLoading.title}
+            </h2>
+
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '4px 12px',
+              borderRadius: '20px',
+              backgroundColor: '#f1f5f9',
+              color: '#334155',
+              fontSize: '11.5px',
+              fontWeight: '700',
+              marginBottom: '14px'
+            }}>
+              <Store size={12} color="#0284c7" />
+              <span>{syncLoading.shopName}</span>
+            </div>
+
+            <p style={{
+              margin: '0 0 24px 0',
+              fontSize: '12.5px',
+              color: '#64748b',
+              lineHeight: 1.5
+            }}>
+              {syncLoading.subTitle}
+            </p>
+
+            {/* Progress Bar Animated */}
+            <div style={{
+              width: '100%',
+              height: '6px',
+              backgroundColor: '#f1f5f9',
+              borderRadius: '999px',
+              overflow: 'hidden',
+              marginBottom: '14px',
+              position: 'relative'
+            }}>
+              <div style={{
+                height: '100%',
+                background: 'linear-gradient(90deg, #0284c7 0%, #38bdf8 50%, #0284c7 100%)',
+                backgroundSize: '200% 100%',
+                borderRadius: '999px',
+                animation: 'loadingProgress 1.8s ease-in-out infinite'
+              }} />
+            </div>
+
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              fontSize: '11.5px',
+              color: '#94a3b8',
+              fontWeight: '600'
+            }}>
+              <Clock size={12} />
+              <span>Mohon tunggu beberapa detik, jangan tutup halaman ini...</span>
+            </div>
+
+            <style>{`
+              @keyframes spin {
+                from { transform: rotate(0deg); }
+                to { transform: rotate(360deg); }
+              }
+              @keyframes loadingProgress {
+                0% { width: 15%; margin-left: 0; }
+                50% { width: 60%; margin-left: 20%; }
+                100% { width: 30%; margin-left: 70%; }
+              }
+            `}</style>
           </div>
         </div>
       )}
