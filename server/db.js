@@ -161,6 +161,18 @@ export async function initDb() {
     try {
       await conn.query(`ALTER TABLE pesanan_marketplace ADD COLUMN status_verifikasi VARCHAR(32) DEFAULT 'Verified'`);
     } catch (e) {}
+    try {
+      await conn.query(`ALTER TABLE pesanan_marketplace ADD COLUMN alamat TEXT`);
+    } catch (e) {}
+    try {
+      await conn.query(`ALTER TABLE pesanan_marketplace ADD COLUMN no_telepon VARCHAR(64)`);
+    } catch (e) {}
+    try {
+      await conn.query(`ALTER TABLE pesanan_marketplace ADD COLUMN metode_bayar VARCHAR(64) DEFAULT 'Cash on Delivery'`);
+    } catch (e) {}
+    try {
+      await conn.query(`ALTER TABLE pesanan_marketplace ADD COLUMN ongkir DECIMAL(15,2) DEFAULT 0`);
+    } catch (e) {}
 
     // 5. Masukkan Akun Toko Shopee Resmi jika belum ada
     await conn.query(`
