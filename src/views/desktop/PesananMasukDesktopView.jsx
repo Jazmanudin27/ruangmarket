@@ -47,6 +47,98 @@ export default function PesananMasukDesktopView() {
   const [detailOrder, setDetailOrder] = useState(null);
   const [isFullScreen, setIsFullScreen] = useState(false);
 
+  // Helper Cetak Resi / Label Pengiriman (Shipping Label)
+  const handlePrintResi = (ord) => {
+    if (!ord) return;
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      toastError('Popup blocker aktif. Izinkan popup browser untuk mencetak resi.');
+      return;
+    }
+
+    const items = ord.items || [];
+    const courier = ord.kurir || 'SPX Express';
+    const trackingNo = ord.no_resi || ord.tracking_number || '-';
+    const shopName = ord.nama_toko || ord.shopName || 'Koperasi Sahabat Anak Bangsa';
+    const channel = String(ord.saluran || ord.channel || 'Shopee').toUpperCase();
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Label Pengiriman - ${trackingNo}</title>
+        <style>
+          @page { size: 100mm 150mm; margin: 4mm; }
+          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; font-size: 11px; color: #000; margin: 0; padding: 6px; }
+          .resi-box { border: 2px solid #000; padding: 8px; border-radius: 4px; max-width: 380px; margin: 0 auto; }
+          .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #000; padding-bottom: 6px; margin-bottom: 6px; }
+          .courier-title { font-size: 18px; font-weight: 900; }
+          .channel-tag { font-size: 11px; font-weight: 800; border: 1px solid #000; padding: 2px 6px; border-radius: 3px; }
+          .barcode-box { text-align: center; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 8px; }
+          .barcode-line { height: 42px; background: repeating-linear-gradient(90deg, #000 0px, #000 2px, #fff 2px, #fff 4px, #000 4px, #000 7px, #fff 7px, #fff 9px); margin-bottom: 4px; }
+          .tracking-no { font-size: 16px; font-weight: 900; letter-spacing: 1px; }
+          .info-grid { border-bottom: 1px dashed #000; padding-bottom: 6px; margin-bottom: 6px; font-size: 11px; }
+          .info-title { font-size: 9.5px; font-weight: 800; color: #444; }
+          .receiver-name { font-size: 13px; font-weight: 800; margin-bottom: 2px; }
+          .product-table { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 10px; }
+          .product-table th, .product-table td { border: 1px solid #999; padding: 4px; text-align: left; }
+          .footer-note { font-size: 9px; text-align: center; margin-top: 8px; color: #444; }
+        </style>
+      </head>
+      <body>
+        <div class="resi-box">
+          <div class="header">
+            <div class="courier-title">${courier}</div>
+            <div class="channel-tag">${channel}</div>
+          </div>
+          <div class="barcode-box">
+            <div class="barcode-line"></div>
+            <div class="tracking-no">${trackingNo}</div>
+            <div style="font-size: 10px; margin-top: 2px;">No. Pesanan: <b>${ord.no_pesanan}</b></div>
+          </div>
+          <div class="info-grid">
+            <div class="info-title">PENERIMA:</div>
+            <div class="receiver-name">${ord.nama_pembeli || ord.customerName || 'Pembeli'}</div>
+            <div>${ord.telepon || '-'}</div>
+            <div style="margin-top: 3px;">${ord.alamat || 'Alamat Penerima Lengkap'}</div>
+          </div>
+          <div class="info-grid">
+            <div class="info-title">PENGIRIM:</div>
+            <div style="font-weight: 700;">${shopName}</div>
+            <div>Kota Bandung / Jawa Barat</div>
+          </div>
+          <div style="font-size: 9.5px; font-weight: 800; margin-top: 4px;">DAFTAR ISI PAKET:</div>
+          <table class="product-table">
+            <thead>
+              <tr style="background: #eee;">
+                <th>Nama Produk</th>
+                <th style="width: 30px; text-align: center;">Qty</th>
+                <th style="width: 80px;">SKU / Variasi</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${items.map(it => `
+                <tr>
+                  <td><b>${it.nama_produk || 'Produk'}</b></td>
+                  <td style="text-align: center;"><b>${it.qty || 1}</b></td>
+                  <td>${it.sku || it.varian || '-'}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          <div class="footer-note">Cetak Resi Otomatis - Sistem RuangMarket</div>
+        </div>
+        <script>
+          window.onload = function() { window.print(); }
+        </script>
+      </body>
+      </html>
+    `;
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+  };
+
   // Helper Cetak Invoice Pesanan
   const handlePrintInvoice = () => {
     if (!detailOrder) return;
@@ -902,104 +994,179 @@ export default function PesananMasukDesktopView() {
 
                       {/* 7. STATUS */}
                       <td style={{ padding: '8px 12px', textAlign: 'center', border: '1px solid #cbd5e1' }}>
-                        {/* Main Status Badge */}
-                        <div style={{ marginBottom: '3px' }}>
-                          <span style={{
-                            display: 'inline-block',
-                            padding: '2px 9px',
-                            borderRadius: '12px',
-                            fontSize: '10px',
-                            fontWeight: '800',
-                            backgroundColor: '#eff6ff',
-                            color: '#2563eb',
-                            border: '1px solid #bfdbfe',
-                            letterSpacing: '0.02em',
-                            textTransform: 'uppercase'
-                          }}>
-                            {String(ord.status || 'SHIPPED').toUpperCase()}
-                          </span>
-                        </div>
+                        {(() => {
+                          const statusRaw = String(ord.status || 'READY_TO_SHIP').toUpperCase();
+                          
+                          // Style badge status utama
+                          let statusBg = '#fafafa';
+                          let statusColor = '#595959';
+                          let statusBorder = '#d9d9d9';
+                          let isSiapKirim = false;
+                          let isSudahKirim = false;
 
-                        {/* Print Badge */}
-                        <div style={{ marginBottom: '2px' }}>
-                          <span style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '3px',
-                            padding: '1px 6px',
-                            borderRadius: '4px',
-                            fontSize: '10px',
-                            fontWeight: '700',
-                            backgroundColor: '#f0fdf4',
-                            color: '#166534',
-                            border: '1px solid #bbf7d0'
-                          }}>
-                            <Printer size={10} /> {ord.status_cetak || 'Sudah Print'}
-                          </span>
-                        </div>
+                          if (['READY_TO_SHIP', 'TO_SHIP', 'PROCESSED', 'SIAP DIKIRIM', 'PERLU DIPROSES', 'AWAITING_SHIPMENT'].includes(statusRaw)) {
+                            statusBg = '#fff2e8';
+                            statusColor = '#d4380d';
+                            statusBorder = '#ffbb96';
+                            isSiapKirim = true;
+                          } else if (['SHIPPED', 'IN_TRANSIT', 'TO_RECEIVE', 'DIKIRIM', 'TO_CONFIRM_RECEIVE'].includes(statusRaw)) {
+                            statusBg = '#e6f4ff';
+                            statusColor = '#096dd9';
+                            statusBorder = '#91caff';
+                            isSudahKirim = true;
+                          } else if (['COMPLETED', 'FINISHED', 'SELESAI', 'DELIVERED'].includes(statusRaw)) {
+                            statusBg = '#f6ffed';
+                            statusColor = '#389e0d';
+                            statusBorder = '#b7eb8f';
+                          } else if (['CANCELLED', 'BATAL', 'IN_CANCEL', 'DIBATALKAN'].includes(statusRaw)) {
+                            statusBg = '#fff1f0';
+                            statusColor = '#cf1322';
+                            statusBorder = '#ffa39e';
+                          }
 
-                        {/* Verified Badge */}
-                        <div>
-                          <span style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '3px',
-                            padding: '1px 6px',
-                            borderRadius: '4px',
-                            fontSize: '10px',
-                            fontWeight: '700',
-                            backgroundColor: '#ecfdf5',
-                            color: '#059669',
-                            border: '1px solid #a7f3d0'
-                          }}>
-                            <CheckCircle2 size={10} /> {ord.status_verifikasi || 'Verified'}
-                          </span>
-                        </div>
+                          // Status Cetak: dicek jika resi ada dan status bukan Belum Print
+                          const hasTracking = ord.no_resi && ord.no_resi !== '-' && ord.no_resi.trim() !== '';
+                          const isPrinted = ord.status_cetak === 'Sudah Print' || (hasTracking && ord.status_cetak !== 'Belum Print');
+
+                          return (
+                            <>
+                              {/* Main Status Badge */}
+                              <div style={{ marginBottom: '3px' }}>
+                                <span style={{
+                                  display: 'inline-block',
+                                  padding: '2px 9px',
+                                  borderRadius: '12px',
+                                  fontSize: '10px',
+                                  fontWeight: '800',
+                                  backgroundColor: statusBg,
+                                  color: statusColor,
+                                  border: `1px solid ${statusBorder}`,
+                                  letterSpacing: '0.02em',
+                                  textTransform: 'uppercase'
+                                }}>
+                                  {statusRaw.replace(/_/g, ' ')}
+                                </span>
+                              </div>
+
+                              {/* Print Badge */}
+                              <div style={{ marginBottom: '2px' }}>
+                                <span style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '3px',
+                                  padding: '1px 6px',
+                                  borderRadius: '4px',
+                                  fontSize: '10px',
+                                  fontWeight: '700',
+                                  backgroundColor: isPrinted ? '#f0fdf4' : '#fafafa',
+                                  color: isPrinted ? '#15803d' : '#888888',
+                                  border: isPrinted ? '1px solid #bbf7d0' : '1px solid #dddddd'
+                                }}>
+                                  <Printer size={10} /> {isPrinted ? 'Sudah Print' : 'Belum Print'}
+                                </span>
+                              </div>
+
+                              {/* Verified Badge */}
+                              <div>
+                                <span style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '3px',
+                                  padding: '1px 6px',
+                                  borderRadius: '4px',
+                                  fontSize: '10px',
+                                  fontWeight: '700',
+                                  backgroundColor: ord.status_verifikasi === 'Verified' ? '#f0fdf4' : (ord.status_verifikasi === 'Packing' ? '#fffbe6' : '#fafafa'),
+                                  color: ord.status_verifikasi === 'Verified' ? '#15803d' : (ord.status_verifikasi === 'Packing' ? '#d4b106' : '#888888'),
+                                  border: ord.status_verifikasi === 'Verified' ? '1px solid #bbf7d0' : (ord.status_verifikasi === 'Packing' ? '1px solid #ffe58f' : '1px solid #dddddd')
+                                }}>
+                                  <CheckCircle2 size={10} /> {ord.status_verifikasi || 'Verified'}
+                                </span>
+                              </div>
+                            </>
+                          );
+                        })()}
                       </td>
 
                       {/* 8. AKSI */}
                       <td style={{ padding: '8px 12px', textAlign: 'center', border: '1px solid #cbd5e1' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-                          {/* Status Badge Sudah Kirim */}
-                          <span style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                            padding: '3px 8px',
-                            borderRadius: '4px',
-                            fontSize: '11px',
-                            fontWeight: '700',
-                            backgroundColor: '#f0fdf4',
-                            color: '#166534',
-                            border: '1px solid #86efac'
-                          }}>
-                            <CheckCircle2 size={11} color="#16a34a" /> Sudah Kirim
-                          </span>
+                        {(() => {
+                          const statusRaw = String(ord.status || 'READY_TO_SHIP').toUpperCase();
+                          const isSiapKirim = ['READY_TO_SHIP', 'TO_SHIP', 'PROCESSED', 'SIAP DIKIRIM', 'PERLU DIPROSES', 'AWAITING_SHIPMENT'].includes(statusRaw);
+                          const isSudahKirim = ['SHIPPED', 'IN_TRANSIT', 'TO_RECEIVE', 'DIKIRIM', 'TO_CONFIRM_RECEIVE', 'COMPLETED', 'FINISHED', 'SELESAI', 'DELIVERED'].includes(statusRaw);
 
-                          {/* Tombol Detail */}
-                          <button
-                            type="button"
-                            onClick={() => setDetailOrder(ord)}
-                            title="Lihat Detail Pesanan"
-                            style={{
-                              height: '24px',
-                              padding: '0 8px',
-                              borderRadius: '4px',
-                              border: '1px solid #0284c7',
-                              backgroundColor: '#0284c7',
-                              color: '#ffffff',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px',
-                              cursor: 'pointer',
-                              fontSize: '10.5px',
-                              fontWeight: '700'
-                            }}
-                          >
-                            <Eye size={11} />
-                            <span>Detail</span>
-                          </button>
-                        </div>
+                          return (
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                              {/* Tombol Cetak Resi (Hanya muncul jika Siap Dikirim) */}
+                              {isSiapKirim && (
+                                <button
+                                  type="button"
+                                  onClick={() => handlePrintResi(ord)}
+                                  title="Cetak Resi / Label Pengiriman"
+                                  style={{
+                                    height: '24px',
+                                    padding: '0 8px',
+                                    borderRadius: '4px',
+                                    border: '1px solid #cbd5e1',
+                                    backgroundColor: '#ffffff',
+                                    color: '#0284c7',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    cursor: 'pointer',
+                                    fontSize: '10.5px',
+                                    fontWeight: '700'
+                                  }}
+                                >
+                                  <Printer size={11} />
+                                  <span>Cetak Resi</span>
+                                </button>
+                              )}
+
+                              {/* Badge Sudah Kirim (Hanya jika pesanan sudah dikirim / selesai) */}
+                              {isSudahKirim && (
+                                <span style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  padding: '3px 8px',
+                                  borderRadius: '4px',
+                                  fontSize: '11px',
+                                  fontWeight: '700',
+                                  backgroundColor: '#f0fdf4',
+                                  color: '#166534',
+                                  border: '1px solid #86efac'
+                                }}>
+                                  <CheckCircle2 size={11} color="#16a34a" /> Sudah Kirim
+                                </span>
+                              )}
+
+                              {/* Tombol Detail (Selalu Ada) */}
+                              <button
+                                type="button"
+                                onClick={() => setDetailOrder(ord)}
+                                title="Lihat Detail Pesanan"
+                                style={{
+                                  height: '24px',
+                                  padding: '0 8px',
+                                  borderRadius: '4px',
+                                  border: '1px solid #0284c7',
+                                  backgroundColor: '#0284c7',
+                                  color: '#ffffff',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  cursor: 'pointer',
+                                  fontSize: '10.5px',
+                                  fontWeight: '700'
+                                }}
+                              >
+                                <Eye size={11} />
+                                <span>Detail</span>
+                              </button>
+                            </div>
+                          );
+                        })()}
                       </td>
                     </tr>
                   );
