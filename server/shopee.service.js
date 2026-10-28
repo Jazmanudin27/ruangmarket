@@ -173,6 +173,7 @@ export class ShopeeService {
     };
 
     const res = await this.requestPost(url, payload);
+    const keyName = isMerchant ? 'merchant_id' : 'shop_id';
 
     if (res.error && res.error !== '') {
       throw new Error(`Shopee Refresh Token Error (${keyName}): ${res.message || res.error}`);
