@@ -971,7 +971,7 @@ export default function PesananMasukDesktopView() {
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', fontFamily: 'monospace', color: '#0f172a', fontWeight: '700', marginTop: '3px' }}>
                           <Package size={11} color="#0284c7" />
-                          <code style={{ color: '#0f172a' }}>{ord.no_resi || ('SPXID' + String(ord.id).slice(-11))}</code>
+                          <code style={{ color: ord.no_resi ? '#0f172a' : '#94a3b8' }}>{ord.no_resi || 'Belum Ada Resi'}</code>
                         </div>
                       </td>
 

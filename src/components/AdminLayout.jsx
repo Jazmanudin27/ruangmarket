@@ -299,8 +299,8 @@ export default function AdminLayout() {
             </div>
           </div>
 
-          {/* COMPANY / TENANT SELECTOR DROPDOWN (PERSIS SCREENSHOT USER) */}
-          <div style={{ position: 'relative' }} ref={companyDropdownRef}>
+          {/* COMPANY / TENANT SELECTOR DROPDOWN (DI-HIDDEN SEMENTARA ATAS PERMINTAAN USER) */}
+          <div style={{ position: 'relative', display: 'none' }} ref={companyDropdownRef}>
             <button
               type="button"
               onClick={() => setIsCompanyDropdownOpen(!isCompanyDropdownOpen)}
@@ -1018,9 +1018,9 @@ export default function AdminLayout() {
           {/* RIGHT SIDE ACTIONS (DARK MODE) */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
             
-            {/* Realtime Clock Badge */}
+            {/* Realtime Clock Badge (DI-HIDDEN SEMENTARA ATAS PERMINTAAN USER) */}
             <div style={{
-              display: 'flex',
+              display: 'none',
               alignItems: 'center',
               gap: '5px',
               padding: '4px 8px',

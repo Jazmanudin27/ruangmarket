@@ -702,6 +702,35 @@ export class ShopeeService {
   async getShippingDocument(shopId, accessToken, orderSn, documentType = 'THERMAL_AIR_WAYBILL') {
     const sId = String(shopId);
 
+    // Langkah 0: Dapatkan nomor resi aktif (get_tracking_number) atau atur pengiriman (ship_order) jika belum diatur
+    let trackingNumber = '';
+    try {
+      const trackPath = '/api/v2/logistics/get_tracking_number';
+      const timestamp0 = Math.floor(Date.now() / 1000);
+      const sign0 = this.generateSignature(trackPath, timestamp0, accessToken, sId);
+      const trackUrl = `${this.baseUrl}${trackPath}?partner_id=${this.partnerId}&timestamp=${timestamp0}&access_token=${accessToken}&shop_id=${sId}&sign=${sign0}&order_sn=${orderSn}`;
+      const trackRes = await this.requestGet(trackUrl, 1);
+      trackingNumber = trackRes.response?.tracking_number || '';
+
+      // Jika belum ada resi, panggil ship_order (dropoff / pickup)
+      if (!trackingNumber) {
+        const shipPath = '/api/v2/logistics/ship_order';
+        const shipSign = this.generateSignature(shipPath, timestamp0, accessToken, sId);
+        const shipUrl = `${this.baseUrl}${shipPath}?partner_id=${this.partnerId}&timestamp=${timestamp0}&access_token=${accessToken}&shop_id=${sId}&sign=${shipSign}`;
+        await this.requestPost(shipUrl, {
+          order_sn: orderSn,
+          dropoff: {}
+        }).catch(() => {});
+
+        // Tunggu dan ambil kembali tracking number
+        await new Promise(r => setTimeout(r, 800));
+        const retryTrack = await this.requestGet(trackUrl, 1).catch(() => ({}));
+        trackingNumber = retryTrack.response?.tracking_number || '';
+      }
+    } catch (trackErr) {
+      console.log(`[Shopee Logistics]: tracking info error ${orderSn}:`, trackErr.message);
+    }
+
     // Langkah 1: Buat Permintaan Dokumen Pengiriman (create_shipping_document)
     try {
       const createPath = '/api/v2/logistics/create_shipping_document';
@@ -709,8 +738,13 @@ export class ShopeeService {
       const sign1 = this.generateSignature(createPath, timestamp1, accessToken, sId);
       const createUrl = `${this.baseUrl}${createPath}?partner_id=${this.partnerId}&timestamp=${timestamp1}&access_token=${accessToken}&shop_id=${sId}&sign=${sign1}`;
       
+      const orderItemPayload = { order_sn: orderSn };
+      if (trackingNumber) {
+        orderItemPayload.tracking_number = trackingNumber;
+      }
+
       await this.requestPost(createUrl, {
-        order_list: [{ order_sn: orderSn }],
+        order_list: [orderItemPayload],
         shipping_document_type: documentType
       });
     } catch (createErr) {
@@ -719,7 +753,7 @@ export class ShopeeService {
 
     // Langkah 2: Tunggu dan Cek Status Dokumen (get_shipping_document_result)
     const resultPath = '/api/v2/logistics/get_shipping_document_result';
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 4; i++) {
       try {
         const timestamp2 = Math.floor(Date.now() / 1000);
         const sign2 = this.generateSignature(resultPath, timestamp2, accessToken, sId);
@@ -733,7 +767,7 @@ export class ShopeeService {
       } catch (checkErr) {
         // Abaikan
       }
-      await new Promise(r => setTimeout(r, 600));
+      await new Promise(r => setTimeout(r, 800));
     }
 
     // Langkah 3: Download File PDF Resi Asli (download_shipping_document)
