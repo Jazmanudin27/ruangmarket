@@ -212,8 +212,8 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
-  // 6d. API Master Produk ERP (produk_master MySQL)
-  if (pathname === '/api/produk/master' && req.method === 'GET') {
+  // 6d. API Master Produk ERP (produk_master MySQL) - Dukung endpoint /api/produk/master dan /api/marketplace/master
+  if ((pathname === '/api/produk/master' || pathname === '/api/marketplace/master') && req.method === 'GET') {
     try {
       const kodePerusahaan = urlObj.searchParams.get('kode_perusahaan');
       let sql = 'SELECT * FROM produk_master';
@@ -231,7 +231,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   // 6e. Simpan/Batch Simpan ke Master Produk ERP (Bulk Insert Cepat)
-  if (pathname === '/api/produk/master' && req.method === 'POST') {
+  if ((pathname === '/api/produk/master' || pathname === '/api/marketplace/master') && req.method === 'POST') {
     try {
       const body = await parseJsonBody(req);
       const items = Array.isArray(body) ? body : [body];
@@ -289,7 +289,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   // 6f. Update / Delete Master Produk by ID
-  const masterIdMatch = pathname.match(/^\/api\/produk\/master\/([^/]+)$/);
+  const masterIdMatch = pathname.match(/^\/api\/(?:produk|marketplace)\/master\/([^/]+)$/);
   if (masterIdMatch && req.method === 'PUT') {
     try {
       const body = await parseJsonBody(req);

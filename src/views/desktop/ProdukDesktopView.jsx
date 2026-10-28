@@ -213,7 +213,7 @@ export default function ProdukView() {
   const loadMasterProduk = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch('/api/produk/master');
+      const res = await fetch('/api/marketplace/master');
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
@@ -449,7 +449,7 @@ export default function ProdukView() {
     );
     if (confirmed) {
       try {
-        await fetch(`/api/produk/master/${item.id}`, { method: 'DELETE' });
+        await fetch(`/api/marketplace/master/${item.id}`, { method: 'DELETE' });
       } catch (e) {}
       setProdukList(prev => prev.filter(p => p.id !== item.id));
       toastSuccess('Produk berhasil dihapus');
@@ -465,7 +465,7 @@ export default function ProdukView() {
 
     if (editingId) {
       try {
-        await fetch(`/api/produk/master/${editingId}`, {
+        await fetch(`/api/marketplace/master/${editingId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -491,7 +491,7 @@ export default function ProdukView() {
       };
 
       try {
-        await fetch('/api/produk/master', {
+        await fetch('/api/marketplace/master', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

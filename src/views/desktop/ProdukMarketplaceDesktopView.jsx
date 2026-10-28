@@ -81,7 +81,7 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
 
   // Muat data master produk dan simpan set SKU untuk pencocokan real-time
   const loadMasterSkus = () => {
-    fetch('/api/produk/master')
+    fetch('/api/marketplace/master')
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) {
@@ -256,29 +256,40 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
 
       const targetIds = unmappedList.map(i => i.id);
 
-      // Simpan langsung ke database MySQL produk_master (Bulk Insert)
-      const masterRes = await fetch('/api/produk/master', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newProducts.map(p => ({
-          kode_perusahaan: p.company_code,
-          kode_sku: p.sku,
-          nama_produk: p.nama_produk,
-          kategori: p.kategori,
-          satuan: p.satuan,
-          harga_jual: p.harga_jual,
-          harga_modal: p.harga_beli,
-          stok_fisik: p.stok,
-          status: 'Aktif'
-        })))
-      });
+      // Simpan langsung ke database MySQL produk_master via /api/marketplace/master
+      // Bagi per batch 200 item agar payload JSON tidak terlalu besar dan tidak kena batasan Nginx/Node
+      const batchPayloadChunk = 200;
+      for (let i = 0; i < newProducts.length; i += batchPayloadChunk) {
+        const subChunk = newProducts.slice(i, i + batchPayloadChunk);
+        const masterRes = await fetch('/api/marketplace/master', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(subChunk.map(p => ({
+            kode_perusahaan: p.company_code,
+            kode_sku: p.sku,
+            nama_produk: p.nama_produk,
+            kategori: p.kategori,
+            satuan: p.satuan,
+            harga_jual: p.harga_jual,
+            harga_modal: p.harga_beli,
+            stok_fisik: p.stok,
+            status: 'Aktif'
+          })))
+        });
 
-      const masterJson = await masterRes.json();
-      if (!masterRes.ok || masterJson.status !== 'success') {
-        throw new Error(masterJson.message || `Gagal menyimpan ke database (HTTP ${masterRes.status})`);
+        const contentType = masterRes.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+          const text = await masterRes.text();
+          throw new Error(`Server mengembalikan respon bukan JSON (HTTP ${masterRes.status}). Pastikan backend pm2 sudah direstart.`);
+        }
+
+        const masterJson = await masterRes.json();
+        if (!masterRes.ok || masterJson.status !== 'success') {
+          throw new Error(masterJson.message || `Gagal menyimpan ke database (HTTP ${masterRes.status})`);
+        }
       }
 
-      // Bersihkan atau update cache localStorage secara aman tanpa crash quota
+      // Bersihkan cache localStorage secara aman tanpa crash quota
       try {
         localStorage.removeItem(PRODUK_MASTER_KEY);
       } catch (e) {}
@@ -345,7 +356,7 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
       window.dispatchEvent(new Event('storage'));
 
       // Simpan langsung ke database MySQL produk_master
-      const masterRes = await fetch('/api/produk/master', {
+      const masterRes = await fetch('/api/marketplace/master', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
