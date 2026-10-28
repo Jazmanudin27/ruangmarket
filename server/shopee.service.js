@@ -115,7 +115,56 @@ export class ShopeeService {
     }
   }
 
-  // Tukar Auth Code menjadi Access Token resmi (setelah seller klik otorisasi)
+  // Helper request HTTP(S) untuk file biner (PDF AWB / Resi Marketplace)
+  async requestBinary(url, body, method = 'POST') {
+    return new Promise((resolve, reject) => {
+      const parsed = new URL(url);
+      const postData = typeof body === 'string' ? body : JSON.stringify(body);
+
+      const req = https.request({
+        hostname: parsed.hostname,
+        path: parsed.pathname + parsed.search,
+        method: method,
+        family: 4,
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(postData),
+          'User-Agent': 'GuzzleHttp/7 RuangMarket-Shopee/2.0',
+          'Accept': 'application/pdf, application/json, */*'
+        },
+        timeout: 30000
+      }, (res) => {
+        const chunks = [];
+        res.on('data', chunk => chunks.push(chunk));
+        res.on('end', () => {
+          const buffer = Buffer.concat(chunks);
+          const contentType = res.headers['content-type'] || '';
+          
+          if (contentType.includes('application/pdf') || (buffer.length >= 4 && buffer.slice(0, 4).toString() === '%PDF')) {
+            return resolve({ isPdf: true, buffer, contentType: 'application/pdf' });
+          }
+
+          try {
+            const json = JSON.parse(buffer.toString('utf8'));
+            resolve({ isPdf: false, json });
+          } catch (e) {
+            resolve({ isPdf: false, raw: buffer.toString('utf8') });
+          }
+        });
+      });
+
+      req.on('error', reject);
+      req.on('timeout', () => {
+        req.destroy();
+        reject(new Error('Koneksi download label ke Shopee Timeout (30s)'));
+      });
+
+      if (method === 'POST') {
+        req.write(postData);
+      }
+      req.end();
+    });
+  }
   async getAccessTokenFromCode(code, shopId) {
     const path = '/api/v2/auth/token/get';
     const timestamp = Math.floor(Date.now() / 1000);
@@ -647,6 +696,74 @@ export class ShopeeService {
     }
 
     return orders;
+  }
+
+  // 9. Ambil Label Pengiriman / Cetak Resi PDF Langsung dari Shopee Open API v2
+  async getShippingDocument(shopId, accessToken, orderSn, documentType = 'THERMAL_AIR_WAYBILL') {
+    const sId = String(shopId);
+
+    // Langkah 1: Buat Permintaan Dokumen Pengiriman (create_shipping_document)
+    try {
+      const createPath = '/api/v2/logistics/create_shipping_document';
+      const timestamp1 = Math.floor(Date.now() / 1000);
+      const sign1 = this.generateSignature(createPath, timestamp1, accessToken, sId);
+      const createUrl = `${this.baseUrl}${createPath}?partner_id=${this.partnerId}&timestamp=${timestamp1}&access_token=${accessToken}&shop_id=${sId}&sign=${sign1}`;
+      
+      await this.requestPost(createUrl, {
+        order_list: [{ order_sn: orderSn }],
+        shipping_document_type: documentType
+      });
+    } catch (createErr) {
+      console.log(`[Shopee Logistics]: info create_shipping_document ${orderSn}:`, createErr.message);
+    }
+
+    // Langkah 2: Tunggu dan Cek Status Dokumen (get_shipping_document_result)
+    const resultPath = '/api/v2/logistics/get_shipping_document_result';
+    for (let i = 0; i < 3; i++) {
+      try {
+        const timestamp2 = Math.floor(Date.now() / 1000);
+        const sign2 = this.generateSignature(resultPath, timestamp2, accessToken, sId);
+        const resultUrl = `${this.baseUrl}${resultPath}?partner_id=${this.partnerId}&timestamp=${timestamp2}&access_token=${accessToken}&shop_id=${sId}&sign=${sign2}&order_sn_list=${orderSn}`;
+        
+        const res = await this.requestGet(resultUrl, 1);
+        const statusItem = res.response?.result_list?.[0];
+        if (statusItem && statusItem.status === 'READY') {
+          break;
+        }
+      } catch (checkErr) {
+        // Abaikan
+      }
+      await new Promise(r => setTimeout(r, 600));
+    }
+
+    // Langkah 3: Download File PDF Resi Asli (download_shipping_document)
+    const downloadPath = '/api/v2/logistics/download_shipping_document';
+    const timestamp3 = Math.floor(Date.now() / 1000);
+    const sign3 = this.generateSignature(downloadPath, timestamp3, accessToken, sId);
+    const downloadUrl = `${this.baseUrl}${downloadPath}?partner_id=${this.partnerId}&timestamp=${timestamp3}&access_token=${accessToken}&shop_id=${sId}&sign=${sign3}`;
+
+    let result = await this.requestBinary(downloadUrl, {
+      order_list: [{ order_sn: orderSn }],
+      shipping_document_type: documentType
+    });
+
+    // Jika THERMAL gagal, fallback coba NORMAL_AIR_WAYBILL (Ukuran A4)
+    if (!result.isPdf && documentType === 'THERMAL_AIR_WAYBILL') {
+      const fallbackResult = await this.requestBinary(downloadUrl, {
+        order_list: [{ order_sn: orderSn }],
+        shipping_document_type: 'NORMAL_AIR_WAYBILL'
+      });
+      if (fallbackResult.isPdf) {
+        return fallbackResult.buffer;
+      }
+    }
+
+    if (result.isPdf) {
+      return result.buffer;
+    }
+
+    const errMsg = result.json?.message || result.json?.error || 'Shopee belum merilis file PDF resi untuk pesanan ini. Pastikan pesanan sudah diatur pengiriman di Shopee Seller Center.';
+    throw new Error(errMsg);
   }
 }
 

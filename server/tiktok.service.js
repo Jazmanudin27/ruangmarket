@@ -325,4 +325,47 @@ export class TiktokService {
       };
     });
   }
+
+  // 7. Ambil Label Pengiriman / Cetak Resi PDF Langsung dari TikTok Shop API
+  async getShippingDocument(orderId, accessToken, shopCipher = '') {
+    const timestamp = Math.floor(Date.now() / 1000);
+    const path = `/fulfillment/202309/orders/${orderId}/shipping_documents`;
+    const queryObj = {
+      app_key: this.appKey,
+      timestamp: timestamp,
+      document_type: 'SL',
+      document_size: 'A6'
+    };
+    if (shopCipher) {
+      queryObj.shop_cipher = shopCipher;
+    }
+
+    const sign = this.generateSignature(path, queryObj, {});
+    queryObj.sign = sign;
+
+    const queryStr = new URLSearchParams(queryObj).toString();
+    const url = `${this.baseUrl}${path}?${queryStr}`;
+
+    const res = await this.request('GET', url, {
+      'x-tts-access-token': accessToken
+    });
+
+    if (res.code !== 0) {
+      throw new Error(`TikTok Shipping Label Error: ${res.message || 'Unknown Error'}`);
+    }
+
+    const docUrl = res.data?.doc_url;
+    if (!docUrl) {
+      throw new Error('TikTok Shop belum merilis file dokumen PDF pengiriman untuk pesanan ini.');
+    }
+
+    // Download PDF dari URL yang diberikan TikTok
+    return new Promise((resolve, reject) => {
+      https.get(docUrl, (pdfRes) => {
+        const chunks = [];
+        pdfRes.on('data', chunk => chunks.push(chunk));
+        pdfRes.on('end', () => resolve(Buffer.concat(chunks)));
+      }).on('error', reject);
+    });
+  }
 }

@@ -700,6 +700,97 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
+  // 10d. Cetak Resi / Shipping Label PDF Langsung dari API Marketplace Resmi (Shopee & TikTok)
+  if (pathname === '/api/marketplace/orders/print-label' && req.method === 'GET') {
+    const orderSn = urlObj.searchParams.get('order_sn');
+    let channel = (urlObj.searchParams.get('channel') || '').toLowerCase();
+
+    if (!orderSn) {
+      return sendJson(res, 400, { status: 'error', message: 'Parameter order_sn wajib diisi' });
+    }
+
+    try {
+      // 1. Ambil info pesanan dari MySQL pesanan_marketplace
+      let [orderRows] = await pool.query('SELECT * FROM pesanan_marketplace WHERE no_pesanan = ? OR id = ? LIMIT 1', [orderSn, orderSn]);
+      const order = orderRows[0];
+      if (order && !channel) {
+        channel = (order.saluran || 'shopee').toLowerCase();
+      }
+      if (!channel) channel = 'shopee';
+
+      const shopName = order?.nama_toko || '';
+
+      // 2. Ambil kredensial toko dari database toko_marketplace
+      let [stores] = await pool.query('SELECT * FROM toko_marketplace WHERE saluran = ? AND (status_koneksi LIKE "%Aktif%" OR status_koneksi LIKE "%Terhubung%")', [channel]);
+      if (stores.length === 0) {
+        [stores] = await pool.query('SELECT * FROM toko_marketplace WHERE saluran = ?', [channel]);
+      }
+
+      let store = stores.find(s => s.nama_toko === shopName) || stores[0];
+      if (!store) {
+        if (channel === 'shopee') {
+          store = {
+            id_toko: '1030191310',
+            nama_toko: 'Koperasi Sahabat Anak Bangsa',
+            token_akses: process.env.SHOPEE_ACCESS_TOKEN || '',
+            token_refresh: process.env.SHOPEE_REFRESH_TOKEN || ''
+          };
+        } else {
+          throw new Error(`Kredensial toko untuk saluran ${channel} tidak ditemukan di database.`);
+        }
+      }
+
+      let pdfBuffer = null;
+
+      if (channel === 'shopee') {
+        try {
+          pdfBuffer = await shopeeService.getShippingDocument(store.id_toko, store.token_akses, orderSn);
+        } catch (shopeeErr) {
+          const errStr = shopeeErr.message.toLowerCase();
+          if (errStr.includes('token') || errStr.includes('auth') || errStr.includes('expired')) {
+            console.log('[Shopee Label]: Token kadaluarsa, me-refresh token...');
+            if (store.token_refresh) {
+              const ref = await shopeeService.refreshAccessToken(store.token_refresh, store.id_toko, false);
+              if (ref && ref.access_token) {
+                await pool.query('UPDATE toko_marketplace SET token_akses = ?, token_refresh = ? WHERE id_toko = ?', [
+                  ref.access_token,
+                  ref.refresh_token || store.token_refresh,
+                  store.id_toko
+                ]);
+                pdfBuffer = await shopeeService.getShippingDocument(store.id_toko, ref.access_token, orderSn);
+              } else {
+                throw shopeeErr;
+              }
+            } else {
+              throw shopeeErr;
+            }
+          } else {
+            throw shopeeErr;
+          }
+        }
+      } else if (channel === 'tiktok') {
+        pdfBuffer = await tiktokService.getShippingDocument(orderSn, store.token_akses, store.cipher_toko || '');
+      }
+
+      if (pdfBuffer && Buffer.isBuffer(pdfBuffer)) {
+        res.writeHead(200, {
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `inline; filename="resi-${orderSn}.pdf"`,
+          'Content-Length': pdfBuffer.length
+        });
+        return res.end(pdfBuffer);
+      }
+
+      throw new Error('Gagal mendapatkan dokumen PDF resi dari marketplace');
+    } catch (err) {
+      console.error('[Cetak Resi PDF Error]:', err.message);
+      return sendJson(res, 502, {
+        status: 'error',
+        message: `Gagal cetak resi marketplace: ${err.message}`
+      });
+    }
+  }
+
   // 11. Shopee Orders Sync API (Tarik dari Shopee & Simpan ke MySQL)
   if (pathname === '/api/marketplace/shopee/orders' && req.method === 'GET') {
     const shopId = urlObj.searchParams.get('shop_id') || '1030191310';

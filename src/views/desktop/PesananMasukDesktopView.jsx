@@ -47,15 +47,9 @@ export default function PesananMasukDesktopView() {
   const [detailOrder, setDetailOrder] = useState(null);
   const [isFullScreen, setIsFullScreen] = useState(false);
 
-  // Helper Cetak Resi / Label Pengiriman (Shipping Label)
-  const handlePrintResi = (ord) => {
-    if (!ord) return;
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      toastError('Popup blocker aktif. Izinkan popup browser untuk mencetak resi.');
-      return;
-    }
-
+  // Helper Render Resi Cadangan (Fallback jika marketplace belum merilis PDF)
+  const renderFallbackResi = (printWindow, ord) => {
+    if (!printWindow || printWindow.closed) return;
     const items = ord.items || [];
     const courier = ord.kurir || 'SPX Express';
     const trackingNo = ord.no_resi || ord.tracking_number || '-';
@@ -111,22 +105,22 @@ export default function PesananMasukDesktopView() {
           <table class="product-table">
             <thead>
               <tr style="background: #eee;">
-                <th>Nama Produk</th>
+                <th>SKU / Produk</th>
                 <th style="width: 30px; text-align: center;">Qty</th>
-                <th style="width: 80px;">SKU / Variasi</th>
+                <th style="width: 80px;">Variasi</th>
               </tr>
             </thead>
             <tbody>
               ${items.map(it => `
                 <tr>
-                  <td><b>${it.nama_produk || 'Produk'}</b></td>
+                  <td><b>${it.sku || it.nama_produk || 'Produk'}</b></td>
                   <td style="text-align: center;"><b>${it.qty || 1}</b></td>
-                  <td>${it.sku || it.varian || '-'}</td>
+                  <td>${it.varian || '-'}</td>
                 </tr>
               `).join('')}
             </tbody>
           </table>
-          <div class="footer-note">Cetak Resi Otomatis - Sistem RuangMarket</div>
+          <div class="footer-note">Cetak Resi Cadangan - Sistem RuangMarket</div>
         </div>
         <script>
           window.onload = function() { window.print(); }
@@ -137,6 +131,61 @@ export default function PesananMasukDesktopView() {
     printWindow.document.open();
     printWindow.document.write(html);
     printWindow.document.close();
+  };
+
+  // Helper Cetak Resi / Label Pengiriman Langsung dari API Marketplace Resmi (PDF Asli)
+  const handlePrintResi = async (ord) => {
+    if (!ord) return;
+    const channel = String(ord.saluran || ord.channel || 'shopee').toLowerCase();
+    const orderSn = ord.no_pesanan || ord.id;
+    const printUrl = `/api/marketplace/orders/print-label?order_sn=${encodeURIComponent(orderSn)}&channel=${encodeURIComponent(channel)}`;
+
+    const printWindow = window.open('about:blank', '_blank');
+    if (!printWindow) {
+      toastError('Popup blocker aktif. Izinkan popup browser untuk mencetak resi.');
+      return;
+    }
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Mengunduh PDF Resi ${orderSn}...</title>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 90vh; color: #1e293b; background: #f8fafc; margin: 0; }
+          .card { background: white; padding: 28px 36px; border-radius: 12px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1); text-align: center; max-width: 420px; border: 1px solid #e2e8f0; }
+          .spinner { border: 3px solid #f1f5f9; border-top: 3px solid #0284c7; border-radius: 50%; width: 36px; height: 36px; animation: spin 0.8s linear infinite; margin: 0 auto 16px; }
+          @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <div class="spinner"></div>
+          <div style="font-size: 15px; font-weight: 800; margin-bottom: 6px;">Mengunduh PDF Resi Marketplace Resmi...</div>
+          <div style="font-size: 12px; color: #64748b; margin-bottom: 6px;">Menghubungkan ke API ${channel === 'tiktok' ? 'TikTok Shop' : 'Shopee'}</div>
+          <div style="font-size: 12px; font-weight: 700; color: #0284c7; font-family: monospace;">No. Pesanan: ${orderSn}</div>
+          <div style="font-size: 11px; color: #94a3b8; margin-top: 14px;">Memuat dokumen AWB asli...</div>
+        </div>
+      </body>
+      </html>
+    `);
+
+    try {
+      const resp = await fetch(printUrl, { method: 'HEAD' });
+      const contentType = resp.headers.get('content-type') || '';
+      if (resp.ok && contentType.includes('application/pdf')) {
+        printWindow.location.href = printUrl;
+        return;
+      }
+
+      // Jika error, ambil pesan error dari response
+      const errJson = await fetch(printUrl).then(r => r.json()).catch(() => ({}));
+      toastError(errJson.message || `Marketplace ${channel.toUpperCase()} belum merilis PDF label resi.`);
+      renderFallbackResi(printWindow, ord);
+    } catch (err) {
+      console.warn('Gagal fetch PDF resi marketplace:', err.message);
+      renderFallbackResi(printWindow, ord);
+    }
   };
 
   // Helper Cetak Invoice Pesanan
