@@ -45,6 +45,8 @@ export default function ProdukMarketplaceView({ onNavigate }) {
   const [isLoadingSync, setIsLoadingSync] = useState(false);
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
   const [apiErrorModal, setApiErrorModal] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [entriesPerPage, setEntriesPerPage] = useState(25);
 
   // Form input manual / paste
   const [manualForm, setManualForm] = useState({
@@ -136,6 +138,9 @@ export default function ProdukMarketplaceView({ onNavigate }) {
     }
     return true;
   });
+
+  const totalPages = Math.ceil(filteredItems.length / entriesPerPage) || 1;
+  const paginatedItems = filteredItems.slice((currentPage - 1) * entriesPerPage, currentPage * entriesPerPage);
 
   // Kosongkan seluruh isi staging
   const handleClearAll = async () => {
@@ -393,10 +398,10 @@ export default function ProdukMarketplaceView({ onNavigate }) {
           </div>
         </div>
 
-        {/* Action Buttons */}
+        {/* Action Buttons (Color-Coded & Rich Styling Seperti Data Induk Produk) */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
           
-          {/* Tombol Tarik Shopee */}
+          {/* 1. Tombol Tarik Shopee (Oranye Shopee) */}
           <button
             onClick={handleSyncFromShopee}
             disabled={isLoadingSync}
@@ -409,21 +414,24 @@ export default function ProdukMarketplaceView({ onNavigate }) {
               padding: '0 12px',
               borderRadius: '6px',
               border: 'none',
-              backgroundColor: '#ee4d2d',
+              backgroundColor: '#ea580c',
               color: '#ffffff',
               fontSize: '11.5px',
-              fontWeight: '700',
+              fontWeight: '800',
               lineHeight: 1,
               cursor: isLoadingSync ? 'not-allowed' : 'pointer',
-              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.15)',
+              boxShadow: '0 2px 4px rgba(234, 88, 12, 0.3)',
+              transition: 'all 0.15s ease',
               opacity: isLoadingSync ? 0.7 : 1
             }}
+            onMouseEnter={(e) => { if (!isLoadingSync) e.currentTarget.style.backgroundColor = '#c2410c'; }}
+            onMouseLeave={(e) => { if (!isLoadingSync) e.currentTarget.style.backgroundColor = '#ea580c'; }}
           >
             <RefreshCw size={13} className={isLoadingSync ? 'spin' : ''} style={{ animation: isLoadingSync ? 'spin 1s linear infinite' : 'none' }} />
-            <span>{isLoadingSync ? 'Menarik Shopee API...' : 'Tarik Produk Shopee'}</span>
+            <span>{isLoadingSync ? 'Menarik API...' : 'Tarik Shopee'}</span>
           </button>
 
-          {/* Tombol Input Manual / Batch */}
+          {/* 2. Tombol Input Manual (Emerald / Hijau) */}
           <button
             onClick={() => setIsManualModalOpen(true)}
             style={{
@@ -438,17 +446,20 @@ export default function ProdukMarketplaceView({ onNavigate }) {
               backgroundColor: '#10b981',
               color: '#ffffff',
               fontSize: '11.5px',
-              fontWeight: '700',
+              fontWeight: '800',
               lineHeight: 1,
               cursor: 'pointer',
-              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.15)'
+              boxShadow: '0 2px 4px rgba(16, 185, 129, 0.3)',
+              transition: 'all 0.15s ease'
             }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#059669'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#10b981'}
           >
             <Plus size={13} />
-            <span>+ Input / Paste</span>
+            <span>+ Input Manual</span>
           </button>
 
-          {/* Tombol Kosongkan Tabel */}
+          {/* 3. Tombol Kosongkan (Merah Rose) */}
           <button
             onClick={handleClearAll}
             title="Kosongkan seluruh data di antrian staging"
@@ -460,20 +471,24 @@ export default function ProdukMarketplaceView({ onNavigate }) {
               gap: '5px',
               padding: '0 10px',
               borderRadius: '6px',
-              border: '1px solid rgba(255, 255, 255, 0.3)',
-              backgroundColor: 'rgba(255, 255, 255, 0.15)',
+              border: 'none',
+              backgroundColor: '#ef4444',
               color: '#ffffff',
               fontSize: '11.5px',
-              fontWeight: '700',
+              fontWeight: '800',
               lineHeight: 1,
-              cursor: 'pointer'
+              cursor: 'pointer',
+              boxShadow: '0 2px 4px rgba(239, 68, 68, 0.3)',
+              transition: 'all 0.15s ease'
             }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#dc2626'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#ef4444'}
           >
             <Trash2 size={13} />
             <span>Kosongkan</span>
           </button>
 
-          {/* Tombol Navigasi ke Toko */}
+          {/* 4. Tombol Navigasi ke Toko (Dark Slate) */}
           <button
             onClick={() => onNavigate && onNavigate('marketplace')}
             style={{
@@ -481,21 +496,27 @@ export default function ProdukMarketplaceView({ onNavigate }) {
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
-              padding: '0 10px',
+              gap: '5px',
+              padding: '0 11px',
               borderRadius: '6px',
-              border: '1px solid rgba(255, 255, 255, 0.3)',
-              backgroundColor: 'rgba(255, 255, 255, 0.15)',
+              border: 'none',
+              backgroundColor: '#334155',
               color: '#ffffff',
               fontSize: '11.5px',
               fontWeight: '700',
               lineHeight: 1,
-              cursor: 'pointer'
+              cursor: 'pointer',
+              boxShadow: '0 2px 4px rgba(51, 65, 85, 0.3)',
+              transition: 'all 0.15s ease'
             }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#1e293b'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#334155'}
           >
-            ← Toko
+            <Store size={13} />
+            <span>Daftar Toko</span>
           </button>
 
-          {/* Tombol Buka Master Produk */}
+          {/* 5. Tombol Buka Master Produk (Putih Premium) */}
           <button
             onClick={() => onNavigate && onNavigate('produk')}
             style={{
@@ -513,10 +534,14 @@ export default function ProdukMarketplaceView({ onNavigate }) {
               fontWeight: '800',
               lineHeight: 1,
               cursor: 'pointer',
-              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.15)'
+              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.15)',
+              transition: 'all 0.15s ease'
             }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f0f9ff'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#ffffff'}
           >
-            <span>Master Produk →</span>
+            <Boxes size={13} />
+            <span>Master Produk</span>
           </button>
 
         </div>
@@ -761,8 +786,29 @@ export default function ProdukMarketplaceView({ onNavigate }) {
           <option value="Habis">Stok Habis</option>
         </select>
 
-        <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700', marginLeft: 'auto' }}>
-          Menampilkan {filteredItems.length} produk di antrian staging
+        {/* Select Baris Per Halaman */}
+        <select
+          value={entriesPerPage}
+          onChange={(e) => { setEntriesPerPage(Number(e.target.value)); setCurrentPage(1); }}
+          style={{
+            padding: '6px 10px',
+            borderRadius: '6px',
+            border: '1px solid #cbd5e1',
+            fontSize: '12px',
+            color: '#334155',
+            backgroundColor: '#ffffff',
+            cursor: 'pointer',
+            minWidth: '105px'
+          }}
+        >
+          <option value={10}>10 Baris</option>
+          <option value={25}>25 Baris</option>
+          <option value={50}>50 Baris</option>
+          <option value={100}>100 Baris</option>
+        </select>
+
+        <span style={{ fontSize: '11.5px', color: '#64748b', fontWeight: '700', marginLeft: 'auto' }}>
+          Total <strong>{filteredItems.length}</strong> produk (Halaman {currentPage} dari {totalPages})
         </span>
 
       </div>
@@ -803,9 +849,10 @@ export default function ProdukMarketplaceView({ onNavigate }) {
                   </td>
                 </tr>
               ) : (
-                filteredItems.map((item, index) => {
+                paginatedItems.map((item, index) => {
                   const stockNum = Number(item.stok_marketplace) || 0;
                   const isMapped = item.status === 'Sudah di Master' || item.status === 'Sudah Dimapping';
+                  const rowNumber = (currentPage - 1) * entriesPerPage + index + 1;
 
                   return (
                     <tr 
@@ -819,7 +866,7 @@ export default function ProdukMarketplaceView({ onNavigate }) {
                     >
                       {/* NO */}
                       <td style={{ padding: '5px 8px', textAlign: 'center', color: '#64748b', fontWeight: '600', border: '1px solid #cbd5e1' }}>
-                        {index + 1}
+                        {rowNumber}
                       </td>
 
                       {/* NAMA PRODUK & SKU MARKETPLACE */}
@@ -971,6 +1018,65 @@ export default function ProdukMarketplaceView({ onNavigate }) {
             </tbody>
           </table>
         </div>
+
+        {/* PAGING FOOTER TOOLBAR */}
+        <div style={{
+          padding: '8px 14px',
+          borderTop: '1px solid #cbd5e1',
+          backgroundColor: '#f8fafc',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '10px',
+          fontSize: '11.5px',
+          color: '#64748b'
+        }}>
+          <div>
+            Menampilkan <strong>{filteredItems.length === 0 ? 0 : (currentPage - 1) * entriesPerPage + 1}</strong> sampai <strong>{Math.min(currentPage * entriesPerPage, filteredItems.length)}</strong> dari <strong>{filteredItems.length}</strong> produk
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <button
+              type="button"
+              disabled={currentPage <= 1}
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              style={{
+                padding: '4px 9px',
+                borderRadius: '4px',
+                border: '1px solid #cbd5e1',
+                backgroundColor: currentPage <= 1 ? '#f1f5f9' : '#ffffff',
+                color: currentPage <= 1 ? '#94a3b8' : '#334155',
+                cursor: currentPage <= 1 ? 'not-allowed' : 'pointer',
+                fontSize: '11px',
+                fontWeight: '700'
+              }}
+            >
+              Sebelumnya
+            </button>
+            <span style={{ padding: '0 8px', fontWeight: '800', color: '#0f172a' }}>
+              {currentPage} / {totalPages}
+            </span>
+            <button
+              type="button"
+              disabled={currentPage >= totalPages}
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              style={{
+                padding: '4px 9px',
+                borderRadius: '4px',
+                border: '1px solid #cbd5e1',
+                backgroundColor: currentPage >= totalPages ? '#f1f5f9' : '#ffffff',
+                color: currentPage >= totalPages ? '#94a3b8' : '#334155',
+                cursor: currentPage >= totalPages ? 'not-allowed' : 'pointer',
+                fontSize: '11px',
+                fontWeight: '700'
+              }}
+            >
+              Selanjutnya
+            </button>
+          </div>
+        </div>
+
       </div>
 
       {/* MODAL PENJELASAN SHOPEE API WHITELIST */}
