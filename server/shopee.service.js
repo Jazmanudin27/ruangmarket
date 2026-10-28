@@ -765,5 +765,79 @@ export class ShopeeService {
     const errMsg = result.json?.message || result.json?.error || 'Shopee belum merilis file PDF resi untuk pesanan ini. Pastikan pesanan sudah diatur pengiriman di Shopee Seller Center.';
     throw new Error(errMsg);
   }
+
+  // 10. Ambil Label Pengiriman / Cetak Resi PDF Masal (Batch) dari Shopee Open API v2
+  async getBatchShippingDocument(shopId, accessToken, orderSnList, documentType = 'THERMAL_AIR_WAYBILL') {
+    const sId = String(shopId);
+    if (!orderSnList || orderSnList.length === 0) {
+      throw new Error('Daftar order_sn tidak boleh kosong');
+    }
+
+    const orderListPayload = orderSnList.map(sn => ({ order_sn: sn }));
+
+    // Langkah 1: Buat Permintaan Dokumen Pengiriman Batch (create_shipping_document)
+    try {
+      const createPath = '/api/v2/logistics/create_shipping_document';
+      const timestamp1 = Math.floor(Date.now() / 1000);
+      const sign1 = this.generateSignature(createPath, timestamp1, accessToken, sId);
+      const createUrl = `${this.baseUrl}${createPath}?partner_id=${this.partnerId}&timestamp=${timestamp1}&access_token=${accessToken}&shop_id=${sId}&sign=${sign1}`;
+      
+      await this.requestPost(createUrl, {
+        order_list: orderListPayload,
+        shipping_document_type: documentType
+      });
+    } catch (createErr) {
+      console.log(`[Shopee Logistics]: info batch create_shipping_document:`, createErr.message);
+    }
+
+    // Langkah 2: Tunggu dan Cek Status Dokumen Batch (get_shipping_document_result)
+    const resultPath = '/api/v2/logistics/get_shipping_document_result';
+    const orderSnParams = orderSnList.join(',');
+    for (let i = 0; i < 4; i++) {
+      try {
+        const timestamp2 = Math.floor(Date.now() / 1000);
+        const sign2 = this.generateSignature(resultPath, timestamp2, accessToken, sId);
+        const resultUrl = `${this.baseUrl}${resultPath}?partner_id=${this.partnerId}&timestamp=${timestamp2}&access_token=${accessToken}&shop_id=${sId}&sign=${sign2}&order_sn_list=${orderSnParams}`;
+        
+        const res = await this.requestGet(resultUrl, 1);
+        const resultList = res.response?.result_list || [];
+        const allReady = resultList.length > 0 && resultList.every(r => r.status === 'READY');
+        if (allReady) {
+          break;
+        }
+      } catch (checkErr) {
+        // Abaikan
+      }
+      await new Promise(r => setTimeout(r, 700));
+    }
+
+    // Langkah 3: Download File PDF Resi Asli Gabungan (download_shipping_document)
+    const downloadPath = '/api/v2/logistics/download_shipping_document';
+    const timestamp3 = Math.floor(Date.now() / 1000);
+    const sign3 = this.generateSignature(downloadPath, timestamp3, accessToken, sId);
+    const downloadUrl = `${this.baseUrl}${downloadPath}?partner_id=${this.partnerId}&timestamp=${timestamp3}&access_token=${accessToken}&shop_id=${sId}&sign=${sign3}`;
+
+    let result = await this.requestBinary(downloadUrl, {
+      order_list: orderListPayload,
+      shipping_document_type: documentType
+    });
+
+    if (!result.isPdf && documentType === 'THERMAL_AIR_WAYBILL') {
+      const fallbackResult = await this.requestBinary(downloadUrl, {
+        order_list: orderListPayload,
+        shipping_document_type: 'NORMAL_AIR_WAYBILL'
+      });
+      if (fallbackResult.isPdf) {
+        return fallbackResult.buffer;
+      }
+    }
+
+    if (result.isPdf) {
+      return result.buffer;
+    }
+
+    const errMsg = result.json?.message || result.json?.error || 'Shopee belum merilis file PDF resi gabungan untuk pesanan-pesanan ini.';
+    throw new Error(errMsg);
+  }
 }
 

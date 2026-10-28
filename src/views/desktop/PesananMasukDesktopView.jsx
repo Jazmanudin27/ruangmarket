@@ -65,6 +65,32 @@ export default function PesananMasukDesktopView() {
     window.open(printUrl, '_blank');
   };
 
+  // Helper Cetak Resi Masal (Batch Print) Langsung dari API Marketplace Resmi (PDF Asli)
+  const handlePrintResiMasal = () => {
+    if (!selectedIds || selectedIds.length === 0) {
+      toastError('Pilih minimal 1 pesanan untuk dicetak resinya');
+      return;
+    }
+
+    // Ambil order terpilih
+    const targetOrders = orders.filter(o => selectedIds.includes(o.id));
+    if (targetOrders.length === 0) {
+      toastError('Pesanan yang dipilih tidak ditemukan');
+      return;
+    }
+
+    // Kumpulkan no_pesanan / order_sn
+    const orderSns = targetOrders.map(o => o.no_pesanan || o.id).filter(Boolean);
+    if (orderSns.length === 0) {
+      toastError('Nomor pesanan tidak valid');
+      return;
+    }
+
+    // Buka endpoint batch print resmi dari API marketplace
+    const batchUrl = `/api/marketplace/orders/batch-print-label?order_sns=${encodeURIComponent(orderSns.join(','))}`;
+    window.open(batchUrl, '_blank');
+  };
+
   // Helper Cetak Invoice Pesanan
   const handlePrintInvoice = () => {
     if (!detailOrder) return;
@@ -669,6 +695,34 @@ export default function PesananMasukDesktopView() {
           <option value={100}>100 Baris</option>
         </select>
 
+        {/* Tombol Cetak Resi Masal dari Marketplace Asli */}
+        {selectedIds.length > 0 && (
+          <button
+            type="button"
+            onClick={handlePrintResiMasal}
+            style={{
+              padding: '6px 14px',
+              borderRadius: '6px',
+              border: 'none',
+              backgroundColor: '#0284c7',
+              color: '#ffffff',
+              fontSize: '12px',
+              fontWeight: '700',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              cursor: 'pointer',
+              boxShadow: '0 2px 6px rgba(2, 132, 199, 0.35)',
+              transition: 'background-color 0.15s'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#0369a1'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#0284c7'}
+            title="Cetak resi resmi gabungan langsung dari API marketplace untuk pesanan yang dicentang"
+          >
+            <Printer size={14} />
+            <span>Cetak Resi Masal ({selectedIds.length})</span>
+          </button>
+        )}
 
       </div>
 

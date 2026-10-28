@@ -1,4 +1,5 @@
 import http from 'http';
+import { PDFDocument } from 'pdf-lib';
 import { ShopeeService } from './shopee.service.js';
 import { TiktokService } from './tiktok.service.js';
 import { pool, laravelPool, initDb } from './db.js';
@@ -839,6 +840,141 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 502, {
         status: 'error',
         message: `Gagal cetak resi marketplace: ${err.message}`
+      });
+    }
+  }
+
+  // 10e. Cetak Resi Masal (Batch Shipping Labels PDF) Langsung dari API Marketplace Resmi
+  if (pathname === '/api/marketplace/orders/batch-print-label' && req.method === 'GET') {
+    const orderSnsRaw = urlObj.searchParams.get('order_sns') || '';
+    const orderSns = orderSnsRaw.split(',').map(s => s.trim()).filter(Boolean);
+
+    if (orderSns.length === 0) {
+      return sendJson(res, 400, { status: 'error', message: 'Parameter order_sns wajib diisi (pisahkan dengan koma)' });
+    }
+
+    try {
+      // 1. Ambil info pesanan dari MySQL pesanan_marketplace
+      const placeholders = orderSns.map(() => '?').join(',');
+      const [orderRows] = await pool.query(
+        `SELECT * FROM pesanan_marketplace WHERE no_pesanan IN (${placeholders}) OR id IN (${placeholders})`,
+        [...orderSns, ...orderSns]
+      );
+
+      // Kumpulkan kredensial toko Shopee & TikTok
+      const [allStores] = await pool.query('SELECT * FROM toko_marketplace');
+
+      // Pisahkan pesanan berdasarkan saluran (Shopee vs TikTok)
+      const shopeeOrders = [];
+      const tiktokOrders = [];
+
+      for (const sn of orderSns) {
+        const found = orderRows.find(o => String(o.no_pesanan) === String(sn) || String(o.id) === String(sn));
+        const channel = (found?.saluran || (sn.length > 15 && /^\d+$/.test(sn) ? 'tiktok' : 'shopee')).toLowerCase();
+        if (channel === 'tiktok') {
+          tiktokOrders.push({ sn, order: found });
+        } else {
+          shopeeOrders.push({ sn, order: found });
+        }
+      }
+
+      const collectedPdfBuffers = [];
+
+      // A. Proses Batch Shopee: Langsung panggil endpoint batch Shopee Open API v2
+      if (shopeeOrders.length > 0) {
+        const shopeeSns = shopeeOrders.map(o => o.sn);
+        let shopeeStore = allStores.find(s => s.saluran === 'shopee' && (s.status_koneksi?.includes('Aktif') || s.status_koneksi?.includes('Terhubung')));
+        if (!shopeeStore) shopeeStore = allStores.find(s => s.saluran === 'shopee');
+        if (!shopeeStore) {
+          shopeeStore = {
+            id_toko: '1030191310',
+            nama_toko: 'Koperasi Sahabat Anak Bangsa',
+            token_akses: process.env.SHOPEE_ACCESS_TOKEN || '',
+            token_refresh: process.env.SHOPEE_REFRESH_TOKEN || ''
+          };
+        }
+
+        try {
+          const batchPdf = await shopeeService.getBatchShippingDocument(shopeeStore.id_toko, shopeeStore.token_akses, shopeeSns);
+          if (batchPdf && Buffer.isBuffer(batchPdf)) {
+            collectedPdfBuffers.push(batchPdf);
+          }
+        } catch (shopeeBatchErr) {
+          console.warn('[Shopee Batch Label Warning]:', shopeeBatchErr.message, '- Mencoba fetch individual resi...');
+          // Fallback jika batch gagal: unduh satu-persatu lalu gabung
+          for (const sOrd of shopeeOrders) {
+            try {
+              const singlePdf = await shopeeService.getShippingDocument(shopeeStore.id_toko, shopeeStore.token_akses, sOrd.sn);
+              if (singlePdf && Buffer.isBuffer(singlePdf)) {
+                collectedPdfBuffers.push(singlePdf);
+              }
+            } catch (errOne) {
+              console.warn(`[Shopee Label] Gagal fetch ${sOrd.sn}:`, errOne.message);
+            }
+          }
+        }
+      }
+
+      // B. Proses TikTok Orders (TikTok unduh per order lalu digabung)
+      if (tiktokOrders.length > 0) {
+        let tiktokStore = allStores.find(s => s.saluran === 'tiktok' && (s.status_koneksi?.includes('Aktif') || s.status_koneksi?.includes('Terhubung')));
+        if (!tiktokStore) tiktokStore = allStores.find(s => s.saluran === 'tiktok');
+        if (tiktokStore) {
+          for (const tOrd of tiktokOrders) {
+            try {
+              const singlePdf = await tiktokService.getShippingDocument(tOrd.sn, tiktokStore.token_akses, tiktokStore.cipher_toko || '');
+              if (singlePdf && Buffer.isBuffer(singlePdf)) {
+                collectedPdfBuffers.push(singlePdf);
+              }
+            } catch (errTik) {
+              console.warn(`[TikTok Label] Gagal fetch ${tOrd.sn}:`, errTik.message);
+            }
+          }
+        }
+      }
+
+      if (collectedPdfBuffers.length === 0) {
+        throw new Error('Tidak ada file PDF resi resmi yang berhasil diunduh dari marketplace untuk pesanan-pesanan yang dipilih.');
+      }
+
+      // Jika hanya ada 1 PDF buffer, kirim langsung
+      if (collectedPdfBuffers.length === 1) {
+        const finalPdf = collectedPdfBuffers[0];
+        res.writeHead(200, {
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `inline; filename="resi-masal-${Date.now()}.pdf"`,
+          'Content-Length': finalPdf.length
+        });
+        return res.end(finalPdf);
+      }
+
+      // C. Jika ada beberapa PDF (misal kombinasi Shopee & TikTok atau multi-page individual), gabung secara utuh dengan pdf-lib
+      const mergedPdfDoc = await PDFDocument.create();
+      for (const pdfBuf of collectedPdfBuffers) {
+        try {
+          const donorDoc = await PDFDocument.load(pdfBuf, { ignoreEncryption: true });
+          const copiedPages = await mergedPdfDoc.copyPages(donorDoc, donorDoc.getPageIndices());
+          copiedPages.forEach((page) => mergedPdfDoc.addPage(page));
+        } catch (mergeOneErr) {
+          console.warn('[PDF-Lib Merge Page Warning]:', mergeOneErr.message);
+        }
+      }
+
+      const mergedPdfBytes = await mergedPdfDoc.save();
+      const mergedBuffer = Buffer.from(mergedPdfBytes);
+
+      res.writeHead(200, {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `inline; filename="resi-masal-${Date.now()}.pdf"`,
+        'Content-Length': mergedBuffer.length
+      });
+      return res.end(mergedBuffer);
+
+    } catch (err) {
+      console.error('[Cetak Resi Masal Error]:', err.message);
+      return sendJson(res, 502, {
+        status: 'error',
+        message: `Gagal cetak resi masal marketplace: ${err.message}`
       });
     }
   }
