@@ -1149,20 +1149,24 @@ export default function PesananMasukDesktopView() {
         const ongkir = Number(detailOrder.ongkir || detailOrder.shipping_fee || 0);
         const platformFee = Number(detailOrder.fee_platform || 0);
         const freeShipping = Number(detailOrder.fee_free_shipping || 0);
+        
+        // Persis logika Laravel: $totalMarketplaceFee = abs($order->marketplace_fee); $layananTambahan = max(0, $totalMarketplaceFee - $platform - $freeShipping);
         const totalMarketplaceFee = Math.abs(Number(detailOrder.marketplace_fee || 0));
-        const biayaLayanan = detailOrder.fee_service !== undefined && Number(detailOrder.fee_service) > 0
-          ? Number(detailOrder.fee_service)
-          : (totalMarketplaceFee > 0 ? Math.max(0, totalMarketplaceFee - platformFee - freeShipping) : Math.round(subtotalPesanan * 0.15));
+        const biayaLayanan = totalMarketplaceFee > 0
+          ? Math.max(0, totalMarketplaceFee - platformFee - freeShipping)
+          : (detailOrder.net_amount && Number(detailOrder.net_amount) > 0 
+              ? Math.max(0, (subtotalPesanan + ongkir) - Number(detailOrder.net_amount) - platformFee - freeShipping)
+              : Number(detailOrder.fee_service || 0));
 
         const estimasiPenghasilan = detailOrder.net_amount !== undefined && Number(detailOrder.net_amount) > 0
           ? Number(detailOrder.net_amount)
-          : Math.max(0, subtotalPesanan + ongkir - totalMarketplaceFee);
+          : Math.max(0, subtotalPesanan + ongkir - (totalMarketplaceFee || biayaLayanan));
 
         const hppTotal = detailOrder.hpp_total !== undefined && Number(detailOrder.hpp_total) > 0
           ? Number(detailOrder.hpp_total)
           : (detailOrder.items && detailOrder.items.length > 0
               ? detailOrder.items.reduce((acc, it) => acc + (Number(it.hpp_subtotal) || (Number(it.hpp || 0) * (Number(it.qty) || 1))), 0)
-              : Math.round(subtotalPesanan * 0.65));
+              : 0);
 
         const netProfit = detailOrder.net_profit !== undefined && detailOrder.net_profit !== null
           ? Number(detailOrder.net_profit)
