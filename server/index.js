@@ -195,8 +195,8 @@ const server = http.createServer(async (req, res) => {
         `, [
           p.id, p.item_id, 'RSG', 'shopee',
           'Shopee Marketplace', p.shopName || 'Koperasi Sahabat Anak Bangsa', shopId,
-          p.nama_produk, p.sku_marketplace, p.harga_jual, p.stok_marketplace,
-          p.varian_marketplace, p.status || 'Belum Dimapping'
+          (p.nama_produk || '').slice(0, 250), (p.sku_marketplace || '').slice(0, 120), p.harga_jual || 0, p.stok_marketplace || 0,
+          (p.varian_marketplace || 'Standard').slice(0, 500), p.status || 'Belum Dimapping'
         ]);
       }
 

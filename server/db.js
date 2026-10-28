@@ -54,13 +54,18 @@ export async function initDb() {
         sku_marketplace VARCHAR(128),
         harga_jual DECIMAL(15,2) DEFAULT 0,
         stok_marketplace INT DEFAULT 0,
-        varian VARCHAR(128) DEFAULT 'Standard',
+        varian TEXT,
         status_mapping VARCHAR(32) DEFAULT 'Belum Dimapping',
         ditarik_pada TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         diperbarui_pada TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         UNIQUE KEY uq_produk_toko (id_produk_marketplace, saluran)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Tabel staging produk marketplace sebelum ke master data';
     `);
+
+    // Auto-migrate column varian jika masih VARCHAR(128)
+    try {
+      await conn.query(`ALTER TABLE produk_marketplace MODIFY COLUMN varian TEXT`);
+    } catch (e) {}
 
     // 3. Tabel Master Produk ERP (produk_master)
     await conn.query(`
