@@ -13,6 +13,17 @@ const DB_CONFIG = {
 
 export const pool = mysql.createPool(DB_CONFIG);
 
+// Pool khusus untuk membaca langsung data tabel orders asli dari database Laravel (marketplace)
+export const laravelPool = mysql.createPool({
+  host: process.env.LARAVEL_DB_HOST || process.env.DB_HOST || '127.0.0.1',
+  user: process.env.LARAVEL_DB_USER || 'marketplace',
+  password: process.env.LARAVEL_DB_PASSWORD || 'Jazman@271998',
+  database: process.env.LARAVEL_DB_NAME || 'marketplace',
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0
+});
+
 // Inisialisasi Skema Database Berbahasa Indonesia
 export async function initDb() {
   try {
