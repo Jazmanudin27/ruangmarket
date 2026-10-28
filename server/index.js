@@ -122,14 +122,12 @@ const server = http.createServer(async (req, res) => {
     let accessToken = urlObj.searchParams.get('access_token');
 
     try {
-      // Ambil token dan refresh token dari MySQL jika tidak dikirim dari frontend
+      // Selalu ambil token dan refreshToken terbaru langsung dari MySQL
       let refreshToken = null;
-      if (!accessToken) {
-        const [storeRows] = await pool.query('SELECT token_akses, token_refresh FROM toko_marketplace WHERE id_toko = ?', [shopId]);
-        if (storeRows.length > 0) {
-          accessToken = storeRows[0].token_akses;
-          refreshToken = storeRows[0].token_refresh;
-        }
+      const [storeRows] = await pool.query('SELECT token_akses, token_refresh FROM toko_marketplace WHERE id_toko = ?', [shopId]);
+      if (storeRows.length > 0) {
+        accessToken = storeRows[0].token_akses || accessToken;
+        refreshToken = storeRows[0].token_refresh;
       }
 
       console.log(`[Shopee] Syncing products for shopId: ${shopId}...`);
@@ -138,11 +136,12 @@ const server = http.createServer(async (req, res) => {
       try {
         products = await shopeeService.syncProducts(shopId, accessToken);
       } catch (syncErr) {
-        if ((syncErr.message.includes('access_token') || syncErr.message.includes('error_auth')) && refreshToken) {
-          console.log('[Shopee] Access token expired, auto-refreshing token...');
+        console.log(`[Shopee Sync Warning]: ${syncErr.message}. Mencoba auto-refresh token...`);
+        if (refreshToken) {
           const ref = await shopeeService.refreshAccessToken(refreshToken, shopId, false);
           if (ref && ref.access_token) {
             accessToken = ref.access_token;
+            refreshToken = ref.refresh_token || refreshToken;
             refreshToken = ref.refresh_token || refreshToken;
             
             // Simpan token baru ke database MySQL toko_marketplace
