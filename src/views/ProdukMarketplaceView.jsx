@@ -145,13 +145,12 @@ export default function ProdukMarketplaceView({ onNavigate }) {
           }));
 
           setMktProdukList(prev => {
-            const existingIds = new Set(prev.map(p => p.item_id));
-            const newOnes = formattedItems.filter(c => !existingIds.has(c.item_id));
-            const merged = [...newOnes, ...prev];
+            const incomingMap = new Map(formattedItems.map(f => [String(f.item_id), f]));
+            const updated = formattedItems.concat(prev.filter(p => !incomingMap.has(String(p.item_id))));
             try {
-              localStorage.setItem(PRODUK_MARKETPLACE_KEY, JSON.stringify(merged));
+              localStorage.setItem(PRODUK_MARKETPLACE_KEY, JSON.stringify(updated));
             } catch (e) {}
-            return merged;
+            return updated;
           });
 
           toastSuccess(`Berhasil menarik ${formattedItems.length} produk asli dari Shopee!`);

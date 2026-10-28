@@ -235,12 +235,11 @@ export default function MarketplaceView({ onBack, onNavigate }) {
         return;
       }
 
-      // Simpan ke storage produk marketplace staging
+      // Simpan ke storage produk marketplace staging (timpa produk lama dengan info lengkap baru)
       const saved = localStorage.getItem('ruangmarket_produk_marketplace_v1');
       const existing = saved ? JSON.parse(saved) : [];
-      const existingIds = new Set(existing.map(p => p.item_id));
-      const newItems = fetchedItems.filter(f => !existingIds.has(f.item_id));
-      const updated = [...newItems, ...existing];
+      const incomingMap = new Map(fetchedItems.map(f => [String(f.item_id), f]));
+      const updated = fetchedItems.concat(existing.filter(p => !incomingMap.has(String(p.item_id))));
       
       localStorage.setItem('ruangmarket_produk_marketplace_v1', JSON.stringify(updated));
       window.dispatchEvent(new Event('storage'));

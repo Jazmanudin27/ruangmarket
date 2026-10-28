@@ -182,7 +182,55 @@ export class ShopeeService {
     return res;
   }
 
-  // 3. Mendapatkan Daftar Item ID Produk
+  // 3. Mendapatkan Seluruh Daftar Item ID Produk (Auto Pagination Semua Halaman)
+  async getAllItemList(shopId, accessToken) {
+    const sId = String(shopId);
+    let allItems = [];
+    let offset = 0;
+    let hasNext = true;
+    const pageSize = 50;
+
+    while (hasNext) {
+      const path = '/api/v2/product/get_item_list';
+      const timestamp = Math.floor(Date.now() / 1000);
+      const sign = this.generateSignature(path, timestamp, accessToken, sId);
+
+      const query = new URLSearchParams({
+        partner_id: this.partnerId,
+        timestamp,
+        access_token: accessToken,
+        shop_id: sId,
+        sign,
+        offset,
+        page_size: pageSize,
+        item_status: 'NORMAL'
+      });
+
+      const url = `${this.baseUrl}${path}?${query.toString()}`;
+      const res = await this.requestGet(url);
+
+      if (res.error && res.error !== '') {
+        throw new Error(`Shopee API Error: ${res.message || res.error}`);
+      }
+
+      const items = res.response?.item || [];
+      if (items.length === 0) break;
+
+      allItems = allItems.concat(items);
+      hasNext = res.response?.has_next_page === true;
+      if (hasNext && res.response?.next_offset !== undefined && res.response?.next_offset !== offset) {
+        offset = res.response.next_offset;
+      } else {
+        offset += items.length;
+      }
+
+      if (allItems.length >= 3000) break;
+    }
+
+    return allItems;
+  }
+
+  // 3b. Helper Satu Halaman Item ID (Fallback)
   async getItemList(shopId, accessToken, pageSize = 50, offset = 0) {
     const path = '/api/v2/product/get_item_list';
     const timestamp = Math.floor(Date.now() / 1000);
@@ -210,7 +258,7 @@ export class ShopeeService {
     return res.response?.item || [];
   }
 
-  // 4. Mendapatkan Detail Lengkap Produk (Nama, SKU, Harga, Stok)
+  // 4. Mendapatkan Detail Lengkap Produk (Nama, SKU, Deskripsi)
   async getItemBaseInfo(shopId, accessToken, itemIds = []) {
     if (!itemIds || itemIds.length === 0) return [];
 
@@ -238,15 +286,44 @@ export class ShopeeService {
     return res.response?.item_list || [];
   }
 
-  // 5. Sinkronisasi Lengkap: Ambil Item List + Detail Base Info
-  async syncProducts(shopId, accessToken, pageSize = 100) {
+  // 4b. Mendapatkan Data Model / Varian Produk (Harga Asli, Stok Asli, SKU Varian)
+  async getModelList(shopId, accessToken, itemId) {
+    try {
+      const path = '/api/v2/product/get_model_list';
+      const timestamp = Math.floor(Date.now() / 1000);
+      const sId = String(shopId);
+      const sign = this.generateSignature(path, timestamp, accessToken, sId);
+
+      const query = new URLSearchParams({
+        partner_id: this.partnerId,
+        timestamp,
+        access_token: accessToken,
+        shop_id: sId,
+        sign,
+        item_id: String(itemId)
+      });
+
+      const url = `${this.baseUrl}${path}?${query.toString()}`;
+      const res = await this.requestGet(url);
+      if (res.error && res.error !== '') {
+        return null;
+      }
+      return res.response || null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // 5. Sinkronisasi Lengkap: Seluruh Produk Toko + Detail Base Info + Model Varian
+  async syncProducts(shopId, accessToken) {
     const sId = String(shopId);
-    const items = await this.getItemList(sId, accessToken, pageSize);
+    // 1. Ambil seluruh item ID di toko tanpa batasan 100
+    const items = await this.getAllItemList(sId, accessToken);
     if (!items || items.length === 0) return [];
 
     const itemIds = items.map(i => i.item_id);
     
-    // Shopee get_item_base_info maksimal 50 item per call
+    // 2. Shopee get_item_base_info maksimal 50 item per call
     let details = [];
     for (let i = 0; i < itemIds.length; i += 50) {
       const batchIds = itemIds.slice(i, i + 50);
@@ -254,17 +331,39 @@ export class ShopeeService {
       details = details.concat(batchDetails);
     }
 
+    // 3. Untuk produk yang memiliki model / varian atau harga masih 0, ambil get_model_list secara batch
+    const itemsNeedModel = details.filter(d => d.has_model || !d.price_info || d.price_info.length === 0);
+    const modelMap = new Map();
+
+    const concurrency = 8;
+    for (let i = 0; i < itemsNeedModel.length; i += concurrency) {
+      const chunk = itemsNeedModel.slice(i, i + concurrency);
+      const chunkResults = await Promise.all(
+        chunk.map(async item => {
+          const mRes = await this.getModelList(sId, accessToken, item.item_id);
+          return { itemId: item.item_id, modelData: mRes };
+        })
+      );
+      for (const res of chunkResults) {
+        if (res.modelData) {
+          modelMap.set(String(res.itemId), res.modelData);
+        }
+      }
+    }
+
     return details.map(d => {
-      // 1. Ekstraksi Harga
       let harga = 0;
+      let stok = 0;
+      let sku = (d.item_sku || '').trim();
+      let varianText = d.has_model ? 'Ada Varian' : 'Standard';
+
+      // 1. Cek dari base info terlebih dahulu
       if (d.price_info && Array.isArray(d.price_info) && d.price_info.length > 0) {
         harga = d.price_info[0].current_price || d.price_info[0].original_price || 0;
       } else if (d.price) {
         harga = d.price;
       }
 
-      // 2. Ekstraksi Stok
-      let stok = 0;
       if (d.stock_info_v2?.summary_info?.total_available_stock !== undefined) {
         stok = d.stock_info_v2.summary_info.total_available_stock;
       } else if (d.stock_info && Array.isArray(d.stock_info) && d.stock_info[0]?.normal_stock !== undefined) {
@@ -273,7 +372,54 @@ export class ShopeeService {
         stok = d.stock;
       }
 
-      // 3. Nama Toko
+      // 2. Jika item punya model / varian, ambil info lengkap dari get_model_list
+      const mData = modelMap.get(String(d.item_id));
+      if (mData && Array.isArray(mData.model) && mData.model.length > 0) {
+        const models = mData.model;
+
+        // Ambil harga terendah / aktif dari varian
+        const validPrices = models.map(m => {
+          const p = m.price_info?.[0]?.current_price || m.price_info?.[0]?.original_price || m.price || 0;
+          return Number(p);
+        }).filter(p => p > 0);
+        if (validPrices.length > 0) {
+          harga = Math.min(...validPrices);
+        }
+
+        // Total akumulasi stok dari semua varian
+        const totalStock = models.reduce((acc, m) => {
+          const s = m.stock_info_v2?.summary_info?.total_available_stock 
+                 ?? m.stock_info?.[0]?.normal_stock 
+                 ?? m.stock 
+                 ?? 0;
+          return acc + Number(s);
+        }, 0);
+        stok = totalStock;
+
+        // Jika parent SKU kosong, ambil SKU dari varian yang memiliki SKU
+        if (!sku) {
+          const foundModelSku = models.find(m => m.model_sku && m.model_sku.trim() !== '');
+          if (foundModelSku) {
+            sku = foundModelSku.model_sku.trim();
+          }
+        }
+
+        // Susun teks varian yang jelas (misal: "Ukuran: S, M, L, XL")
+        if (mData.tier_variation && mData.tier_variation.length > 0) {
+          varianText = mData.tier_variation.map(tv => {
+            const opts = (tv.option_list || []).map(o => o.option).join(', ');
+            return `${tv.name}: ${opts}`;
+          }).join(' | ');
+        } else {
+          varianText = models.map(m => m.model_name).filter(Boolean).join(', ');
+        }
+      }
+
+      // Fallback SKU jika seller tidak mengisi SKU
+      if (!sku) {
+        sku = `SHOPEE-${d.item_id}`;
+      }
+
       const shopTitle = d.shop_name || 'Koperasi Sahabat Anak Bangsa';
 
       return {
@@ -283,10 +429,10 @@ export class ShopeeService {
         channelName: 'Shopee Marketplace',
         shopName: shopTitle,
         nama_produk: d.item_name || 'Produk Shopee',
-        sku_marketplace: d.item_sku || `SHOPEE-${d.item_id}`,
+        sku_marketplace: sku,
         harga_jual: Number(harga) || 0,
         stok_marketplace: Number(stok) || 0,
-        varian_marketplace: d.has_model ? 'Ada Varian' : 'Standard',
+        varian_marketplace: varianText,
         status: 'Belum Dimapping',
         syncedAt: new Date().toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
       };
