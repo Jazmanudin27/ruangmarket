@@ -503,7 +503,7 @@ export default function ProdukView() {
 
     const confirmed = await showConfirm(
       'Deteksi Otomatis PO & Ready Stok?',
-      `Sistem akan menganalisis nama & SKU dari ${targets.length} produk. Kata PO (bukan Polos) & Custom akan otomatis dijadikan PO, lainnya Ready Stok.\n\nHasil analisis: ${countPO} PO, ${countReady} Ready Stok. Terapkan?`,
+      `Sistem akan menganalisis nama & SKU dari ${targets.length} produk. Kata PO, Pre Order & Custom akan otomatis dijadikan PO, lainnya Ready Stok.\n\nHasil analisis: ${countPO} PO, ${countReady} Ready Stok. Terapkan?`,
       'Ya, Terapkan Sekarang',
       'Batal'
     );

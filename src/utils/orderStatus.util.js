@@ -11,7 +11,8 @@ export function detectStatusOrder(namaProduk = '', sku = '') {
   const combined = `${namaProduk || ''} ${sku || ''}`;
 
   if (/\bcustom\b/i.test(combined)) return 'PO';
-  if (/\bpre-?order\b/i.test(combined)) return 'PO';
+  if (/\bpre[\s-_]?order\b/i.test(combined)) return 'PO';
+  if (/\bpreorder\b/i.test(combined)) return 'PO';
   if (/\bPO\b/i.test(combined)) return 'PO';
   if (/\bPO[-_/\s]?\d+/i.test(combined)) return 'PO';
 
