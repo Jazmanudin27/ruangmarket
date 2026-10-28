@@ -226,16 +226,14 @@ export class TiktokService {
     const queryObj = {
       app_key: this.appKey,
       timestamp: timestamp,
-      shop_cipher: shopCipher
-    };
-
-    const bodyObj = {
+      shop_cipher: shopCipher,
       page_size: 50
     };
     if (pageToken) {
-      bodyObj.page_token = pageToken;
+      queryObj.page_token = pageToken;
     }
 
+    const bodyObj = {};
     const bodyJson = JSON.stringify(bodyObj);
     const sign = this.generateSignature(path, queryObj, bodyJson);
     queryObj.sign = sign;

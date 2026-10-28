@@ -1170,7 +1170,7 @@ const server = http.createServer(async (req, res) => {
       }
 
       // Hapus data dummy lama jika pernah tersimpan
-      await pool.query("DELETE FROM pesanan_marketplace WHERE saluran = 'tiktok' AND (nama_pembeli LIKE '%Pelanggan TikTok Live%' OR no_pesanan LIKE 'ORD-TT-%')").catch(() => {});
+      await pool.query("DELETE FROM pesanan_marketplace WHERE saluran = 'tiktok' AND (nama_pembeli LIKE '%Pelanggan TikTok%' OR no_pesanan LIKE 'ORD-TT%' OR no_pesanan LIKE 'ORD-TIKTOK%')").catch(() => {});
 
       // Simpan langsung ke database MySQL (pesanan_marketplace)
       for (const ord of orders) {
@@ -1333,7 +1333,7 @@ const server = http.createServer(async (req, res) => {
             }
 
             // Hapus pesanan dummy jika ada
-            await pool.query("DELETE FROM pesanan_marketplace WHERE saluran = 'tiktok' AND (nama_pembeli LIKE '%Pelanggan TikTok Live%' OR no_pesanan LIKE 'ORD-TT-%')").catch(() => {});
+            await pool.query("DELETE FROM pesanan_marketplace WHERE saluran = 'tiktok' AND (nama_pembeli LIKE '%Pelanggan TikTok%' OR no_pesanan LIKE 'ORD-TT%' OR no_pesanan LIKE 'ORD-TIKTOK%')").catch(() => {});
 
             for (const ord of ttOrders) {
               const itemsJson = JSON.stringify(ord.items || []);

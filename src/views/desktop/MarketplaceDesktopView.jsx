@@ -318,52 +318,19 @@ export default function MarketplaceView({ onBack, onNavigate }) {
           orders = json.data;
         }
       } catch (apiErr) {
-        console.warn('Sync API request fallback:', apiErr.message);
-      }
-
-      // Jika offline atau fallback kosong, kirim order sampel ke MySQL pesanan_marketplace
-      if (orders.length === 0) {
-        const dummyOrderSn = `ORD-${store.channel.toUpperCase()}-${Date.now().toString().slice(-6)}`;
-        const fallbackOrder = {
-          id: `ord_${Date.now()}`,
-          company_code: activeCompany.code || 'RSG',
-          no_pesanan: dummyOrderSn,
-          saluran: store.channel,
-          nama_toko: store.shopName,
-          nama_pembeli: `Pelanggan ${store.channelName} (${store.shopName})`,
-          total_harga: 285000,
-          status_pesanan: 'Perlu Diproses',
-          no_spk: null,
-          items: [
-            {
-              id: `item-${Date.now()}`,
-              nama_produk: `Pesanan Produk ${store.shopName}`,
-              sku: `PRD-${Date.now().toString().slice(-4)}`,
-              satuan: 'PCS',
-              qty: 1,
-              harga: 285000,
-              varian: 'Standard'
-            }
-          ]
-        };
-
-        try {
-          await fetch('/api/marketplace/orders', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(fallbackOrder)
-          });
-          orders = [fallbackOrder];
-        } catch (postErr) {
-          console.warn('Gagal POST ke pesanan_marketplace:', postErr.message);
-        }
+        console.warn('Sync API request error:', apiErr.message);
+        throw apiErr;
       }
 
       window.dispatchEvent(new Event('ordersUpdated'));
       window.dispatchEvent(new Event('storage'));
 
       setSyncLoading(null);
-      toastSuccess(`Berhasil menarik ${orders.length} pesanan dari ${store.shopName} ke menu Pesanan Masuk!`);
+      if (orders.length > 0) {
+        toastSuccess(`Berhasil menarik ${orders.length} pesanan dari ${store.shopName} ke menu Pesanan Masuk!`);
+      } else {
+        toastSuccess(`Sinkronisasi selesai. Belum ada transaksi baru di toko ${store.shopName}.`);
+      }
 
       if (onNavigate) {
         setTimeout(async () => {
