@@ -880,10 +880,10 @@ export default function PesananMasukDesktopView() {
                         {firstItem ? (
                           <div style={{ fontSize: '11px', color: '#334155', lineHeight: '1.3' }}>
                             <div 
-                              style={{ fontWeight: '600' }}
+                              style={{ fontWeight: '700', color: '#0f172a', fontFamily: 'monospace' }}
                               title={firstItem.nama_produk ? `Nama Produk: ${firstItem.nama_produk}` : ''}
                             >
-                              {(firstItem.sku || firstItem.kode_sku || firstItem.nama_produk)} <span style={{ color: '#0284c7', fontWeight: '800' }}>x{firstItem.qty || 1}</span>
+                              {(firstItem.sku || firstItem.kode_sku || firstItem.sku_marketplace || firstItem.seller_sku || firstItem.model_sku || firstItem.item_sku || firstItem.varian || '-')} <span style={{ color: '#0284c7', fontWeight: '800', fontFamily: 'sans-serif' }}>x{firstItem.qty || 1}</span>
                             </div>
                             {extraCount > 0 && (
                               <button

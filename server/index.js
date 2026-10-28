@@ -562,7 +562,8 @@ const server = http.createServer(async (req, res) => {
         }
 
         const enrichedItems = (Array.isArray(items) ? items : []).map(it => {
-          const itemSku = String(it.sku || it.kode_sku || '').trim().toLowerCase();
+          const finalSku = String(it.sku || it.kode_sku || it.item_sku || it.model_sku || it.seller_sku || it.sku_marketplace || it.varian || '').trim();
+          const itemSku = finalSku.toLowerCase();
           const itemName = String(it.nama_produk || '').trim().toLowerCase();
           const cleanSku = itemSku.replace(/^rsg-/, '');
           
@@ -578,6 +579,7 @@ const server = http.createServer(async (req, res) => {
 
           return {
             ...it,
+            sku: finalSku || it.sku || '-',
             hpp,
             cost_price: hpp,
             hpp_subtotal: hppSubtotal,
