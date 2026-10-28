@@ -19,7 +19,10 @@ import {
   X,
   Copy,
   ShieldAlert,
-  HelpCircle
+  HelpCircle,
+  Boxes,
+  AlertTriangle,
+  Package
 } from 'lucide-react';
 import { showConfirm, toastSuccess, toastError } from '../utils/alert.util';
 import { getActiveCompany } from '../utils/tenant.util';
@@ -28,10 +31,17 @@ export const PRODUK_MARKETPLACE_KEY = 'ruangmarket_produk_marketplace_v1';
 const PRODUK_MASTER_KEY = 'ruangmarket_produk_gamis_v4';
 const STORAGE_KEY_TOKO = 'ruangmarket_connected_stores_v1';
 
+function formatRupiah(val) {
+  return 'Rp ' + Number(val || 0).toLocaleString('id-ID');
+}
+
 export default function ProdukMarketplaceView({ onNavigate }) {
   const [activeCompany, setActiveCompany] = useState(getActiveCompany);
   const [search, setSearch] = useState('');
   const [filterChannel, setFilterChannel] = useState('Semua');
+  const [activeFilterTab, setActiveFilterTab] = useState('semua');
+  const [filterMapping, setFilterMapping] = useState('Semua');
+  const [filterStok, setFilterStok] = useState('Semua');
   const [isLoadingSync, setIsLoadingSync] = useState(false);
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
   const [apiErrorModal, setApiErrorModal] = useState(null);
@@ -75,14 +85,35 @@ export default function ProdukMarketplaceView({ onNavigate }) {
   // Filter list by company
   const companyItems = mktProdukList.filter(item => !item.company_code || item.company_code === activeCompany.code);
 
+  const totalProduk = companyItems.length;
+  const totalBelumMapped = companyItems.filter(i => i.status !== 'Sudah di Master' && i.status !== 'Sudah Dimapping').length;
+  const totalMapped = companyItems.filter(i => i.status === 'Sudah di Master' || i.status === 'Sudah Dimapping').length;
+  const totalTersedia = companyItems.filter(i => (Number(i.stok_marketplace) || 0) > 0).length;
+  const totalHabis = companyItems.filter(i => (Number(i.stok_marketplace) || 0) <= 0).length;
+
   const filteredItems = companyItems.filter(item => {
+    // 1. Tab Filter
+    if (activeFilterTab === 'belum_dimapping' && (item.status === 'Sudah di Master' || item.status === 'Sudah Dimapping')) return false;
+    if (activeFilterTab === 'sudah_dimapping' && item.status !== 'Sudah di Master' && item.status !== 'Sudah Dimapping') return false;
+    if (activeFilterTab === 'tersedia' && (Number(item.stok_marketplace) || 0) <= 0) return false;
+    if (activeFilterTab === 'habis' && (Number(item.stok_marketplace) || 0) > 0) return false;
+
+    // 2. Dropdown Filters
     if (filterChannel !== 'Semua' && item.channel !== filterChannel) return false;
+    if (filterMapping === 'Belum Dimapping' && (item.status === 'Sudah di Master' || item.status === 'Sudah Dimapping')) return false;
+    if (filterMapping === 'Sudah Dimapping' && item.status !== 'Sudah di Master' && item.status !== 'Sudah Dimapping') return false;
+    if (filterStok === 'Tersedia' && (Number(item.stok_marketplace) || 0) <= 0) return false;
+    if (filterStok === 'Habis' && (Number(item.stok_marketplace) || 0) > 0) return false;
+
+    // 3. Search
     if (search.trim()) {
       const q = search.toLowerCase();
       return (
         item.nama_produk.toLowerCase().includes(q) ||
-        item.sku_marketplace.toLowerCase().includes(q) ||
-        item.shopName.toLowerCase().includes(q)
+        (item.sku_marketplace || '').toLowerCase().includes(q) ||
+        (item.varian_marketplace || '').toLowerCase().includes(q) ||
+        (item.shopName || '').toLowerCase().includes(q) ||
+        String(item.item_id || '').includes(q)
       );
     }
     return true;
@@ -291,104 +322,112 @@ export default function ProdukMarketplaceView({ onNavigate }) {
   };
 
   return (
-    <div style={{ width: '100%', maxWidth: '100%', padding: '16px 24px', boxSizing: 'border-box' }}>
+    <div style={{ width: '100%', maxWidth: '100%', padding: '16px', boxSizing: 'border-box' }}>
       
-      {/* HEADER CARD */}
+      {/* 1. HEADER CARD (GRADIENT #0284c7 KE #0369a1, PERSIS DATA INDUK PRODUK) */}
       <div style={{
-        backgroundColor: '#ffffff',
-        borderRadius: '10px',
-        border: '1px solid #cbd5e1',
-        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
-        padding: '16px 20px',
-        marginBottom: '14px',
+        background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+        borderRadius: '8px',
+        padding: '10px 16px',
+        marginBottom: '6px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
         flexWrap: 'wrap',
-        gap: '12px'
+        gap: '10px',
+        boxShadow: '0 2px 4px rgba(2, 132, 199, 0.2)'
       }}>
+        {/* Title and subtitle */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <div style={{
-            width: '40px',
-            height: '40px',
+            width: '36px',
+            height: '36px',
             borderRadius: '8px',
-            backgroundColor: '#fff7ed',
-            border: '1px solid #fed7aa',
+            backgroundColor: 'rgba(255, 255, 255, 0.2)',
+            color: '#ffffff',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: '#ee4d2d'
+            flexShrink: 0,
+            backdropFilter: 'blur(4px)'
           }}>
-            <ShoppingBag size={22} />
+            <Boxes size={20} />
           </div>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <h1 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: '#0f172a' }}>
-                Tabel Produk Marketplace (Staging)
+              <h1 style={{ margin: 0, fontSize: '15px', fontWeight: '800', color: '#ffffff', letterSpacing: '-0.01em', lineHeight: 1.2 }}>
+                Data Induk Produk Marketplace & Varian Stok
               </h1>
               <span style={{
-                padding: '2px 8px',
+                padding: '1px 6px',
                 borderRadius: '4px',
-                backgroundColor: '#e0f2fe',
-                color: '#0369a1',
-                fontSize: '11px',
+                backgroundColor: 'rgba(255, 255, 255, 0.25)',
+                color: '#ffffff',
+                fontSize: '10px',
                 fontWeight: '800'
               }}>
-                Perusahaan: {activeCompany.name} ({activeCompany.code})
+                {activeCompany.code}
               </span>
             </div>
-            <p style={{ margin: '3px 0 0', fontSize: '12px', color: '#64748b' }}>
-              Daftar produk hasil sinkronisasi Shopee Open API (Toko: RAGANTARA UNIFORM). Data di sini belum masuk ke Master Data sebelum disalin.
+            <p style={{ margin: 0, fontSize: '11px', color: 'rgba(255, 255, 255, 0.88)' }}>
+              Hasil sinkronisasi Shopee Open API ({companyItems.length} produk). Kelola katalog staging sebelum disalin ke Master Data ERP
             </p>
           </div>
         </div>
 
-        {/* TOMBOL AKSI UTAMA */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+        {/* Action Buttons */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
           
           {/* Tombol Tarik Shopee */}
           <button
             onClick={handleSyncFromShopee}
             disabled={isLoadingSync}
             style={{
-              padding: '8px 16px',
-              borderRadius: '6px',
-              backgroundColor: '#ee4d2d',
-              color: '#ffffff',
-              border: 'none',
-              fontSize: '12px',
-              fontWeight: '700',
-              cursor: isLoadingSync ? 'not-allowed' : 'pointer',
+              height: '30px',
               display: 'inline-flex',
               alignItems: 'center',
+              justifyContent: 'center',
               gap: '6px',
-              boxShadow: '0 2px 4px rgba(238, 77, 45, 0.25)',
+              padding: '0 12px',
+              borderRadius: '6px',
+              border: 'none',
+              backgroundColor: '#ee4d2d',
+              color: '#ffffff',
+              fontSize: '11.5px',
+              fontWeight: '700',
+              lineHeight: 1,
+              cursor: isLoadingSync ? 'not-allowed' : 'pointer',
+              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.15)',
               opacity: isLoadingSync ? 0.7 : 1
             }}
           >
-            <RefreshCw size={14} className={isLoadingSync ? 'spin' : ''} style={{ animation: isLoadingSync ? 'spin 1s linear infinite' : 'none' }} />
-            <span>{isLoadingSync ? 'Menghubungi Shopee API...' : 'Tarik Produk dari Shopee'}</span>
+            <RefreshCw size={13} className={isLoadingSync ? 'spin' : ''} style={{ animation: isLoadingSync ? 'spin 1s linear infinite' : 'none' }} />
+            <span>{isLoadingSync ? 'Menarik Shopee API...' : 'Tarik Produk Shopee'}</span>
           </button>
 
           {/* Tombol Input Manual / Batch */}
           <button
             onClick={() => setIsManualModalOpen(true)}
             style={{
-              padding: '8px 14px',
-              borderRadius: '6px',
-              backgroundColor: '#10b981',
-              color: '#ffffff',
-              border: 'none',
-              fontSize: '12px',
-              fontWeight: '700',
-              cursor: 'pointer',
+              height: '30px',
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '6px'
+              justifyContent: 'center',
+              gap: '6px',
+              padding: '0 12px',
+              borderRadius: '6px',
+              border: 'none',
+              backgroundColor: '#10b981',
+              color: '#ffffff',
+              fontSize: '11.5px',
+              fontWeight: '700',
+              lineHeight: 1,
+              cursor: 'pointer',
+              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.15)'
             }}
           >
-            <Plus size={14} />
-            <span>+ Input / Paste Katalog</span>
+            <Plus size={13} />
+            <span>+ Input / Paste</span>
           </button>
 
           {/* Tombol Kosongkan Tabel */}
@@ -396,321 +435,524 @@ export default function ProdukMarketplaceView({ onNavigate }) {
             onClick={handleClearAll}
             title="Kosongkan seluruh data di antrian staging"
             style={{
-              padding: '8px 12px',
-              borderRadius: '6px',
-              backgroundColor: '#fff1f2',
-              color: '#e11d48',
-              border: '1px solid #fecdd3',
-              fontSize: '12px',
-              fontWeight: '700',
-              cursor: 'pointer',
+              height: '30px',
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '6px'
+              justifyContent: 'center',
+              gap: '5px',
+              padding: '0 10px',
+              borderRadius: '6px',
+              border: '1px solid rgba(255, 255, 255, 0.3)',
+              backgroundColor: 'rgba(255, 255, 255, 0.15)',
+              color: '#ffffff',
+              fontSize: '11.5px',
+              fontWeight: '700',
+              lineHeight: 1,
+              cursor: 'pointer'
             }}
           >
-            <Trash2 size={14} />
-            <span>Kosongkan Tabel</span>
+            <Trash2 size={13} />
+            <span>Kosongkan</span>
           </button>
 
+          {/* Tombol Navigasi ke Toko */}
           <button
             onClick={() => onNavigate && onNavigate('marketplace')}
             style={{
-              padding: '8px 14px',
+              height: '30px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '0 10px',
               borderRadius: '6px',
-              backgroundColor: '#f1f5f9',
-              color: '#334155',
-              border: '1px solid #cbd5e1',
-              fontSize: '12px',
+              border: '1px solid rgba(255, 255, 255, 0.3)',
+              backgroundColor: 'rgba(255, 255, 255, 0.15)',
+              color: '#ffffff',
+              fontSize: '11.5px',
               fontWeight: '700',
+              lineHeight: 1,
               cursor: 'pointer'
             }}
           >
-            ← Toko Terhubung
+            ← Toko
           </button>
 
+          {/* Tombol Buka Master Produk */}
           <button
             onClick={() => onNavigate && onNavigate('produk')}
             style={{
-              padding: '8px 14px',
+              height: '30px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '5px',
+              padding: '0 12px',
               borderRadius: '6px',
-              backgroundColor: '#0284c7',
-              color: '#ffffff',
               border: 'none',
-              fontSize: '12px',
-              fontWeight: '700',
-              cursor: 'pointer'
+              backgroundColor: '#ffffff',
+              color: '#0284c7',
+              fontSize: '11.5px',
+              fontWeight: '800',
+              lineHeight: 1,
+              cursor: 'pointer',
+              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.15)'
             }}
           >
-            Buka Master Produk →
+            <span>Master Produk →</span>
           </button>
+
         </div>
       </div>
 
-      {/* FILTER & SEARCH BAR */}
+      {/* 2. FILTER TABS (COLOR-CODED PERSIS DATA INDUK PRODUK) */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px', flexWrap: 'wrap' }}>
+        
+        {/* Tab 1: Semua Produk (Biru) */}
+        <button
+          onClick={() => setActiveFilterTab('semua')}
+          style={{
+            height: '28px',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '6px',
+            padding: '0 12px',
+            borderRadius: '6px',
+            border: activeFilterTab === 'semua' ? '1px solid #0284c7' : '1px solid #bfdbfe',
+            backgroundColor: activeFilterTab === 'semua' ? '#0284c7' : '#eff6ff',
+            color: activeFilterTab === 'semua' ? '#ffffff' : '#1d4ed8',
+            fontSize: '12px',
+            fontWeight: '700',
+            lineHeight: 1,
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
+            boxShadow: activeFilterTab === 'semua' ? '0 1px 4px rgba(2, 132, 199, 0.25)' : 'none'
+          }}
+        >
+          <Layers size={13} />
+          <span>Semua Produk ({totalProduk})</span>
+        </button>
+
+        {/* Tab 2: Belum Dimapping (Orange) */}
+        <button
+          onClick={() => setActiveFilterTab('belum_dimapping')}
+          style={{
+            height: '28px',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '6px',
+            padding: '0 12px',
+            borderRadius: '6px',
+            border: activeFilterTab === 'belum_dimapping' ? '1px solid #ea580c' : '1px solid #fed7aa',
+            backgroundColor: activeFilterTab === 'belum_dimapping' ? '#ea580c' : '#fff7ed',
+            color: activeFilterTab === 'belum_dimapping' ? '#ffffff' : '#c2410c',
+            fontSize: '12px',
+            fontWeight: '700',
+            lineHeight: 1,
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
+            boxShadow: activeFilterTab === 'belum_dimapping' ? '0 1px 4px rgba(234, 88, 12, 0.25)' : 'none'
+          }}
+        >
+          <AlertCircle size={13} />
+          <span>Belum Dimapping ({totalBelumMapped})</span>
+        </button>
+
+        {/* Tab 3: Sudah Dimapping (Hijau) */}
+        <button
+          onClick={() => setActiveFilterTab('sudah_dimapping')}
+          style={{
+            height: '28px',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '6px',
+            padding: '0 12px',
+            borderRadius: '6px',
+            border: activeFilterTab === 'sudah_dimapping' ? '1px solid #059669' : '1px solid #a7f3d0',
+            backgroundColor: activeFilterTab === 'sudah_dimapping' ? '#059669' : '#ecfdf5',
+            color: activeFilterTab === 'sudah_dimapping' ? '#ffffff' : '#047857',
+            fontSize: '12px',
+            fontWeight: '700',
+            lineHeight: 1,
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
+            boxShadow: activeFilterTab === 'sudah_dimapping' ? '0 1px 4px rgba(5, 150, 105, 0.25)' : 'none'
+          }}
+        >
+          <CheckCircle size={13} />
+          <span>Sudah Dimapping ({totalMapped})</span>
+        </button>
+
+        {/* Tab 4: Stok Tersedia (Teal) */}
+        <button
+          onClick={() => setActiveFilterTab('tersedia')}
+          style={{
+            height: '28px',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '6px',
+            padding: '0 12px',
+            borderRadius: '6px',
+            border: activeFilterTab === 'tersedia' ? '1px solid #0d9488' : '1px solid #99f6e4',
+            backgroundColor: activeFilterTab === 'tersedia' ? '#0d9488' : '#f0fdfa',
+            color: activeFilterTab === 'tersedia' ? '#ffffff' : '#0f766e',
+            fontSize: '12px',
+            fontWeight: '700',
+            lineHeight: 1,
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
+            boxShadow: activeFilterTab === 'tersedia' ? '0 1px 4px rgba(13, 148, 136, 0.25)' : 'none'
+          }}
+        >
+          <Boxes size={13} />
+          <span>Stok Tersedia ({totalTersedia})</span>
+        </button>
+
+        {/* Tab 5: Stok Habis (Merah) */}
+        <button
+          onClick={() => setActiveFilterTab('habis')}
+          style={{
+            height: '28px',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '6px',
+            padding: '0 12px',
+            borderRadius: '6px',
+            border: activeFilterTab === 'habis' ? '1px solid #ef4444' : '1px solid #fecaca',
+            backgroundColor: activeFilterTab === 'habis' ? '#ef4444' : '#fef2f2',
+            color: activeFilterTab === 'habis' ? '#ffffff' : '#b91c1c',
+            fontSize: '12px',
+            fontWeight: '700',
+            lineHeight: 1,
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
+            boxShadow: activeFilterTab === 'habis' ? '0 1px 4px rgba(239, 68, 68, 0.25)' : 'none'
+          }}
+        >
+          <AlertTriangle size={13} />
+          <span>Stok Habis ({totalHabis})</span>
+        </button>
+
+      </div>
+
+      {/* 3. FILTER CONTROLS BAR (MEPET 6PX) */}
       <div style={{
         backgroundColor: '#ffffff',
-        borderRadius: '10px',
         border: '1px solid #cbd5e1',
-        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
-        overflow: 'hidden'
+        borderRadius: '8px',
+        padding: '8px 12px',
+        marginBottom: '6px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        flexWrap: 'wrap',
+        boxShadow: '0 1px 3px rgba(15, 23, 42, 0.04)'
       }}>
         
-        <div style={{
-          padding: '12px 16px',
-          borderBottom: '1px solid #e2e8f0',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: '12px',
-          backgroundColor: '#fafbfc'
-        }}>
-          {/* Search */}
-          <div style={{ position: 'relative', width: '320px', maxWidth: '100%' }}>
-            <Search size={14} color="#94a3b8" style={{ position: 'absolute', left: '10px', top: '9px' }} />
-            <input
-              type="text"
-              placeholder="Cari nama produk Shopee, SKU, toko..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '6px 10px 6px 32px',
-                borderRadius: '6px',
-                border: '1px solid #cbd5e1',
-                fontSize: '12px',
-                outline: 'none',
-                boxSizing: 'border-box'
-              }}
-            />
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '600' }}>
-              Menampilkan {filteredItems.length} produk di antrian staging
-            </span>
-          </div>
+        {/* Search Input */}
+        <div style={{ flex: 1, minWidth: '220px', position: 'relative' }}>
+          <Search size={14} color="#94a3b8" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Cari nama produk Shopee, SKU, varian, toko, item ID..."
+            style={{
+              width: '100%',
+              padding: '6px 10px 6px 32px',
+              borderRadius: '6px',
+              border: '1px solid #cbd5e1',
+              fontSize: '12px',
+              outline: 'none',
+              backgroundColor: '#f8fafc',
+              boxSizing: 'border-box',
+              transition: 'all 0.15s ease'
+            }}
+            onFocus={(e) => {
+              e.target.style.borderColor = '#0284c7';
+              e.target.style.backgroundColor = '#ffffff';
+            }}
+            onBlur={(e) => {
+              e.target.style.borderColor = '#cbd5e1';
+              e.target.style.backgroundColor = '#f8fafc';
+            }}
+          />
         </div>
 
-        {/* TABEL PRODUK */}
-        {filteredItems.length === 0 ? (
-          <div style={{ padding: '60px 20px', textAlign: 'center' }}>
-            <div style={{
-              width: '64px',
-              height: '64px',
-              borderRadius: '50%',
-              backgroundColor: '#f8fafc',
-              border: '1px dashed #cbd5e1',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              margin: '0 auto 16px',
-              color: '#94a3b8'
-            }}>
-              <ShoppingBag size={30} />
-            </div>
-            <h3 style={{ margin: '0 0 6px', fontSize: '16px', fontWeight: '800', color: '#1e293b' }}>
-              Tabel Produk Marketplace Kosong
-            </h3>
-            <p style={{ margin: '0 auto 20px', fontSize: '12.5px', color: '#64748b', maxWidth: '480px', lineHeight: '1.5' }}>
-              Belum ada produk di antrian. Anda dapat menarik langsung dari Shopee Open API atau mengimpor data produk dari Shopee Seller Centre via tombol di bawah.
-            </p>
-            <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', flexWrap: 'wrap' }}>
-              <button
-                onClick={handleSyncFromShopee}
-                disabled={isLoadingSync}
-                style={{
-                  padding: '9px 18px',
-                  borderRadius: '6px',
-                  backgroundColor: '#ee4d2d',
-                  color: '#ffffff',
-                  border: 'none',
-                  fontSize: '12px',
-                  fontWeight: '700',
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px'
-                }}
-              >
-                <RefreshCw size={14} />
-                <span>Tarik dari Shopee API</span>
-              </button>
-              <button
-                onClick={() => setIsManualModalOpen(true)}
-                style={{
-                  padding: '9px 18px',
-                  borderRadius: '6px',
-                  backgroundColor: '#10b981',
-                  color: '#ffffff',
-                  border: 'none',
-                  fontSize: '12px',
-                  fontWeight: '700',
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px'
-                }}
-              >
-                <Plus size={14} />
-                <span>+ Paste Katalog Shopee</span>
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div style={{ overflowX: 'auto', width: '100%' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '12px' }}>
-              <thead>
-                <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#475569', fontWeight: '700' }}>
-                  <th style={{ padding: '10px 14px' }}>NO</th>
-                  <th style={{ padding: '10px 14px' }}>PRODUK MARKETPLACE</th>
-                  <th style={{ padding: '10px 14px' }}>TOKO & CHANNEL</th>
-                  <th style={{ padding: '10px 14px' }}>SKU MARKETPLACE</th>
-                  <th style={{ padding: '10px 14px' }}>VARIAN</th>
-                  <th style={{ padding: '10px 14px', textAlign: 'right' }}>HARGA JUAL</th>
-                  <th style={{ padding: '10px 14px', textAlign: 'center' }}>STOK SHOPEE</th>
-                  <th style={{ padding: '10px 14px' }}>STATUS MAPPING</th>
-                  <th style={{ padding: '10px 14px', textAlign: 'center' }}>AKSI</th>
+        {/* Select Saluran */}
+        <select
+          value={filterChannel}
+          onChange={(e) => setFilterChannel(e.target.value)}
+          style={{
+            padding: '6px 10px',
+            borderRadius: '6px',
+            border: '1px solid #cbd5e1',
+            fontSize: '12px',
+            color: '#334155',
+            backgroundColor: '#ffffff',
+            cursor: 'pointer',
+            minWidth: '125px'
+          }}
+        >
+          <option value="Semua">Semua Saluran</option>
+          <option value="shopee">Shopee Marketplace</option>
+          <option value="tiktok">TikTok Shop</option>
+        </select>
+
+        {/* Select Status Mapping */}
+        <select
+          value={filterMapping}
+          onChange={(e) => setFilterMapping(e.target.value)}
+          style={{
+            padding: '6px 10px',
+            borderRadius: '6px',
+            border: '1px solid #cbd5e1',
+            fontSize: '12px',
+            color: '#334155',
+            backgroundColor: '#ffffff',
+            cursor: 'pointer',
+            minWidth: '135px'
+          }}
+        >
+          <option value="Semua">Semua Status</option>
+          <option value="Belum Dimapping">Belum Dimapping</option>
+          <option value="Sudah Dimapping">Sudah Dimapping</option>
+        </select>
+
+        {/* Select Status Stok */}
+        <select
+          value={filterStok}
+          onChange={(e) => setFilterStok(e.target.value)}
+          style={{
+            padding: '6px 10px',
+            borderRadius: '6px',
+            border: '1px solid #cbd5e1',
+            fontSize: '12px',
+            color: '#334155',
+            backgroundColor: '#ffffff',
+            cursor: 'pointer',
+            minWidth: '115px'
+          }}
+        >
+          <option value="Semua">Semua Stok</option>
+          <option value="Tersedia">Stok Tersedia</option>
+          <option value="Habis">Stok Habis</option>
+        </select>
+
+        <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700', marginLeft: 'auto' }}>
+          Menampilkan {filteredItems.length} produk di antrian staging
+        </span>
+
+      </div>
+
+      {/* 4. DATA TABLE (PERSIS DATA INDUK PRODUK DENGAN BORDER CBD5E1) */}
+      <div style={{
+        backgroundColor: '#ffffff',
+        border: '1px solid #cbd5e1',
+        borderRadius: '8px',
+        overflow: 'hidden',
+        boxShadow: '0 2px 6px rgba(15, 23, 42, 0.05)'
+      }}>
+        <div style={{ overflowX: 'auto', width: '100%' }}>
+          <table className="table-bordered-hover" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '12px', border: '1px solid #cbd5e1' }}>
+            <thead>
+              <tr style={{ backgroundColor: '#f8fafc', color: '#475569', fontSize: '11px', fontWeight: '800', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                <th style={{ padding: '5px 8px', textAlign: 'center', width: '45px', border: '1px solid #cbd5e1' }}>NO</th>
+                <th style={{ padding: '5px 8px', border: '1px solid #cbd5e1' }}>NAMA PRODUK & SKU MARKETPLACE</th>
+                <th style={{ padding: '5px 8px', border: '1px solid #cbd5e1' }}>TOKO & SALURAN</th>
+                <th style={{ padding: '5px 8px', border: '1px solid #cbd5e1' }}>VARIAN & SPESIFIKASI STOK</th>
+                <th style={{ padding: '5px 8px', textAlign: 'center', border: '1px solid #cbd5e1' }}>JUMLAH STOK SHOPEE</th>
+                <th style={{ padding: '5px 8px', textAlign: 'right', border: '1px solid #cbd5e1' }}>HARGA JUAL</th>
+                <th style={{ padding: '5px 8px', textAlign: 'center', border: '1px solid #cbd5e1' }}>STATUS MAPPING</th>
+                <th style={{ padding: '5px 8px', textAlign: 'center', width: '140px', border: '1px solid #cbd5e1' }}>AKSI</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredItems.length === 0 ? (
+                <tr>
+                  <td colSpan="8" style={{ padding: '30px 16px', textAlign: 'center', color: '#64748b', border: '1px solid #cbd5e1' }}>
+                    <Package size={32} color="#cbd5e1" style={{ marginBottom: '6px' }} />
+                    <div style={{ fontWeight: '700', fontSize: '13px', color: '#334155' }}>Tidak ada produk di antrian staging</div>
+                    <div style={{ fontSize: '11px', marginTop: '2px' }}>
+                      {companyItems.length === 0 
+                        ? 'Tarik produk dari Shopee API atau klik tombol Input / Paste.' 
+                        : 'Coba ubah kata kunci pencarian atau reset filter di atas.'}
+                    </div>
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {filteredItems.map((item, index) => (
-                  <tr key={item.id} style={{ borderBottom: '1px solid #f1f5f9', backgroundColor: index % 2 === 0 ? '#ffffff' : '#fafbfc' }}>
-                    
-                    <td style={{ padding: '12px 14px', color: '#64748b', fontWeight: '600' }}>
-                      {index + 1}
-                    </td>
+              ) : (
+                filteredItems.map((item, index) => {
+                  const stockNum = Number(item.stok_marketplace) || 0;
+                  const isMapped = item.status === 'Sudah di Master' || item.status === 'Sudah Dimapping';
 
-                    <td style={{ padding: '12px 14px', maxWidth: '280px' }}>
-                      <div style={{ fontWeight: '700', color: '#0f172a', marginBottom: '3px' }}>
-                        {item.nama_produk}
-                      </div>
-                      <div style={{ fontSize: '10.5px', color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <span>Item ID: <code>{item.item_id}</code></span>
-                        <span>•</span>
-                        <span>{item.syncedAt}</span>
-                      </div>
-                    </td>
+                  return (
+                    <tr 
+                      key={item.id}
+                      style={{
+                        transition: 'background-color 0.15s ease',
+                        cursor: 'default'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                    >
+                      {/* NO */}
+                      <td style={{ padding: '5px 8px', textAlign: 'center', color: '#64748b', fontWeight: '600', border: '1px solid #cbd5e1' }}>
+                        {index + 1}
+                      </td>
 
-                    <td style={{ padding: '12px 14px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      {/* NAMA PRODUK & SKU MARKETPLACE */}
+                      <td style={{ padding: '5px 8px', border: '1px solid #cbd5e1', maxWidth: '340px' }}>
+                        <div style={{ fontWeight: '700', color: '#0f172a', fontSize: '12px', lineHeight: 1.25, marginBottom: '2px' }}>
+                          {item.nama_produk}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px' }}>
+                          <span style={{ color: '#0284c7', fontWeight: '700' }}>
+                            SKU: {item.sku_marketplace}
+                          </span>
+                          <span style={{ color: '#94a3b8' }}>•</span>
+                          <span style={{ color: '#64748b', fontSize: '10px' }}>
+                            Item ID: <code>{item.item_id}</code>
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* TOKO & SALURAN */}
+                      <td style={{ padding: '5px 8px', border: '1px solid #cbd5e1', whiteSpace: 'nowrap' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '2px' }}>
+                          <span style={{
+                            display: 'inline-block',
+                            padding: '1px 6px',
+                            borderRadius: '4px',
+                            fontSize: '10px',
+                            fontWeight: '800',
+                            backgroundColor: item.channel === 'shopee' ? '#fee2e2' : item.channel === 'tiktok' ? '#f1f5f9' : '#e0f2fe',
+                            color: item.channel === 'shopee' ? '#dc2626' : item.channel === 'tiktok' ? '#0f172a' : '#0369a1',
+                            border: item.channel === 'shopee' ? '1px solid #fca5a5' : item.channel === 'tiktok' ? '1px solid #cbd5e1' : '1px solid #bae6fd'
+                          }}>
+                            {item.channelName || (item.channel === 'shopee' ? 'Shopee Marketplace' : 'TikTok Shop')}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '11px', fontWeight: '600', color: '#334155' }}>
+                          {item.shopName}
+                        </div>
+                      </td>
+
+                      {/* VARIAN & SPESIFIKASI STOK */}
+                      <td style={{ padding: '5px 8px', border: '1px solid #cbd5e1' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '2px' }}>
+                          <Tag size={11} color="#0284c7" style={{ flexShrink: 0 }} />
+                          <span style={{ fontWeight: '700', color: '#0f172a', fontSize: '11px', lineHeight: 1.2 }}>
+                            {item.varian_marketplace || 'Standard'}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '10px', color: '#64748b' }}>
+                          Ditarik: {item.syncedAt || '-'}
+                        </div>
+                      </td>
+
+                      {/* JUMLAH STOK SHOPEE */}
+                      <td style={{ padding: '5px 8px', textAlign: 'center', border: '1px solid #cbd5e1' }}>
                         <span style={{
-                          padding: '2px 7px',
+                          display: 'inline-block',
+                          padding: '2px 10px',
                           borderRadius: '4px',
-                          backgroundColor: '#fff7ed',
-                          color: '#c2410c',
-                          border: '1px solid #ffedd5',
-                          fontSize: '10.5px',
-                          fontWeight: '800'
+                          fontSize: '11px',
+                          fontWeight: '800',
+                          backgroundColor: stockNum > 10 ? '#ecfdf5' : stockNum > 0 ? '#fffbeb' : '#fef2f2',
+                          color: stockNum > 10 ? '#059669' : stockNum > 0 ? '#d97706' : '#dc2626',
+                          border: stockNum > 10 ? '1px solid #a7f3d0' : stockNum > 0 ? '1px solid #fde68a' : '1px solid #fecaca',
+                          whiteSpace: 'nowrap'
                         }}>
-                          {item.channelName}
+                          {stockNum} PCS
                         </span>
-                      </div>
-                      <div style={{ fontSize: '11px', fontWeight: '600', color: '#334155', marginTop: '3px' }}>
-                        {item.shopName}
-                      </div>
-                    </td>
+                      </td>
 
-                    <td style={{ padding: '12px 14px' }}>
-                      <code style={{
-                        padding: '2px 6px',
-                        borderRadius: '4px',
-                        backgroundColor: '#f1f5f9',
-                        color: '#0369a1',
-                        fontSize: '11px',
-                        fontWeight: '700'
-                      }}>
-                        {item.sku_marketplace}
-                      </code>
-                    </td>
+                      {/* HARGA JUAL */}
+                      <td style={{ padding: '5px 8px', textAlign: 'right', fontWeight: '800', color: '#059669', fontSize: '12px', whiteSpace: 'nowrap', border: '1px solid #cbd5e1' }}>
+                        {formatRupiah(item.harga_jual)}
+                      </td>
 
-                    <td style={{ padding: '12px 14px', color: '#475569', fontSize: '11.5px' }}>
-                      {item.varian_marketplace || '-'}
-                    </td>
+                      {/* STATUS MAPPING */}
+                      <td style={{ padding: '5px 8px', textAlign: 'center', border: '1px solid #cbd5e1' }}>
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          padding: '2px 8px',
+                          borderRadius: '4px',
+                          fontSize: '10.5px',
+                          fontWeight: '700',
+                          backgroundColor: isMapped ? '#ecfdf5' : '#fff7ed',
+                          color: isMapped ? '#047857' : '#c2410c',
+                          border: isMapped ? '1px solid #a7f3d0' : '1px solid #fed7aa',
+                          whiteSpace: 'nowrap'
+                        }}>
+                          {item.status || 'Belum Dimapping'}
+                        </span>
+                      </td>
 
-                    <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: '800', color: '#0f172a' }}>
-                      Rp {Number(item.harga_jual || 0).toLocaleString('id-ID')}
-                    </td>
-
-                    <td style={{ padding: '12px 14px', textAlign: 'center' }}>
-                      <span style={{
-                        padding: '3px 8px',
-                        borderRadius: '4px',
-                        backgroundColor: '#f0fdf4',
-                        color: '#16a34a',
-                        fontWeight: '800',
-                        fontSize: '11.5px'
-                      }}>
-                        {item.stok_marketplace} PCS
-                      </span>
-                    </td>
-
-                    <td style={{ padding: '12px 14px' }}>
-                      <span style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        padding: '2px 8px',
-                        borderRadius: '12px',
-                        fontSize: '10.5px',
-                        fontWeight: '700',
-                        backgroundColor: item.status === 'Sudah di Master' ? '#dcfce7' : '#fef3c7',
-                        color: item.status === 'Sudah di Master' ? '#15803d' : '#b45309'
-                      }}>
-                        {item.status}
-                      </span>
-                    </td>
-
-                    <td style={{ padding: '12px 14px', textAlign: 'center' }}>
-                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                        {item.status !== 'Sudah di Master' && (
+                      {/* 2 ACTION BUTTONS */}
+                      <td style={{ padding: '5px 8px', textAlign: 'center', border: '1px solid #cbd5e1' }}>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                          {!isMapped && (
+                            <button
+                              title="Salin Produk ini ke Master Data Produk ERP"
+                              onClick={() => handleImportToMaster(item)}
+                              style={{
+                                height: '26px',
+                                padding: '0 8px',
+                                borderRadius: '4px',
+                                border: 'none',
+                                backgroundColor: '#0284c7',
+                                color: '#ffffff',
+                                fontSize: '11px',
+                                fontWeight: '700',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                whiteSpace: 'nowrap'
+                              }}
+                              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#0369a1'}
+                              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#0284c7'}
+                            >
+                              <span>Ke Master Data</span>
+                              <ArrowRight size={12} />
+                            </button>
+                          )}
                           <button
-                            title="Salin Produk ini ke Master Data Produk"
-                            onClick={() => handleImportToMaster(item)}
+                            title="Hapus dari staging"
+                            onClick={() => handleDelete(item.id, item.nama_produk)}
                             style={{
-                              padding: '5px 10px',
-                              borderRadius: '5px',
-                              backgroundColor: '#0284c7',
-                              color: '#ffffff',
-                              border: 'none',
-                              fontSize: '11px',
-                              fontWeight: '700',
+                              width: '26px',
+                              height: '26px',
+                              borderRadius: '4px',
+                              border: '1px solid #fecaca',
+                              backgroundColor: '#fef2f2',
+                              color: '#dc2626',
                               cursor: 'pointer',
                               display: 'inline-flex',
                               alignItems: 'center',
-                              gap: '4px'
+                              justifyContent: 'center'
                             }}
+                            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#dc2626'; e.currentTarget.style.color = '#ffffff'; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#fef2f2'; e.currentTarget.style.color = '#dc2626'; }}
                           >
-                            <ArrowRight size={12} />
-                            <span>Ke Master Data</span>
+                            <Trash2 size={13} />
                           </button>
-                        )}
-                        <button
-                          title="Hapus dari staging"
-                          onClick={() => handleDelete(item.id, item.nama_produk)}
-                          style={{
-                            padding: '5px 8px',
-                            borderRadius: '5px',
-                            border: '1px solid #fee2e2',
-                            backgroundColor: '#fff5f5',
-                            color: '#dc2626',
-                            fontSize: '11px',
-                            fontWeight: '700',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          <Trash2 size={12} />
-                        </button>
-                      </div>
-                    </td>
+                        </div>
+                      </td>
 
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* MODAL PENJELASAN SHOPEE API WHITELIST */}
