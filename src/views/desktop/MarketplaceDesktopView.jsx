@@ -291,12 +291,12 @@ export default function MarketplaceView({ onBack, onNavigate }) {
     }
   };
 
-  // Fungsi Tarik Pesanan dari Toko Marketplace ke SPK / Antrian Produksi & Database MySQL
+  // Fungsi Tarik Pesanan dari Toko Marketplace ke Pesanan Masuk & Database MySQL
   const handleSyncPesanan = async (store) => {
     setSyncLoading({
       type: 'pesanan',
       title: 'Sedang Menarik Pesanan Marketplace...',
-      subTitle: `Mengambil daftar pesanan terbaru dari ${store.shopName} dan menyimpan langsung ke database MySQL.`,
+      subTitle: `Mengambil daftar pesanan terbaru dari ${store.shopName} dan menyimpan langsung ke menu Pesanan Masuk.`,
       shopName: store.shopName,
       channel: store.channel
     });
@@ -321,144 +321,62 @@ export default function MarketplaceView({ onBack, onNavigate }) {
         console.warn('Sync API request fallback:', apiErr.message);
       }
 
-      const dateStr = new Date().toISOString().split('T')[0];
-      const saved = localStorage.getItem('ruangmarket_spk_v2');
-      const existing = saved ? JSON.parse(saved) : [];
-      let newBatches = [];
-
-      if (orders.length > 0) {
-        newBatches = orders.map((ord, idx) => {
-          const spkId = ord.no_spk || `SPK-${store.channel.toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`;
-          const items = (ord.items && ord.items.length > 0) ? ord.items : [
-            {
-              id: `item-${Date.now()}-${idx}`,
-              no_spk: spkId,
-              produk_id: 1,
-              sku: `${activeCompany.code || 'RSG'}-ORD-01`,
-              nama_produk: `Pesanan ${store.shopName} (Item 1)`,
-              kategori: 'Marketplace Order',
-              satuan: 'PCS',
-              qty: 24,
-              kain_nama: 'Kain Jetblack Silk',
-              panjang_kain_cm: 250,
-              harga_kain_cm: 200,
-              estimasi_kain: 'Kain Jetblack Silk - 6.000 CM (60M) @Rp200/CM'
-            }
-          ];
-
-          return {
-            id: Date.now() + idx,
-            company_code: activeCompany.code || 'RSG',
-            kode_produksi: ord.no_pesanan || `ORD-${store.channel.toUpperCase()}-${Date.now().toString().slice(-6)}`,
-            nama_pelanggan: ord.nama_pembeli || `Order Marketplace [${store.shopName}]`,
-            tgl_pesan: dateStr,
-            deadline: new Date(Date.now() + 3 * 86400000).toISOString().split('T')[0],
-            status: ord.status_pesanan || 'Dalam Proses',
-            catatan: `Pesanan otomatis dari ${store.channelName} (${store.shopName}) - No Pesanan: ${ord.no_pesanan}`,
-            spk_list: [
-              {
-                id_spk: spkId,
-                nama_spk: `SPK Jahit Pesanan #${spkId}`,
-                penjahit: 'Agus Sutrisno',
-                status_spk: 'Potong Pola',
-                produk_items: items.map(it => ({
-                  id: it.id || `item-${Date.now()}`,
-                  no_spk: spkId,
-                  produk_id: it.item_id || 1,
-                  sku: it.sku || `${activeCompany.code || 'RSG'}-ORD-01`,
-                  nama_produk: it.nama_produk || `Pesanan ${store.shopName}`,
-                  kategori: it.kategori || 'Marketplace Order',
-                  satuan: it.satuan || 'PCS',
-                  qty: it.qty || 1,
-                  kain_nama: 'Kain Jetblack Silk',
-                  panjang_kain_cm: 250,
-                  harga_kain_cm: 200,
-                  estimasi_kain: 'Kain Jetblack Silk - Standard'
-                }))
-              }
-            ]
-          };
-        });
-      } else {
-        // Fallback jika offline / server belum aktif: buat batch lokal & kirim simpan ke DB
-        const newSpkId = `SPK-${store.channel.toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`;
-        const fallbackBatch = {
-          id: Date.now(),
+      // Jika offline atau fallback kosong, kirim order sampel ke MySQL pesanan_marketplace
+      if (orders.length === 0) {
+        const dummyOrderSn = `ORD-${store.channel.toUpperCase()}-${Date.now().toString().slice(-6)}`;
+        const fallbackOrder = {
+          id: `ord_${Date.now()}`,
           company_code: activeCompany.code || 'RSG',
-          kode_produksi: `ORD-${store.channel.toUpperCase()}-${Date.now().toString().slice(-6)}`,
-          nama_pelanggan: `Order Marketplace [${store.shopName}]`,
-          tgl_pesan: dateStr,
-          deadline: new Date(Date.now() + 3 * 86400000).toISOString().split('T')[0],
-          status: 'Dalam Proses',
-          catatan: `Pesanan otomatis dari ${store.channelName} (${store.shopName}) - Shop ID: ${store.shopId}`,
-          spk_list: [
+          no_pesanan: dummyOrderSn,
+          saluran: store.channel,
+          nama_toko: store.shopName,
+          nama_pembeli: `Pelanggan ${store.channelName} (${store.shopName})`,
+          total_harga: 285000,
+          status_pesanan: 'Perlu Diproses',
+          no_spk: null,
+          items: [
             {
-              id_spk: newSpkId,
-              nama_spk: `SPK Jahit Pesanan Online #${newSpkId}`,
-              penjahit: 'Agus Sutrisno',
-              status_spk: 'Potong Pola',
-              produk_items: [
-                {
-                  id: `item-${Date.now()}`,
-                  no_spk: newSpkId,
-                  produk_id: 1,
-                  sku: `${activeCompany.code || 'RSG'}-ORD-01`,
-                  nama_produk: `Pesanan ${store.shopName} (Item 1)`,
-                  kategori: 'Marketplace Order',
-                  satuan: 'PCS',
-                  qty: 24,
-                  kain_nama: 'Kain Jetblack Silk',
-                  panjang_kain_cm: 250,
-                  harga_kain_cm: 200,
-                  estimasi_kain: 'Kain Jetblack Silk - 6.000 CM (60M) @Rp200/CM'
-                }
-              ]
+              id: `item-${Date.now()}`,
+              nama_produk: `Pesanan Produk ${store.shopName}`,
+              sku: `PRD-${Date.now().toString().slice(-4)}`,
+              satuan: 'PCS',
+              qty: 1,
+              harga: 285000,
+              varian: 'Standard'
             }
           ]
         };
-        newBatches = [fallbackBatch];
 
-        // Usahakan tetap simpan ke MySQL via POST /api/marketplace/orders
         try {
           await fetch('/api/marketplace/orders', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              id: `ord_${fallbackBatch.id}`,
-              kode_perusahaan: fallbackBatch.company_code,
-              no_pesanan: fallbackBatch.kode_produksi,
-              saluran: store.channel,
-              nama_toko: store.shopName,
-              nama_pembeli: fallbackBatch.nama_pelanggan,
-              total_harga: 350000,
-              status_pesanan: 'Perlu Diproses',
-              no_spk: newSpkId
-            })
+            body: JSON.stringify(fallbackOrder)
           });
+          orders = [fallbackOrder];
         } catch (postErr) {
           console.warn('Gagal POST ke pesanan_marketplace:', postErr.message);
         }
       }
 
-      localStorage.setItem('ruangmarket_spk_v2', JSON.stringify([...newBatches, ...existing]));
+      window.dispatchEvent(new Event('ordersUpdated'));
       window.dispatchEvent(new Event('storage'));
 
       setSyncLoading(null);
-      const firstBatch = newBatches[0];
-      toastSuccess(`Berhasil menarik pesanan (${firstBatch.kode_produksi}) & tersimpan ke Database!`);
+      toastSuccess(`Berhasil menarik ${orders.length} pesanan dari ${store.shopName} ke menu Pesanan Masuk!`);
 
       if (onNavigate) {
         setTimeout(async () => {
           const jump = await showConfirm(
-            'Pesanan Berhasil Disimpan ke Database!',
-            `Pesanan baru [${firstBatch.kode_produksi}] telah ditarik & disimpan ke MySQL database:\n1. Masuk ke database tabel "pesanan_marketplace".\n2. Dibuatkan SPK Jahit & Potong di menu Produksi > SPK.\n\nBuka halaman SPK Produksi sekarang?`,
-            'Lihat SPK Produksi',
+            'Pesanan Berhasil Masuk!',
+            `Pesanan dari ${store.shopName} berhasil ditarik dan tersimpan di menu "Pesanan Masuk".\n\nBuka menu Pesanan Masuk sekarang untuk cek dan proses ke SPK?`,
+            'Lihat Pesanan Masuk',
             'Tetap di Sini'
           );
           if (jump) {
-            onNavigate('spk');
+            onNavigate('pesanan_masuk');
           }
-        }, 500);
+        }, 400);
       }
     } catch (err) {
       setSyncLoading(null);

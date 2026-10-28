@@ -85,6 +85,9 @@ export default function PesananMasukDesktopView({ onNavigate }) {
 
   useEffect(() => {
     loadOrders();
+    const handleOrdersUpdated = () => loadOrders();
+    window.addEventListener('ordersUpdated', handleOrdersUpdated);
+    return () => window.removeEventListener('ordersUpdated', handleOrdersUpdated);
   }, []);
 
   // Tarik semua pesanan dari seluruh toko aktif (Shopee & TikTok)

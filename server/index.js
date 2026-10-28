@@ -684,7 +684,7 @@ const server = http.createServer(async (req, res) => {
               {
                 id: `item-${Date.now()}`,
                 nama_produk: `Gamis Casual Katun Toyobo`,
-                sku: `RSG-GMS-TYB`,
+                sku: `GMS-TYB`,
                 kategori: 'Gamis Casual',
                 satuan: 'PCS',
                 qty: 2,
