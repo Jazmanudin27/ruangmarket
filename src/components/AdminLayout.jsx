@@ -25,15 +25,23 @@ import {
   Check
 } from 'lucide-react';
 import { getCompanies, getActiveCompany, setActiveCompanyCode } from '../utils/tenant.util';
-import DashboardView from '../views/DashboardView';
-import ProdukView from '../views/ProdukView';
-import KategoriView from '../views/KategoriView';
-import KaryawanView from '../views/KaryawanView';
-import ProduksiView from '../views/ProduksiView';
-import SPKView from '../views/SPKView';
-import MarketplaceView from '../views/MarketplaceView';
-import ProdukMarketplaceView from '../views/ProdukMarketplaceView';
-import BlankTemplateView from '../views/BlankTemplateView';
+import { useDeviceType } from '../hooks/useDeviceType';
+
+// Desktop Views
+import DashboardDesktopView from '../views/desktop/DashboardDesktopView';
+import ProdukDesktopView from '../views/desktop/ProdukDesktopView';
+import KategoriDesktopView from '../views/desktop/KategoriDesktopView';
+import KaryawanDesktopView from '../views/desktop/KaryawanDesktopView';
+import ProduksiDesktopView from '../views/desktop/ProduksiDesktopView';
+import SPKDesktopView from '../views/desktop/SPKDesktopView';
+import MarketplaceDesktopView from '../views/desktop/MarketplaceDesktopView';
+import ProdukMarketplaceDesktopView from '../views/desktop/ProdukMarketplaceDesktopView';
+import BlankTemplateDesktopView from '../views/desktop/BlankTemplateDesktopView';
+
+// Mobile Views
+import MarketplaceMobileView from '../views/mobile/MarketplaceMobileView';
+import ProdukMarketplaceMobileView from '../views/mobile/ProdukMarketplaceMobileView';
+
 import { showConfirm, toastSuccess } from '../utils/alert.util';
 import { INITIAL_PRODUK_DATA } from '../data/initialProduk';
 
@@ -194,29 +202,39 @@ export default function AdminLayout() {
     { id: 'kategori', label: 'Kategori Produk', icon: Tag }
   ];
 
+  const { isMobile } = useDeviceType();
+
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':
-        return <DashboardView onNavigate={changeTab} />;
+        return <DashboardDesktopView onNavigate={changeTab} />;
       case 'produk':
-        return <ProdukView />;
+        return <ProdukDesktopView />;
       case 'kategori':
-        return <KategoriView />;
+        return <KategoriDesktopView />;
       case 'karyawan':
-        return <KaryawanView />;
+        return <KaryawanDesktopView />;
       case 'produksi':
-        return <ProduksiView />;
+        return <ProduksiDesktopView />;
       case 'spk':
-        return <SPKView />;
+        return <SPKDesktopView />;
       case 'marketplace':
       case 'toko':
-        return <MarketplaceView onBack={() => changeTab('dashboard')} onNavigate={changeTab} />;
+        return isMobile ? (
+          <MarketplaceMobileView onBack={() => changeTab('dashboard')} onNavigate={changeTab} />
+        ) : (
+          <MarketplaceDesktopView onBack={() => changeTab('dashboard')} onNavigate={changeTab} />
+        );
       case 'produk_marketplace':
-        return <ProdukMarketplaceView onNavigate={changeTab} />;
+        return isMobile ? (
+          <ProdukMarketplaceMobileView onNavigate={changeTab} />
+        ) : (
+          <ProdukMarketplaceDesktopView onNavigate={changeTab} />
+        );
       case 'blank':
-        return <BlankTemplateView />;
+        return <BlankTemplateDesktopView />;
       default:
-        return <ProdukView />;
+        return <ProdukDesktopView />;
     }
   };
 
