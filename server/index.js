@@ -406,15 +406,26 @@ const server = http.createServer(async (req, res) => {
 
   // 8. TikTok Products Sync API (Langsung simpan ke MySQL)
   if (pathname === '/api/marketplace/tiktok/products' && req.method === 'GET') {
-    const accessToken = urlObj.searchParams.get('access_token');
-    const shopCipher = urlObj.searchParams.get('shop_cipher') || 'ROW_Hbd_fAAAAACqX58asQX4uCOsoefXXn4c';
-
-    if (!accessToken) {
-      return sendJson(res, 400, { status: 'error', message: 'access_token required' });
-    }
+    let accessToken = urlObj.searchParams.get('access_token');
+    let shopCipher = urlObj.searchParams.get('shop_cipher');
 
     try {
-      console.log(`[TikTok] Syncing products...`);
+      // Ambil token dan cipher langsung dari MySQL jika kosong
+      if (!accessToken || !shopCipher) {
+        const [rows] = await pool.query("SELECT token_akses, cipher_toko FROM toko_marketplace WHERE saluran = 'tiktok' LIMIT 1");
+        if (rows.length > 0) {
+          accessToken = accessToken || rows[0].token_akses;
+          shopCipher = shopCipher || rows[0].cipher_toko;
+        }
+      }
+
+      shopCipher = shopCipher || 'ROW_Hbd_fAAAAACqX58asQX4uCOsoefXXn4c';
+
+      if (!accessToken) {
+        return sendJson(res, 400, { status: 'error', message: 'Token akses TikTok tidak ditemukan di database' });
+      }
+
+      console.log(`[TikTok] Syncing all products with pagination...`);
       const products = await tiktokService.syncProducts(accessToken, shopCipher);
 
       for (const p of products) {

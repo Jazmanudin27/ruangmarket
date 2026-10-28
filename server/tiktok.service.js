@@ -156,28 +156,63 @@ export class TiktokService {
       throw new Error(`TikTok API Error: ${res.message || 'Unknown Error'}`);
     }
 
-    return res.data?.products || [];
+    return {
+      products: res.data?.products || [],
+      nextPageToken: res.data?.next_page_token || ''
+    };
   }
 
-  // 4. Sinkronisasi Produk TikTok ke Format Staging
+  // 4. Sinkronisasi SEMUA Produk TikTok & Ekstrak Tiap Varian SKU ke Format Staging
   async syncProducts(accessToken, shopCipher) {
-    const rawProducts = await this.getProductSearch(accessToken, shopCipher);
-    return rawProducts.map(p => {
-      const firstSku = p.skus?.[0];
-      return {
-        id: `tiktok_${p.id}`,
-        item_id: String(p.id),
-        channel: 'tiktok',
-        channelName: 'TikTok Shop',
-        shopName: 'RUANG SERAGAM',
-        nama_produk: p.title || 'Produk TikTok',
-        sku_marketplace: firstSku?.seller_sku || `TT-${p.id}`,
-        harga_jual: Number(firstSku?.price?.tax_exclusive_price || firstSku?.price?.amount || 0),
-        stok_marketplace: firstSku?.inventory?.[0]?.quantity || 0,
-        varian_marketplace: firstSku?.sales_attributes?.map(a => a.value_name).join(', ') || 'All Size',
-        status: 'Belum Dimapping',
-        syncedAt: new Date().toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-      };
-    });
+    const allProducts = [];
+    let pageToken = '';
+    let hasMore = true;
+    let pageCount = 0;
+
+    // Loop pagination TikTok Shop sampai seluruh halaman habis
+    while (hasMore && pageCount < 50) {
+      pageCount++;
+      const result = await this.getProductSearch(accessToken, shopCipher, pageToken);
+      const list = result.products || [];
+      allProducts.push(...list);
+
+      if (result.nextPageToken && result.nextPageToken !== pageToken && list.length > 0) {
+        pageToken = result.nextPageToken;
+      } else {
+        hasMore = false;
+      }
+    }
+
+    const flattenedRows = [];
+
+    // Loop setiap produk dan seluruh SKU variasinya
+    for (const p of allProducts) {
+      const skus = Array.isArray(p.skus) && p.skus.length > 0 ? p.skus : [null];
+
+      for (const sku of skus) {
+        const skuId = sku?.id || p.id;
+        const sellerSku = sku?.seller_sku || (sku ? `TT-${p.id}-${sku.id}` : `TT-${p.id}`);
+        const varianName = sku?.sales_attributes?.map(a => a.value_name).join(', ') || 'Standard';
+        const hargaJual = Number(sku?.price?.tax_exclusive_price || sku?.price?.amount || 0);
+        const stokQty = Number(sku?.inventory?.[0]?.quantity || 0);
+
+        flattenedRows.push({
+          id: `tiktok_${p.id}_${skuId}`,
+          item_id: String(p.id),
+          channel: 'tiktok',
+          channelName: 'TikTok Shop',
+          shopName: 'RUANG SERAGAM',
+          nama_produk: p.title || 'Produk TikTok',
+          sku_marketplace: sellerSku,
+          harga_jual: hargaJual,
+          stok_marketplace: stokQty,
+          varian_marketplace: varianName,
+          status: 'Belum Dimapping',
+          syncedAt: new Date().toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+        });
+      }
+    }
+
+    return flattenedRows;
   }
 }
