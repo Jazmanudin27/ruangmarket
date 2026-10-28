@@ -142,7 +142,6 @@ const server = http.createServer(async (req, res) => {
           if (ref && ref.access_token) {
             accessToken = ref.access_token;
             refreshToken = ref.refresh_token || refreshToken;
-            refreshToken = ref.refresh_token || refreshToken;
             
             // Simpan token baru ke database MySQL toko_marketplace
             await pool.query(`
