@@ -1,0 +1,351 @@
+/* ==========================================================================
+   RUANGMARKET CUSTOM UI UTILITIES (Bootstrap-5 inspired)
+   Path: public/css/custom.css
+   ========================================================================== */
+
+:root {
+  --rm-primary: #0284c7;
+  --rm-primary-hover: #0369a1;
+  --rm-secondary: #64748b;
+  --rm-secondary-hover: #475569;
+  --rm-success: #10b981;
+  --rm-success-hover: #059669;
+  --rm-danger: #ef4444;
+  --rm-danger-hover: #dc2626;
+  --rm-warning: #f59e0b;
+  --rm-warning-hover: #d97706;
+  --rm-info: #06b6d4;
+  --rm-info-hover: #0891b2;
+  --rm-dark: #0f172a;
+  --rm-light: #f8fafc;
+  --rm-border: #cbd5e1;
+}
+
+/* ==========================================================================
+   BUTTONS (btn, btn-primary, btn-outline-*, etc)
+   ========================================================================== */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.15s ease-in-out;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.btn:disabled,
+.btn.disabled {
+  opacity: 0.6;
+  cursor: not-allowed !important;
+  pointer-events: none;
+}
+
+/* Sizes */
+.btn-sm {
+  padding: 5px 10px;
+  font-size: 12px;
+  border-radius: 6px;
+  gap: 6px;
+}
+
+.btn-lg {
+  padding: 12px 24px;
+  font-size: 15px;
+  border-radius: 10px;
+  gap: 10px;
+}
+
+.btn-icon {
+  padding: 6px;
+  border-radius: 6px;
+  line-height: 1;
+}
+
+/* Solid Variants */
+.btn-primary {
+  background-color: var(--rm-primary);
+  color: #ffffff !important;
+  border-color: var(--rm-primary);
+}
+.btn-primary:hover {
+  background-color: var(--rm-primary-hover);
+  border-color: var(--rm-primary-hover);
+}
+
+.btn-secondary {
+  background-color: var(--rm-secondary);
+  color: #ffffff !important;
+  border-color: var(--rm-secondary);
+}
+.btn-secondary:hover {
+  background-color: var(--rm-secondary-hover);
+  border-color: var(--rm-secondary-hover);
+}
+
+.btn-success {
+  background-color: var(--rm-success);
+  color: #ffffff !important;
+  border-color: var(--rm-success);
+}
+.btn-success:hover {
+  background-color: var(--rm-success-hover);
+  border-color: var(--rm-success-hover);
+}
+
+.btn-danger {
+  background-color: var(--rm-danger);
+  color: #ffffff !important;
+  border-color: var(--rm-danger);
+}
+.btn-danger:hover {
+  background-color: var(--rm-danger-hover);
+  border-color: var(--rm-danger-hover);
+}
+
+.btn-warning {
+  background-color: var(--rm-warning);
+  color: #ffffff !important;
+  border-color: var(--rm-warning);
+}
+.btn-warning:hover {
+  background-color: var(--rm-warning-hover);
+  border-color: var(--rm-warning-hover);
+}
+
+.btn-info {
+  background-color: var(--rm-info);
+  color: #ffffff !important;
+  border-color: var(--rm-info);
+}
+.btn-info:hover {
+  background-color: var(--rm-info-hover);
+  border-color: var(--rm-info-hover);
+}
+
+.btn-light {
+  background-color: #f1f5f9;
+  color: #334155 !important;
+  border-color: #e2e8f0;
+}
+.btn-light:hover {
+  background-color: #e2e8f0;
+  border-color: #cbd5e1;
+}
+
+/* Outline Variants */
+.btn-outline-primary {
+  background-color: transparent;
+  color: var(--rm-primary) !important;
+  border-color: var(--rm-primary);
+}
+.btn-outline-primary:hover {
+  background-color: var(--rm-primary);
+  color: #ffffff !important;
+}
+
+.btn-outline-secondary {
+  background-color: transparent;
+  color: var(--rm-secondary) !important;
+  border-color: var(--rm-border);
+}
+.btn-outline-secondary:hover {
+  background-color: #f8fafc;
+  color: #0f172a !important;
+  border-color: #94a3b8;
+}
+
+.btn-outline-success {
+  background-color: #ecfdf5;
+  color: var(--rm-success) !important;
+  border-color: var(--rm-success);
+}
+.btn-outline-success:hover {
+  background-color: var(--rm-success);
+  color: #ffffff !important;
+}
+
+.btn-outline-danger {
+  background-color: #fef2f2;
+  color: var(--rm-danger) !important;
+  border-color: var(--rm-danger);
+}
+.btn-outline-danger:hover {
+  background-color: var(--rm-danger);
+  color: #ffffff !important;
+}
+
+.btn-outline-warning {
+  background-color: #fffbeb;
+  color: var(--rm-warning) !important;
+  border-color: var(--rm-warning);
+}
+.btn-outline-warning:hover {
+  background-color: var(--rm-warning);
+  color: #ffffff !important;
+}
+
+/* ==========================================================================
+   BADGES & PILLS
+   ========================================================================== */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.badge-pill {
+  border-radius: 9999px;
+  padding: 4px 10px;
+}
+
+.badge-primary { background-color: #e0f2fe; color: #0284c7; }
+.badge-secondary { background-color: #f1f5f9; color: #475569; }
+.badge-success { background-color: #dcfce7; color: #15803d; }
+.badge-danger { background-color: #fee2e2; color: #b91c1c; }
+.badge-warning { background-color: #fef3c7; color: #b45309; }
+.badge-info { background-color: #cffafe; color: #0e7490; }
+
+/* ==========================================================================
+   CARDS & CONTAINERS
+   ========================================================================== */
+.card {
+  background: #ffffff;
+  border: 1px solid var(--rm-border);
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
+}
+
+.card-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid #e2e8f0;
+  background-color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.card-body {
+  padding: 20px;
+}
+
+.card-footer {
+  padding: 14px 20px;
+  border-top: 1px solid #e2e8f0;
+  background-color: #f8fafc;
+}
+
+/* ==========================================================================
+   FORM CONTROLS (form-control, form-select, etc)
+   ========================================================================== */
+.form-control,
+.form-select {
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: #0f172a;
+  background-color: #ffffff;
+  border: 1px solid var(--rm-border);
+  border-radius: 8px;
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+  outline: none;
+  font-family: inherit;
+}
+
+.form-control:focus,
+.form-select:focus {
+  border-color: var(--rm-primary);
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
+}
+
+.form-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+  margin-bottom: 6px;
+}
+
+/* ==========================================================================
+   TABLES
+   ========================================================================== */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.table th {
+  background-color: #f8fafc;
+  color: #475569;
+  font-weight: 700;
+  text-align: left;
+  padding: 10px 14px;
+  border-bottom: 2px solid #e2e8f0;
+  white-space: nowrap;
+}
+
+.table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #1e293b;
+  vertical-align: middle;
+}
+
+.table-hover tbody tr:hover {
+  background-color: #f8fafc;
+}
+
+.table-bordered th,
+.table-bordered td {
+  border: 1px solid #e2e8f0;
+}
+
+/* ==========================================================================
+   FLEX & GRID SHORTCUT UTILITIES
+   ========================================================================== */
+.d-flex { display: flex !important; }
+.d-inline-flex { display: inline-flex !important; }
+.d-none { display: none !important; }
+.d-block { display: block !important; }
+
+.flex-row { flex-direction: row !important; }
+.flex-column { flex-direction: column !important; }
+.flex-wrap { flex-wrap: wrap !important; }
+
+.justify-content-start { justify-content: flex-start !important; }
+.justify-content-end { justify-content: flex-end !important; }
+.justify-content-center { justify-content: center !important; }
+.justify-content-between { justify-content: space-between !important; }
+
+.align-items-start { align-items: flex-start !important; }
+.align-items-end { align-items: flex-end !important; }
+.align-items-center { align-items: center !important; }
+
+.gap-1 { gap: 4px !important; }
+.gap-2 { gap: 8px !important; }
+.gap-3 { gap: 12px !important; }
+.gap-4 { gap: 16px !important; }
+
+.w-100 { width: 100% !important; }
+.text-center { text-align: center !important; }
+.text-end { text-align: right !important; }
+.text-muted { color: var(--rm-secondary) !important; }
+.fw-bold { font-weight: 700 !important; }
+.fw-semibold { font-weight: 600 !important; }
