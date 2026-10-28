@@ -1140,30 +1140,6 @@ export default function PesananMasukDesktopView() {
                                   <CheckCircle2 size={11} color="#16a34a" /> Sudah Kirim
                                 </span>
                               )}
-
-                              {/* Tombol Detail (Selalu Ada) */}
-                              <button
-                                type="button"
-                                onClick={() => setDetailOrder(ord)}
-                                title="Lihat Detail Pesanan"
-                                style={{
-                                  height: '24px',
-                                  padding: '0 8px',
-                                  borderRadius: '4px',
-                                  border: '1px solid #0284c7',
-                                  backgroundColor: '#0284c7',
-                                  color: '#ffffff',
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '4px',
-                                  cursor: 'pointer',
-                                  fontSize: '10.5px',
-                                  fontWeight: '700'
-                                }}
-                              >
-                                <Eye size={11} />
-                                <span>Detail</span>
-                              </button>
                             </div>
                           );
                         })()}
