@@ -151,7 +151,13 @@ export default defineConfig({
   plugins: [react(), uploadDesignPlugin(), marketplacePlugin()],
   server: {
     port: 3000,
-    open: true
+    open: true,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:5010',
+        changeOrigin: true
+      }
+    }
   }
 });
 

@@ -292,4 +292,107 @@ export class ShopeeService {
       };
     });
   }
+
+  // 6. Mendapatkan Daftar Order SN Shopee
+  async getOrderList(shopId, accessToken, pageSize = 50) {
+    const path = '/api/v2/order/get_order_list';
+    const timestamp = Math.floor(Date.now() / 1000);
+    const sId = String(shopId);
+    const sign = this.generateSignature(path, timestamp, accessToken, sId);
+
+    const timeTo = timestamp;
+    const timeFrom = timestamp - 14 * 86400; // 14 hari terakhir
+
+    const query = new URLSearchParams({
+      partner_id: this.partnerId,
+      timestamp,
+      access_token: accessToken,
+      shop_id: sId,
+      sign,
+      time_range_field: 'create_time',
+      time_from: timeFrom,
+      time_to: timeTo,
+      page_size: pageSize
+    });
+
+    const url = `${this.baseUrl}${path}?${query.toString()}`;
+    const res = await this.requestGet(url);
+
+    if (res.error && res.error !== '') {
+      throw new Error(`Shopee Order List Error: ${res.message || res.error}`);
+    }
+
+    return res.response?.order_list || [];
+  }
+
+  // 7. Mendapatkan Detail Lengkap Order (Status, Buyer, Total, Items)
+  async getOrderDetail(shopId, accessToken, orderSnList = []) {
+    if (!orderSnList || orderSnList.length === 0) return [];
+
+    const path = '/api/v2/order/get_order_detail';
+    const timestamp = Math.floor(Date.now() / 1000);
+    const sId = String(shopId);
+    const sign = this.generateSignature(path, timestamp, accessToken, sId);
+
+    const query = new URLSearchParams({
+      partner_id: this.partnerId,
+      timestamp,
+      access_token: accessToken,
+      shop_id: sId,
+      sign,
+      order_sn_list: orderSnList.join(','),
+      response_optional_fields: 'buyer_user_id,buyer_username,item_list,total_amount,order_status'
+    });
+
+    const url = `${this.baseUrl}${path}?${query.toString()}`;
+    const res = await this.requestGet(url);
+
+    if (res.error && res.error !== '') {
+      throw new Error(`Shopee Order Detail Error: ${res.message || res.error}`);
+    }
+
+    return res.response?.order_list || [];
+  }
+
+  // 8. Sinkronisasi Pesanan Shopee
+  async syncOrders(shopId, accessToken, fallbackShopName = 'Koperasi Sahabat Anak Bangsa') {
+    const sId = String(shopId);
+    const orderList = await this.getOrderList(sId, accessToken, 50);
+    if (!orderList || orderList.length === 0) return [];
+
+    const orderSns = orderList.map(o => o.order_sn).filter(Boolean);
+    let details = [];
+    for (let i = 0; i < orderSns.length; i += 50) {
+      const batchSns = orderSns.slice(i, i + 50);
+      const batchDetails = await this.getOrderDetail(sId, accessToken, batchSns);
+      details = details.concat(batchDetails);
+    }
+
+    return details.map(d => {
+      const items = (d.item_list || []).map(it => ({
+        id: `item-${it.item_id}`,
+        item_id: it.item_id,
+        nama_produk: it.item_name || 'Produk Pesanan',
+        sku: it.item_sku || `SKU-${it.item_id}`,
+        kategori: 'Marketplace Order',
+        satuan: 'PCS',
+        qty: it.model_quantity_purchased || 1,
+        harga: it.model_discounted_price || it.model_original_price || 0,
+        varian: it.model_name || 'Standard'
+      }));
+
+      return {
+        id: `shopee_${d.order_sn}`,
+        no_pesanan: d.order_sn,
+        saluran: 'shopee',
+        nama_saluran: 'Shopee Marketplace',
+        nama_toko: fallbackShopName,
+        nama_pembeli: d.buyer_username || `Buyer #${d.buyer_user_id || 'Shopee'}`,
+        total_harga: Number(d.total_amount) || 0,
+        status_pesanan: d.order_status || 'Perlu Diproses',
+        items: items
+      };
+    });
+  }
 }
+
