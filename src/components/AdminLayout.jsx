@@ -467,11 +467,11 @@ export default function AdminLayout() {
                   gap: '4px',
                   padding: '0 8px',
                   borderRadius: '5px',
-                  border: (activeTab === 'produk' || activeTab === 'kategori' || activeTab === 'karyawan' || isDataMasterOpen) ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.08)',
-                  backgroundColor: (activeTab === 'produk' || activeTab === 'kategori' || activeTab === 'karyawan' || isDataMasterOpen) ? '#0284c7' : 'rgba(255, 255, 255, 0.05)',
-                  color: (activeTab === 'produk' || activeTab === 'kategori' || activeTab === 'karyawan' || isDataMasterOpen) ? '#ffffff' : '#cbd5e1',
+                  border: (activeTab === 'produk' || activeTab === 'produk_marketplace' || activeTab === 'kategori' || activeTab === 'karyawan' || isDataMasterOpen) ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.08)',
+                  backgroundColor: (activeTab === 'produk' || activeTab === 'produk_marketplace' || activeTab === 'kategori' || activeTab === 'karyawan' || isDataMasterOpen) ? '#0284c7' : 'rgba(255, 255, 255, 0.05)',
+                  color: (activeTab === 'produk' || activeTab === 'produk_marketplace' || activeTab === 'kategori' || activeTab === 'karyawan' || isDataMasterOpen) ? '#ffffff' : '#cbd5e1',
                   fontSize: '11px',
-                  fontWeight: (activeTab === 'produk' || activeTab === 'kategori' || activeTab === 'karyawan' || isDataMasterOpen) ? '800' : '600',
+                  fontWeight: (activeTab === 'produk' || activeTab === 'produk_marketplace' || activeTab === 'kategori' || activeTab === 'karyawan' || isDataMasterOpen) ? '800' : '600',
                   lineHeight: 1,
                   cursor: 'pointer',
                   transition: 'all 0.15s ease',
@@ -479,25 +479,25 @@ export default function AdminLayout() {
                   boxShadow: (activeTab === 'produk' || activeTab === 'kategori' || activeTab === 'karyawan' || isDataMasterOpen) ? '0 0 10px rgba(2, 132, 199, 0.5)' : 'none'
                 }}
                 onMouseEnter={(e) => {
-                  if (activeTab !== 'produk' && activeTab !== 'kategori' && activeTab !== 'karyawan' && !isDataMasterOpen) {
+                  if (activeTab !== 'produk' && activeTab !== 'produk_marketplace' && activeTab !== 'kategori' && activeTab !== 'karyawan' && !isDataMasterOpen) {
                     e.currentTarget.style.backgroundColor = 'rgba(56, 189, 248, 0.15)';
                     e.currentTarget.style.borderColor = 'rgba(56, 189, 248, 0.3)';
                     e.currentTarget.style.color = '#ffffff';
                   }
                 }}
                 onMouseLeave={(e) => {
-                  if (activeTab !== 'produk' && activeTab !== 'kategori' && activeTab !== 'karyawan' && !isDataMasterOpen) {
+                  if (activeTab !== 'produk' && activeTab !== 'produk_marketplace' && activeTab !== 'kategori' && activeTab !== 'karyawan' && !isDataMasterOpen) {
                     e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
                     e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
                     e.currentTarget.style.color = '#cbd5e1';
                   }
                 }}
               >
-                <Boxes size={13} color={(activeTab === 'produk' || activeTab === 'kategori' || activeTab === 'karyawan' || isDataMasterOpen) ? '#ffffff' : '#38bdf8'} style={{ flexShrink: 0 }} />
+                <Boxes size={13} color={(activeTab === 'produk' || activeTab === 'produk_marketplace' || activeTab === 'kategori' || activeTab === 'karyawan' || isDataMasterOpen) ? '#ffffff' : '#38bdf8'} style={{ flexShrink: 0 }} />
                 <span>Data Master</span>
                 <ChevronDown 
                   size={11} 
-                  color={(activeTab === 'produk' || activeTab === 'kategori' || activeTab === 'karyawan' || isDataMasterOpen) ? '#ffffff' : '#38bdf8'} 
+                  color={(activeTab === 'produk' || activeTab === 'produk_marketplace' || activeTab === 'kategori' || activeTab === 'karyawan' || isDataMasterOpen) ? '#ffffff' : '#38bdf8'} 
                   style={{ 
                     transform: isDataMasterOpen ? 'rotate(180deg)' : 'none', 
                     transition: 'transform 0.15s ease',
@@ -524,7 +524,7 @@ export default function AdminLayout() {
                   flexDirection: 'column',
                   gap: '3px'
                 }}>
-                  {/* Submenu 1: Data Produk */}
+                  {/* Submenu 1: Master Produk */}
                   <button
                     type="button"
                     onClick={(e) => {
@@ -557,7 +557,43 @@ export default function AdminLayout() {
                     }}
                   >
                     <Package size={14} color={activeTab === 'produk' ? '#38bdf8' : '#94a3b8'} style={{ flexShrink: 0 }} />
-                    <span style={{ textAlign: 'left', flex: 1 }}>Data Produk</span>
+                    <span style={{ textAlign: 'left', flex: 1 }}>Master Produk</span>
+                  </button>
+
+                  {/* Submenu 2: Produk Marketplace (Tepat di bawah Master Produk) */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      changeTab('produk_marketplace');
+                      setIsDataMasterOpen(false);
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'flex-start',
+                      gap: '8px',
+                      width: '100%',
+                      padding: '7px 10px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      backgroundColor: activeTab === 'produk_marketplace' ? 'rgba(2, 132, 199, 0.2)' : 'transparent',
+                      color: activeTab === 'produk_marketplace' ? '#38bdf8' : '#cbd5e1',
+                      fontSize: '11.5px',
+                      fontWeight: activeTab === 'produk_marketplace' ? '800' : '600',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'background-color 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (activeTab !== 'produk_marketplace') e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (activeTab !== 'produk_marketplace') e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
+                  >
+                    <ShoppingBag size={14} color={activeTab === 'produk_marketplace' ? '#38bdf8' : '#94a3b8'} style={{ flexShrink: 0 }} />
+                    <span style={{ textAlign: 'left', flex: 1 }}>Produk Marketplace</span>
                   </button>
 
                   {/* Submenu 2: Kategori Produk */}
@@ -889,41 +925,6 @@ export default function AdminLayout() {
                   >
                     <Store size={14} color={activeTab === 'marketplace' ? '#38bdf8' : '#94a3b8'} style={{ flexShrink: 0 }} />
                     <span style={{ textAlign: 'left', flex: 1 }}>Tambah Toko Marketplace</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      changeTab('produk_marketplace');
-                      setIsMarketplaceOpen(false);
-                    }}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'flex-start',
-                      gap: '8px',
-                      width: '100%',
-                      padding: '7px 10px',
-                      borderRadius: '6px',
-                      border: 'none',
-                      backgroundColor: activeTab === 'produk_marketplace' ? 'rgba(2, 132, 199, 0.2)' : 'transparent',
-                      color: activeTab === 'produk_marketplace' ? '#38bdf8' : '#cbd5e1',
-                      fontSize: '11.5px',
-                      fontWeight: activeTab === 'produk_marketplace' ? '800' : '600',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      transition: 'background-color 0.15s ease'
-                    }}
-                    onMouseEnter={(e) => {
-                      if (activeTab !== 'produk_marketplace') e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)';
-                    }}
-                    onMouseLeave={(e) => {
-                      if (activeTab !== 'produk_marketplace') e.currentTarget.style.backgroundColor = 'transparent';
-                    }}
-                  >
-                    <ShoppingBag size={14} color={activeTab === 'produk_marketplace' ? '#38bdf8' : '#94a3b8'} style={{ flexShrink: 0 }} />
-                    <span style={{ textAlign: 'left', flex: 1 }}>Tabel Produk Marketplace</span>
                   </button>
                 </div>
               )}
