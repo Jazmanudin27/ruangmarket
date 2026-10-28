@@ -987,19 +987,54 @@ const server = http.createServer(async (req, res) => {
 
   // 12. TikTok Orders Sync API (Tarik dari TikTok Shop & Simpan ke MySQL)
   if (pathname === '/api/marketplace/tiktok/orders' && req.method === 'GET') {
-    const shopCipher = urlObj.searchParams.get('shop_cipher') || 'ROW_Hbd_fAAAAACqX58asQX4uCOsoefXXn4c';
+    let shopCipher = urlObj.searchParams.get('shop_cipher');
     let accessToken = urlObj.searchParams.get('access_token');
 
     try {
       let shopName = 'RUANG SERAGAM';
-      const [storeRows] = await pool.query('SELECT nama_toko, token_akses FROM toko_marketplace WHERE id_toko = ? OR saluran = "tiktok" LIMIT 1', [shopCipher]);
+      let refreshToken = null;
+      let storeId = null;
+
+      const [storeRows] = await pool.query('SELECT id, nama_toko, token_akses, token_refresh, cipher_toko, id_toko FROM toko_marketplace WHERE id_toko = ? OR cipher_toko = ? OR saluran = "tiktok" LIMIT 1', [shopCipher, shopCipher]);
       if (storeRows.length > 0) {
         accessToken = storeRows[0].token_akses || accessToken;
+        refreshToken = storeRows[0].token_refresh;
+        shopCipher = storeRows[0].cipher_toko || storeRows[0].id_toko || shopCipher;
         shopName = storeRows[0].nama_toko || shopName;
+        storeId = storeRows[0].id;
       }
 
-      console.log(`[TikTok] Syncing orders for shop: ${shopName}...`);
-      const orders = await tiktokService.syncOrders(accessToken, shopCipher, shopName);
+      console.log(`[TikTok] Syncing orders for shop: ${shopName} (Cipher: ${shopCipher})...`);
+      let orders = [];
+
+      try {
+        orders = await tiktokService.syncOrders(accessToken, shopCipher, shopName);
+      } catch (syncErr) {
+        const msg = syncErr.message.toLowerCase();
+        if ((msg.includes('token') || msg.includes('auth') || msg.includes('105001') || msg.includes('expired')) && refreshToken) {
+          console.log(`[TikTok Sync]: Auto-refreshing access token untuk ${shopName}...`);
+          const refreshed = await tiktokService.refreshAccessToken(refreshToken);
+          if (refreshed?.access_token) {
+            accessToken = refreshed.access_token;
+            refreshToken = refreshed.refresh_token || refreshToken;
+            if (storeId) {
+              await pool.query('UPDATE toko_marketplace SET token_akses = ?, token_refresh = ? WHERE id = ?', [
+                accessToken,
+                refreshToken,
+                storeId
+              ]);
+            }
+            orders = await tiktokService.syncOrders(accessToken, shopCipher, shopName);
+          } else {
+            throw syncErr;
+          }
+        } else {
+          throw syncErr;
+        }
+      }
+
+      // Hapus data dummy lama jika pernah tersimpan
+      await pool.query("DELETE FROM pesanan_marketplace WHERE saluran = 'tiktok' AND (nama_pembeli LIKE '%Pelanggan TikTok Live%' OR no_pesanan LIKE 'ORD-TT-%')").catch(() => {});
 
       // Simpan langsung ke database MySQL (pesanan_marketplace)
       for (const ord of orders) {
@@ -1008,8 +1043,11 @@ const server = http.createServer(async (req, res) => {
           INSERT INTO pesanan_marketplace (
             id, kode_perusahaan, no_pesanan, saluran, 
             nama_toko, nama_pembeli, total_harga, status_pesanan, no_spk,
-            rincian_item, kurir, no_resi, waktu_pesanan, ditarik_pada
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            rincian_item, kurir, no_resi, waktu_pesanan, batas_kirim,
+            ongkir, marketplace_fee, fee_platform, fee_free_shipping, fee_service, net_amount,
+            alamat, no_telepon,
+            ditarik_pada
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
           ON DUPLICATE KEY UPDATE
             nama_pembeli = VALUES(nama_pembeli),
             total_harga = VALUES(total_harga),
@@ -1018,6 +1056,15 @@ const server = http.createServer(async (req, res) => {
             kurir = VALUES(kurir),
             no_resi = VALUES(no_resi),
             waktu_pesanan = VALUES(waktu_pesanan),
+            batas_kirim = VALUES(batas_kirim),
+            ongkir = VALUES(ongkir),
+            marketplace_fee = VALUES(marketplace_fee),
+            fee_platform = VALUES(fee_platform),
+            fee_free_shipping = VALUES(fee_free_shipping),
+            fee_service = VALUES(fee_service),
+            net_amount = VALUES(net_amount),
+            alamat = VALUES(alamat),
+            no_telepon = VALUES(no_telepon),
             no_spk = COALESCE(VALUES(no_spk), no_spk)
         `, [
           ord.id,
@@ -1032,7 +1079,16 @@ const server = http.createServer(async (req, res) => {
           itemsJson,
           ord.kurir || 'J&T Express',
           ord.no_resi || '',
-          ord.waktu_pesanan ? new Date(ord.waktu_pesanan) : new Date()
+          ord.waktu_pesanan ? new Date(ord.waktu_pesanan) : new Date(),
+          ord.batas_kirim ? new Date(ord.batas_kirim) : null,
+          ord.ongkir || 0,
+          ord.marketplace_fee || 0,
+          ord.fee_platform || 0,
+          ord.fee_free_shipping || 0,
+          ord.fee_service || 0,
+          ord.net_amount || ord.total_harga || 0,
+          ord.alamat || '',
+          ord.telepon || ''
         ]);
       }
 
@@ -1113,15 +1169,47 @@ const server = http.createServer(async (req, res) => {
             totalSynced += shopeeOrders.length;
             results.push({ store: st.nama_toko, channel: 'shopee', count: shopeeOrders.length });
           } else if (st.saluran === 'tiktok') {
-            const ttOrders = await tiktokService.syncOrders(st.token_akses, st.id_toko, st.nama_toko);
+            const cipher = st.cipher_toko || st.id_toko;
+            let currentToken = st.token_akses;
+            let ttOrders = [];
+
+            try {
+              ttOrders = await tiktokService.syncOrders(currentToken, cipher, st.nama_toko);
+            } catch (ttErr) {
+              const msg = ttErr.message.toLowerCase();
+              if ((msg.includes('token') || msg.includes('auth') || msg.includes('105001') || msg.includes('expired')) && st.token_refresh) {
+                console.log(`[TikTok Sync]: Refreshing access token untuk ${st.nama_toko}...`);
+                const refreshed = await tiktokService.refreshAccessToken(st.token_refresh);
+                if (refreshed?.access_token) {
+                  currentToken = refreshed.access_token;
+                  await pool.query('UPDATE toko_marketplace SET token_akses = ?, token_refresh = ? WHERE id = ?', [
+                    refreshed.access_token,
+                    refreshed.refresh_token || st.token_refresh,
+                    st.id
+                  ]);
+                  ttOrders = await tiktokService.syncOrders(currentToken, cipher, st.nama_toko);
+                } else {
+                  throw ttErr;
+                }
+              } else {
+                throw ttErr;
+              }
+            }
+
+            // Hapus pesanan dummy jika ada
+            await pool.query("DELETE FROM pesanan_marketplace WHERE saluran = 'tiktok' AND (nama_pembeli LIKE '%Pelanggan TikTok Live%' OR no_pesanan LIKE 'ORD-TT-%')").catch(() => {});
+
             for (const ord of ttOrders) {
               const itemsJson = JSON.stringify(ord.items || []);
               await pool.query(`
                 INSERT INTO pesanan_marketplace (
                   id, kode_perusahaan, no_pesanan, saluran, 
                   nama_toko, nama_pembeli, total_harga, status_pesanan, no_spk,
-                  rincian_item, kurir, no_resi, waktu_pesanan, ditarik_pada
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                  rincian_item, kurir, no_resi, waktu_pesanan, batas_kirim,
+                  ongkir, marketplace_fee, fee_platform, fee_free_shipping, fee_service, net_amount,
+                  alamat, no_telepon,
+                  ditarik_pada
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 ON DUPLICATE KEY UPDATE
                   nama_pembeli = VALUES(nama_pembeli),
                   total_harga = VALUES(total_harga),
@@ -1130,6 +1218,15 @@ const server = http.createServer(async (req, res) => {
                   kurir = VALUES(kurir),
                   no_resi = VALUES(no_resi),
                   waktu_pesanan = VALUES(waktu_pesanan),
+                  batas_kirim = VALUES(batas_kirim),
+                  ongkir = VALUES(ongkir),
+                  marketplace_fee = VALUES(marketplace_fee),
+                  fee_platform = VALUES(fee_platform),
+                  fee_free_shipping = VALUES(fee_free_shipping),
+                  fee_service = VALUES(fee_service),
+                  net_amount = VALUES(net_amount),
+                  alamat = VALUES(alamat),
+                  no_telepon = VALUES(no_telepon),
                   no_spk = COALESCE(VALUES(no_spk), no_spk)
               `, [
                 ord.id,
@@ -1144,7 +1241,16 @@ const server = http.createServer(async (req, res) => {
                 itemsJson,
                 ord.kurir || 'J&T Express',
                 ord.no_resi || '',
-                ord.waktu_pesanan ? new Date(ord.waktu_pesanan) : new Date()
+                ord.waktu_pesanan ? new Date(ord.waktu_pesanan) : new Date(),
+                ord.batas_kirim ? new Date(ord.batas_kirim) : null,
+                ord.ongkir || 0,
+                ord.marketplace_fee || 0,
+                ord.fee_platform || 0,
+                ord.fee_free_shipping || 0,
+                ord.fee_service || 0,
+                ord.net_amount || ord.total_harga || 0,
+                ord.alamat || '',
+                ord.telepon || ''
               ]);
             }
             totalSynced += ttOrders.length;

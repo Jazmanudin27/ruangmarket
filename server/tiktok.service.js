@@ -219,7 +219,7 @@ export class TiktokService {
     return flattenedRows;
   }
 
-  // 5. Ambil Daftar Pesanan dari TikTok Shop Open API
+  // 5. Ambil Daftar Pesanan dari TikTok Shop Open API (v202309)
   async getOrderSearch(accessToken, shopCipher, pageToken = '') {
     const timestamp = Math.floor(Date.now() / 1000);
     const path = '/order/202309/orders/search';
@@ -236,19 +236,19 @@ export class TiktokService {
       bodyObj.page_token = pageToken;
     }
 
-    const sign = this.generateSignature(path, queryObj, bodyObj);
+    const bodyJson = JSON.stringify(bodyObj);
+    const sign = this.generateSignature(path, queryObj, bodyJson);
     queryObj.sign = sign;
 
     const queryStr = new URLSearchParams(queryObj).toString();
     const url = `${this.baseUrl}${path}?${queryStr}`;
-    const bodyJson = JSON.stringify(bodyObj);
 
     const res = await this.request('POST', url, {
       'x-tts-access-token': accessToken
     }, bodyJson);
 
     if (res.code !== 0) {
-      throw new Error(`TikTok Orders API Error: ${res.message || 'Unknown Error'}`);
+      throw new Error(`TikTok Orders API Error: ${res.message || 'Unknown Error'} (Code ${res.code})`);
     }
 
     return {
@@ -257,70 +257,113 @@ export class TiktokService {
     };
   }
 
-  // 6. Sinkronisasi Pesanan TikTok Shop & Format untuk Pesanan Masuk
+  // 6. Sinkronisasi Pesanan TikTok Shop Asli & Format Lengkap Pesanan Masuk
   async syncOrders(accessToken, shopCipher, fallbackShopName = 'RUANG SERAGAM') {
-    let rawOrders = [];
-    try {
-      const result = await this.getOrderSearch(accessToken, shopCipher);
-      rawOrders = result.orders || [];
-    } catch (err) {
-      console.warn('[TikTok Orders Sync API Warning]:', err.message);
+    let activeCipher = shopCipher;
+
+    // Jika shopCipher belum ada, otomatis dapatkan dari API shops
+    if (!activeCipher) {
+      try {
+        const shops = await this.getShopInfo(accessToken);
+        if (shops && shops.length > 0 && shops[0].cipher) {
+          activeCipher = shops[0].cipher;
+        }
+      } catch (eShop) {
+        console.warn('[TikTok] getShopInfo warning:', eShop.message);
+      }
     }
 
+    if (!activeCipher) {
+      throw new Error('shop_cipher TikTok Shop tidak ditemukan. Pastikan akun TikTok Shop sudah terotorisasi.');
+    }
+
+    const result = await this.getOrderSearch(accessToken, activeCipher);
+    const rawOrders = result.orders || [];
+
     if (!rawOrders || rawOrders.length === 0) {
-      const orderId = `TT${Date.now().toString().slice(-8)}`;
-      return [
-        {
-          id: `tiktok_${orderId}`,
-          no_pesanan: `ORD-TT-${orderId}`,
-          saluran: 'tiktok',
-          nama_saluran: 'TikTok Shop',
-          nama_toko: fallbackShopName,
-          nama_pembeli: 'Pelanggan TikTok Live',
-          total_harga: 285000,
-          status_pesanan: 'Perlu Diproses',
-          kurir: 'J&T Express',
-          no_resi: `JT${Date.now().toString().slice(-9)}`,
-          waktu_pesanan: new Date().toISOString(),
-          items: [
-            {
-              id: `item-tt-${Date.now()}`,
-              nama_produk: 'Gamis Syari Jetblack Premium',
-              sku: 'RSG-GMS-01',
-              kategori: 'Gamis Syari',
-              satuan: 'PCS',
-              qty: 2,
-              harga: 142500,
-              varian: 'Hitam Jetblack - L'
-            }
-          ]
-        }
-      ];
+      return [];
     }
 
     return rawOrders.map(o => {
-      const items = (o.line_items || []).map(it => ({
-        id: `item-${it.id || it.sku_id || Math.random()}`,
-        nama_produk: it.product_name || 'Produk TikTok',
-        sku: it.seller_sku || `SKU-${it.sku_id || it.product_id}`,
-        satuan: 'PCS',
-        qty: Number(it.quantity) || 1,
-        harga: Number(it.sale_price) || 0,
-        varian: it.sku_name || it.sku_display_name || 'Standard'
-      }));
+      const items = (o.line_items || []).map(it => {
+        const itemSku = it.seller_sku || `SKU-${it.sku_id || it.product_id}`;
+        const itemPrice = Number(it.sale_price) || 0;
+        const itemQty = Number(it.quantity) || 1;
+        return {
+          id: `item-${it.id || it.sku_id || Math.random().toString(36).slice(2, 7)}`,
+          nama_produk: it.product_name || 'Produk TikTok',
+          sku: itemSku,
+          kategori: 'TikTok Shop',
+          satuan: 'PCS',
+          qty: itemQty,
+          harga: itemPrice,
+          subtotal: itemPrice * itemQty,
+          varian: it.sku_name || it.sku_display_name || 'Standard',
+          foto_produk: it.sku_image || it.product_image || ''
+        };
+      });
+
+      const subtotalPesanan = items.reduce((acc, it) => acc + (Number(it.subtotal) || 0), 0);
+      const totalAmount = Number(o.payment?.total_amount) || subtotalPesanan;
+      const shippingFee = Number(o.payment?.shipping_fee) || 0;
+      const platformDiscount = Number(o.payment?.platform_discount) || 0;
+      const sellerDiscount = Number(o.payment?.seller_discount) || 0;
+
+      // Estimasi fee TikTok
+      const marketplaceFee = Math.round(subtotalPesanan * 0.08);
+      const netAmount = Math.max(0, totalAmount - marketplaceFee);
+
+      // Normalisasi status pesanan ke format standar sistem
+      const rawStatus = String(o.status || '').toUpperCase();
+      let statusPesanan = 'Perlu Diproses';
+      if (rawStatus === 'AWAITING_SHIPMENT' || rawStatus === 'AWAITING_COLLECTION') {
+        statusPesanan = 'READY_TO_SHIP';
+      } else if (rawStatus === 'IN_TRANSIT' || rawStatus === 'DELIVERING' || rawStatus === 'SHIPPED') {
+        statusPesanan = 'TO_CONFIRM_RECEIVE';
+      } else if (rawStatus === 'DELIVERED' || rawStatus === 'COMPLETED') {
+        statusPesanan = 'COMPLETED';
+      } else if (rawStatus === 'CANCELLED') {
+        statusPesanan = 'CANCELLED';
+      } else if (rawStatus === 'UNPAID') {
+        statusPesanan = 'UNPAID';
+      }
+
+      const buyerName = o.recipient_address?.name || o.buyer_email || 'Pelanggan TikTok';
+      const buyerPhone = o.recipient_address?.phone_number || '';
+      const fullAddr = [
+        o.recipient_address?.full_address,
+        o.recipient_address?.district_info?.map(d => d.address_name).join(', '),
+        o.recipient_address?.postal_code
+      ].filter(Boolean).join(', ') || '';
+
+      const courierName = o.shipping_provider_name || o.delivery_option_name || 'Standar';
+
+      // Waktu pesanan & batas kirim
+      const orderDate = o.create_time ? new Date(o.create_time * 1000) : new Date();
+      const batasKirimDate = o.ship_by_date ? new Date(o.ship_by_date * 1000) : new Date(orderDate.getTime() + 24 * 3600 * 1000);
 
       return {
         id: `tiktok_${o.id}`,
-        no_pesanan: o.id,
+        no_pesanan: String(o.id),
         saluran: 'tiktok',
         nama_saluran: 'TikTok Shop',
         nama_toko: fallbackShopName,
-        nama_pembeli: o.recipient_address?.name || o.buyer_email || 'Pelanggan TikTok',
-        total_harga: Number(o.payment?.total_amount) || 0,
-        status_pesanan: o.status === 'AWAITING_SHIPMENT' ? 'Perlu Diproses' : (o.status || 'Perlu Diproses'),
-        kurir: o.shipping_provider_name || 'Standar',
+        nama_pembeli: buyerName,
+        telepon: buyerPhone,
+        alamat: fullAddr,
+        total_harga: totalAmount,
+        ongkir: shippingFee,
+        shipping_fee: shippingFee,
+        marketplace_fee: marketplaceFee,
+        fee_platform: platformDiscount,
+        fee_free_shipping: 0,
+        fee_service: marketplaceFee,
+        net_amount: netAmount,
+        status_pesanan: statusPesanan,
+        kurir: courierName,
         no_resi: o.tracking_number || '',
-        waktu_pesanan: o.create_time ? new Date(o.create_time * 1000).toISOString() : new Date().toISOString(),
+        waktu_pesanan: orderDate.toISOString(),
+        batas_kirim: batasKirimDate.toISOString(),
         items: items
       };
     });
