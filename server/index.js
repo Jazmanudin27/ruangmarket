@@ -16,7 +16,7 @@ function sendJson(res, statusCode, data) {
   res.writeHead(statusCode, {
     'Content-Type': 'application/json; charset=utf-8',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization'
   });
   res.end(JSON.stringify(data));
@@ -43,7 +43,7 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') {
     res.writeHead(204, {
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization'
     });
     return res.end();
@@ -127,6 +127,54 @@ const server = http.createServer(async (req, res) => {
         ORDER BY ditarik_pada DESC
       `);
       return sendJson(res, 200, { status: 'success', data: rows });
+    } catch (err) {
+      return sendJson(res, 500, { status: 'error', message: err.message });
+    }
+  }
+
+  // 6b. Update / Hapus satu produk marketplace staging
+  const productIdMatch = pathname.match(/^\/api\/marketplace\/products\/([^/]+)$/);
+  if (productIdMatch) productIdMatch[1] = decodeURIComponent(productIdMatch[1]);
+  if (productIdMatch && req.method === 'PUT') {
+    try {
+      const body = await parseJsonBody(req);
+      const columnMap = {
+        nama_produk: 'nama_produk',
+        sku_marketplace: 'sku_marketplace',
+        harga_jual: 'harga_jual',
+        stok_marketplace: 'stok_marketplace',
+        varian_marketplace: 'varian',
+        status: 'status_mapping'
+      };
+      const sets = [];
+      const values = [];
+      for (const [key, col] of Object.entries(columnMap)) {
+        if (body[key] !== undefined) {
+          sets.push(`${col} = ?`);
+          values.push(key === 'varian_marketplace' ? String(body[key]).slice(0, 65000) : body[key]);
+        }
+      }
+      if (sets.length === 0) {
+        return sendJson(res, 400, { status: 'error', message: 'Tidak ada field yang diubah' });
+      }
+      values.push(productIdMatch[1]);
+      const [result] = await pool.query(`UPDATE produk_marketplace SET ${sets.join(', ')} WHERE id = ?`, values);
+      if (result.affectedRows === 0) {
+        return sendJson(res, 404, { status: 'error', message: 'Produk tidak ditemukan' });
+      }
+      return sendJson(res, 200, { status: 'success' });
+    } catch (err) {
+      return sendJson(res, 500, { status: 'error', message: err.message });
+    }
+  }
+
+  if (productIdMatch && req.method === 'DELETE') {
+    try {
+      const [result] = await pool.query('DELETE FROM produk_marketplace WHERE id = ?', [productIdMatch[1]]);
+      if (result.affectedRows === 0) {
+        return sendJson(res, 404, { status: 'error', message: 'Produk tidak ditemukan' });
+      }
+      return sendJson(res, 200, { status: 'success' });
     } catch (err) {
       return sendJson(res, 500, { status: 'error', message: err.message });
     }

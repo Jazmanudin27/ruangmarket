@@ -373,3 +373,6 @@
 .btn-aksi--info    { background-color: #06b6d4; } /* detail */
 .btn-aksi--primary { background-color: #0284c7; } /* edit / salin */
 .btn-aksi--danger  { background-color: #ef4444; } /* hapus */
+
+.btn-aksi:disabled { opacity: 0.4; cursor: not-allowed; }
+
