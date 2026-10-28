@@ -285,6 +285,8 @@ export default function ProdukView() {
   const [filterTipeSet, setFilterTipeSet] = useState('Semua');
   const [filterStatusOrder, setFilterStatusOrder] = useState('Semua');
   const [filterStatus, setFilterStatus] = useState('Semua');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [entriesPerPage, setEntriesPerPage] = useState(25);
 
   // Modals state
   const [selectedProduk, setSelectedProduk] = useState(null);
@@ -396,6 +398,14 @@ export default function ProdukView() {
     return true;
   });
 
+  const totalPages = Math.ceil(filteredList.length / entriesPerPage) || 1;
+  const paginatedList = filteredList.slice((currentPage - 1) * entriesPerPage, currentPage * entriesPerPage);
+
+  const changeTab = (tab) => {
+    setActiveFilterTab(tab);
+    setCurrentPage(1);
+  };
+
   const handleRefresh = () => {
     setSearch('');
     setActiveFilterTab('semua');
@@ -403,6 +413,7 @@ export default function ProdukView() {
     setFilterTipeSet('Semua');
     setFilterStatusOrder('Semua');
     setFilterStatus('Semua');
+    setCurrentPage(1);
     loadMasterProduk();
     toastSuccess('Data produk berhasil diperbarui dari database');
   };
@@ -637,7 +648,7 @@ export default function ProdukView() {
         
         {/* Tab 1: Semua Produk (Biru) */}
         <button
-          onClick={() => setActiveFilterTab('semua')}
+          onClick={() => changeTab('semua')}
           style={{
             height: '28px',
             display: 'inline-flex',
@@ -663,7 +674,7 @@ export default function ProdukView() {
 
         {/* Tab 2: Produk Tersedia (Hijau) */}
         <button
-          onClick={() => setActiveFilterTab('tersedia')}
+          onClick={() => changeTab('tersedia')}
           style={{
             height: '28px',
             display: 'inline-flex',
@@ -689,7 +700,7 @@ export default function ProdukView() {
 
         {/* Tab 3: Stok Menipis (Oranye/Amber) */}
         <button
-          onClick={() => setActiveFilterTab('menipis')}
+          onClick={() => changeTab('menipis')}
           style={{
             height: '28px',
             display: 'inline-flex',
@@ -715,7 +726,7 @@ export default function ProdukView() {
 
         {/* Tab 4: Stok Habis (Merah) */}
         <button
-          onClick={() => setActiveFilterTab('habis')}
+          onClick={() => changeTab('habis')}
           style={{
             height: '28px',
             display: 'inline-flex',
@@ -761,7 +772,10 @@ export default function ProdukView() {
           <input
             type="text"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setCurrentPage(1);
+            }}
             placeholder="Cari nama produk, SKU, varian, tipe set, status order..."
             style={{
               width: '100%',
@@ -787,7 +801,10 @@ export default function ProdukView() {
         {/* Select Kategori */}
         <select
           value={filterKategori}
-          onChange={(e) => setFilterKategori(e.target.value)}
+          onChange={(e) => {
+            setFilterKategori(e.target.value);
+            setCurrentPage(1);
+          }}
           style={{
             padding: '6px 10px',
             borderRadius: '6px',
@@ -808,7 +825,10 @@ export default function ProdukView() {
         {/* Select Tipe: Satu Setel / Single */}
         <select
           value={filterTipeSet}
-          onChange={(e) => setFilterTipeSet(e.target.value)}
+          onChange={(e) => {
+            setFilterTipeSet(e.target.value);
+            setCurrentPage(1);
+          }}
           style={{
             padding: '6px 10px',
             borderRadius: '6px',
@@ -828,7 +848,10 @@ export default function ProdukView() {
         {/* Select Status Order: Ready Stok / PO */}
         <select
           value={filterStatusOrder}
-          onChange={(e) => setFilterStatusOrder(e.target.value)}
+          onChange={(e) => {
+            setFilterStatusOrder(e.target.value);
+            setCurrentPage(1);
+          }}
           style={{
             padding: '6px 10px',
             borderRadius: '6px',
@@ -848,7 +871,10 @@ export default function ProdukView() {
         {/* Select Status Stok Fisik */}
         <select
           value={filterStatus}
-          onChange={(e) => setFilterStatus(e.target.value)}
+          onChange={(e) => {
+            setFilterStatus(e.target.value);
+            setCurrentPage(1);
+          }}
           style={{
             padding: '6px 10px',
             borderRadius: '6px',
@@ -864,6 +890,31 @@ export default function ProdukView() {
           <option value="Tersedia">Tersedia</option>
           <option value="Menipis">Menipis</option>
           <option value="Habis">Habis</option>
+        </select>
+
+        {/* Select Baris Per Halaman (Paging) */}
+        <select
+          value={entriesPerPage}
+          onChange={(e) => {
+            setEntriesPerPage(Number(e.target.value));
+            setCurrentPage(1);
+          }}
+          style={{
+            padding: '6px 10px',
+            borderRadius: '6px',
+            border: '1px solid #cbd5e1',
+            fontSize: '12px',
+            color: '#334155',
+            backgroundColor: '#ffffff',
+            cursor: 'pointer',
+            minWidth: '105px'
+          }}
+        >
+          <option value={10}>10 Baris</option>
+          <option value={25}>25 Baris</option>
+          <option value={50}>50 Baris</option>
+          <option value={100}>100 Baris</option>
+          <option value={250}>250 Baris</option>
         </select>
 
       </div>
@@ -900,7 +951,8 @@ export default function ProdukView() {
                   </td>
                 </tr>
               ) : (
-                filteredList.map((item, index) => {
+                paginatedList.map((item, index) => {
+                  const rowNumber = (currentPage - 1) * entriesPerPage + index + 1;
                   return (
                     <tr 
                       key={item.id}
@@ -913,7 +965,7 @@ export default function ProdukView() {
                     >
                       {/* NO */}
                       <td style={{ padding: '5px 8px', textAlign: 'center', color: '#64748b', fontWeight: '600', border: '1px solid #cbd5e1' }}>
-                        {index + 1}
+                        {rowNumber}
                       </td>
 
                       {/* NAMA PRODUK & SKU */}
@@ -1175,22 +1227,63 @@ export default function ProdukView() {
           </table>
         </div>
 
-        {/* TABLE FOOTER SUMMARY */}
+        {/* PAGING FOOTER */}
         <div style={{
-          padding: '8px 12px',
-          borderTop: '1px solid #f1f5f9',
-          backgroundColor: '#fafbfc',
+          padding: '8px 14px',
+          borderTop: '1px solid #cbd5e1',
+          backgroundColor: '#f8fafc',
           display: 'flex',
-          justifyContent: 'space-between',
           alignItems: 'center',
-          fontSize: '11px',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '10px',
+          fontSize: '11.5px',
           color: '#64748b'
         }}>
           <div>
-            Menampilkan <b>{filteredList.length}</b> dari <b>{totalProduk}</b> total produk terdaftar
+            Menampilkan <strong>{filteredList.length === 0 ? 0 : (currentPage - 1) * entriesPerPage + 1}</strong> sampai <strong>{Math.min(currentPage * entriesPerPage, filteredList.length)}</strong> dari <strong>{filteredList.length}</strong> produk (Total: {totalProduk})
           </div>
-          <div>
-            Data otomatis tersimpan di LocalStorage browser
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <button
+              type="button"
+              disabled={currentPage <= 1}
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              style={{
+                padding: '4px 12px',
+                borderRadius: '5px',
+                border: '1px solid #cbd5e1',
+                backgroundColor: currentPage <= 1 ? '#f1f5f9' : '#ffffff',
+                color: currentPage <= 1 ? '#94a3b8' : '#334155',
+                cursor: currentPage <= 1 ? 'not-allowed' : 'pointer',
+                fontSize: '11.5px',
+                fontWeight: '700',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              Sebelumnya
+            </button>
+            <span style={{ padding: '0 8px', fontWeight: '800', color: '#0f172a', fontSize: '12px' }}>
+              {currentPage} / {totalPages}
+            </span>
+            <button
+              type="button"
+              disabled={currentPage >= totalPages}
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              style={{
+                padding: '4px 12px',
+                borderRadius: '5px',
+                border: '1px solid #cbd5e1',
+                backgroundColor: currentPage >= totalPages ? '#f1f5f9' : '#ffffff',
+                color: currentPage >= totalPages ? '#94a3b8' : '#334155',
+                cursor: currentPage >= totalPages ? 'not-allowed' : 'pointer',
+                fontSize: '11.5px',
+                fontWeight: '700',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              Selanjutnya
+            </button>
           </div>
         </div>
 
