@@ -71,22 +71,40 @@ export default function MarketplaceView({ onBack, onNavigate }) {
       status: 'Active (Connected)',
       deliveryType: 'DROP_OFF',
       autoSyncStok: true
+    },
+    {
+      id: 'tk_tiktok_ruangseragam',
+      company_code: 'RSG',
+      channel: 'tiktok',
+      channelName: 'TikTok Shop',
+      shopName: 'RUANG SERAGAM',
+      shopId: '943001511',
+      logo: 'store-logos/RHpinX96Guj27mmJvXhS5f0ln85cdS7mHKTrEqqH.png',
+      cipher: '',
+      accessToken: 'eyJhbGciOiJIUzI1NiJ9.CLekfBABGKef1MEDIAEomouF1wYww7rjkQs4AUABSAc.yaoTf5Am1TA6wv-VhUAF5vAR51IEmp8JcwAtwyCSqMU',
+      refreshToken: 'eyJhbGciOiJIUzI1NiJ9.CLekfBABGKef1MEDIAIomouF1wYwuLmXzwY4AUABSAc.56zyC9N1eE64c1ZW4GRmYRo0pMuiWUGz02HuHZr7Pp8',
+      expiresAt: '2026-10-28 11:45:14',
+      connectedAt: '24 Jul 2026, 14:56',
+      lastSyncAt: '28 Okt 2026, 07:45',
+      status: 'Active (Connected)',
+      deliveryType: 'DROP_OFF',
+      autoSyncStok: true
     }
   ];
 
-  // Daftar toko terhubung (Shopee RAGANTARA UNIFORM)
+  // Daftar toko terhubung
   const [connectedStores, setConnectedStores] = useState(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY_TOKO);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          // Izinkan toko resmi Shopee (Koperasi Sahabat Anak Bangsa)
-          const filtered = parsed.filter(s => s.shopId === '1030191310' || s.shopName?.includes('Sahabat'));
-          if (filtered.length > 0) {
-            localStorage.setItem(STORAGE_KEY_TOKO, JSON.stringify(filtered));
-            return filtered;
-          }
+          // Gabungkan toko dari storage dan pastikan kedua toko resmi selalu ada
+          const map = new Map(SINGLE_OFFICIAL_STORE.map(s => [s.shopId, s]));
+          parsed.forEach(s => map.set(s.shopId, { ...map.get(s.shopId), ...s }));
+          const merged = Array.from(map.values());
+          localStorage.setItem(STORAGE_KEY_TOKO, JSON.stringify(merged));
+          return merged;
         }
       }
     } catch (e) {}
@@ -95,6 +113,37 @@ export default function MarketplaceView({ onBack, onNavigate }) {
     } catch (e) {}
     return SINGLE_OFFICIAL_STORE;
   });
+
+  // Sinkronisasi dengan database backend MySQL
+  useEffect(() => {
+    fetch('/api/marketplace/stores')
+      .then(res => res.json())
+      .then(json => {
+        if (json.status === 'success' && Array.isArray(json.data) && json.data.length > 0) {
+          const formatted = json.data.map(d => ({
+            id: d.id,
+            company_code: d.company_code || 'RSG',
+            channel: d.channel,
+            channelName: d.channelName || (d.channel === 'tiktok' ? 'TikTok Shop' : 'Shopee Marketplace'),
+            shopName: d.shopName,
+            shopId: d.shopId,
+            logo: d.logo,
+            cipher: d.cipher,
+            accessToken: d.accessToken,
+            refreshToken: d.refreshToken,
+            expiresAt: d.expiresAt,
+            connectedAt: d.connectedAt || '28 Okt 2026',
+            lastSyncAt: d.lastSyncAt || '28 Okt 2026',
+            status: d.status || 'Active (Connected)',
+            deliveryType: 'DROP_OFF',
+            autoSyncStok: Boolean(d.autoSyncStok)
+          }));
+          setConnectedStores(formatted);
+          localStorage.setItem(STORAGE_KEY_TOKO, JSON.stringify(formatted));
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     try {

@@ -11,8 +11,6 @@ import {
   AlertTriangle,
   Package,
   Eye,
-  Edit3,
-  Save,
   X,
   CheckSquare
 } from 'lucide-react';
@@ -59,9 +57,6 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
   const [selectedIds, setSelectedIds] = useState([]);
   const [isBatchProcessing, setIsBatchProcessing] = useState(false);
   const [detailItem, setDetailItem] = useState(null);
-  const [editItem, setEditItem] = useState(null);
-  const [editForm, setEditForm] = useState({});
-  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     const handleCompanyChange = () => setActiveCompany(getActiveCompany());
@@ -170,22 +165,27 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
   };
 
   // Action: Salin produk marketplace MASAL ke Data Master Produk
-  const handleBatchImportToMaster = async () => {
-    const unmappedSelected = companyItems.filter(
-      item => selectedIds.includes(item.id) && !isMappedStatus(item.status)
-    );
+  const handleBatchImportToMaster = async (importAll = false) => {
+    let unmappedList = [];
+    if (importAll) {
+      unmappedList = companyItems.filter(item => !isMappedStatus(item.status));
+    } else {
+      unmappedList = companyItems.filter(
+        item => selectedIds.includes(item.id) && !isMappedStatus(item.status)
+      );
+    }
 
-    if (unmappedSelected.length === 0) {
-      toastError('Semua produk yang dipilih sudah ada di Master Data Produk!');
+    if (unmappedList.length === 0) {
+      toastError('Tidak ada produk yang belum terhubung ke Master Data!');
       return;
     }
 
-    const confirmed = await showConfirm(
-      'Jadikan Master Produk Massal?',
-      `Salin ${unmappedSelected.length} produk terpilih ke Data Master Produk ERP sekaligus?`,
-      'Ya, Salin Massal',
-      'Batal'
-    );
+    const title = importAll ? 'Jadikan Semua ke Master Produk?' : 'Jadikan Master Produk Terpilih?';
+    const message = importAll 
+      ? `Salin semua ${unmappedList.length} produk yang belum terhubung ke Data Master Produk ERP?`
+      : `Salin ${unmappedList.length} produk terpilih ke Data Master Produk ERP?`;
+
+    const confirmed = await showConfirm(title, message, 'Ya, Salin Massal', 'Batal');
     if (!confirmed) return;
 
     setIsBatchProcessing(true);
@@ -194,7 +194,7 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
       const masterList = savedMaster ? JSON.parse(savedMaster) : [];
       let currentMaxId = masterList.length > 0 ? Math.max(...masterList.map(p => Number(p.id) || 0)) : 0;
 
-      const newProducts = unmappedSelected.map((item, idx) => {
+      const newProducts = unmappedList.map((item, idx) => {
         const nextId = currentMaxId + idx + 1;
         return {
           id: nextId,
@@ -221,7 +221,7 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
       localStorage.setItem(PRODUK_MASTER_KEY, JSON.stringify([...newProducts, ...masterList]));
       window.dispatchEvent(new Event('storage'));
 
-      const targetIds = unmappedSelected.map(i => i.id);
+      const targetIds = unmappedList.map(i => i.id);
 
       // Update di state
       setMktProdukList(prev => prev.map(p => targetIds.includes(p.id) ? { ...p, status: 'Sudah di Master' } : p));
@@ -305,43 +305,6 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
     }
   };
 
-  const handleOpenEdit = (item) => {
-    setEditItem(item);
-    setEditForm({
-      nama_produk: item.nama_produk || '',
-      sku_marketplace: item.sku_marketplace || '',
-      varian_marketplace: item.varian_marketplace || '',
-      harga_jual: item.harga_jual ?? 0,
-      stok_marketplace: item.stok_marketplace ?? 0
-    });
-  };
-
-  const handleSaveEdit = async (e) => {
-    e.preventDefault();
-    if (!editForm.nama_produk.trim()) {
-      toastError('Nama produk wajib diisi');
-      return;
-    }
-    const payload = {
-      nama_produk: editForm.nama_produk.trim(),
-      sku_marketplace: editForm.sku_marketplace.trim(),
-      varian_marketplace: editForm.varian_marketplace.trim(),
-      harga_jual: Number(editForm.harga_jual) || 0,
-      stok_marketplace: Number(editForm.stok_marketplace) || 0
-    };
-    setIsSaving(true);
-    try {
-      await apiUpdateProduct(editItem.id, payload);
-      setMktProdukList(prev => prev.map(p => p.id === editItem.id ? { ...p, ...payload } : p));
-      toastSuccess('Produk berhasil diperbarui!');
-      setEditItem(null);
-    } catch (err) {
-      toastError(`Gagal menyimpan: ${err.message}`);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
   const changeTab = (key) => {
     setActiveFilterTab(key);
     setCurrentPage(1);
@@ -368,10 +331,30 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
               <span className="pm-company-badge">{activeCompany.code}</span>
             </div>
             <p className="pm-subtitle">
-              Hasil sinkronisasi Shopee Open API ({companyItems.length} produk). Kelola katalog staging sebelum disalin ke Master Data ERP
+              Hasil sinkronisasi marketplace ({companyItems.length} produk). Kelola katalog staging sebelum disalin ke Master Data ERP
             </p>
           </div>
         </div>
+
+        {/* Global Action: Tombol Jadikan Master Produk Massal (Bahkan tanpa checklist) */}
+        {tabCounts.belum_dimapping > 0 && (
+          <button
+            type="button"
+            className="btn btn-success"
+            style={{
+              padding: '7px 14px',
+              fontSize: '12px',
+              fontWeight: '800',
+              boxShadow: '0 2px 6px rgba(16, 185, 129, 0.35)'
+            }}
+            onClick={() => handleBatchImportToMaster(true)}
+            disabled={isBatchProcessing}
+            title="Salin SEMUA produk yang belum terhubung ke Master Data ERP sekaligus"
+          >
+            <ArrowRight size={14} />
+            <span>{isBatchProcessing ? 'Memproses...' : `Jadikan Semua ke Master (${tabCounts.belum_dimapping})`}</span>
+          </button>
+        )}
       </div>
 
       {/* 2. FILTER TABS */}
@@ -398,7 +381,7 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
             className="pm-search-input"
             value={search}
             onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
-            placeholder="Cari nama produk Shopee, SKU, varian, toko, item ID..."
+            placeholder="Cari nama produk Shopee/TikTok, SKU, varian, toko, item ID..."
           />
         </div>
 
@@ -449,25 +432,27 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
         <div className="pm-batch-bar">
           <div className="pm-batch-info">
             <CheckSquare size={16} />
-            <span>{selectedIds.length} produk dipilih</span>
+            <span>{selectedIds.length} produk terpilih</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <button
               type="button"
               className="btn btn-success btn-sm"
-              onClick={handleBatchImportToMaster}
+              onClick={() => handleBatchImportToMaster(false)}
               disabled={isBatchProcessing}
             >
               <ArrowRight size={13} />
-              <span>{isBatchProcessing ? 'Memproses...' : 'Jadikan Master Produk Massal'}</span>
+              <span>{isBatchProcessing ? 'Memproses...' : 'Jadikan Master Produk Terpilih'}</span>
             </button>
             <button
               type="button"
-              className="btn btn-outline-secondary btn-sm"
+              className="btn btn-danger btn-sm"
               onClick={() => setSelectedIds([])}
               disabled={isBatchProcessing}
+              title="Batalkan pilihan checklist"
             >
-              Batal Pilih
+              <X size={13} />
+              <span>Batal Pilih</span>
             </button>
           </div>
         </div>
@@ -492,7 +477,7 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
                 <th>NAMA PRODUK & SKU MARKETPLACE</th>
                 <th>TOKO & SALURAN</th>
                 <th>VARIAN & SPESIFIKASI STOK</th>
-                <th className="pm-col-center">JUMLAH STOK SHOPEE</th>
+                <th className="pm-col-center">JUMLAH STOK</th>
                 <th className="pm-col-right">HARGA JUAL</th>
                 <th className="pm-col-center">STATUS MAPPING</th>
                 <th className="pm-col-aksi">AKSI</th>
@@ -506,7 +491,7 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
                     <div className="pm-empty-title">Tidak ada produk di antrian staging</div>
                     <div className="pm-empty-desc">
                       {companyItems.length === 0 
-                        ? 'Tarik produk dari Shopee API lewat halaman Daftar Toko.' 
+                        ? 'Tarik produk dari Shopee/TikTok API lewat halaman Daftar Toko.' 
                         : 'Coba ubah kata kunci pencarian atau reset filter di atas.'}
                     </div>
                   </td>
@@ -582,18 +567,10 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
                           <button
                             type="button"
                             className="btn-aksi btn-aksi--info"
-                            title="Lihat Detail Produk"
+                            title="Lihat Detail Produk Lengkap"
                             onClick={() => setDetailItem(item)}
                           >
                             <Eye size={13} />
-                          </button>
-                          <button
-                            type="button"
-                            className="btn-aksi btn-aksi--primary"
-                            title="Edit Data Produk"
-                            onClick={() => handleOpenEdit(item)}
-                          >
-                            <Edit3 size={13} />
                           </button>
                           <button
                             type="button"
@@ -641,74 +618,96 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
         </div>
       </div>
 
-      {/* MODAL DETAIL PRODUK */}
+      {/* MODAL DETAIL PRODUK (MENARIK & LENGKAP) */}
       {detailItem && (
         <div className="pm-modal-overlay" onClick={() => setDetailItem(null)}>
           <div className="pm-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="pm-modal-header">
-              <h3 className="pm-modal-title"><Eye size={16} /> Detail Produk Marketplace</h3>
-              <button type="button" className="pm-modal-close" onClick={() => setDetailItem(null)}><X size={18} /></button>
+            <div className="pm-modal-header" style={{ background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', color: '#ffffff' }}>
+              <h3 className="pm-modal-title" style={{ color: '#ffffff' }}>
+                <Eye size={18} /> Detail Produk Marketplace
+              </h3>
+              <button type="button" className="pm-modal-close" onClick={() => setDetailItem(null)} style={{ color: '#ffffff' }}>
+                <X size={18} />
+              </button>
             </div>
+            
             <div className="pm-modal-body">
-              <div className="pm-detail-name">{detailItem.nama_produk}</div>
+              {/* Product Title Card */}
+              <div className="pm-detail-box">
+                <div className="pm-detail-name">{detailItem.nama_produk}</div>
+                <div className="pm-detail-chips">
+                  <span className={`pm-channel ${channelClass(detailItem.channel)}`}>
+                    {detailItem.channelName || detailItem.channel}
+                  </span>
+                  <span className={`pm-status ${isMappedStatus(detailItem.status) ? 'pm-status--mapped' : 'pm-status--unmapped'}`}>
+                    {detailItem.status || 'Belum Dimapping'}
+                  </span>
+                  <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '600' }}>
+                    Toko: <strong>{detailItem.shopName || '-'}</strong>
+                  </span>
+                </div>
+              </div>
+
+              {/* Stat Highlight: Harga Jual & Stok */}
+              <div className="pm-detail-stats">
+                <div className="pm-detail-stat-card pm-detail-stat-card--price">
+                  <span style={{ fontSize: '11px', fontWeight: '700', color: '#15803d', textTransform: 'uppercase' }}>Harga Jual</span>
+                  <span style={{ fontSize: '18px', fontWeight: '800', color: '#166534', marginTop: '2px' }}>
+                    {formatRupiah(detailItem.harga_jual)}
+                  </span>
+                </div>
+                <div className="pm-detail-stat-card pm-detail-stat-card--stock">
+                  <span style={{ fontSize: '11px', fontWeight: '700', color: '#0369a1', textTransform: 'uppercase' }}>Stok Marketplace</span>
+                  <span style={{ fontSize: '18px', fontWeight: '800', color: '#075985', marginTop: '2px' }}>
+                    {Number(detailItem.stok_marketplace) || 0} PCS
+                  </span>
+                </div>
+              </div>
+
+              {/* Detail Attribute Grid */}
               <div className="pm-detail-grid">
-                <div><span className="pm-detail-label">SKU Marketplace</span><span className="pm-detail-value">{detailItem.sku_marketplace || '-'}</span></div>
-                <div><span className="pm-detail-label">Item ID</span><span className="pm-detail-value"><code>{detailItem.item_id}</code></span></div>
-                <div><span className="pm-detail-label">Toko</span><span className="pm-detail-value">{detailItem.shopName || '-'}</span></div>
-                <div><span className="pm-detail-label">Saluran</span><span className="pm-detail-value">{detailItem.channelName || detailItem.channel || '-'}</span></div>
-                <div><span className="pm-detail-label">Varian</span><span className="pm-detail-value">{detailItem.varian_marketplace || '-'}</span></div>
-                <div><span className="pm-detail-label">Stok</span><span className="pm-detail-value">{Number(detailItem.stok_marketplace) || 0} PCS</span></div>
-                <div><span className="pm-detail-label">Harga Jual</span><span className="pm-detail-value">{formatRupiah(detailItem.harga_jual)}</span></div>
-                <div><span className="pm-detail-label">Status Mapping</span><span className="pm-detail-value">{detailItem.status || 'Belum Dimapping'}</span></div>
-                <div><span className="pm-detail-label">Ditarik Pada</span><span className="pm-detail-value">{detailItem.syncedAt || '-'}</span></div>
+                <div>
+                  <span className="pm-detail-label">SKU Marketplace</span>
+                  <span className="pm-detail-value" style={{ color: '#0284c7' }}>{detailItem.sku_marketplace || '-'}</span>
+                </div>
+                <div>
+                  <span className="pm-detail-label">Item ID Saluran</span>
+                  <span className="pm-detail-value"><code>{detailItem.item_id}</code></span>
+                </div>
+                <div>
+                  <span className="pm-detail-label">Varian / Model</span>
+                  <span className="pm-detail-value">{detailItem.varian_marketplace || 'Standard'}</span>
+                </div>
+                <div>
+                  <span className="pm-detail-label">Waktu Terakhir Ditarik</span>
+                  <span className="pm-detail-value">{detailItem.syncedAt || '-'}</span>
+                </div>
               </div>
             </div>
+
             <div className="pm-modal-footer">
-              <button type="button" className="btn btn-outline-secondary" onClick={() => setDetailItem(null)}>Tutup</button>
+              {!isMappedStatus(detailItem.status) && (
+                <button
+                  type="button"
+                  className="btn btn-success"
+                  onClick={() => {
+                    handleImportToMaster(detailItem);
+                    setDetailItem(null);
+                  }}
+                >
+                  <ArrowRight size={14} />
+                  <span>Jadikan Master Produk</span>
+                </button>
+              )}
+              <button
+                type="button"
+                className="btn btn-outline-secondary"
+                onClick={() => setDetailItem(null)}
+              >
+                Tutup
+              </button>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* MODAL EDIT PRODUK */}
-      {editItem && (
-        <div className="pm-modal-overlay" onClick={() => !isSaving && setEditItem(null)}>
-          <form className="pm-modal" onClick={(e) => e.stopPropagation()} onSubmit={handleSaveEdit}>
-            <div className="pm-modal-header">
-              <h3 className="pm-modal-title"><Edit3 size={16} /> Edit Produk Marketplace</h3>
-              <button type="button" className="pm-modal-close" onClick={() => setEditItem(null)} disabled={isSaving}><X size={18} /></button>
-            </div>
-            <div className="pm-modal-body">
-              <div className="pm-form-group">
-                <label className="form-label">Nama Produk</label>
-                <input type="text" className="form-control" value={editForm.nama_produk} onChange={(e) => setEditForm(f => ({ ...f, nama_produk: e.target.value }))} />
-              </div>
-              <div className="pm-form-row">
-                <div className="pm-form-group">
-                  <label className="form-label">SKU Marketplace</label>
-                  <input type="text" className="form-control" value={editForm.sku_marketplace} onChange={(e) => setEditForm(f => ({ ...f, sku_marketplace: e.target.value }))} />
-                </div>
-                <div className="pm-form-group">
-                  <label className="form-label">Varian</label>
-                  <input type="text" className="form-control" value={editForm.varian_marketplace} onChange={(e) => setEditForm(f => ({ ...f, varian_marketplace: e.target.value }))} />
-                </div>
-              </div>
-              <div className="pm-form-row">
-                <div className="pm-form-group">
-                  <label className="form-label">Harga Jual (Rp)</label>
-                  <input type="number" min="0" className="form-control" value={editForm.harga_jual} onChange={(e) => setEditForm(f => ({ ...f, harga_jual: e.target.value }))} />
-                </div>
-                <div className="pm-form-group">
-                  <label className="form-label">Stok</label>
-                  <input type="number" min="0" className="form-control" value={editForm.stok_marketplace} onChange={(e) => setEditForm(f => ({ ...f, stok_marketplace: e.target.value }))} />
-                </div>
-              </div>
-            </div>
-            <div className="pm-modal-footer">
-              <button type="button" className="btn btn-outline-secondary" onClick={() => setEditItem(null)} disabled={isSaving}>Batal</button>
-              <button type="submit" className="btn btn-primary" disabled={isSaving}><Save size={14} /> {isSaving ? 'Menyimpan...' : 'Simpan'}</button>
-            </div>
-          </form>
         </div>
       )}
 

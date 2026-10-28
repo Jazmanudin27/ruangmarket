@@ -128,6 +128,31 @@ export async function initDb() {
         token_refresh = VALUES(token_refresh);
     `);
 
+    // 6. Masukkan Akun Toko TikTok Shop RUANG SERAGAM jika belum ada
+    await conn.query(`
+      INSERT INTO toko_marketplace (
+        id, kode_perusahaan, saluran, nama_saluran, nama_toko, id_toko, 
+        logo_toko, token_akses, token_refresh, kadaluarsa_pada, status_koneksi, cipher_toko
+      ) VALUES (
+        'tk_tiktok_ruangseragam',
+        'RSG',
+        'tiktok',
+        'TikTok Shop',
+        'RUANG SERAGAM',
+        '943001511',
+        'store-logos/RHpinX96Guj27mmJvXhS5f0ln85cdS7mHKTrEqqH.png',
+        'eyJhbGciOiJIUzI1NiJ9.CLekfBABGKef1MEDIAEomouF1wYww7rjkQs4AUABSAc.yaoTf5Am1TA6wv-VhUAF5vAR51IEmp8JcwAtwyCSqMU',
+        'eyJhbGciOiJIUzI1NiJ9.CLekfBABGKef1MEDIAIomouF1wYwuLmXzwY4AUABSAc.56zyC9N1eE64c1ZW4GRmYRo0pMuiWUGz02HuHZr7Pp8',
+        '2026-10-28 11:45:14',
+        'Aktif (Terhubung)',
+        'DROP_OFF'
+      ) ON DUPLICATE KEY UPDATE 
+        token_akses = VALUES(token_akses),
+        token_refresh = VALUES(token_refresh),
+        kadaluarsa_pada = VALUES(kadaluarsa_pada),
+        status_koneksi = VALUES(status_koneksi);
+    `);
+
     conn.release();
     console.log('[MySQL] Tabel Bahasa Indonesia (toko_marketplace, produk_marketplace, produk_master, pesanan_marketplace) siap!');
   } catch (err) {
