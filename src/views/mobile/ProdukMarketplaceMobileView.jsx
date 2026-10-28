@@ -108,7 +108,7 @@ export default function ProdukMarketplaceMobileView({ onNavigate }) {
       const newMasterItem = {
         id: Date.now(),
         company_code: activeCompany.code || 'RSG',
-        kode_sku: item.sku_marketplace || `RSG-${Date.now().toString().slice(-6)}`,
+        kode_sku: item.sku_marketplace || `SKU-${Date.now().toString().slice(-6)}`,
         nama_produk: item.nama_produk,
         kategori: 'Gamis Dewasa',
         satuan: 'PCS',

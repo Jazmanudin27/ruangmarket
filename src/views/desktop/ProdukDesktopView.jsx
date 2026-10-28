@@ -535,10 +535,9 @@ export default function ProdukView() {
   const handleOpenAdd = () => {
     setEditingId(null);
     const nextId = produkList.length > 0 ? Math.max(...produkList.map(p => p.id)) + 1 : 1;
-    const prefix = activeCompany.code || 'RSG';
     setFormData({
       ...initialForm,
-      sku: `${prefix}-PRD-260${String(nextId).padStart(4, '0')}`,
+      sku: `PRD-260${String(nextId).padStart(4, '0')}`,
       barcode: `899${String(1000 + nextId)}`
     });
     setIsFormModalOpen(true);

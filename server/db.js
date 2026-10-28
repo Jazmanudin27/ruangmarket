@@ -100,6 +100,19 @@ export async function initDb() {
       await conn.query(`ALTER TABLE produk_master ADD COLUMN status_order VARCHAR(32) DEFAULT 'Ready Stok'`);
     } catch (e) {}
 
+    // Auto-migrate: Bersihkan prefix RSG- dari kode_sku yang terlanjur tersimpan di produk_master
+    try {
+      await conn.query(`
+        DELETE m1 FROM produk_master m1
+        JOIN produk_master m2 ON SUBSTRING(m1.kode_sku, 5) = m2.kode_sku
+        WHERE m1.kode_sku LIKE 'RSG-%'
+      `);
+      await conn.query(`UPDATE produk_master SET kode_sku = SUBSTRING(kode_sku, 5) WHERE kode_sku LIKE 'RSG-%'`);
+      console.log('[MySQL] Berhasil membersihkan awalan RSG- pada kode_sku di produk_master!');
+    } catch (e) {
+      console.warn('[MySQL] Info clean RSG- prefix:', e.message);
+    }
+
     // 4. Tabel Pesanan Marketplace & SPK Produksi (pesanan_marketplace)
     await conn.query(`
       CREATE TABLE IF NOT EXISTS pesanan_marketplace (

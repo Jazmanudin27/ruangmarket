@@ -249,7 +249,8 @@ const server = http.createServer(async (req, res) => {
         const values = [];
         const placeholders = chunk.map((item, idx) => {
           const kodePerusahaan = String(item.kode_perusahaan || item.company_code || 'RSG').slice(0, 32);
-          const kodeSku = String(item.kode_sku || item.sku || `SKU-${Date.now()}-${i + idx}`).slice(0, 255);
+          const rawSku = String(item.kode_sku || item.sku || `SKU-${Date.now()}-${i + idx}`).trim();
+          const kodeSku = (rawSku.startsWith('RSG-') ? rawSku.substring(4) : rawSku).slice(0, 255);
           const namaProduk = String(item.nama_produk || 'Produk').slice(0, 255);
           const kategori = String(item.kategori || 'Gamis Casual').slice(0, 64);
           const satuan = String(item.satuan || 'PCS').slice(0, 32);
