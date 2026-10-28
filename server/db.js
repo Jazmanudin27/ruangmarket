@@ -167,7 +167,7 @@ export async function initDb() {
       await conn.query(`ALTER TABLE pesanan_marketplace ADD COLUMN batas_kirim DATETIME`);
     } catch (e) {}
     try {
-      await conn.query(`ALTER TABLE pesanan_marketplace ADD COLUMN status_cetak VARCHAR(32) DEFAULT 'Sudah Print'`);
+      await conn.query(`ALTER TABLE pesanan_marketplace ADD COLUMN status_cetak VARCHAR(32) DEFAULT 'Belum Print'`);
     } catch (e) {}
     try {
       await conn.query(`ALTER TABLE pesanan_marketplace ADD COLUMN status_verifikasi VARCHAR(32) DEFAULT 'Verified'`);

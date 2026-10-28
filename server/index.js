@@ -509,7 +509,7 @@ const server = http.createServer(async (req, res) => {
           id, kode_perusahaan as company_code, no_pesanan, saluran as channel,
           nama_toko as shopName, nama_pembeli as customerName, total_harga as totalPrice,
           status_pesanan as status, no_spk, rincian_item, kurir, no_resi,
-          COALESCE(status_cetak, 'Sudah Print') as status_cetak,
+          COALESCE(status_cetak, 'Belum Print') as status_cetak,
           COALESCE(status_verifikasi, 'Verified') as status_verifikasi,
           COALESCE(alamat, '') as alamat,
           COALESCE(no_telepon, '') as telepon,
@@ -826,6 +826,9 @@ const server = http.createServer(async (req, res) => {
       }
 
       if (pdfBuffer && Buffer.isBuffer(pdfBuffer)) {
+        // Tandai pesanan sebagai 'Sudah Print' di MySQL
+        pool.query('UPDATE pesanan_marketplace SET status_cetak = "Sudah Print" WHERE no_pesanan = ? OR id = ?', [orderSn, orderSn]).catch(() => {});
+
         res.writeHead(200, {
           'Content-Type': 'application/pdf',
           'Content-Disposition': `inline; filename="resi-${orderSn}.pdf"`,
@@ -977,6 +980,10 @@ const server = http.createServer(async (req, res) => {
 
       const mergedPdfBytes = await mergedPdfDoc.save();
       const mergedBuffer = Buffer.from(mergedPdfBytes);
+
+      // Tandai semua pesanan yang dicetak masal sebagai 'Sudah Print' di MySQL
+      const updatePlaceholders = orderSns.map(() => '?').join(',');
+      pool.query(`UPDATE pesanan_marketplace SET status_cetak = 'Sudah Print' WHERE no_pesanan IN (${updatePlaceholders}) OR id IN (${updatePlaceholders})`, [...orderSns, ...orderSns]).catch(() => {});
 
       res.writeHead(200, {
         'Content-Type': 'application/pdf',
