@@ -113,18 +113,35 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
-  // 6. API Ambil Data Produk Marketplace Staging dari MySQL
+  // 6. API Ambil Data Produk Marketplace Staging dari MySQL (Status dihitung langsung berdasarkan SKU di produk_master)
   if (pathname === '/api/marketplace/products' && req.method === 'GET') {
     try {
       const [rows] = await pool.query(`
         SELECT 
-          id, id_produk_marketplace as item_id, kode_perusahaan as company_code,
-          saluran as channel, nama_saluran as channelName, nama_toko as shopName,
-          id_toko as shopId, nama_produk, sku_marketplace, harga_jual,
-          stok_marketplace, varian as varian_marketplace, status_mapping as status,
-          DATE_FORMAT(ditarik_pada, '%d %b %Y, %H:%i') as syncedAt
-        FROM produk_marketplace
-        ORDER BY ditarik_pada DESC
+          pm.id, 
+          pm.id_produk_marketplace as item_id, 
+          pm.kode_perusahaan as company_code,
+          pm.saluran as channel, 
+          pm.nama_saluran as channelName, 
+          pm.nama_toko as shopName,
+          pm.id_toko as shopId, 
+          pm.nama_produk, 
+          pm.sku_marketplace, 
+          pm.harga_jual,
+          pm.stok_marketplace, 
+          pm.varian as varian_marketplace, 
+          CASE 
+            WHEN m.id IS NOT NULL THEN 'Sudah di Master'
+            WHEN m2.id IS NOT NULL THEN 'Sudah di Master'
+            ELSE 'Belum Dimapping'
+          END as status,
+          DATE_FORMAT(pm.ditarik_pada, '%d %b %Y, %H:%i') as syncedAt
+        FROM produk_marketplace pm
+        LEFT JOIN produk_master m 
+          ON m.kode_sku = pm.sku_marketplace AND m.kode_sku != ''
+        LEFT JOIN produk_master m2 
+          ON m2.kode_sku = CONCAT(IFNULL(pm.kode_perusahaan, 'RSG'), '-', pm.sku_marketplace) AND pm.sku_marketplace != ''
+        ORDER BY pm.ditarik_pada DESC
       `);
       return sendJson(res, 200, { status: 'success', data: rows });
     } catch (err) {

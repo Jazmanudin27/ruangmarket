@@ -70,17 +70,44 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
       const saved = localStorage.getItem(PRODUK_MARKETPLACE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          return parsed;
-        }
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch (e) {}
     return [];
   });
 
-  // Selalu load data terkini langsung dari database MySQL (/api/marketplace/products)
+  // Kumpulan SKU yang benar-benar ada di Master Produk (diambil dari database)
+  const [masterSkuSet, setMasterSkuSet] = useState(new Set());
+
+  // Muat data master produk dan simpan set SKU untuk pencocokan real-time
+  const loadMasterSkus = () => {
+    fetch('/api/produk/master')
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          const skus = new Set();
+          data.forEach(p => {
+            const rawSku = (p.kode_sku || p.sku || '').trim().toLowerCase();
+            if (rawSku) {
+              skus.add(rawSku);
+              // Tambahkan juga versi tanpa prefix (misal RSG-XXX -> XXX)
+              const parts = rawSku.split('-');
+              if (parts.length > 1) {
+                skus.add(parts.slice(1).join('-'));
+              }
+            }
+          });
+          setMasterSkuSet(skus);
+        }
+      })
+      .catch(() => {});
+  };
+
+  // Muat produk marketplace dan master produk saat render
   useEffect(() => {
     let isMounted = true;
+    loadMasterSkus();
+
     fetch('/api/marketplace/products')
       .then(res => res.json())
       .then(json => {
@@ -96,6 +123,15 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
     return () => { isMounted = false; };
   }, []);
 
+  // Helper dinamis: produk dianggap terhubung HANYA jika SKU-nya benar-benar ada di master produk
+  const checkIsItemMapped = (item) => {
+    if (!item) return false;
+    const sku = (item.sku_marketplace || '').trim().toLowerCase();
+    if (!sku) return false;
+    const prefixSku = `${(item.company_code || activeCompany.code || 'RSG').toLowerCase()}-${sku}`;
+    return masterSkuSet.has(sku) || masterSkuSet.has(prefixSku);
+  };
+
   useEffect(() => {
     try {
       localStorage.setItem(PRODUK_MARKETPLACE_KEY, JSON.stringify(mktProdukList));
@@ -107,15 +143,15 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
 
   const tabCounts = {
     semua: companyItems.length,
-    belum_dimapping: companyItems.filter(i => !isMappedStatus(i.status)).length,
-    sudah_dimapping: companyItems.filter(i => isMappedStatus(i.status)).length,
+    belum_dimapping: companyItems.filter(i => !checkIsItemMapped(i)).length,
+    sudah_dimapping: companyItems.filter(i => checkIsItemMapped(i)).length,
     tersedia: companyItems.filter(i => (Number(i.stok_marketplace) || 0) > 0).length,
     habis: companyItems.filter(i => (Number(i.stok_marketplace) || 0) <= 0).length
   };
 
   const filteredItems = companyItems.filter(item => {
     const stok = Number(item.stok_marketplace) || 0;
-    const mapped = isMappedStatus(item.status);
+    const mapped = checkIsItemMapped(item);
 
     // 1. Tab Filter
     if (activeFilterTab === 'belum_dimapping' && mapped) return false;
@@ -168,15 +204,15 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
   const handleBatchImportToMaster = async (importAll = false) => {
     let unmappedList = [];
     if (importAll) {
-      unmappedList = companyItems.filter(item => !isMappedStatus(item.status));
+      unmappedList = companyItems.filter(item => !checkIsItemMapped(item));
     } else {
       unmappedList = companyItems.filter(
-        item => selectedIds.includes(item.id) && !isMappedStatus(item.status)
+        item => selectedIds.includes(item.id) && !checkIsItemMapped(item)
       );
     }
 
     if (unmappedList.length === 0) {
-      toastError('Tidak ada produk yang belum terhubung ke Master Data!');
+      toastError('Semua produk terpilih sudah terhubung ke Master Data!');
       return;
     }
 
@@ -254,6 +290,7 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
         body: JSON.stringify({ ids: targetIds, status: 'Sudah di Master' })
       });
 
+      loadMasterSkus();
       toastSuccess(`Berhasil menyalin ${newProducts.length} produk ke Master Data ERP & MySQL!`);
       setSelectedIds([]);
     } catch (e) {
@@ -326,6 +363,7 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
       // Update status staging (state + database)
       setMktProdukList(prev => prev.map(p => p.id === item.id ? { ...p, status: 'Sudah di Master' } : p));
       apiUpdateProduct(item.id, { status: 'Sudah di Master' }).catch(() => {});
+      loadMasterSkus();
 
       toastSuccess(`Produk "${item.nama_produk}" berhasil disalin ke Data Master Produk & MySQL!`);
     } catch (e) {
@@ -541,7 +579,7 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
               ) : (
                 paginatedItems.map((item, index) => {
                   const stockNum = Number(item.stok_marketplace) || 0;
-                  const isMapped = isMappedStatus(item.status);
+                  const isMapped = checkIsItemMapped(item);
                   const isSelected = selectedIds.includes(item.id);
                   const rowNumber = (currentPage - 1) * entriesPerPage + index + 1;
 
@@ -591,7 +629,7 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
 
                       <td className="pm-col-center">
                         <span className={`pm-status ${isMapped ? 'pm-status--mapped' : 'pm-status--unmapped'}`}>
-                          {item.status || 'Belum Dimapping'}
+                          {isMapped ? 'Sudah di Master' : 'Belum Dimapping'}
                         </span>
                       </td>
 
@@ -728,7 +766,7 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
             </div>
 
             <div className="pm-modal-footer">
-              {!isMappedStatus(detailItem.status) && (
+              {!checkIsItemMapped(detailItem) && (
                 <button
                   type="button"
                   className="btn btn-success"
