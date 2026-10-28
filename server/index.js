@@ -230,28 +230,43 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
-  // 6e. Simpan/Batch Simpan ke Master Produk ERP
+  // 6e. Simpan/Batch Simpan ke Master Produk ERP (Bulk Insert Cepat)
   if (pathname === '/api/produk/master' && req.method === 'POST') {
     try {
       const body = await parseJsonBody(req);
       const items = Array.isArray(body) ? body : [body];
       
-      for (const item of items) {
-        const kodePerusahaan = item.kode_perusahaan || item.company_code || 'RSG';
-        const kodeSku = item.kode_sku || item.sku || `SKU-${Date.now()}`;
-        const namaProduk = item.nama_produk || 'Produk';
-        const kategori = item.kategori || 'Gamis Casual';
-        const satuan = item.satuan || 'PCS';
-        const hargaJual = Number(item.harga_jual) || 0;
-        const hargaModal = Number(item.harga_modal || item.harga_beli) || 0;
-        const stokFisik = Number(item.stok_fisik || item.stok) || 0;
-        const status = item.status || 'Aktif';
+      if (items.length === 0) {
+        return sendJson(res, 200, { status: 'success', count: 0 });
+      }
 
-        await pool.query(`
+      console.log(`[API Master] Menyimpan ${items.length} produk ke produk_master...`);
+
+      // Batch insert per 100 item agar super cepat
+      const chunkSize = 100;
+      for (let i = 0; i < items.length; i += chunkSize) {
+        const chunk = items.slice(i, i + chunkSize);
+        const values = [];
+        const placeholders = chunk.map((item, idx) => {
+          const kodePerusahaan = String(item.kode_perusahaan || item.company_code || 'RSG').slice(0, 32);
+          const kodeSku = String(item.kode_sku || item.sku || `SKU-${Date.now()}-${i + idx}`).slice(0, 255);
+          const namaProduk = String(item.nama_produk || 'Produk').slice(0, 255);
+          const kategori = String(item.kategori || 'Gamis Casual').slice(0, 64);
+          const satuan = String(item.satuan || 'PCS').slice(0, 32);
+          const hargaJual = Number(item.harga_jual) || 0;
+          const hargaModal = Number(item.harga_modal || item.harga_beli) || 0;
+          const stokFisik = Number(item.stok_fisik || item.stok) || 0;
+          const status = String(item.status || 'Aktif').slice(0, 32);
+
+          values.push(kodePerusahaan, kodeSku, namaProduk, kategori, satuan, hargaJual, hargaModal, stokFisik, status);
+          return '(?, ?, ?, ?, ?, ?, ?, ?, ?)';
+        }).join(', ');
+
+        const sql = `
           INSERT INTO produk_master (
             kode_perusahaan, kode_sku, nama_produk, kategori, satuan,
             harga_jual, harga_modal, stok_fisik, status
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ) VALUES ${placeholders}
           ON DUPLICATE KEY UPDATE
             nama_produk = VALUES(nama_produk),
             kategori = VALUES(kategori),
@@ -260,11 +275,15 @@ const server = http.createServer(async (req, res) => {
             harga_modal = VALUES(harga_modal),
             stok_fisik = VALUES(stok_fisik),
             status = VALUES(status)
-        `, [kodePerusahaan, kodeSku, namaProduk, kategori, satuan, hargaJual, hargaModal, stokFisik, status]);
+        `;
+
+        await pool.query(sql, values);
       }
 
+      console.log(`[API Master] Berhasil menyimpan ${items.length} produk ke produk_master MySQL!`);
       return sendJson(res, 200, { status: 'success', count: items.length });
     } catch (err) {
+      console.error('[API Master ERROR]:', err);
       return sendJson(res, 500, { status: 'error', message: err.message });
     }
   }

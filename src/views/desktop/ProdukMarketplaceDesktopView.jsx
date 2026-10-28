@@ -259,25 +259,26 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
 
       const targetIds = unmappedList.map(i => i.id);
 
-      // Simpan langsung ke database MySQL produk_master
-      try {
-        await fetch('/api/produk/master', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(newProducts.map(p => ({
-            kode_perusahaan: p.company_code,
-            kode_sku: p.sku,
-            nama_produk: p.nama_produk,
-            kategori: p.kategori,
-            satuan: p.satuan,
-            harga_jual: p.harga_jual,
-            harga_modal: p.harga_beli,
-            stok_fisik: p.stok,
-            status: 'Aktif'
-          })))
-        });
-      } catch (err) {
-        console.warn('Gagal simpan ke MySQL produk_master:', err);
+      // Simpan langsung ke database MySQL produk_master (Bulk Insert)
+      const masterRes = await fetch('/api/produk/master', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newProducts.map(p => ({
+          kode_perusahaan: p.company_code,
+          kode_sku: p.sku,
+          nama_produk: p.nama_produk,
+          kategori: p.kategori,
+          satuan: p.satuan,
+          harga_jual: p.harga_jual,
+          harga_modal: p.harga_beli,
+          stok_fisik: p.stok,
+          status: 'Aktif'
+        })))
+      });
+
+      const masterJson = await masterRes.json();
+      if (!masterRes.ok || masterJson.status !== 'success') {
+        throw new Error(masterJson.message || `Gagal menyimpan ke database (HTTP ${masterRes.status})`);
       }
 
       // Update di state
@@ -340,24 +341,25 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
       window.dispatchEvent(new Event('storage'));
 
       // Simpan langsung ke database MySQL produk_master
-      try {
-        await fetch('/api/produk/master', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            kode_perusahaan: newMasterProduct.company_code,
-            kode_sku: newMasterProduct.sku,
-            nama_produk: newMasterProduct.nama_produk,
-            kategori: newMasterProduct.kategori,
-            satuan: newMasterProduct.satuan,
-            harga_jual: newMasterProduct.harga_jual,
-            harga_modal: newMasterProduct.harga_beli,
-            stok_fisik: newMasterProduct.stok,
-            status: 'Aktif'
-          })
-        });
-      } catch (err) {
-        console.warn('Gagal simpan ke MySQL produk_master:', err);
+      const masterRes = await fetch('/api/produk/master', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          kode_perusahaan: newMasterProduct.company_code,
+          kode_sku: newMasterProduct.sku,
+          nama_produk: newMasterProduct.nama_produk,
+          kategori: newMasterProduct.kategori,
+          satuan: newMasterProduct.satuan,
+          harga_jual: newMasterProduct.harga_jual,
+          harga_modal: newMasterProduct.harga_beli,
+          stok_fisik: newMasterProduct.stok,
+          status: 'Aktif'
+        })
+      });
+
+      const masterJson = await masterRes.json();
+      if (!masterRes.ok || masterJson.status !== 'success') {
+        throw new Error(masterJson.message || `Gagal menyimpan ke database (HTTP ${masterRes.status})`);
       }
 
       // Update status staging (state + database)

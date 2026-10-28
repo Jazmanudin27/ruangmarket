@@ -91,6 +91,11 @@ export async function initDb() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Master data produk ERP RuangMarket';
     `);
 
+    // Auto-migrate column kode_sku jika kurang panjang
+    try {
+      await conn.query(`ALTER TABLE produk_master MODIFY COLUMN kode_sku VARCHAR(255) NOT NULL`);
+    } catch (e) {}
+
     // 4. Tabel Pesanan Marketplace & SPK Produksi (pesanan_marketplace)
     await conn.query(`
       CREATE TABLE IF NOT EXISTS pesanan_marketplace (
