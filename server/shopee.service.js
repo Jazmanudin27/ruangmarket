@@ -182,15 +182,15 @@ export class ShopeeService {
     return res;
   }
 
-  // 3. Mendapatkan Seluruh Daftar Item ID Produk (Auto Pagination Semua Halaman)
-  async getAllItemList(shopId, accessToken) {
+  // 3. Mendapatkan Seluruh Daftar Item ID Produk (Mendukung limit, default 100 produk pertama agar instan dan tidak 504)
+  async getAllItemList(shopId, accessToken, limit = 100) {
     const sId = String(shopId);
     let allItems = [];
     let offset = 0;
     let hasNext = true;
     const pageSize = 50;
 
-    while (hasNext) {
+    while (hasNext && allItems.length < limit) {
       const path = '/api/v2/product/get_item_list';
       const timestamp = Math.floor(Date.now() / 1000);
       const sign = this.generateSignature(path, timestamp, accessToken, sId);
@@ -202,7 +202,7 @@ export class ShopeeService {
         shop_id: sId,
         sign,
         offset,
-        page_size: pageSize,
+        page_size: Math.min(pageSize, limit - allItems.length),
         item_status: 'NORMAL'
       });
 
@@ -223,11 +223,9 @@ export class ShopeeService {
       } else {
         offset += items.length;
       }
-
-      if (allItems.length >= 3000) break;
     }
 
-    return allItems;
+    return allItems.slice(0, limit);
   }
 
   // 3b. Helper Satu Halaman Item ID (Fallback)
@@ -314,11 +312,11 @@ export class ShopeeService {
     }
   }
 
-  // 5. Sinkronisasi Lengkap: Seluruh Produk Toko + Detail Base Info + Model Varian
-  async syncProducts(shopId, accessToken) {
+  // 5. Sinkronisasi Lengkap: Detail Base Info + Model Varian (Limit 100 produk agar instan <10s)
+  async syncProducts(shopId, accessToken, limit = 100) {
     const sId = String(shopId);
-    // 1. Ambil seluruh item ID di toko tanpa batasan 100
-    const items = await this.getAllItemList(sId, accessToken);
+    // 1. Ambil 100 item ID pertama toko
+    const items = await this.getAllItemList(sId, accessToken, limit);
     if (!items || items.length === 0) return [];
 
     const itemIds = items.map(i => i.item_id);

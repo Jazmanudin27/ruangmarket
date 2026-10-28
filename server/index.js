@@ -136,6 +136,7 @@ const server = http.createServer(async (req, res) => {
   if (pathname === '/api/marketplace/shopee/products' && req.method === 'GET') {
     const shopId = urlObj.searchParams.get('shop_id') || '1030191310';
     let accessToken = urlObj.searchParams.get('access_token');
+    const limit = parseInt(urlObj.searchParams.get('limit')) || 100;
 
     try {
       // Selalu ambil token dan refreshToken terbaru langsung dari MySQL
@@ -146,11 +147,11 @@ const server = http.createServer(async (req, res) => {
         refreshToken = storeRows[0].token_refresh;
       }
 
-      console.log(`[Shopee] Syncing products for shopId: ${shopId}...`);
+      console.log(`[Shopee] Syncing products for shopId: ${shopId} (limit: ${limit})...`);
       let products = null;
 
       try {
-        products = await shopeeService.syncProducts(shopId, accessToken);
+        products = await shopeeService.syncProducts(shopId, accessToken, limit);
       } catch (syncErr) {
         console.log(`[Shopee Sync Warning]: ${syncErr.message}. Mencoba auto-refresh token...`);
         if (refreshToken) {
@@ -167,7 +168,7 @@ const server = http.createServer(async (req, res) => {
             `, [accessToken, refreshToken, shopId]);
 
             console.log('[Shopee] Token berhasil di-refresh dan disimpan ke MySQL!');
-            products = await shopeeService.syncProducts(shopId, accessToken);
+            products = await shopeeService.syncProducts(shopId, accessToken, limit);
           } else {
             throw syncErr;
           }
