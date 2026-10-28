@@ -3,54 +3,21 @@ import {
   ShoppingBag, 
   Search, 
   RotateCw, 
-  Clock, 
   CheckCircle2, 
-  AlertCircle, 
   Eye, 
   X, 
   Layers, 
-  Store, 
-  Package, 
   Truck, 
   Calendar, 
-  User, 
-  ChevronRight,
-  Sparkles
+  Package, 
+  Printer, 
+  ChevronRight
 } from 'lucide-react';
 import { toastSuccess, toastError } from '../../utils/alert.util';
 import { getActiveCompany } from '../../utils/tenant.util';
 
 function formatRupiah(val) {
   return 'Rp ' + Number(val || 0).toLocaleString('id-ID');
-}
-
-// Helper menerjemahkan status pesanan marketplace mentah ke label bahasa Indonesia yang ramah & rapi
-function formatStatus(status) {
-  if (!status) return { label: 'Perlu Diproses', bg: '#fff7ed', color: '#c2410c', border: '#fed7aa' };
-  const s = String(status).toUpperCase().trim();
-  
-  if (s === 'COMPLETED' || s === 'SELESAI') {
-    return { label: 'Selesai', bg: '#f0fdf4', color: '#15803d', border: '#bbf7d0' };
-  }
-  if (s === 'READY_TO_SHIP' || s === 'SIAP DIKIRIM' || s === 'PROCESSED') {
-    return { label: 'Siap Dikirim', bg: '#eff6ff', color: '#1d4ed8', border: '#bfdbfe' };
-  }
-  if (s === 'TO_CONFIRM_RECEIVE' || s === 'SHIPPED' || s === 'DIKIRIM') {
-    return { label: 'Dalam Pengiriman', bg: '#f5f3ff', color: '#6d28d9', border: '#ddd6fe' };
-  }
-  if (s === 'UNPAID' || s === 'BELUM BAYAR') {
-    return { label: 'Menunggu Pembayaran', bg: '#fefce8', color: '#a16207', border: '#fef08a' };
-  }
-  if (s === 'CANCELLED' || s === 'DIBATALKAN' || s === 'IN_CANCEL') {
-    return { label: 'Dibatalkan', bg: '#fef2f2', color: '#b91c1c', border: '#fecaca' };
-  }
-  if (s === 'TO_RETURN' || s === 'RETUR') {
-    return { label: 'Retur / Pengembalian', bg: '#fff1f2', color: '#be123c', border: '#fecdd3' };
-  }
-  if (s === 'AWAITING_SHIPMENT') {
-    return { label: 'Perlu Dikirim', bg: '#fff7ed', color: '#c2410c', border: '#fed7aa' };
-  }
-  return { label: status, bg: '#fff7ed', color: '#c2410c', border: '#fed7aa' };
 }
 
 export default function PesananMasukDesktopView() {
@@ -70,7 +37,8 @@ export default function PesananMasukDesktopView() {
   const [currentPage, setCurrentPage] = useState(1);
   const [entriesPerPage, setEntriesPerPage] = useState(25);
 
-  // Modal State
+  // Selection & Modal State
+  const [selectedIds, setSelectedIds] = useState([]);
   const [detailOrder, setDetailOrder] = useState(null);
 
   // Listen to company change
@@ -207,6 +175,20 @@ export default function PesananMasukDesktopView() {
   const changeTab = (tab) => {
     setActiveFilterTab(tab);
     setCurrentPage(1);
+  };
+
+  const toggleSelectOne = (id) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+  };
+
+  const toggleSelectAll = () => {
+    const pageIds = paginatedOrders.map(o => o.id);
+    const allSelected = pageIds.length > 0 && pageIds.every(id => selectedIds.includes(id));
+    if (allSelected) {
+      setSelectedIds(prev => prev.filter(id => !pageIds.includes(id)));
+    } else {
+      setSelectedIds(prev => Array.from(new Set([...prev, ...pageIds])));
+    }
   };
 
   return (
@@ -363,7 +345,6 @@ export default function PesananMasukDesktopView() {
             cursor: 'pointer'
           }}
         >
-          <Clock size={13} />
           <span>Siap Dikirim ({countPerluKirim})</span>
         </button>
 
@@ -553,7 +534,7 @@ export default function PesananMasukDesktopView() {
         </select>
       </div>
 
-      {/* 4. DATA TABLE PESANAN */}
+      {/* 4. DATA TABLE PESANAN (STRUKTUR KOLOM PERSIS DENGAN PERMINTAAN USER) */}
       <div style={{
         backgroundColor: '#ffffff',
         border: '1px solid #cbd5e1',
@@ -565,19 +546,27 @@ export default function PesananMasukDesktopView() {
           <table className="table-bordered-hover" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '12px', border: '1px solid #cbd5e1' }}>
             <thead>
               <tr style={{ backgroundColor: '#f8fafc', color: '#475569', fontSize: '11px', fontWeight: '800', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-                <th style={{ padding: '8px 10px', textAlign: 'center', width: '45px', border: '1px solid #cbd5e1' }}>NO</th>
-                <th style={{ padding: '8px 12px', width: '220px', border: '1px solid #cbd5e1' }}>NO PESANAN & SALURAN</th>
-                <th style={{ padding: '8px 12px', width: '210px', border: '1px solid #cbd5e1' }}>TOKO & PEMBELI</th>
-                <th style={{ padding: '8px 12px', border: '1px solid #cbd5e1' }}>PRODUK & VARIAN</th>
-                <th style={{ padding: '8px 12px', textAlign: 'right', width: '130px', border: '1px solid #cbd5e1' }}>TOTAL HARGA</th>
-                <th style={{ padding: '8px 12px', textAlign: 'center', width: '150px', border: '1px solid #cbd5e1' }}>STATUS PESANAN</th>
-                <th style={{ padding: '8px 12px', textAlign: 'center', width: '85px', border: '1px solid #cbd5e1' }}>AKSI</th>
+                <th style={{ padding: '8px 10px', textAlign: 'center', width: '38px', border: '1px solid #cbd5e1' }}>
+                  <input
+                    type="checkbox"
+                    checked={paginatedOrders.length > 0 && paginatedOrders.every(o => selectedIds.includes(o.id))}
+                    onChange={toggleSelectAll}
+                    style={{ cursor: 'pointer' }}
+                  />
+                </th>
+                <th style={{ padding: '8px 12px', border: '1px solid #cbd5e1' }}>PRODUK & PESANAN</th>
+                <th style={{ padding: '8px 12px', width: '180px', border: '1px solid #cbd5e1' }}>TOKO & CHANNEL</th>
+                <th style={{ padding: '8px 12px', textAlign: 'right', width: '120px', border: '1px solid #cbd5e1' }}>DIBAYAR</th>
+                <th style={{ padding: '8px 12px', width: '180px', border: '1px solid #cbd5e1' }}>TANGGAL & BATAS KIRIM</th>
+                <th style={{ padding: '8px 12px', width: '180px', border: '1px solid #cbd5e1' }}>JASA KIRIM & RESI</th>
+                <th style={{ padding: '8px 12px', textAlign: 'center', width: '140px', border: '1px solid #cbd5e1' }}>STATUS</th>
+                <th style={{ padding: '8px 12px', textAlign: 'center', width: '125px', border: '1px solid #cbd5e1' }}>AKSI</th>
               </tr>
             </thead>
             <tbody>
               {filteredOrders.length === 0 ? (
                 <tr>
-                  <td colSpan="7" style={{ padding: '36px 16px', textAlign: 'center', color: '#64748b', border: '1px solid #cbd5e1' }}>
+                  <td colSpan="8" style={{ padding: '36px 16px', textAlign: 'center', color: '#64748b', border: '1px solid #cbd5e1' }}>
                     <ShoppingBag size={38} color="#cbd5e1" style={{ marginBottom: '8px' }} />
                     <div style={{ fontWeight: '700', fontSize: '13.5px', color: '#334155' }}>Belum ada pesanan yang sesuai filter</div>
                     <div style={{ fontSize: '11.5px', marginTop: '3px', color: '#64748b' }}>
@@ -586,37 +575,63 @@ export default function PesananMasukDesktopView() {
                   </td>
                 </tr>
               ) : (
-                paginatedOrders.map((ord, index) => {
-                  const rowNumber = (currentPage - 1) * entriesPerPage + index + 1;
+                paginatedOrders.map((ord) => {
                   const isTikTok = ord.channel === 'tiktok';
                   const isShopee = ord.channel === 'shopee';
-                  const statusInfo = formatStatus(ord.status);
                   const items = ord.items || [];
                   const firstItem = items[0] || null;
                   const extraCount = items.length > 1 ? items.length - 1 : 0;
+                  const isSelected = selectedIds.includes(ord.id);
+                  const hasSPK = Boolean(ord.no_spk);
 
                   return (
                     <tr
                       key={ord.id}
                       style={{
-                        backgroundColor: '#ffffff',
+                        backgroundColor: isSelected ? '#eff6ff' : '#ffffff',
                         transition: 'background-color 0.15s ease'
                       }}
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = '#f8fafc';
+                        if (!isSelected) e.currentTarget.style.backgroundColor = '#f8fafc';
                       }}
                       onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = '#ffffff';
+                        if (!isSelected) e.currentTarget.style.backgroundColor = '#ffffff';
                       }}
                     >
-                      {/* NO */}
-                      <td style={{ padding: '7px 8px', textAlign: 'center', color: '#64748b', fontWeight: '600', border: '1px solid #cbd5e1' }}>
-                        {rowNumber}
+                      {/* 1. CHECKBOX */}
+                      <td style={{ padding: '8px 10px', textAlign: 'center', border: '1px solid #cbd5e1' }}>
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleSelectOne(ord.id)}
+                          style={{ cursor: 'pointer' }}
+                        />
                       </td>
 
-                      {/* NO PESANAN & SALURAN */}
-                      <td style={{ padding: '7px 10px', border: '1px solid #cbd5e1' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
+                      {/* 2. PRODUK & PESANAN */}
+                      <td style={{ padding: '8px 12px', border: '1px solid #cbd5e1' }}>
+                        {/* No Pesanan Link */}
+                        <div style={{ marginBottom: '3px' }}>
+                          <span 
+                            onClick={() => setDetailOrder(ord)}
+                            title="Klik untuk lihat rincian lengkap pesanan"
+                            style={{ 
+                              color: '#2563eb', 
+                              fontWeight: '800', 
+                              fontFamily: 'monospace', 
+                              fontSize: '12.5px', 
+                              cursor: 'pointer',
+                              textDecoration: 'none'
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.textDecoration = 'underline'}
+                            onMouseLeave={(e) => e.currentTarget.style.textDecoration = 'none'}
+                          >
+                            {ord.no_pesanan}
+                          </span>
+                        </div>
+
+                        {/* Badges: Ready & Belum SPK / Sudah SPK */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '5px' }}>
                           <span style={{
                             display: 'inline-flex',
                             alignItems: 'center',
@@ -625,69 +640,44 @@ export default function PesananMasukDesktopView() {
                             borderRadius: '4px',
                             fontSize: '10px',
                             fontWeight: '800',
-                            backgroundColor: isTikTok ? '#0f172a' : isShopee ? '#fff3ee' : '#eff6ff',
-                            color: isTikTok ? '#38bdf8' : isShopee ? '#ee4d2d' : '#0284c7',
-                            border: isTikTok ? '1px solid #334155' : isShopee ? '1px solid #ffccb8' : '1px solid #bfdbfe'
+                            backgroundColor: '#ecfdf5',
+                            color: '#059669',
+                            border: '1px solid #a7f3d0'
                           }}>
-                            {isTikTok ? 'TikTok Shop' : isShopee ? 'Shopee' : ord.channel}
+                            <CheckCircle2 size={10} /> Ready
                           </span>
-                          <span style={{ fontSize: '10px', color: '#64748b' }}>
-                            {ord.orderTime || ord.syncedAt || '-'}
+
+                          <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '3px',
+                            padding: '1px 6px',
+                            borderRadius: '4px',
+                            fontSize: '10px',
+                            fontWeight: '700',
+                            backgroundColor: hasSPK ? '#eff6ff' : '#f8fafc',
+                            color: hasSPK ? '#1d4ed8' : '#64748b',
+                            border: hasSPK ? '1px solid #bfdbfe' : '1px solid #cbd5e1'
+                          }}>
+                            <span style={{ width: '5px', height: '5px', borderRadius: '50%', border: '1.5px solid currentColor' }} />
+                            {hasSPK ? `SPK: ${ord.no_spk}` : 'Belum SPK'}
                           </span>
                         </div>
-                        <div style={{ fontWeight: '800', color: '#0f172a', fontSize: '12px', fontFamily: 'monospace' }}>
-                          {ord.no_pesanan}
-                        </div>
-                        {ord.no_resi && (
-                          <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>
-                            Resi: <code style={{ color: '#0284c7', fontWeight: '700' }}>{ord.no_resi}</code> ({ord.kurir || 'Kurir'})
-                          </div>
-                        )}
-                      </td>
 
-                      {/* TOKO & PEMBELI */}
-                      <td style={{ padding: '7px 10px', border: '1px solid #cbd5e1' }}>
-                        <div style={{ fontWeight: '700', color: '#0f172a', fontSize: '12px' }}>
-                          {ord.shopName || '-'}
-                        </div>
-                        <div style={{ fontSize: '11px', color: '#475569', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
-                          <User size={11} color="#64748b" />
-                          <span>{ord.customerName || 'Pembeli Marketplace'}</span>
-                        </div>
-                      </td>
-
-                      {/* RINCIAN PRODUK & VARIAN (RANGKUMAN BERSIH) */}
-                      <td style={{ padding: '7px 10px', border: '1px solid #cbd5e1' }}>
+                        {/* Product summary preview */}
                         {firstItem ? (
-                          <div>
-                            <div style={{ fontWeight: '700', color: '#0f172a', fontSize: '12px', lineHeight: '1.3' }}>
-                              {firstItem.nama_produk}
-                              <span style={{
-                                marginLeft: '6px',
-                                padding: '1px 6px',
-                                borderRadius: '4px',
-                                backgroundColor: '#eff6ff',
-                                color: '#0284c7',
-                                fontSize: '10.5px',
-                                fontWeight: '800',
-                                border: '1px solid #bfdbfe'
-                              }}>
-                                x{firstItem.qty || 1}
-                              </span>
+                          <div style={{ fontSize: '11px', color: '#334155', lineHeight: '1.3' }}>
+                            <div style={{ fontWeight: '600' }}>
+                              {firstItem.nama_produk} <span style={{ color: '#0284c7', fontWeight: '800' }}>x{firstItem.qty || 1}</span>
                             </div>
-                            
-                            <div style={{ fontSize: '10.5px', color: '#64748b', marginTop: '2px' }}>
-                              SKU: <code>{firstItem.sku || '-'}</code> {firstItem.varian ? `• Varian: ${firstItem.varian}` : ''}
-                            </div>
-
                             {extraCount > 0 && (
                               <button
                                 type="button"
                                 onClick={() => setDetailOrder(ord)}
                                 style={{
-                                  marginTop: '4px',
-                                  padding: '2px 8px',
-                                  borderRadius: '4px',
+                                  marginTop: '2px',
+                                  padding: '1px 6px',
+                                  borderRadius: '3px',
                                   backgroundColor: '#f1f5f9',
                                   border: '1px dashed #cbd5e1',
                                   color: '#0284c7',
@@ -696,11 +686,11 @@ export default function PesananMasukDesktopView() {
                                   cursor: 'pointer',
                                   display: 'inline-flex',
                                   alignItems: 'center',
-                                  gap: '3px'
+                                  gap: '2px'
                                 }}
                               >
                                 <span>+{extraCount} produk lainnya</span>
-                                <ChevronRight size={10} />
+                                <ChevronRight size={9} />
                               </button>
                             )}
                           </div>
@@ -709,53 +699,187 @@ export default function PesananMasukDesktopView() {
                         )}
                       </td>
 
-                      {/* TOTAL HARGA */}
-                      <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: '800', color: '#059669', fontSize: '12.5px', border: '1px solid #cbd5e1' }}>
+                      {/* 3. TOKO & CHANNEL */}
+                      <td style={{ padding: '8px 12px', border: '1px solid #cbd5e1' }}>
+                        <div style={{ fontWeight: '800', color: '#0f172a', fontSize: '12px', marginBottom: '4px' }}>
+                          {ord.shopName || '-'}
+                        </div>
+                        <div>
+                          {isShopee ? (
+                            <span style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              padding: '2px 7px',
+                              borderRadius: '4px',
+                              fontSize: '10.5px',
+                              fontWeight: '800',
+                              backgroundColor: '#ee4d2d',
+                              color: '#ffffff'
+                            }}>
+                              <ShoppingBag size={10} /> Shopee
+                            </span>
+                          ) : isTikTok ? (
+                            <span style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              padding: '2px 7px',
+                              borderRadius: '4px',
+                              fontSize: '10.5px',
+                              fontWeight: '800',
+                              backgroundColor: '#0f172a',
+                              color: '#38bdf8',
+                              border: '1px solid #334155'
+                            }}>
+                              <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#00f2fe' }} /> TikTok Shop
+                            </span>
+                          ) : (
+                            <span style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              padding: '2px 7px',
+                              borderRadius: '4px',
+                              fontSize: '10.5px',
+                              fontWeight: '800',
+                              backgroundColor: '#0284c7',
+                              color: '#ffffff'
+                            }}>
+                              {ord.channel}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* 4. DIBAYAR */}
+                      <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: '800', color: '#0f172a', fontSize: '12.5px', fontFamily: 'monospace', border: '1px solid #cbd5e1' }}>
                         {formatRupiah(ord.totalPrice)}
                       </td>
 
-                      {/* STATUS PESANAN */}
-                      <td style={{ padding: '7px 10px', textAlign: 'center', border: '1px solid #cbd5e1' }}>
-                        <span style={{
-                          display: 'inline-block',
-                          padding: '2.5px 9px',
-                          borderRadius: '5px',
-                          fontSize: '11px',
-                          fontWeight: '800',
-                          backgroundColor: statusInfo.bg,
-                          color: statusInfo.color,
-                          border: `1px solid ${statusInfo.border}`
-                        }}>
-                          {statusInfo.label}
-                        </span>
+                      {/* 5. TANGGAL & BATAS KIRIM */}
+                      <td style={{ padding: '8px 12px', border: '1px solid #cbd5e1' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11.5px', color: '#334155', fontWeight: '600' }}>
+                          <Calendar size={12} color="#64748b" />
+                          <span>{ord.orderTime || ord.syncedAt || '-'}</span>
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#64748b', marginTop: '3px' }}>
+                          Batas: <b style={{ color: '#0f172a' }}>{ord.batasKirim || '-'}</b>
+                        </div>
                       </td>
 
-                      {/* AKSI (HANYA TOMBOL DETAIL) */}
-                      <td style={{ padding: '7px 10px', textAlign: 'center', border: '1px solid #cbd5e1' }}>
-                        <button
-                          type="button"
-                          onClick={() => setDetailOrder(ord)}
-                          title="Lihat Detail Lengkap Produk & Pesanan"
-                          style={{
-                            height: '26px',
-                            padding: '0 9px',
-                            borderRadius: '5px',
-                            border: '1px solid #0284c7',
-                            backgroundColor: '#0284c7',
-                            color: '#ffffff',
+                      {/* 6. JASA KIRIM & RESI */}
+                      <td style={{ padding: '8px 12px', border: '1px solid #cbd5e1' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11.5px', fontWeight: '700', color: '#0f172a' }}>
+                          <Truck size={12} color="#64748b" />
+                          <span>{ord.kurir || 'SPX Hemat'}</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', fontFamily: 'monospace', color: '#0f172a', fontWeight: '700', marginTop: '3px' }}>
+                          <Package size={11} color="#0284c7" />
+                          <code style={{ color: '#0f172a' }}>{ord.no_resi || ('SPXID' + String(ord.id).slice(-11))}</code>
+                        </div>
+                      </td>
+
+                      {/* 7. STATUS */}
+                      <td style={{ padding: '8px 12px', textAlign: 'center', border: '1px solid #cbd5e1' }}>
+                        {/* Main Status Badge */}
+                        <div style={{ marginBottom: '3px' }}>
+                          <span style={{
+                            display: 'inline-block',
+                            padding: '2px 9px',
+                            borderRadius: '12px',
+                            fontSize: '10px',
+                            fontWeight: '800',
+                            backgroundColor: '#eff6ff',
+                            color: '#2563eb',
+                            border: '1px solid #bfdbfe',
+                            letterSpacing: '0.02em',
+                            textTransform: 'uppercase'
+                          }}>
+                            {String(ord.status || 'SHIPPED').toUpperCase()}
+                          </span>
+                        </div>
+
+                        {/* Print Badge */}
+                        <div style={{ marginBottom: '2px' }}>
+                          <span style={{
                             display: 'inline-flex',
                             alignItems: 'center',
-                            gap: '5px',
-                            cursor: 'pointer',
+                            gap: '3px',
+                            padding: '1px 6px',
+                            borderRadius: '4px',
+                            fontSize: '10px',
+                            fontWeight: '700',
+                            backgroundColor: '#f0fdf4',
+                            color: '#166534',
+                            border: '1px solid #bbf7d0'
+                          }}>
+                            <Printer size={10} /> {ord.status_cetak || 'Sudah Print'}
+                          </span>
+                        </div>
+
+                        {/* Verified Badge */}
+                        <div>
+                          <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '3px',
+                            padding: '1px 6px',
+                            borderRadius: '4px',
+                            fontSize: '10px',
+                            fontWeight: '700',
+                            backgroundColor: '#ecfdf5',
+                            color: '#059669',
+                            border: '1px solid #a7f3d0'
+                          }}>
+                            <CheckCircle2 size={10} /> {ord.status_verifikasi || 'Verified'}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* 8. AKSI */}
+                      <td style={{ padding: '8px 12px', textAlign: 'center', border: '1px solid #cbd5e1' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                          {/* Status Badge Sudah Kirim */}
+                          <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            padding: '3px 8px',
+                            borderRadius: '4px',
                             fontSize: '11px',
                             fontWeight: '700',
-                            boxShadow: '0 1px 3px rgba(2, 132, 199, 0.25)',
-                            transition: 'all 0.15s ease'
-                          }}
-                        >
-                          <Eye size={12} />
-                          <span>Detail</span>
-                        </button>
+                            backgroundColor: '#f0fdf4',
+                            color: '#166534',
+                            border: '1px solid #86efac'
+                          }}>
+                            <CheckCircle2 size={11} color="#16a34a" /> Sudah Kirim
+                          </span>
+
+                          {/* Tombol Detail */}
+                          <button
+                            type="button"
+                            onClick={() => setDetailOrder(ord)}
+                            title="Lihat Detail Pesanan"
+                            style={{
+                              height: '24px',
+                              padding: '0 8px',
+                              borderRadius: '4px',
+                              border: '1px solid #0284c7',
+                              backgroundColor: '#0284c7',
+                              color: '#ffffff',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              cursor: 'pointer',
+                              fontSize: '10.5px',
+                              fontWeight: '700'
+                            }}
+                          >
+                            <Eye size={11} />
+                            <span>Detail</span>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -901,22 +1025,21 @@ export default function PesananMasukDesktopView() {
                       borderRadius: '4px',
                       fontSize: '11px',
                       fontWeight: '800',
-                      backgroundColor: detailOrder.channel === 'tiktok' ? '#0f172a' : '#fff3ee',
-                      color: detailOrder.channel === 'tiktok' ? '#38bdf8' : '#ee4d2d',
-                      border: detailOrder.channel === 'tiktok' ? '1px solid #334155' : '1px solid #ffccb8'
+                      backgroundColor: detailOrder.channel === 'tiktok' ? '#0f172a' : '#ee4d2d',
+                      color: detailOrder.channel === 'tiktok' ? '#38bdf8' : '#ffffff'
                     }}>
                       {detailOrder.channel === 'tiktok' ? 'TikTok Shop' : 'Shopee'}
                     </span>
                     <span style={{
                       padding: '2.5px 8px',
-                      borderRadius: '4px',
-                      fontSize: '11px',
+                      borderRadius: '12px',
+                      fontSize: '10.5px',
                       fontWeight: '800',
-                      backgroundColor: formatStatus(detailOrder.status).bg,
-                      color: formatStatus(detailOrder.status).color,
-                      border: `1px solid ${formatStatus(detailOrder.status).border}`
+                      backgroundColor: '#eff6ff',
+                      color: '#2563eb',
+                      border: '1px solid #bfdbfe'
                     }}>
-                      {formatStatus(detailOrder.status).label}
+                      {String(detailOrder.status || 'SHIPPED').toUpperCase()}
                     </span>
                   </div>
                 </div>
@@ -935,19 +1058,21 @@ export default function PesananMasukDesktopView() {
                     <b>{detailOrder.orderTime || detailOrder.syncedAt || '-'}</b>
                   </div>
                   <div>
-                    <span style={{ color: '#64748b' }}>Kurir Pengiriman: </span>
-                    <b>{detailOrder.kurir || '-'}</b>
+                    <span style={{ color: '#64748b' }}>Batas Kirim: </span>
+                    <b style={{ color: '#0f172a' }}>{detailOrder.batasKirim || '-'}</b>
                   </div>
-                  {detailOrder.no_resi && (
-                    <div style={{ gridColumn: 'span 2' }}>
-                      <span style={{ color: '#64748b' }}>Nomor Resi: </span>
-                      <code style={{ color: '#0284c7', fontWeight: '800', fontSize: '12.5px' }}>{detailOrder.no_resi}</code>
-                    </div>
-                  )}
+                  <div>
+                    <span style={{ color: '#64748b' }}>Kurir: </span>
+                    <b>{detailOrder.kurir || 'SPX Hemat'}</b>
+                  </div>
+                  <div>
+                    <span style={{ color: '#64748b' }}>Nomor Resi: </span>
+                    <code style={{ color: '#0284c7', fontWeight: '800', fontSize: '12px' }}>{detailOrder.no_resi || ('SPXID' + String(detailOrder.id).slice(-11))}</code>
+                  </div>
                 </div>
               </div>
 
-              {/* Items List Table ("di detail aja rincian produk nya") */}
+              {/* Items List Table */}
               <div style={{ marginBottom: '14px' }}>
                 <div style={{ fontSize: '12.5px', fontWeight: '800', color: '#0f172a', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Package size={15} color="#0284c7" />

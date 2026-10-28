@@ -507,8 +507,11 @@ const server = http.createServer(async (req, res) => {
           id, kode_perusahaan as company_code, no_pesanan, saluran as channel,
           nama_toko as shopName, nama_pembeli as customerName, total_harga as totalPrice,
           status_pesanan as status, no_spk, rincian_item, kurir, no_resi,
-          DATE_FORMAT(COALESCE(waktu_pesanan, ditarik_pada), '%d %b %Y, %H:%i') as orderTime,
-          DATE_FORMAT(ditarik_pada, '%d %b %Y, %H:%i') as syncedAt
+          COALESCE(status_cetak, 'Sudah Print') as status_cetak,
+          COALESCE(status_verifikasi, 'Verified') as status_verifikasi,
+          DATE_FORMAT(COALESCE(waktu_pesanan, ditarik_pada), '%d/%m/%Y %H:%i') as orderTime,
+          DATE_FORMAT(COALESCE(batas_kirim, DATE_ADD(COALESCE(waktu_pesanan, ditarik_pada), INTERVAL 1 DAY)), '%d/%m/%Y 23:59') as batasKirim,
+          DATE_FORMAT(ditarik_pada, '%d/%m/%Y, %H:%i') as syncedAt
         FROM pesanan_marketplace
         ORDER BY ditarik_pada DESC
       `);
