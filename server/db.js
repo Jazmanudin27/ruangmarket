@@ -170,6 +170,10 @@ export async function initDb() {
       await conn.query(`ALTER TABLE pesanan_marketplace ADD COLUMN status_cetak VARCHAR(32) DEFAULT 'Belum Print'`);
     } catch (e) {}
     try {
+      await conn.query(`ALTER TABLE pesanan_marketplace MODIFY COLUMN status_cetak VARCHAR(32) DEFAULT 'Belum Print'`);
+      await conn.query(`UPDATE pesanan_marketplace SET status_cetak = 'Belum Print' WHERE status_cetak = 'Sudah Print'`);
+    } catch (e) {}
+    try {
       await conn.query(`ALTER TABLE pesanan_marketplace ADD COLUMN status_verifikasi VARCHAR(32) DEFAULT 'Verified'`);
     } catch (e) {}
     try {
