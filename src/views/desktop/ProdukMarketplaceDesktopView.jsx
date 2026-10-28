@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { showConfirm, toastSuccess, toastError } from '../../utils/alert.util';
 import { getActiveCompany } from '../../utils/tenant.util';
+import { detectStatusOrder } from '../../utils/orderStatus.util';
 
 export const PRODUK_MARKETPLACE_KEY = 'ruangmarket_produk_marketplace_v1';
 const PRODUK_MASTER_KEY = 'ruangmarket_produk_gamis_v4';
@@ -240,7 +241,7 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
           barcode: `899${String(1000 + nextId)}`,
           kategori: 'Gamis Casual',
           tipe_set: 'Single',
-          status_order: 'Ready Stok',
+          status_order: detectStatusOrder(item.nama_produk, item.sku_marketplace),
           varian: item.varian_marketplace || 'All Size',
           stok: item.stok_marketplace,
           min_stok: 10,
@@ -273,7 +274,8 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
             harga_jual: p.harga_jual,
             harga_modal: p.harga_beli,
             stok_fisik: p.stok,
-            status: 'Aktif'
+            status: 'Aktif',
+            status_order: p.status_order
           })))
         });
 
@@ -339,7 +341,7 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
         barcode: `899${String(1000 + nextId)}`,
         kategori: 'Gamis Casual',
         tipe_set: 'Single',
-        status_order: 'Ready Stok',
+        status_order: detectStatusOrder(item.nama_produk, item.sku_marketplace),
         varian: item.varian_marketplace || 'All Size',
         stok: item.stok_marketplace,
         min_stok: 10,
@@ -368,7 +370,8 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
           harga_jual: newMasterProduct.harga_jual,
           harga_modal: newMasterProduct.harga_beli,
           stok_fisik: newMasterProduct.stok,
-          status: 'Aktif'
+          status: 'Aktif',
+          status_order: newMasterProduct.status_order
         })
       });
 

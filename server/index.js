@@ -257,15 +257,16 @@ const server = http.createServer(async (req, res) => {
           const hargaModal = Number(item.harga_modal || item.harga_beli) || 0;
           const stokFisik = Number(item.stok_fisik || item.stok) || 0;
           const status = String(item.status || 'Aktif').slice(0, 32);
+          const statusOrder = String(item.status_order || 'Ready Stok').slice(0, 32);
 
-          values.push(kodePerusahaan, kodeSku, namaProduk, kategori, satuan, hargaJual, hargaModal, stokFisik, status);
-          return '(?, ?, ?, ?, ?, ?, ?, ?, ?)';
+          values.push(kodePerusahaan, kodeSku, namaProduk, kategori, satuan, hargaJual, hargaModal, stokFisik, status, statusOrder);
+          return '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
         }).join(', ');
 
         const sql = `
           INSERT INTO produk_master (
             kode_perusahaan, kode_sku, nama_produk, kategori, satuan,
-            harga_jual, harga_modal, stok_fisik, status
+            harga_jual, harga_modal, stok_fisik, status, status_order
           ) VALUES ${placeholders}
           ON DUPLICATE KEY UPDATE
             nama_produk = VALUES(nama_produk),
@@ -274,7 +275,8 @@ const server = http.createServer(async (req, res) => {
             harga_jual = VALUES(harga_jual),
             harga_modal = VALUES(harga_modal),
             stok_fisik = VALUES(stok_fisik),
-            status = VALUES(status)
+            status = VALUES(status),
+            status_order = VALUES(status_order)
         `;
 
         await pool.query(sql, values);
@@ -288,14 +290,41 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
-  // 6f. Update / Delete Master Produk by ID
+  // 6f-1. Batch Update status_order Master Produk ERP
+  if ((pathname === '/api/produk/master/batch-status-order' || pathname === '/api/marketplace/master/batch-status-order') && req.method === 'POST') {
+    try {
+      const body = await parseJsonBody(req);
+      const { ids, status_order, items } = body;
+
+      if (Array.isArray(items) && items.length > 0) {
+        for (const it of items) {
+          if (it.id && it.status_order) {
+            await pool.query('UPDATE produk_master SET status_order = ? WHERE id = ?', [it.status_order, it.id]);
+          }
+        }
+        return sendJson(res, 200, { status: 'success', updated: items.length });
+      }
+
+      if (Array.isArray(ids) && ids.length > 0 && status_order) {
+        await pool.query('UPDATE produk_master SET status_order = ? WHERE id IN (?)', [status_order, ids]);
+        return sendJson(res, 200, { status: 'success', updated: ids.length });
+      }
+
+      return sendJson(res, 400, { status: 'error', message: 'Parameter ids dan status_order diperlukan' });
+    } catch (err) {
+      console.error('[API Batch Status Order ERROR]:', err);
+      return sendJson(res, 500, { status: 'error', message: err.message });
+    }
+  }
+
+  // 6f-2. Update / Delete Master Produk by ID
   const masterIdMatch = pathname.match(/^\/api\/(?:produk|marketplace)\/master\/([^/]+)$/);
   if (masterIdMatch && req.method === 'PUT') {
     try {
       const body = await parseJsonBody(req);
       const sets = [];
       const values = [];
-      const allowed = ['nama_produk', 'kategori', 'satuan', 'harga_jual', 'harga_modal', 'stok_fisik', 'status', 'kode_sku', 'kode_perusahaan'];
+      const allowed = ['nama_produk', 'kategori', 'satuan', 'harga_jual', 'harga_modal', 'stok_fisik', 'status', 'status_order', 'kode_sku', 'kode_perusahaan'];
       for (const col of allowed) {
         if (body[col] !== undefined) {
           sets.push(`${col} = ?`);

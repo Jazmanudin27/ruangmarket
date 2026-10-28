@@ -26,12 +26,14 @@ import {
   DollarSign,
   ShieldAlert,
   ChevronDown,
-  Check
+  Check,
+  CheckSquare
 } from 'lucide-react';
 import { showConfirm, toastSuccess, toastError } from '../../utils/alert.util';
 import { INITIAL_PRODUK_DATA } from '../../data/initialProduk';
 import { INITIAL_KATEGORI_DATA } from '../../data/initialKategori';
 import { getActiveCompany, getActiveCompanyCode } from '../../utils/tenant.util';
+import { detectStatusOrder } from '../../utils/orderStatus.util';
 
 const STORAGE_KEY = 'ruangmarket_produk_gamis_v4';
 const KATEGORI_STORAGE_KEY = 'ruangmarket_kategori_v1';
@@ -225,7 +227,7 @@ export default function ProdukView() {
             barcode: `899${String(1000 + (p.id || 1))}`,
             kategori: p.kategori || 'Gamis Casual',
             tipe_set: 'Single',
-            status_order: 'Ready Stok',
+            status_order: p.status_order || detectStatusOrder(p.nama_produk, p.kode_sku),
             varian: 'Standar',
             stok: Number(p.stok_fisik || 0),
             min_stok: 5,
@@ -287,6 +289,8 @@ export default function ProdukView() {
   const [filterStatus, setFilterStatus] = useState('Semua');
   const [currentPage, setCurrentPage] = useState(1);
   const [entriesPerPage, setEntriesPerPage] = useState(25);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [isBatchProcessing, setIsBatchProcessing] = useState(false);
 
   // Modals state
   const [selectedProduk, setSelectedProduk] = useState(null);
@@ -366,16 +370,21 @@ export default function ProdukView() {
   const totalTersedia = companyProdukList.filter(p => p.stok > p.min_stok).length;
   const totalMenipis = companyProdukList.filter(p => p.stok > 0 && p.stok <= p.min_stok).length;
   const totalHabis = companyProdukList.filter(p => p.stok <= 0).length;
+  const totalPO = companyProdukList.filter(p => (p.status_order || 'Ready Stok') === 'PO').length;
+  const totalReady = companyProdukList.filter(p => (p.status_order || 'Ready Stok') !== 'PO').length;
 
   // Filter logic
   const filteredList = companyProdukList.filter(p => {
     const isHabis = p.stok <= 0;
     const isMenipis = p.stok > 0 && p.stok <= p.min_stok;
     const isTersedia = p.stok > p.min_stok;
+    const isPO = (p.status_order || 'Ready Stok') === 'PO';
 
     if (activeFilterTab === 'tersedia' && !isTersedia) return false;
     if (activeFilterTab === 'menipis' && !isMenipis) return false;
     if (activeFilterTab === 'habis' && !isHabis) return false;
+    if (activeFilterTab === 'po' && !isPO) return false;
+    if (activeFilterTab === 'ready' && isPO) return false;
 
     if (filterKategori !== 'Semua' && p.kategori !== filterKategori) return false;
     if (filterTipeSet !== 'Semua' && (p.tipe_set || 'Single') !== filterTipeSet) return false;
@@ -414,8 +423,113 @@ export default function ProdukView() {
     setFilterStatusOrder('Semua');
     setFilterStatus('Semua');
     setCurrentPage(1);
+    setSelectedIds([]);
     loadMasterProduk();
     toastSuccess('Data produk berhasil diperbarui dari database');
+  };
+
+  // Toggle item selection
+  const toggleSelectOne = (id) => {
+    setSelectedIds(prev =>
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAllPage = () => {
+    const pageItemIds = paginatedList.map(i => i.id);
+    const allSelected = pageItemIds.every(id => selectedIds.includes(id));
+    if (allSelected) {
+      setSelectedIds(prev => prev.filter(id => !pageItemIds.includes(id)));
+    } else {
+      setSelectedIds(prev => Array.from(new Set([...prev, ...pageItemIds])));
+    }
+  };
+
+  // Batch action: Ubah masal status order (PO atau Ready Stok)
+  const handleBatchSetStatusOrder = async (targetStatus) => {
+    if (selectedIds.length === 0) {
+      toastError('Pilih setidaknya 1 produk terlebih dahulu!');
+      return;
+    }
+
+    const confirmed = await showConfirm(
+      `Ubah ke ${targetStatus}?`,
+      `Ubah status order ${selectedIds.length} produk terpilih menjadi "${targetStatus}"?`,
+      `Ya, Ubah ke ${targetStatus}`,
+      'Batal'
+    );
+    if (!confirmed) return;
+
+    setIsBatchProcessing(true);
+    try {
+      const res = await fetch('/api/marketplace/master/batch-status-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: selectedIds, status_order: targetStatus })
+      });
+      const json = await res.json();
+      if (!res.ok || json.status !== 'success') {
+        throw new Error(json.message || 'Gagal update status di server');
+      }
+
+      setProdukList(prev => prev.map(p => selectedIds.includes(p.id) ? { ...p, status_order: targetStatus } : p));
+      toastSuccess(`Berhasil mengubah ${selectedIds.length} produk menjadi "${targetStatus}"!`);
+      setSelectedIds([]);
+    } catch (err) {
+      toastError(`Gagal: ${err.message}`);
+    } finally {
+      setIsBatchProcessing(false);
+    }
+  };
+
+  // Batch action: Deteksi otomatis masal (PO jika ada kata PO / Custom, bukan Polos)
+  const handleBatchAutoDetectStatusOrder = async (useSelectionOnly = true) => {
+    const targets = (useSelectionOnly && selectedIds.length > 0)
+      ? produkList.filter(p => selectedIds.includes(p.id))
+      : filteredList;
+
+    if (targets.length === 0) {
+      toastError('Tidak ada produk untuk dideteksi!');
+      return;
+    }
+
+    const itemsToUpdate = targets.map(p => ({
+      id: p.id,
+      status_order: detectStatusOrder(p.nama_produk, p.sku)
+    }));
+
+    const countPO = itemsToUpdate.filter(i => i.status_order === 'PO').length;
+    const countReady = itemsToUpdate.length - countPO;
+
+    const confirmed = await showConfirm(
+      'Deteksi Otomatis PO & Ready Stok?',
+      `Sistem akan menganalisis nama & SKU dari ${targets.length} produk. Kata PO (bukan Polos) & Custom akan otomatis dijadikan PO, lainnya Ready Stok.\n\nHasil analisis: ${countPO} PO, ${countReady} Ready Stok. Terapkan?`,
+      'Ya, Terapkan Sekarang',
+      'Batal'
+    );
+    if (!confirmed) return;
+
+    setIsBatchProcessing(true);
+    try {
+      const res = await fetch('/api/marketplace/master/batch-status-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: itemsToUpdate })
+      });
+      const json = await res.json();
+      if (!res.ok || json.status !== 'success') {
+        throw new Error(json.message || 'Gagal menyimpan hasil deteksi');
+      }
+
+      const mapUpdates = new Map(itemsToUpdate.map(it => [it.id, it.status_order]));
+      setProdukList(prev => prev.map(p => mapUpdates.has(p.id) ? { ...p, status_order: mapUpdates.get(p.id) } : p));
+      toastSuccess(`Berhasil! ${countPO} produk diset PO, ${countReady} produk diset Ready Stok.`);
+      setSelectedIds([]);
+    } catch (err) {
+      toastError(`Gagal deteksi: ${err.message}`);
+    } finally {
+      setIsBatchProcessing(false);
+    }
   };
 
   const handleOpenAdd = () => {
@@ -487,6 +601,7 @@ export default function ProdukView() {
             harga_modal: formData.harga_beli,
             stok_fisik: formData.stok,
             status: formData.status || 'Aktif',
+            status_order: formData.status_order || 'Ready Stok',
             kode_sku: formData.sku
           })
         });
@@ -498,7 +613,8 @@ export default function ProdukView() {
       const newProduk = {
         ...formData,
         id: newId,
-        company_code: activeCompany.code || 'RSG'
+        company_code: activeCompany.code || 'RSG',
+        status_order: formData.status_order || detectStatusOrder(formData.nama_produk, formData.sku)
       };
 
       try {
@@ -514,7 +630,8 @@ export default function ProdukView() {
             harga_jual: newProduk.harga_jual,
             harga_modal: newProduk.harga_beli,
             stok_fisik: newProduk.stok,
-            status: 'Aktif'
+            status: 'Aktif',
+            status_order: newProduk.status_order
           })
         });
       } catch (err) {}
@@ -610,6 +727,34 @@ export default function ProdukView() {
           >
             <QrCode size={14} />
             <span>Cetak Barcode</span>
+          </button>
+
+          <button
+            onClick={() => handleBatchAutoDetectStatusOrder(false)}
+            title="Scan dan deteksi otomatis semua produk: kata PO (bukan Polos) & Custom otomatis jadi PO, lainnya Ready Stok"
+            style={{
+              height: '30px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              padding: '0 14px',
+              borderRadius: '6px',
+              border: 'none',
+              backgroundColor: '#8b5cf6',
+              color: '#ffffff',
+              fontSize: '12px',
+              fontWeight: '700',
+              lineHeight: 1,
+              cursor: 'pointer',
+              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.15)',
+              transition: 'all 0.15s ease'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#7c3aed'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#8b5cf6'}
+          >
+            <Sparkles size={14} />
+            <span>Deteksi Otomatis PO</span>
           </button>
 
           <button
@@ -748,6 +893,58 @@ export default function ProdukView() {
         >
           <AlertTriangle size={13} />
           <span>Stok Habis ({totalHabis})</span>
+        </button>
+
+        {/* Tab 5: Pre-Order / PO (Oranye Spesial) */}
+        <button
+          onClick={() => changeTab('po')}
+          style={{
+            height: '28px',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '6px',
+            padding: '0 12px',
+            borderRadius: '6px',
+            border: activeFilterTab === 'po' ? '1px solid #ea580c' : '1px solid #fed7aa',
+            backgroundColor: activeFilterTab === 'po' ? '#ea580c' : '#fff7ed',
+            color: activeFilterTab === 'po' ? '#ffffff' : '#c2410c',
+            fontSize: '12px',
+            fontWeight: '700',
+            lineHeight: 1,
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
+            boxShadow: activeFilterTab === 'po' ? '0 1px 4px rgba(234, 88, 12, 0.25)' : 'none'
+          }}
+        >
+          <Clock size={13} />
+          <span>PO / Pre-Order ({totalPO})</span>
+        </button>
+
+        {/* Tab 6: Ready Stok (Hijau) */}
+        <button
+          onClick={() => changeTab('ready')}
+          style={{
+            height: '28px',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '6px',
+            padding: '0 12px',
+            borderRadius: '6px',
+            border: activeFilterTab === 'ready' ? '1px solid #059669' : '1px solid #bbf7d0',
+            backgroundColor: activeFilterTab === 'ready' ? '#059669' : '#f0fdf4',
+            color: activeFilterTab === 'ready' ? '#ffffff' : '#15803d',
+            fontSize: '12px',
+            fontWeight: '700',
+            lineHeight: 1,
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
+            boxShadow: activeFilterTab === 'ready' ? '0 1px 4px rgba(5, 150, 105, 0.25)' : 'none'
+          }}
+        >
+          <CheckCircle size={13} />
+          <span>Ready Stok ({totalReady})</span>
         </button>
 
       </div>
@@ -919,6 +1116,130 @@ export default function ProdukView() {
 
       </div>
 
+      {/* BATCH ACTION BAR (MUNCUL KETIKA ADA ITEM YANG DICENTANG) */}
+      {selectedIds.length > 0 && (
+        <div style={{
+          backgroundColor: '#eff6ff',
+          border: '1px solid #93c5fd',
+          borderRadius: '8px',
+          padding: '8px 14px',
+          marginBottom: '6px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '8px',
+          boxShadow: '0 2px 6px rgba(2, 132, 199, 0.12)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', fontWeight: '800', color: '#1e40af' }}>
+            <CheckSquare size={16} color="#0284c7" />
+            <span>{selectedIds.length} produk terpilih</span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            {/* Tombol Masal: Ubah ke PO */}
+            <button
+              type="button"
+              disabled={isBatchProcessing}
+              onClick={() => handleBatchSetStatusOrder('PO')}
+              style={{
+                height: '28px',
+                padding: '0 12px',
+                borderRadius: '6px',
+                border: '1px solid #f97316',
+                backgroundColor: '#ea580c',
+                color: '#ffffff',
+                fontSize: '11.5px',
+                fontWeight: '700',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+                cursor: 'pointer',
+                boxShadow: '0 1px 3px rgba(234, 88, 12, 0.3)'
+              }}
+            >
+              <Clock size={13} />
+              <span>{isBatchProcessing ? 'Memproses...' : 'Ubah Masal ke PO'}</span>
+            </button>
+
+            {/* Tombol Masal: Ubah ke Ready Stok */}
+            <button
+              type="button"
+              disabled={isBatchProcessing}
+              onClick={() => handleBatchSetStatusOrder('Ready Stok')}
+              style={{
+                height: '28px',
+                padding: '0 12px',
+                borderRadius: '6px',
+                border: '1px solid #059669',
+                backgroundColor: '#10b981',
+                color: '#ffffff',
+                fontSize: '11.5px',
+                fontWeight: '700',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+                cursor: 'pointer',
+                boxShadow: '0 1px 3px rgba(16, 185, 129, 0.3)'
+              }}
+            >
+              <CheckCircle size={13} />
+              <span>{isBatchProcessing ? 'Memproses...' : 'Ubah Masal ke Ready Stok'}</span>
+            </button>
+
+            {/* Tombol Masal: Deteksi Otomatis PO/Ready */}
+            <button
+              type="button"
+              disabled={isBatchProcessing}
+              onClick={() => handleBatchAutoDetectStatusOrder(true)}
+              title="Deteksi otomatis kata PO & Custom (bukan Polos)"
+              style={{
+                height: '28px',
+                padding: '0 12px',
+                borderRadius: '6px',
+                border: '1px solid #7c3aed',
+                backgroundColor: '#8b5cf6',
+                color: '#ffffff',
+                fontSize: '11.5px',
+                fontWeight: '700',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+                cursor: 'pointer',
+                boxShadow: '0 1px 3px rgba(139, 92, 246, 0.3)'
+              }}
+            >
+              <Sparkles size={13} />
+              <span>Deteksi Otomatis PO/Ready</span>
+            </button>
+
+            {/* Tombol Batal Pilih */}
+            <button
+              type="button"
+              disabled={isBatchProcessing}
+              onClick={() => setSelectedIds([])}
+              style={{
+                height: '28px',
+                padding: '0 10px',
+                borderRadius: '6px',
+                border: '1px solid #cbd5e1',
+                backgroundColor: '#ffffff',
+                color: '#64748b',
+                fontSize: '11.5px',
+                fontWeight: '700',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                cursor: 'pointer'
+              }}
+            >
+              <X size={13} />
+              <span>Batal</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* DATA TABLE (MATCHING HEADER WIDTH & SIDE-TO-SIDE 16PX) */}
       <div style={{
         backgroundColor: '#ffffff',
@@ -931,6 +1252,15 @@ export default function ProdukView() {
           <table className="table-bordered-hover" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '12px', border: '1px solid #cbd5e1' }}>
             <thead>
               <tr style={{ backgroundColor: '#f8fafc', color: '#475569', fontSize: '11px', fontWeight: '800', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                <th style={{ padding: '5px 8px', textAlign: 'center', width: '36px', border: '1px solid #cbd5e1' }}>
+                  <input
+                    type="checkbox"
+                    checked={paginatedList.length > 0 && paginatedList.every(i => selectedIds.includes(i.id))}
+                    onChange={toggleSelectAllPage}
+                    style={{ cursor: 'pointer' }}
+                    title="Pilih Semua di Halaman Ini"
+                  />
+                </th>
                 <th style={{ padding: '5px 8px', textAlign: 'center', width: '45px', border: '1px solid #cbd5e1' }}>NO</th>
                 <th style={{ padding: '5px 8px', border: '1px solid #cbd5e1' }}>NAMA PRODUK & SKU</th>
                 <th style={{ padding: '5px 8px', border: '1px solid #cbd5e1' }}>KATEGORI & VARIAN</th>
@@ -944,7 +1274,7 @@ export default function ProdukView() {
             <tbody>
               {filteredList.length === 0 ? (
                 <tr>
-                  <td colSpan="8" style={{ padding: '24px 16px', textAlign: 'center', color: '#64748b', border: '1px solid #cbd5e1' }}>
+                  <td colSpan="9" style={{ padding: '24px 16px', textAlign: 'center', color: '#64748b', border: '1px solid #cbd5e1' }}>
                     <Package size={32} color="#cbd5e1" style={{ marginBottom: '6px' }} />
                     <div style={{ fontWeight: '700', fontSize: '13px', color: '#334155' }}>Tidak ada produk ditemukan</div>
                     <div style={{ fontSize: '11px', marginTop: '2px' }}>Coba ubah kata kunci pencarian atau reset filter.</div>
@@ -953,16 +1283,32 @@ export default function ProdukView() {
               ) : (
                 paginatedList.map((item, index) => {
                   const rowNumber = (currentPage - 1) * entriesPerPage + index + 1;
+                  const isSelected = selectedIds.includes(item.id);
                   return (
                     <tr 
                       key={item.id}
                       style={{
+                        backgroundColor: isSelected ? '#eff6ff' : 'transparent',
                         transition: 'background-color 0.15s ease',
                         cursor: 'default'
                       }}
-                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'}
-                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                      onMouseEnter={(e) => {
+                        if (!isSelected) e.currentTarget.style.backgroundColor = '#f1f5f9';
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent';
+                      }}
                     >
+                      {/* CHECKBOX */}
+                      <td style={{ padding: '5px 8px', textAlign: 'center', border: '1px solid #cbd5e1' }}>
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleSelectOne(item.id)}
+                          style={{ cursor: 'pointer' }}
+                        />
+                      </td>
+
                       {/* NO */}
                       <td style={{ padding: '5px 8px', textAlign: 'center', color: '#64748b', fontWeight: '600', border: '1px solid #cbd5e1' }}>
                         {rowNumber}
@@ -1010,17 +1356,36 @@ export default function ProdukView() {
                             {item.tipe_set || 'Single'}
                           </span>
 
-                          {/* Status Order: Ready Stok / PO */}
-                          <span style={{
-                            display: 'inline-block',
-                            padding: '1px 6px',
-                            borderRadius: '4px',
-                            fontSize: '10px',
-                            fontWeight: '700',
-                            backgroundColor: item.status_order === 'PO' ? '#fff7ed' : '#f0fdf4',
-                            color: item.status_order === 'PO' ? '#c2410c' : '#15803d',
-                            border: item.status_order === 'PO' ? '1px solid #fed7aa' : '1px solid #bbf7d0'
-                          }}>
+                          {/* Status Order: Ready Stok / PO (Bisa diklik untuk ubah cepat) */}
+                          <span 
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              const nextStatus = item.status_order === 'PO' ? 'Ready Stok' : 'PO';
+                              try {
+                                await fetch(`/api/marketplace/master/${item.id}`, {
+                                  method: 'PUT',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ status_order: nextStatus })
+                                });
+                                setProdukList(prev => prev.map(p => p.id === item.id ? { ...p, status_order: nextStatus } : p));
+                                toastSuccess(`Status "${item.nama_produk}" diubah ke ${nextStatus}`);
+                              } catch (err) {}
+                            }}
+                            title="Klik untuk ubah cepat PO / Ready Stok"
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '3px',
+                              padding: '1px 6px',
+                              borderRadius: '4px',
+                              fontSize: '10px',
+                              fontWeight: '700',
+                              backgroundColor: item.status_order === 'PO' ? '#fff7ed' : '#f0fdf4',
+                              color: item.status_order === 'PO' ? '#c2410c' : '#15803d',
+                              border: item.status_order === 'PO' ? '1px solid #fed7aa' : '1px solid #bbf7d0',
+                              cursor: 'pointer'
+                            }}
+                          >
                             {item.status_order === 'PO' ? 'PO' : 'Ready Stok'}
                           </span>
                         </div>

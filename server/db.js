@@ -86,14 +86,18 @@ export async function initDb() {
         harga_modal DECIMAL(15,2) DEFAULT 0,
         stok_fisik INT DEFAULT 0,
         status VARCHAR(32) DEFAULT 'Aktif',
+        status_order VARCHAR(32) DEFAULT 'Ready Stok',
         dibuat_pada TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         diperbarui_pada TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Master data produk ERP RuangMarket';
     `);
 
-    // Auto-migrate column kode_sku jika kurang panjang
+    // Auto-migrate column kode_sku jika kurang panjang dan tambahkan status_order jika belum ada
     try {
       await conn.query(`ALTER TABLE produk_master MODIFY COLUMN kode_sku VARCHAR(255) NOT NULL`);
+    } catch (e) {}
+    try {
+      await conn.query(`ALTER TABLE produk_master ADD COLUMN status_order VARCHAR(32) DEFAULT 'Ready Stok'`);
     } catch (e) {}
 
     // 4. Tabel Pesanan Marketplace & SPK Produksi (pesanan_marketplace)
