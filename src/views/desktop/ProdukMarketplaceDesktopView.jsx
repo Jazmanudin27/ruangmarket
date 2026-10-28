@@ -475,18 +475,17 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
                           {!isMapped && (
                             <button
                               type="button"
-                              className="pm-action-master"
-                              title="Salin Produk ini ke Master Data Produk ERP"
+                              className="btn-aksi btn-aksi--primary"
+                              title="Salin ke Master Data Produk"
                               onClick={() => handleImportToMaster(item)}
                             >
-                              <span>Ke Master Data</span>
-                              <ArrowRight size={12} />
+                              <ArrowRight size={13} />
                             </button>
                           )}
                           <button
                             type="button"
-                            className="pm-action-delete"
-                            title="Hapus dari staging"
+                            className="btn-aksi btn-aksi--danger"
+                            title="Hapus Produk"
                             onClick={() => handleDelete(item.id, item.nama_produk)}
                           >
                             <Trash2 size={13} />
