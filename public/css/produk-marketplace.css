@@ -169,6 +169,36 @@
 .pm-select--stok    { min-width: 115px; }
 .pm-select--rows    { min-width: 105px; }
 
+/* ---------- BATCH BAR ---------- */
+.pm-batch-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 8px 14px;
+  margin-bottom: 6px;
+  background: #f0fdf4;
+  border: 1px solid #86efac;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(16, 185, 129, 0.1);
+  animation: fadeIn 0.15s ease-in-out;
+}
+
+.pm-batch-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #15803d;
+}
+
+.pm-col-check {
+  text-align: center;
+  width: 36px;
+}
+
 /* ---------- TABLE ---------- */
 .pm-table-card {
   background-color: #ffffff;

@@ -13,7 +13,8 @@ import {
   Eye,
   Edit3,
   Save,
-  X
+  X,
+  CheckSquare
 } from 'lucide-react';
 import { showConfirm, toastSuccess, toastError } from '../../utils/alert.util';
 import { getActiveCompany } from '../../utils/tenant.util';
@@ -55,6 +56,8 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
   const [filterStok, setFilterStok] = useState('Semua');
   const [currentPage, setCurrentPage] = useState(1);
   const [entriesPerPage, setEntriesPerPage] = useState(25);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [isBatchProcessing, setIsBatchProcessing] = useState(false);
   const [detailItem, setDetailItem] = useState(null);
   const [editItem, setEditItem] = useState(null);
   const [editForm, setEditForm] = useState({});
@@ -148,6 +151,96 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
 
   const totalPages = Math.ceil(filteredItems.length / entriesPerPage) || 1;
   const paginatedItems = filteredItems.slice((currentPage - 1) * entriesPerPage, currentPage * entriesPerPage);
+
+  // Toggle item selection
+  const toggleSelectOne = (id) => {
+    setSelectedIds(prev => 
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAllPage = () => {
+    const pageItemIds = paginatedItems.map(i => i.id);
+    const allSelected = pageItemIds.every(id => selectedIds.includes(id));
+    if (allSelected) {
+      setSelectedIds(prev => prev.filter(id => !pageItemIds.includes(id)));
+    } else {
+      setSelectedIds(prev => Array.from(new Set([...prev, ...pageItemIds])));
+    }
+  };
+
+  // Action: Salin produk marketplace MASAL ke Data Master Produk
+  const handleBatchImportToMaster = async () => {
+    const unmappedSelected = companyItems.filter(
+      item => selectedIds.includes(item.id) && !isMappedStatus(item.status)
+    );
+
+    if (unmappedSelected.length === 0) {
+      toastError('Semua produk yang dipilih sudah ada di Master Data Produk!');
+      return;
+    }
+
+    const confirmed = await showConfirm(
+      'Jadikan Master Produk Massal?',
+      `Salin ${unmappedSelected.length} produk terpilih ke Data Master Produk ERP sekaligus?`,
+      'Ya, Salin Massal',
+      'Batal'
+    );
+    if (!confirmed) return;
+
+    setIsBatchProcessing(true);
+    try {
+      const savedMaster = localStorage.getItem(PRODUK_MASTER_KEY);
+      const masterList = savedMaster ? JSON.parse(savedMaster) : [];
+      let currentMaxId = masterList.length > 0 ? Math.max(...masterList.map(p => Number(p.id) || 0)) : 0;
+
+      const newProducts = unmappedSelected.map((item, idx) => {
+        const nextId = currentMaxId + idx + 1;
+        return {
+          id: nextId,
+          company_code: item.company_code || activeCompany.code || 'RSG',
+          nama_produk: item.nama_produk,
+          sku: `${activeCompany.code}-${item.sku_marketplace}`,
+          barcode: `899${String(1000 + nextId)}`,
+          kategori: 'Gamis Casual',
+          tipe_set: 'Single',
+          status_order: 'Ready Stok',
+          varian: item.varian_marketplace || 'All Size',
+          stok: item.stok_marketplace,
+          min_stok: 10,
+          satuan: 'PCS',
+          harga_beli: Math.round(Number(item.harga_jual || 0) * 0.65),
+          harga_jual: item.harga_jual,
+          estimasi_kain: 'Kain Drill / Ripstop Standar',
+          panjang_kain_cm: 220,
+          harga_kain_cm: 180,
+          source: `${item.channelName || item.channel} (${item.shopName || ''})`
+        };
+      });
+
+      localStorage.setItem(PRODUK_MASTER_KEY, JSON.stringify([...newProducts, ...masterList]));
+      window.dispatchEvent(new Event('storage'));
+
+      const targetIds = unmappedSelected.map(i => i.id);
+
+      // Update di state
+      setMktProdukList(prev => prev.map(p => targetIds.includes(p.id) ? { ...p, status: 'Sudah di Master' } : p));
+
+      // Update di database MySQL
+      await fetch('/api/marketplace/products/batch-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: targetIds, status: 'Sudah di Master' })
+      });
+
+      toastSuccess(`Berhasil menyalin ${newProducts.length} produk ke Master Data ERP!`);
+      setSelectedIds([]);
+    } catch (e) {
+      toastError(`Gagal proses masal: ${e.message}`);
+    } finally {
+      setIsBatchProcessing(false);
+    }
+  };
 
   // Action: Salin produk marketplace terpilih ke Data Master Produk
   const handleImportToMaster = async (item) => {
@@ -351,12 +444,50 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
         </select>
       </div>
 
+      {/* BATCH ACTION BAR (MUNCUL KETIKA ADA ITEM YANG DICENTANG) */}
+      {selectedIds.length > 0 && (
+        <div className="pm-batch-bar">
+          <div className="pm-batch-info">
+            <CheckSquare size={16} />
+            <span>{selectedIds.length} produk dipilih</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button
+              type="button"
+              className="btn btn-success btn-sm"
+              onClick={handleBatchImportToMaster}
+              disabled={isBatchProcessing}
+            >
+              <ArrowRight size={13} />
+              <span>{isBatchProcessing ? 'Memproses...' : 'Jadikan Master Produk Massal'}</span>
+            </button>
+            <button
+              type="button"
+              className="btn btn-outline-secondary btn-sm"
+              onClick={() => setSelectedIds([])}
+              disabled={isBatchProcessing}
+            >
+              Batal Pilih
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* 4. DATA TABLE */}
       <div className="pm-table-card">
         <div className="pm-table-scroll">
           <table className="pm-table">
             <thead>
               <tr>
+                <th className="pm-col-check">
+                  <input
+                    type="checkbox"
+                    checked={paginatedItems.length > 0 && paginatedItems.every(i => selectedIds.includes(i.id))}
+                    onChange={toggleSelectAllPage}
+                    style={{ cursor: 'pointer' }}
+                    title="Pilih Semua di Halaman Ini"
+                  />
+                </th>
                 <th className="pm-col-no">NO</th>
                 <th>NAMA PRODUK & SKU MARKETPLACE</th>
                 <th>TOKO & SALURAN</th>
@@ -370,12 +501,12 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
             <tbody>
               {filteredItems.length === 0 ? (
                 <tr>
-                  <td colSpan="8" className="pm-empty">
+                  <td colSpan="9" className="pm-empty">
                     <Package size={32} className="pm-empty-icon" />
                     <div className="pm-empty-title">Tidak ada produk di antrian staging</div>
                     <div className="pm-empty-desc">
                       {companyItems.length === 0 
-                        ? 'Klik tombol Tarik Shopee untuk menarik produk dari Shopee API.' 
+                        ? 'Tarik produk dari Shopee API lewat halaman Daftar Toko.' 
                         : 'Coba ubah kata kunci pencarian atau reset filter di atas.'}
                     </div>
                   </td>
@@ -384,10 +515,19 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
                 paginatedItems.map((item, index) => {
                   const stockNum = Number(item.stok_marketplace) || 0;
                   const isMapped = isMappedStatus(item.status);
+                  const isSelected = selectedIds.includes(item.id);
                   const rowNumber = (currentPage - 1) * entriesPerPage + index + 1;
 
                   return (
-                    <tr key={item.id}>
+                    <tr key={item.id} style={{ backgroundColor: isSelected ? '#f0fdf4' : undefined }}>
+                      <td className="pm-col-check">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleSelectOne(item.id)}
+                          style={{ cursor: 'pointer' }}
+                        />
+                      </td>
                       <td className="pm-cell-no">{rowNumber}</td>
 
                       <td className="pm-cell-produk">

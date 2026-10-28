@@ -180,6 +180,21 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
+  // 6c. Batch Update Status Produk Marketplace
+  if (pathname === '/api/marketplace/products/batch-status' && req.method === 'POST') {
+    try {
+      const body = await parseJsonBody(req);
+      const { ids, status } = body;
+      if (!Array.isArray(ids) || ids.length === 0 || !status) {
+        return sendJson(res, 400, { status: 'error', message: 'Parameter ids (array) dan status wajib diisi' });
+      }
+      await pool.query('UPDATE produk_marketplace SET status_mapping = ? WHERE id IN (?)', [status, ids]);
+      return sendJson(res, 200, { status: 'success', count: ids.length });
+    } catch (err) {
+      return sendJson(res, 500, { status: 'error', message: err.message });
+    }
+  }
+
   // 7. Shopee Products Sync API (Langsung simpan ke MySQL)
   if (pathname === '/api/marketplace/shopee/products' && req.method === 'GET') {
     const shopId = urlObj.searchParams.get('shop_id') || '1030191310';
