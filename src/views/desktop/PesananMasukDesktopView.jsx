@@ -651,48 +651,7 @@ export default function PesananMasukDesktopView() {
           <option value={100}>100 Baris</option>
         </select>
 
-        {/* Quick Page Nav di Bar Atas */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginLeft: 'auto' }}>
-          <button
-            type="button"
-            disabled={currentPage <= 1}
-            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-            style={{
-              height: '28px',
-              padding: '0 10px',
-              borderRadius: '5px',
-              border: '1px solid #cbd5e1',
-              backgroundColor: currentPage <= 1 ? '#f8fafc' : '#ffffff',
-              color: currentPage <= 1 ? '#94a3b8' : '#334155',
-              cursor: currentPage <= 1 ? 'not-allowed' : 'pointer',
-              fontSize: '11px',
-              fontWeight: '700'
-            }}
-          >
-            &lt; Prev
-          </button>
-          <span style={{ fontSize: '11.5px', fontWeight: '800', color: '#0f172a', padding: '0 4px' }}>
-            {currentPage} / {totalPages}
-          </span>
-          <button
-            type="button"
-            disabled={currentPage >= totalPages}
-            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-            style={{
-              height: '28px',
-              padding: '0 10px',
-              borderRadius: '5px',
-              border: '1px solid #cbd5e1',
-              backgroundColor: currentPage >= totalPages ? '#f8fafc' : '#ffffff',
-              color: currentPage >= totalPages ? '#94a3b8' : '#334155',
-              cursor: currentPage >= totalPages ? 'not-allowed' : 'pointer',
-              fontSize: '11px',
-              fontWeight: '700'
-            }}
-          >
-            Next &gt;
-          </button>
-        </div>
+
       </div>
 
       {/* 4. DATA TABLE PESANAN (STRUKTUR KOLOM PERSIS DENGAN PERMINTAAN USER) */}
