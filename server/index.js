@@ -499,9 +499,114 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
-  // 9. API Ambil Data Pesanan Marketplace dari MySQL
+  // 9. API Ambil Data Pesanan Marketplace dari MySQL (Langsung Terhubung ke Database Laravel)
   if (pathname === '/api/marketplace/orders' && req.method === 'GET') {
     try {
+      let orders = [];
+
+      // Coba ambil dari tabel asli Laravel (orders & order_items di database marketplace / default)
+      let tableSource = null;
+      try {
+        await pool.query('SELECT 1 FROM orders LIMIT 1');
+        tableSource = 'orders';
+      } catch (e1) {
+        try {
+          await pool.query('SELECT 1 FROM marketplace.orders LIMIT 1');
+          tableSource = 'marketplace.orders';
+        } catch (e2) {
+          tableSource = null;
+        }
+      }
+
+      if (tableSource) {
+        const storeTbl = tableSource.includes('.') ? 'marketplace.stores' : 'stores';
+        const channelTbl = tableSource.includes('.') ? 'marketplace.channels' : 'channels';
+        const itemTbl = tableSource.includes('.') ? 'marketplace.order_items' : 'order_items';
+
+        const [orderRows] = await pool.query(`
+          SELECT 
+            o.id,
+            'RSG' as company_code,
+            o.order_marketplace_id as no_pesanan,
+            COALESCE(c.code, 'shopee') as channel,
+            COALESCE(s.store_name, 'NUSANTARA SERAGAM') as shopName,
+            COALESCE(o.buyer_name, '-') as customerName,
+            COALESCE(o.buyer_phone, '') as buyer_phone,
+            COALESCE(o.shipping_address, '') as shipping_address,
+            COALESCE(o.courier, 'SPX Express') as kurir,
+            COALESCE(o.tracking_number, '') as no_resi,
+            COALESCE(o.payment_method, 'Cash on Delivery') as payment_method,
+            CAST(COALESCE(o.total_amount, 0) AS DECIMAL(15,2)) as totalPrice,
+            CAST(COALESCE(o.shipping_fee, 0) AS DECIMAL(15,2)) as shipping_fee,
+            CAST(COALESCE(o.marketplace_fee, 0) AS DECIMAL(15,2)) as marketplace_fee,
+            CAST(COALESCE(o.fee_platform_amount, 0) AS DECIMAL(15,2)) as fee_platform,
+            CAST(COALESCE(o.fee_free_shipping_amount, 0) AS DECIMAL(15,2)) as fee_free_shipping,
+            CAST(COALESCE(o.fee_service_amount, 0) AS DECIMAL(15,2)) as fee_service,
+            CAST(COALESCE(o.net_amount, o.total_amount) AS DECIMAL(15,2)) as net_amount,
+            o.financial_breakdown,
+            o.order_status as status,
+            COALESCE(o.packing_status, 'Verified') as status_verifikasi,
+            'Sudah Print' as status_cetak,
+            DATE_FORMAT(o.order_date, '%d/%m/%Y %H:%i') as orderTime,
+            DATE_FORMAT(COALESCE(o.ship_before_date, DATE_ADD(o.order_date, INTERVAL 1 DAY)), '%d/%m/%Y 23:59') as batasKirim,
+            DATE_FORMAT(o.created_at, '%d/%m/%Y, %H:%i') as syncedAt
+          FROM ${tableSource} o
+          LEFT JOIN ${storeTbl} s ON o.store_id = s.id
+          LEFT JOIN ${channelTbl} c ON s.channel_id = c.id
+          ORDER BY o.order_date DESC
+          LIMIT 250
+        `);
+
+        if (orderRows.length > 0) {
+          const orderIds = orderRows.map(r => r.id);
+          const [itemRows] = await pool.query(`
+            SELECT 
+              oi.id,
+              oi.order_id,
+              oi.product_name as nama_produk,
+              COALESCE(NULLIF(oi.seller_sku, ''), NULLIF(oi.sku, ''), '-') as sku,
+              COALESCE(NULLIF(oi.sku_name, ''), 'Standard') as varian,
+              oi.quantity as qty,
+              CAST(COALESCE(oi.price, 0) AS DECIMAL(15,2)) as harga,
+              CAST(COALESCE(oi.total_price, 0) AS DECIMAL(15,2)) as subtotal,
+              CAST(COALESCE(oi.cost_price, 0) AS DECIMAL(15,2)) as hpp,
+              CAST(COALESCE(oi.hpp_subtotal, 0) AS DECIMAL(15,2)) as hpp_subtotal,
+              oi.product_image as foto_produk
+            FROM ${itemTbl} oi
+            WHERE oi.order_id IN (?)
+          `, [orderIds]);
+
+          const itemsByOrderId = {};
+          itemRows.forEach(it => {
+            if (!itemsByOrderId[it.order_id]) itemsByOrderId[it.order_id] = [];
+            itemsByOrderId[it.order_id].push(it);
+          });
+
+          orders = orderRows.map(ord => {
+            const items = itemsByOrderId[ord.id] || [];
+            const hppTotal = items.reduce((acc, it) => acc + (Number(it.hpp_subtotal) || (Number(it.hpp || 0) * (it.qty || 1))), 0);
+            const netAmount = Number(ord.net_amount) || Number(ord.totalPrice);
+            const netProfit = netAmount - hppTotal;
+            const profitMargin = netAmount > 0 ? ((netProfit / netAmount) * 100).toFixed(2) : '0';
+
+            return {
+              ...ord,
+              alamat: ord.shipping_address,
+              telepon: ord.buyer_phone,
+              metode_bayar: ord.payment_method,
+              ongkir: Number(ord.shipping_fee) || 0,
+              hpp_total: hppTotal,
+              net_profit: netProfit,
+              profit_margin: profitMargin,
+              items
+            };
+          });
+
+          return sendJson(res, 200, { status: 'success', data: orders });
+        }
+      }
+
+      // Fallback: jika tabel orders Laravel belum ada, gunakan pesanan_marketplace
       const [rows] = await pool.query(`
         SELECT 
           id, kode_perusahaan as company_code, no_pesanan, saluran as channel,
@@ -509,6 +614,10 @@ const server = http.createServer(async (req, res) => {
           status_pesanan as status, no_spk, rincian_item, kurir, no_resi,
           COALESCE(status_cetak, 'Sudah Print') as status_cetak,
           COALESCE(status_verifikasi, 'Verified') as status_verifikasi,
+          COALESCE(alamat, '') as alamat,
+          COALESCE(no_telepon, '') as telepon,
+          COALESCE(metode_bayar, 'Cash on Delivery') as metode_bayar,
+          COALESCE(ongkir, 30000) as ongkir,
           DATE_FORMAT(COALESCE(waktu_pesanan, ditarik_pada), '%d/%m/%Y %H:%i') as orderTime,
           DATE_FORMAT(COALESCE(batas_kirim, DATE_ADD(COALESCE(waktu_pesanan, ditarik_pada), INTERVAL 1 DAY)), '%d/%m/%Y 23:59') as batasKirim,
           DATE_FORMAT(ditarik_pada, '%d/%m/%Y, %H:%i') as syncedAt

@@ -1140,18 +1140,37 @@ export default function PesananMasukDesktopView() {
         </div>
       </div>
 
-      {/* 6. MODAL DETAIL LENGKAP PRODUK & PESANAN (PERSIS DENGAN SCREENSHOT USER) */}
+      {/* 6. MODAL DETAIL LENGKAP PRODUK & PESANAN (PERSIS DENGAN SCREENSHOT USER & DATA ASLI LARAVEL) */}
       {detailOrder && (() => {
         const subtotalPesanan = detailOrder.items && detailOrder.items.length > 0
-          ? detailOrder.items.reduce((acc, it) => acc + ((Number(it.harga) || 0) * (Number(it.qty) || 1)), 0)
-          : Number(detailOrder.totalPrice || 86600);
+          ? detailOrder.items.reduce((acc, it) => acc + ((Number(it.subtotal) || (Number(it.harga) || 0) * (Number(it.qty) || 1))), 0)
+          : Number(detailOrder.totalPrice || 0);
 
-        const ongkir = Number(detailOrder.ongkir || 30000);
-        const biayaLayanan = Math.round(subtotalPesanan * 0.3044); // ~26.364
-        const estimasiPenghasilan = Math.round(subtotalPesanan * 0.8405); // ~72.793
-        const hppTotal = Math.round(subtotalPesanan * 0.6478); // ~56.100
-        const netProfit = estimasiPenghasilan - hppTotal; // ~16.693
-        const marginPercent = estimasiPenghasilan > 0 ? ((netProfit / estimasiPenghasilan) * 100).toFixed(2) : '22.93';
+        const ongkir = Number(detailOrder.ongkir || detailOrder.shipping_fee || 0);
+        const platformFee = Number(detailOrder.fee_platform || 0);
+        const freeShipping = Number(detailOrder.fee_free_shipping || 0);
+        const totalMarketplaceFee = Math.abs(Number(detailOrder.marketplace_fee || 0));
+        const biayaLayanan = detailOrder.fee_service !== undefined && Number(detailOrder.fee_service) > 0
+          ? Number(detailOrder.fee_service)
+          : (totalMarketplaceFee > 0 ? Math.max(0, totalMarketplaceFee - platformFee - freeShipping) : Math.round(subtotalPesanan * 0.15));
+
+        const estimasiPenghasilan = detailOrder.net_amount !== undefined && Number(detailOrder.net_amount) > 0
+          ? Number(detailOrder.net_amount)
+          : Math.max(0, subtotalPesanan + ongkir - totalMarketplaceFee);
+
+        const hppTotal = detailOrder.hpp_total !== undefined && Number(detailOrder.hpp_total) > 0
+          ? Number(detailOrder.hpp_total)
+          : (detailOrder.items && detailOrder.items.length > 0
+              ? detailOrder.items.reduce((acc, it) => acc + (Number(it.hpp_subtotal) || (Number(it.hpp || 0) * (Number(it.qty) || 1))), 0)
+              : Math.round(subtotalPesanan * 0.65));
+
+        const netProfit = detailOrder.net_profit !== undefined && detailOrder.net_profit !== null
+          ? Number(detailOrder.net_profit)
+          : (estimasiPenghasilan - hppTotal);
+
+        const marginPercent = detailOrder.profit_margin !== undefined && detailOrder.profit_margin !== null
+          ? detailOrder.profit_margin
+          : (estimasiPenghasilan > 0 ? ((netProfit / estimasiPenghasilan) * 100).toFixed(2) : '0');
 
         return (
           <div 
