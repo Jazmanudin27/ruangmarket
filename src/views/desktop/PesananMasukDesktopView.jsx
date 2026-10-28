@@ -879,8 +879,11 @@ export default function PesananMasukDesktopView() {
                         {/* Product summary preview */}
                         {firstItem ? (
                           <div style={{ fontSize: '11px', color: '#334155', lineHeight: '1.3' }}>
-                            <div style={{ fontWeight: '600' }}>
-                              {firstItem.nama_produk} <span style={{ color: '#0284c7', fontWeight: '800' }}>x{firstItem.qty || 1}</span>
+                            <div 
+                              style={{ fontWeight: '600' }}
+                              title={firstItem.nama_produk ? `Nama Produk: ${firstItem.nama_produk}` : ''}
+                            >
+                              {(firstItem.sku || firstItem.kode_sku || firstItem.nama_produk)} <span style={{ color: '#0284c7', fontWeight: '800' }}>x{firstItem.qty || 1}</span>
                             </div>
                             {extraCount > 0 && (
                               <button
@@ -901,7 +904,7 @@ export default function PesananMasukDesktopView() {
                                   gap: '2px'
                                 }}
                               >
-                                <span>+{extraCount} produk lainnya</span>
+                                <span>+{extraCount} SKU lainnya</span>
                                 <ChevronRight size={9} />
                               </button>
                             )}
