@@ -220,9 +220,12 @@ export default function MarketplaceView({ onBack, onNavigate }) {
 
   // Fungsi Tarik Produk dari Toko Marketplace ke Tabel Produk Marketplace (Staging)
   const handleSyncProduk = async (store) => {
+    const isTikTok = store.channel === 'tiktok';
+    const channelTitle = isTikTok ? 'TikTok Shop' : 'Shopee';
+
     setSyncLoading({
       type: 'produk',
-      title: 'Sedang Menarik Seluruh Produk Shopee...',
+      title: `Sedang Menarik Seluruh Produk ${channelTitle}...`,
       subTitle: `Menghubungkan ke API ${store.shopName}. Mengambil katalog produk, SKU, variasi model, dan stok realtime.`,
       shopName: store.shopName,
       channel: store.channel
@@ -232,7 +235,9 @@ export default function MarketplaceView({ onBack, onNavigate }) {
       let fetchedItems = null;
 
       try {
-        const endpoint = `/api/marketplace/shopee/products?shop_id=${store.shopId}&access_token=${encodeURIComponent(store.accessToken || '')}`;
+        const endpoint = isTikTok
+          ? `/api/marketplace/tiktok/products?shop_cipher=${encodeURIComponent(store.cipher || '')}&access_token=${encodeURIComponent(store.accessToken || '')}`
+          : `/api/marketplace/shopee/products?shop_id=${store.shopId}&access_token=${encodeURIComponent(store.accessToken || '')}`;
         
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 120000); // 120s untuk ambil semua produk + varian detail
@@ -247,7 +252,7 @@ export default function MarketplaceView({ onBack, onNavigate }) {
             company_code: activeCompany.code || 'RSG'
           }));
         } else {
-          toastError(json.message || 'Gagal menarik produk dari API Shopee');
+          toastError(json.message || `Gagal menarik produk dari API ${channelTitle}`);
           setSyncLoading(null);
           return;
         }
@@ -258,22 +263,24 @@ export default function MarketplaceView({ onBack, onNavigate }) {
       }
 
       if (!fetchedItems || fetchedItems.length === 0) {
-        toastError('Tidak ada produk yang berhasil ditarik dari Shopee API.');
+        toastError(`Tidak ada produk yang berhasil ditarik dari API ${channelTitle}.`);
         setSyncLoading(null);
         return;
       }
 
-      // Simpan ke storage produk marketplace staging (timpa produk lama dengan info lengkap baru)
-      const saved = localStorage.getItem('ruangmarket_produk_marketplace_v1');
-      const existing = saved ? JSON.parse(saved) : [];
-      const incomingMap = new Map(fetchedItems.map(f => [String(f.item_id), f]));
-      const updated = fetchedItems.concat(existing.filter(p => !incomingMap.has(String(p.item_id))));
-      
-      localStorage.setItem('ruangmarket_produk_marketplace_v1', JSON.stringify(updated));
+      // Bersihkan dan perbarui cache staging secara aman
+      try {
+        const saved = localStorage.getItem('ruangmarket_produk_marketplace_v1');
+        const existing = saved ? JSON.parse(saved) : [];
+        const incomingMap = new Map(fetchedItems.map(f => [String(f.item_id), f]));
+        const updated = fetchedItems.concat(existing.filter(p => !incomingMap.has(String(p.item_id))));
+        localStorage.setItem('ruangmarket_produk_marketplace_v1', JSON.stringify(updated.slice(0, 300)));
+      } catch (e) {}
+
       window.dispatchEvent(new Event('storage'));
 
       setSyncLoading(null);
-      toastSuccess(`Berhasil menarik ${fetchedItems.length} produk asli dari Shopee!`);
+      toastSuccess(`Berhasil menarik ${fetchedItems.length} produk dari ${channelTitle}!`);
 
       if (onNavigate) {
         onNavigate('produk_marketplace');
