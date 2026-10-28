@@ -517,7 +517,7 @@ export class ShopeeService {
       shop_id: sId,
       sign,
       order_sn_list: orderSnList.join(','),
-      response_optional_fields: 'buyer_user_id,buyer_username,item_list,total_amount,order_status,shipping_carrier,actual_shipping_fee,estimated_shipping_fee,recipient_address,payment_method,escrow_amount,shopee_shipping_rebate'
+      response_optional_fields: 'buyer_user_id,buyer_username,item_list,total_amount,order_status,shipping_carrier,actual_shipping_fee,estimated_shipping_fee,recipient_address,payment_method,escrow_amount,shopee_shipping_rebate,pay_time,create_time,ship_by_date'
     });
 
     const url = `${this.baseUrl}${path}?${query.toString()}`;
@@ -640,6 +640,8 @@ export class ShopeeService {
         fee_service: serviceFee,
         net_amount: netAmount,
         status_pesanan: d.order_status || 'Perlu Diproses',
+        waktu_pesanan: d.create_time ? new Date(d.create_time * 1000).toISOString() : new Date().toISOString(),
+        batas_kirim: d.ship_by_date ? new Date(d.ship_by_date * 1000).toISOString() : null,
         items: items
       });
     }

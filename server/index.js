@@ -782,10 +782,10 @@ const server = http.createServer(async (req, res) => {
           INSERT INTO pesanan_marketplace (
             id, kode_perusahaan, no_pesanan, saluran, 
             nama_toko, nama_pembeli, total_harga, status_pesanan, no_spk,
-            rincian_item, kurir, no_resi, waktu_pesanan,
+            rincian_item, kurir, no_resi, waktu_pesanan, batas_kirim,
             ongkir, marketplace_fee, fee_platform, fee_free_shipping, fee_service, net_amount,
             ditarik_pada
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
           ON DUPLICATE KEY UPDATE
             nama_pembeli = VALUES(nama_pembeli),
             total_harga = VALUES(total_harga),
@@ -793,6 +793,8 @@ const server = http.createServer(async (req, res) => {
             rincian_item = VALUES(rincian_item),
             kurir = VALUES(kurir),
             no_resi = VALUES(no_resi),
+            waktu_pesanan = VALUES(waktu_pesanan),
+            batas_kirim = VALUES(batas_kirim),
             ongkir = VALUES(ongkir),
             marketplace_fee = VALUES(marketplace_fee),
             fee_platform = VALUES(fee_platform),
@@ -814,6 +816,7 @@ const server = http.createServer(async (req, res) => {
           ord.kurir || 'SPX Express',
           ord.no_resi || '',
           ord.waktu_pesanan ? new Date(ord.waktu_pesanan) : new Date(),
+          ord.batas_kirim ? new Date(ord.batas_kirim) : null,
           ord.ongkir || 0,
           ord.marketplace_fee || 0,
           ord.fee_platform || 0,
@@ -869,6 +872,7 @@ const server = http.createServer(async (req, res) => {
             rincian_item = VALUES(rincian_item),
             kurir = VALUES(kurir),
             no_resi = VALUES(no_resi),
+            waktu_pesanan = VALUES(waktu_pesanan),
             no_spk = COALESCE(VALUES(no_spk), no_spk)
         `, [
           ord.id,
@@ -918,10 +922,10 @@ const server = http.createServer(async (req, res) => {
                 INSERT INTO pesanan_marketplace (
                   id, kode_perusahaan, no_pesanan, saluran, 
                   nama_toko, nama_pembeli, total_harga, status_pesanan, no_spk,
-                  rincian_item, kurir, no_resi, waktu_pesanan,
+                  rincian_item, kurir, no_resi, waktu_pesanan, batas_kirim,
                   ongkir, marketplace_fee, fee_platform, fee_free_shipping, fee_service, net_amount,
                   ditarik_pada
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 ON DUPLICATE KEY UPDATE
                   nama_pembeli = VALUES(nama_pembeli),
                   total_harga = VALUES(total_harga),
@@ -929,6 +933,8 @@ const server = http.createServer(async (req, res) => {
                   rincian_item = VALUES(rincian_item),
                   kurir = VALUES(kurir),
                   no_resi = VALUES(no_resi),
+                  waktu_pesanan = VALUES(waktu_pesanan),
+                  batas_kirim = VALUES(batas_kirim),
                   ongkir = VALUES(ongkir),
                   marketplace_fee = VALUES(marketplace_fee),
                   fee_platform = VALUES(fee_platform),
@@ -950,6 +956,7 @@ const server = http.createServer(async (req, res) => {
                 ord.kurir || 'SPX Express',
                 ord.no_resi || '',
                 ord.waktu_pesanan ? new Date(ord.waktu_pesanan) : new Date(),
+                ord.batas_kirim ? new Date(ord.batas_kirim) : null,
                 ord.ongkir || 0,
                 ord.marketplace_fee || 0,
                 ord.fee_platform || 0,
@@ -977,6 +984,7 @@ const server = http.createServer(async (req, res) => {
                   rincian_item = VALUES(rincian_item),
                   kurir = VALUES(kurir),
                   no_resi = VALUES(no_resi),
+                  waktu_pesanan = VALUES(waktu_pesanan),
                   no_spk = COALESCE(VALUES(no_spk), no_spk)
               `, [
                 ord.id,
