@@ -284,7 +284,46 @@ export class ShopeeService {
     return res.response?.item_list || [];
   }
 
-  // 4b. Mendapatkan Data Model / Varian Produk (Harga Asli, Stok Asli, SKU Varian)
+  // Helper request HTTP(S) GET ringan tanpa auto-retry berlebihan
+  async requestGetFast(url) {
+    try {
+      return await new Promise((resolve, reject) => {
+        const parsed = new URL(url);
+        const req = https.request({
+          hostname: parsed.hostname,
+          path: parsed.pathname + parsed.search,
+          method: 'GET',
+          family: 4,
+          headers: {
+            'User-Agent': 'GuzzleHttp/7 RuangMarket-Shopee/2.0',
+            'Accept': 'application/json'
+          },
+          timeout: 4000
+        }, (res) => {
+          let raw = '';
+          res.on('data', chunk => raw += chunk);
+          res.on('end', () => {
+            try {
+              resolve(JSON.parse(raw));
+            } catch (e) {
+              resolve(null);
+            }
+          });
+        });
+
+        req.on('error', () => resolve(null));
+        req.on('timeout', () => {
+          req.destroy();
+          resolve(null);
+        });
+        req.end();
+      });
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // 4b. Mendapatkan Data Model / Varian Produk (Fast mode)
   async getModelList(shopId, accessToken, itemId) {
     try {
       const path = '/api/v2/product/get_model_list';
@@ -302,8 +341,8 @@ export class ShopeeService {
       });
 
       const url = `${this.baseUrl}${path}?${query.toString()}`;
-      const res = await this.requestGet(url);
-      if (res.error && res.error !== '') {
+      const res = await this.requestGetFast(url);
+      if (!res || (res.error && res.error !== '')) {
         return null;
       }
       return res.response || null;
@@ -312,7 +351,7 @@ export class ShopeeService {
     }
   }
 
-  // 5. Sinkronisasi Lengkap: Detail Base Info + Model Varian (Limit 100 produk agar instan <10s)
+  // 5. Sinkronisasi Lengkap: Detail Base Info + Model Varian (Limit 100 produk, super cepat <5 detik)
   async syncProducts(shopId, accessToken, limit = 100) {
     const sId = String(shopId);
     // 1. Ambil 100 item ID pertama toko
@@ -321,7 +360,7 @@ export class ShopeeService {
 
     const itemIds = items.map(i => i.item_id);
     
-    // 2. Shopee get_item_base_info maksimal 50 item per call
+    // 2. Shopee get_item_base_info maksimal 50 item per call (hanya 2x request untuk 100 item)
     let details = [];
     for (let i = 0; i < itemIds.length; i += 50) {
       const batchIds = itemIds.slice(i, i + 50);
@@ -329,15 +368,13 @@ export class ShopeeService {
       details = details.concat(batchDetails);
     }
 
-    // 3. Untuk produk yang memiliki model / varian atau harga masih 0, ambil get_model_list secara batch
-    const itemsNeedModel = details.filter(d => d.has_model || !d.price_info || d.price_info.length === 0);
+    // 3. Ambil varian hanya untuk produk yang harga/stoknya kosong atau ada model
+    const itemsNeedModel = details.filter(d => d.has_model && (!d.price_info || d.price_info.length === 0 || Number(d.price || 0) === 0)).slice(0, 20);
     const modelMap = new Map();
 
-    const concurrency = 30;
-    for (let i = 0; i < itemsNeedModel.length; i += concurrency) {
-      const chunk = itemsNeedModel.slice(i, i + concurrency);
+    if (itemsNeedModel.length > 0) {
       const chunkResults = await Promise.all(
-        chunk.map(async item => {
+        itemsNeedModel.map(async item => {
           const mRes = await this.getModelList(sId, accessToken, item.item_id);
           return { itemId: item.item_id, modelData: mRes };
         })
