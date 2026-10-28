@@ -196,6 +196,8 @@ export class TiktokService {
         const hargaJual = Number(sku?.price?.tax_exclusive_price || sku?.price?.amount || 0);
         const stokQty = Number(sku?.inventory?.[0]?.quantity || 0);
 
+        const fotoProduk = sku?.image?.urls?.[0] || sku?.image?.url || p.main_images?.[0]?.urls?.[0] || (typeof p.main_images?.[0] === 'string' ? p.main_images[0] : '') || '';
+
         flattenedRows.push({
           id: `tiktok_${p.id}_${skuId}`,
           item_id: String(p.id),
@@ -207,6 +209,7 @@ export class TiktokService {
           harga_jual: hargaJual,
           stok_marketplace: stokQty,
           varian_marketplace: varianName,
+          foto_produk: fotoProduk,
           status: 'Belum Dimapping',
           syncedAt: new Date().toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
         });

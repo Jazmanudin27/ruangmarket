@@ -130,6 +130,7 @@ const server = http.createServer(async (req, res) => {
           pm.harga_jual,
           pm.stok_marketplace, 
           pm.varian as varian_marketplace, 
+          pm.foto_produk,
           CASE 
             WHEN m.id IS NOT NULL THEN 'Sudah di Master'
             WHEN m2.id IS NOT NULL THEN 'Sudah di Master'
@@ -259,15 +260,16 @@ const server = http.createServer(async (req, res) => {
           const stokFisik = Number(item.stok_fisik || item.stok) || 0;
           const status = String(item.status || 'Aktif').slice(0, 32);
           const statusOrder = String(item.status_order || 'Ready Stok').slice(0, 32);
+          const fotoProduk = String(item.foto_produk || item.image || '').slice(0, 1000);
 
-          values.push(kodePerusahaan, kodeSku, namaProduk, kategori, satuan, hargaJual, hargaModal, stokFisik, status, statusOrder);
-          return '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
+          values.push(kodePerusahaan, kodeSku, namaProduk, kategori, satuan, hargaJual, hargaModal, stokFisik, status, statusOrder, fotoProduk);
+          return '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
         }).join(', ');
 
         const sql = `
           INSERT INTO produk_master (
             kode_perusahaan, kode_sku, nama_produk, kategori, satuan,
-            harga_jual, harga_modal, stok_fisik, status, status_order
+            harga_jual, harga_modal, stok_fisik, status, status_order, foto_produk
           ) VALUES ${placeholders}
           ON DUPLICATE KEY UPDATE
             nama_produk = VALUES(nama_produk),
@@ -277,7 +279,8 @@ const server = http.createServer(async (req, res) => {
             harga_modal = VALUES(harga_modal),
             stok_fisik = VALUES(stok_fisik),
             status = VALUES(status),
-            status_order = VALUES(status_order)
+            status_order = VALUES(status_order),
+            foto_produk = COALESCE(NULLIF(VALUES(foto_produk), ''), foto_produk)
         `;
 
         await pool.query(sql, values);
@@ -403,20 +406,21 @@ const server = http.createServer(async (req, res) => {
           INSERT INTO produk_marketplace (
             id, id_produk_marketplace, kode_perusahaan, saluran, 
             nama_saluran, nama_toko, id_toko, nama_produk, 
-            sku_marketplace, harga_jual, stok_marketplace, varian, status_mapping
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            sku_marketplace, harga_jual, stok_marketplace, varian, foto_produk, status_mapping
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON DUPLICATE KEY UPDATE
             nama_produk = VALUES(nama_produk),
             sku_marketplace = VALUES(sku_marketplace),
             harga_jual = VALUES(harga_jual),
             stok_marketplace = VALUES(stok_marketplace),
             varian = VALUES(varian),
+            foto_produk = COALESCE(NULLIF(VALUES(foto_produk), ''), foto_produk),
             diperbarui_pada = CURRENT_TIMESTAMP
         `, [
           p.id, p.item_id, 'RSG', 'shopee',
           'Shopee Marketplace', p.shopName || 'Koperasi Sahabat Anak Bangsa', shopId,
           (p.nama_produk || '').slice(0, 250), (p.sku_marketplace || '').slice(0, 120), p.harga_jual || 0, p.stok_marketplace || 0,
-          (p.varian_marketplace || 'Standard').slice(0, 500), p.status || 'Belum Dimapping'
+          (p.varian_marketplace || 'Standard').slice(0, 500), p.foto_produk || '', p.status || 'Belum Dimapping'
         ]);
       }
 
@@ -463,19 +467,21 @@ const server = http.createServer(async (req, res) => {
           INSERT INTO produk_marketplace (
             id, id_produk_marketplace, kode_perusahaan, saluran, 
             nama_saluran, nama_toko, id_toko, nama_produk, 
-            sku_marketplace, harga_jual, stok_marketplace, varian, status_mapping
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            sku_marketplace, harga_jual, stok_marketplace, varian, foto_produk, status_mapping
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON DUPLICATE KEY UPDATE
             nama_produk = VALUES(nama_produk),
             sku_marketplace = VALUES(sku_marketplace),
             harga_jual = VALUES(harga_jual),
             stok_marketplace = VALUES(stok_marketplace),
+            varian = VALUES(varian),
+            foto_produk = COALESCE(NULLIF(VALUES(foto_produk), ''), foto_produk),
             diperbarui_pada = CURRENT_TIMESTAMP
         `, [
           p.id, p.item_id, 'RSG', 'tiktok',
           'TikTok Shop', p.shopName || 'TikTok Store', p.shopId || '',
           p.nama_produk, p.sku_marketplace, p.harga_jual, p.stok_marketplace,
-          p.varian_marketplace, p.status || 'Belum Dimapping'
+          p.varian_marketplace, p.foto_produk || '', p.status || 'Belum Dimapping'
         ]);
       }
 

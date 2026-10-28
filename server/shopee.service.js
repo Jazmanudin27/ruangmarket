@@ -394,6 +394,10 @@ export class ShopeeService {
       const shopTitle = d.shop_name || 'Koperasi Sahabat Anak Bangsa';
       const mData = modelMap.get(String(d.item_id));
 
+      const defaultShopeeImage = d.image?.image_url_list?.[0] 
+        || (d.image?.image_id_list?.[0] ? `https://down-id.img.susercontent.com/file/${d.image.image_id_list[0]}` : '')
+        || '';
+
       // Jika produk punya variasi/model di Shopee, simpan setiap varian sebagai 1 baris produk mandiri
       if (mData && Array.isArray(mData.model) && mData.model.length > 0) {
         for (const m of mData.model) {
@@ -418,6 +422,7 @@ export class ShopeeService {
             harga_jual: Number(mPrice) || 0,
             stok_marketplace: Number(mStock) || 0,
             varian_marketplace: modelName,
+            foto_produk: m.image_url || defaultShopeeImage,
             status: 'Belum Dimapping',
             syncedAt: new Date().toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
           });
@@ -454,6 +459,7 @@ export class ShopeeService {
           harga_jual: Number(harga) || 0,
           stok_marketplace: Number(stok) || 0,
           varian_marketplace: 'Standard',
+          foto_produk: defaultShopeeImage,
           status: 'Belum Dimapping',
           syncedAt: new Date().toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
         });

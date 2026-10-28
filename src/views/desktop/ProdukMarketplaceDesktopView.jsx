@@ -251,6 +251,7 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
           estimasi_kain: 'Kain Drill / Ripstop Standar',
           panjang_kain_cm: 220,
           harga_kain_cm: 180,
+          foto_produk: item.foto_produk || '',
           source: `${item.channelName || item.channel} (${item.shopName || ''})`
         };
       });
@@ -351,6 +352,7 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
         estimasi_kain: 'Kain Drill / Ripstop Standar',
         panjang_kain_cm: 220,
         harga_kain_cm: 180,
+        foto_produk: item.foto_produk || '',
         source: `${item.channelName} (${item.shopName})`
       };
 
@@ -616,11 +618,27 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
                       <td className="pm-cell-no">{rowNumber}</td>
 
                       <td className="pm-cell-produk">
-                        <div className="pm-produk-nama">{item.nama_produk}</div>
-                        <div className="pm-produk-meta">
-                          <span className="pm-produk-sku">SKU: {item.sku_marketplace}</span>
-                          <span className="pm-produk-dot">•</span>
-                          <span className="pm-produk-item">Item ID: <code>{item.item_id}</code></span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          {item.foto_produk ? (
+                            <img 
+                              src={item.foto_produk} 
+                              alt={item.nama_produk} 
+                              style={{ width: '38px', height: '38px', objectFit: 'cover', borderRadius: '6px', border: '1px solid #cbd5e1', flexShrink: 0 }}
+                              onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                            />
+                          ) : (
+                            <div style={{ width: '38px', height: '38px', borderRadius: '6px', backgroundColor: '#f1f5f9', border: '1px solid #cbd5e1', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', flexShrink: 0 }}>
+                              <Package size={18} />
+                            </div>
+                          )}
+                          <div style={{ minWidth: 0, flex: 1 }}>
+                            <div className="pm-produk-nama">{item.nama_produk}</div>
+                            <div className="pm-produk-meta">
+                              <span className="pm-produk-sku">SKU: {item.sku_marketplace}</span>
+                              <span className="pm-produk-dot">•</span>
+                              <span className="pm-produk-item">Item ID: <code>{item.item_id}</code></span>
+                            </div>
+                          </div>
                         </div>
                       </td>
 

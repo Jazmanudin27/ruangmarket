@@ -1315,11 +1315,23 @@ export default function ProdukView() {
 
                       {/* NAMA PRODUK & SKU */}
                       <td style={{ padding: '5px 8px', border: '1px solid #cbd5e1' }}>
-                        <div style={{ fontWeight: '700', color: '#0f172a', fontSize: '12px', lineHeight: 1.2 }}>
-                          {item.nama_produk}
-                        </div>
-                        <div style={{ fontSize: '11px', color: '#0284c7', fontWeight: '600' }}>
-                          SKU: {item.sku}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          {item.foto_produk ? (
+                            <img 
+                              src={item.foto_produk} 
+                              alt={item.nama_produk} 
+                              style={{ width: '36px', height: '36px', objectFit: 'cover', borderRadius: '5px', border: '1px solid #cbd5e1', flexShrink: 0 }}
+                              onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                            />
+                          ) : null}
+                          <div style={{ minWidth: 0, flex: 1 }}>
+                            <div style={{ fontWeight: '700', color: '#0f172a', fontSize: '12px', lineHeight: 1.2 }}>
+                              {item.nama_produk}
+                            </div>
+                            <div style={{ fontSize: '11px', color: '#0284c7', fontWeight: '600' }}>
+                              SKU: {item.sku}
+                            </div>
+                          </div>
                         </div>
                       </td>
 

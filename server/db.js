@@ -72,6 +72,12 @@ export async function initDb() {
     try {
       await conn.query(`ALTER TABLE produk_marketplace ADD UNIQUE KEY uq_produk_sku (id_produk_marketplace, saluran, sku_marketplace)`);
     } catch (e) {}
+    try {
+      await conn.query(`ALTER TABLE produk_marketplace ADD COLUMN foto_produk TEXT`);
+    } catch (e) {}
+    try {
+      await conn.query(`ALTER TABLE produk_master ADD COLUMN foto_produk TEXT`);
+    } catch (e) {}
 
     // 3. Tabel Master Produk ERP (produk_master)
     await conn.query(`
