@@ -76,6 +76,24 @@ export default function ProdukMarketplaceView({ onNavigate }) {
     return [];
   });
 
+  // Selalu load data terkini langsung dari database MySQL (/api/marketplace/products)
+  useEffect(() => {
+    let isMounted = true;
+    fetch('/api/marketplace/products')
+      .then(res => res.json())
+      .then(json => {
+        if (isMounted && json.status === 'success' && Array.isArray(json.data)) {
+          setMktProdukList(json.data);
+          try {
+            localStorage.setItem(PRODUK_MARKETPLACE_KEY, JSON.stringify(json.data));
+          } catch (e) {}
+        }
+      })
+      .catch(() => {});
+
+    return () => { isMounted = false; };
+  }, []);
+
   useEffect(() => {
     try {
       localStorage.setItem(PRODUK_MARKETPLACE_KEY, JSON.stringify(mktProdukList));
