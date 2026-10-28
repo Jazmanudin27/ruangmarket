@@ -77,6 +77,17 @@ export default function PesananMasukDesktopView() {
     return () => window.removeEventListener('ordersUpdated', handleOrdersUpdated);
   }, []);
 
+  // Lock body scroll saat modal detail terbuka agar halaman index tidak ikut ter-scroll
+  useEffect(() => {
+    if (detailOrder) {
+      const prevOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = prevOverflow;
+      };
+    }
+  }, [detailOrder]);
+
   // Tarik semua pesanan dari seluruh toko aktif (Shopee & TikTok)
   const handleSyncAll = async () => {
     setIsSyncing(true);
@@ -532,6 +543,49 @@ export default function PesananMasukDesktopView() {
           <option value={50}>50 Baris</option>
           <option value={100}>100 Baris</option>
         </select>
+
+        {/* Quick Page Nav di Bar Atas */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginLeft: 'auto' }}>
+          <button
+            type="button"
+            disabled={currentPage <= 1}
+            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+            style={{
+              height: '28px',
+              padding: '0 10px',
+              borderRadius: '5px',
+              border: '1px solid #cbd5e1',
+              backgroundColor: currentPage <= 1 ? '#f8fafc' : '#ffffff',
+              color: currentPage <= 1 ? '#94a3b8' : '#334155',
+              cursor: currentPage <= 1 ? 'not-allowed' : 'pointer',
+              fontSize: '11px',
+              fontWeight: '700'
+            }}
+          >
+            &lt; Prev
+          </button>
+          <span style={{ fontSize: '11.5px', fontWeight: '800', color: '#0f172a', padding: '0 4px' }}>
+            {currentPage} / {totalPages}
+          </span>
+          <button
+            type="button"
+            disabled={currentPage >= totalPages}
+            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+            style={{
+              height: '28px',
+              padding: '0 10px',
+              borderRadius: '5px',
+              border: '1px solid #cbd5e1',
+              backgroundColor: currentPage >= totalPages ? '#f8fafc' : '#ffffff',
+              color: currentPage >= totalPages ? '#94a3b8' : '#334155',
+              cursor: currentPage >= totalPages ? 'not-allowed' : 'pointer',
+              fontSize: '11px',
+              fontWeight: '700'
+            }}
+          >
+            Next &gt;
+          </button>
+        </div>
       </div>
 
       {/* 4. DATA TABLE PESANAN (STRUKTUR KOLOM PERSIS DENGAN PERMINTAAN USER) */}
@@ -889,7 +943,7 @@ export default function PesananMasukDesktopView() {
           </table>
         </div>
 
-        {/* 5. FOOTER & PAGINATION */}
+        {/* 5. FOOTER & PAGINATION (GAYA MASTER PRODUK) */}
         <div style={{
           padding: '8px 14px',
           backgroundColor: '#f8fafc',
@@ -899,14 +953,14 @@ export default function PesananMasukDesktopView() {
           alignItems: 'center',
           flexWrap: 'wrap',
           gap: '8px',
-          fontSize: '12px',
+          fontSize: '11.5px',
           color: '#64748b'
         }}>
           <div>
-            Menampilkan <b>{filteredOrders.length === 0 ? 0 : (currentPage - 1) * entriesPerPage + 1}</b> - <b>{Math.min(currentPage * entriesPerPage, filteredOrders.length)}</b> dari <b>{filteredOrders.length}</b> total pesanan
+            Menampilkan <b>{filteredOrders.length === 0 ? 0 : (currentPage - 1) * entriesPerPage + 1}</b> sampai <b>{Math.min(currentPage * entriesPerPage, filteredOrders.length)}</b> dari <b>{filteredOrders.length}</b> total pesanan
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
             <button
               type="button"
               disabled={currentPage <= 1}
@@ -919,16 +973,42 @@ export default function PesananMasukDesktopView() {
                 backgroundColor: currentPage <= 1 ? '#f1f5f9' : '#ffffff',
                 color: currentPage <= 1 ? '#94a3b8' : '#334155',
                 cursor: currentPage <= 1 ? 'not-allowed' : 'pointer',
-                fontSize: '11.5px',
-                fontWeight: '700'
+                fontSize: '11px',
+                fontWeight: '700',
+                transition: 'all 0.15s ease'
               }}
             >
               Sebelumnya
             </button>
 
-            <span style={{ padding: '0 8px', fontWeight: '800', color: '#0f172a' }}>
-              Halaman {currentPage} dari {totalPages}
-            </span>
+            {/* Tombol Nomor Halaman */}
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+              .map((p, idx, arr) => (
+                <React.Fragment key={p}>
+                  {idx > 0 && arr[idx - 1] !== p - 1 && (
+                    <span style={{ padding: '0 3px', color: '#94a3b8' }}>...</span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage(p)}
+                    style={{
+                      minWidth: '28px',
+                      height: '28px',
+                      padding: '0 6px',
+                      borderRadius: '5px',
+                      border: p === currentPage ? '1px solid #0284c7' : '1px solid #cbd5e1',
+                      backgroundColor: p === currentPage ? '#0284c7' : '#ffffff',
+                      color: p === currentPage ? '#ffffff' : '#334155',
+                      fontWeight: '800',
+                      fontSize: '11px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {p}
+                  </button>
+                </React.Fragment>
+              ))}
 
             <button
               type="button"
@@ -942,8 +1022,9 @@ export default function PesananMasukDesktopView() {
                 backgroundColor: currentPage >= totalPages ? '#f1f5f9' : '#ffffff',
                 color: currentPage >= totalPages ? '#94a3b8' : '#334155',
                 cursor: currentPage >= totalPages ? 'not-allowed' : 'pointer',
-                fontSize: '11.5px',
-                fontWeight: '700'
+                fontSize: '11px',
+                fontWeight: '700',
+                transition: 'all 0.15s ease'
               }}
             >
               Selanjutnya
@@ -952,29 +1033,36 @@ export default function PesananMasukDesktopView() {
         </div>
       </div>
 
-      {/* 6. MODAL DETAIL LENGKAP PRODUK & PESANAN */}
+      {/* 6. MODAL DETAIL LENGKAP PRODUK & PESANAN (TERISOLASI DARI SCROLL INDEX) */}
       {detailOrder && (
         <div 
           onClick={() => setDetailOrder(null)}
+          onWheel={(e) => e.stopPropagation()}
           style={{
             position: 'fixed',
             inset: 0,
             backgroundColor: 'rgba(15, 23, 42, 0.65)',
-            zIndex: 9999,
+            backdropFilter: 'blur(3px)',
+            zIndex: 99999,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            padding: '20px'
+            padding: '16px',
+            overflowY: 'auto'
           }}
         >
           <div 
             onClick={(e) => e.stopPropagation()}
+            onWheel={(e) => e.stopPropagation()}
             style={{
               backgroundColor: '#ffffff',
               borderRadius: '10px',
               width: '100%',
-              maxWidth: '680px',
-              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.25)',
+              maxWidth: '700px',
+              maxHeight: '88vh',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
               overflow: 'hidden'
             }}
           >
@@ -986,7 +1074,8 @@ export default function PesananMasukDesktopView() {
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              borderBottom: '1px solid rgba(255, 255, 255, 0.1)'
+              borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+              flexShrink: 0
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '9px', fontWeight: '800', fontSize: '14.5px' }}>
                 <ShoppingBag size={18} color="#38bdf8" />
@@ -1001,8 +1090,15 @@ export default function PesananMasukDesktopView() {
               </button>
             </div>
 
-            {/* Modal Body */}
-            <div style={{ padding: '16px 18px', maxHeight: '78vh', overflowY: 'auto' }}>
+            {/* Modal Body (Scroll hanya di dalam modal) */}
+            <div 
+              style={{ 
+                padding: '16px 18px', 
+                overflowY: 'auto', 
+                overscrollBehavior: 'contain',
+                flex: 1 
+              }}
+            >
               
               {/* Order Info Banner */}
               <div style={{
