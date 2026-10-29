@@ -158,7 +158,7 @@ function SearchableSelect({ label, value, onChange, options, placeholder = "Pili
             ) : (
               filteredOptions.map((opt, i) => {
                 const optVal = typeof opt === 'string' ? opt : opt.value;
-                const optLabel = typeof opt === 'string' ? opt : (opt.displayLabel || opt.label || opt.value);
+                const optLabel = typeof opt === 'string' ? opt : (opt.label || opt.value);
                 const isSelected = optVal === value;
 
                 return (
@@ -409,48 +409,37 @@ export default function SPKView() {
     const nextNum = batchList.length + 1;
     const kodePrd = `PRD-${dateStr}-${String(nextNum).padStart(3, '0')}`;
 
-    // Sample products from master
-    const p1 = produkList[0] || { id: 1, sku: 'SKU-001', nama_produk: 'Topi Pet Bordir', kategori: 'Aksesoris / Topi', satuan: 'PCS' };
-    const p2 = produkList[1] || { id: 2, sku: 'SKU-002', nama_produk: 'Topi Bucket Casual', kategori: 'Aksesoris / Topi', satuan: 'PCS' };
-    const p3 = produkList[2] || { id: 3, sku: 'SKU-003', nama_produk: 'Gamis Abaya Dubai', kategori: 'Gamis Syari', satuan: 'PCS' };
-    const p4 = produkList[3] || { id: 4, sku: 'SKU-004', nama_produk: 'Gamis Crinkle Airflow', kategori: 'Gamis Casual', satuan: 'PCS' };
-    const p5 = produkList[4] || { id: 5, sku: 'SKU-005', nama_produk: 'Celana Kulot Muslimah', kategori: 'Celana / Bawahan', satuan: 'PCS' };
+    // Sample product from master
+    const p1 = produkList[0] || { id: 1, sku: 'SKU-001', nama_produk: 'Produk Baru', kategori: 'Umum', satuan: 'PCS' };
 
     setFormData({
       kode_produksi: kodePrd,
-      nama_pelanggan: 'Pelanggan ABC',
+      nama_pelanggan: '',
       tgl_pesan: new Date().toISOString().split('T')[0],
       deadline: new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0],
       status: 'Dalam Proses',
-      catatan: 'Pesanan paket 1 kode produksi dengan multi SPK (Topi, Baju, Celana)',
+      catatan: '',
       spk_list: [
         {
-          id_spk: 'SPK-123',
-          nama_spk: 'SPK Pembuatan Topi',
-          penjahit: karyawanOptions[0]?.nama || 'Agus Sutrisno',
-          status_spk: 'Proses Jahit',
-          produk_items: [
-            { id: 'item-1', no_spk: 'SPK-123', produk_id: p1.id, sku: p1.sku, nama_produk: p1.nama_produk, kategori: p1.kategori, satuan: p1.satuan, qty: 100, kain_nama: p1.estimasi_kain || 'Drill', panjang_kain_cm: p1.panjang_kain_cm || 20, harga_kain_cm: p1.harga_kain_cm || 100, estimasi_kain: buildEstimasiKain(p1.estimasi_kain || 'Drill', p1.panjang_kain_cm || 20, p1.harga_kain_cm || 100, 100) },
-            { id: 'item-2', no_spk: 'SPK-123', produk_id: p2.id, sku: p2.sku, nama_produk: p2.nama_produk, kategori: p2.kategori, satuan: p2.satuan, qty: 50, kain_nama: p2.estimasi_kain || 'Canvas', panjang_kain_cm: p2.panjang_kain_cm || 22, harga_kain_cm: p2.harga_kain_cm || 120, estimasi_kain: buildEstimasiKain(p2.estimasi_kain || 'Canvas', p2.panjang_kain_cm || 22, p2.harga_kain_cm || 120, 50) }
-          ]
-        },
-        {
-          id_spk: 'SPK-124',
-          nama_spk: 'SPK Pembuatan Baju Gamis',
-          penjahit: karyawanOptions[1]?.nama || 'Aning Maryam',
-          status_spk: 'Proses Jahit',
-          produk_items: [
-            { id: 'item-3', no_spk: 'SPK-124', produk_id: p3.id, sku: p3.sku, nama_produk: p3.nama_produk, kategori: p3.kategori, satuan: p3.satuan, qty: 150, kain_nama: p3.estimasi_kain || 'Silk Jetblack', panjang_kain_cm: p3.panjang_kain_cm || 250, harga_kain_cm: p3.harga_kain_cm || 200, estimasi_kain: buildEstimasiKain(p3.estimasi_kain || 'Silk Jetblack', p3.panjang_kain_cm || 250, p3.harga_kain_cm || 200, 150) },
-            { id: 'item-4', no_spk: 'SPK-124', produk_id: p4.id, sku: p4.sku, nama_produk: p4.nama_produk, kategori: p4.kategori, satuan: p4.satuan, qty: 100, kain_nama: p4.estimasi_kain || 'Crinkle Airflow', panjang_kain_cm: p4.panjang_kain_cm || 240, harga_kain_cm: p4.harga_kain_cm || 150, estimasi_kain: buildEstimasiKain(p4.estimasi_kain || 'Crinkle Airflow', p4.panjang_kain_cm || 240, p4.harga_kain_cm || 150, 100) }
-          ]
-        },
-        {
-          id_spk: 'SPK-125',
-          nama_spk: 'SPK Pembuatan Celana Kulot',
-          penjahit: karyawanOptions[2]?.nama || 'Anisa Rahmawati',
+          id_spk: 'SPK-101',
+          nama_spk: 'SPK Baru',
+          penjahit: karyawanOptions[0]?.nama || 'Penjahit Workshop',
           status_spk: 'Potong Pola',
           produk_items: [
-            { id: 'item-5', no_spk: 'SPK-125', produk_id: p5.id, sku: p5.sku, nama_produk: p5.nama_produk, kategori: p5.kategori, satuan: p5.satuan, qty: 150, kain_nama: p5.estimasi_kain || 'Twill Stretch', panjang_kain_cm: p5.panjang_kain_cm || 140, harga_kain_cm: p5.harga_kain_cm || 160, estimasi_kain: buildEstimasiKain(p5.estimasi_kain || 'Twill Stretch', p5.panjang_kain_cm || 140, p5.harga_kain_cm || 160, 150) }
+            {
+              id: `item-${Date.now()}-1`,
+              no_spk: 'SPK-101',
+              produk_id: p1.id,
+              sku: p1.sku,
+              nama_produk: p1.nama_produk,
+              kategori: p1.kategori,
+              satuan: p1.satuan,
+              qty: 50,
+              kain_nama: p1.estimasi_kain || 'Kain Polos',
+              panjang_kain_cm: p1.panjang_kain_cm || 200,
+              harga_kain_cm: p1.harga_kain_cm || 150,
+              estimasi_kain: buildEstimasiKain(p1.estimasi_kain || 'Kain Polos', p1.panjang_kain_cm || 200, p1.harga_kain_cm || 150, 50)
+            }
           ]
         }
       ]
@@ -1779,8 +1768,7 @@ export default function SPKView() {
                           <table style={{ width: '100%', minWidth: '880px', borderCollapse: 'collapse', fontSize: '11px' }}>
                             <thead>
                               <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0', textAlign: 'left' }}>
-                                <th style={{ padding: '6px 8px', fontWeight: '800', color: '#475569', minWidth: '280px' }}>PRODUK & SKU</th>
-                                <th style={{ padding: '6px 8px', fontWeight: '800', color: '#475569', width: '110px' }}>KATEGORI</th>
+                                <th style={{ padding: '6px 8px', fontWeight: '800', color: '#475569', minWidth: '320px' }}>PRODUK & SKU</th>
                                 <th style={{ padding: '6px 8px', fontWeight: '800', color: '#475569', width: '110px', textAlign: 'center' }}>QTY</th>
                                 <th style={{ padding: '6px 8px', fontWeight: '800', color: '#0369a1', width: '280px' }}>ESTIMASI KAIN (AUTO DARI MASTER)</th>
                                 <th style={{ padding: '6px 8px', fontWeight: '800', color: '#475569', width: '35px', textAlign: 'center' }}>AKSI</th>
@@ -1804,7 +1792,7 @@ export default function SPKView() {
 
                                 return (
                                   <tr key={pIdx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                                    {/* Produk & SKU (Gabung) */}
+                                    {/* Produk, SKU & Kategori */}
                                     <td style={{ padding: '6px 8px' }}>
                                       <SearchableSelect
                                         value={prod.produk_id}
@@ -1812,26 +1800,26 @@ export default function SPKView() {
                                         placeholder="Pilih dari Master..."
                                         onChange={(val) => handleSelectProductForSPK(sIdx, pIdx, val)}
                                       />
-                                      {prod.sku && (
-                                        <div style={{ marginTop: '3px', fontSize: '10px', color: '#64748b', fontFamily: 'monospace', fontWeight: '600' }}>
-                                          SKU: <span style={{ color: '#0284c7' }}>{prod.sku}</span>
-                                        </div>
-                                      )}
-                                    </td>
-
-                                    {/* Kategori */}
-                                    <td style={{ padding: '5px 8px' }}>
-                                      <span style={{
-                                        display: 'inline-block',
-                                        padding: '1px 6px',
-                                        borderRadius: '4px',
-                                        backgroundColor: '#e0f2fe',
-                                        color: '#0369a1',
-                                        fontSize: '10px',
-                                        fontWeight: '700'
-                                      }}>
-                                        {prod.kategori || 'Umum'}
-                                      </span>
+                                      <div style={{ marginTop: '4px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                        {prod.sku && (
+                                          <span style={{ fontSize: '10px', color: '#64748b', fontFamily: 'monospace', fontWeight: '600' }}>
+                                            SKU: <span style={{ color: '#0284c7' }}>{prod.sku}</span>
+                                          </span>
+                                        )}
+                                        {prod.produk_id && (
+                                          <span style={{
+                                            display: 'inline-block',
+                                            padding: '1px 6px',
+                                            borderRadius: '4px',
+                                            backgroundColor: '#e0f2fe',
+                                            color: '#0369a1',
+                                            fontSize: '9.5px',
+                                            fontWeight: '700'
+                                          }}>
+                                            {prod.kategori || 'Umum'}
+                                          </span>
+                                        )}
+                                      </div>
                                     </td>
 
                                     {/* Qty & Satuan (Gabung) */}
