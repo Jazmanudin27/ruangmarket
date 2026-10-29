@@ -315,7 +315,8 @@ export default function ProdukView() {
     harga_jual: 250000,
     estimasi_kain: 'Silk Jetblack Premium',
     panjang_kain_cm: 250,
-    harga_kain_cm: 200
+    harga_kain_cm: 200,
+    bundle_items: [] // Komponen pemisah jika produk bertipe Bundle / Setel
   };
   const [formData, setFormData] = useState(initialForm);
 
@@ -549,7 +550,8 @@ export default function ProdukView() {
       ...item,
       estimasi_kain: item.estimasi_kain || '',
       panjang_kain_cm: item.panjang_kain_cm !== undefined ? item.panjang_kain_cm : 200,
-      harga_kain_cm: item.harga_kain_cm !== undefined ? item.harga_kain_cm : 150
+      harga_kain_cm: item.harga_kain_cm !== undefined ? item.harga_kain_cm : 150,
+      bundle_items: Array.isArray(item.bundle_items) ? JSON.parse(JSON.stringify(item.bundle_items)) : []
     });
     setIsFormModalOpen(true);
   };
@@ -562,6 +564,110 @@ export default function ProdukView() {
   const handleOpenBarcode = (item) => {
     setSelectedProduk(item || null);
     setIsBarcodeModalOpen(true);
+  };
+
+  // Helper Bundle / Paket Setel Components
+  const handleAddBundleItem = () => {
+    // Cari produk single pertama sebagai template
+    const singleProds = produkList.filter(p => (p.tipe_set || 'Single') === 'Single');
+    const pRef = singleProds[0] || produkList[0] || {
+      id: 0,
+      nama_produk: 'Komponen Baru (Baju/Celana/Dll)',
+      sku: 'SKU-KOMP',
+      estimasi_kain: 'Drill',
+      panjang_kain_cm: 100,
+      harga_kain_cm: 150,
+      harga_beli: 30000
+    };
+
+    const newItem = {
+      id: `bi-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      produk_id: pRef.id || null,
+      nama_komponen: pRef.nama_produk || 'Komponen Baju',
+      sku: pRef.sku || '',
+      qty: 1,
+      kain_nama: pRef.estimasi_kain || 'Kain Polos',
+      panjang_kain_cm: Number(pRef.panjang_kain_cm || 120),
+      harga_kain_cm: Number(pRef.harga_kain_cm || 150),
+      harga_modal_item: Number(pRef.harga_beli || 35000)
+    };
+
+    setFormData(prev => {
+      const nextItems = [...(prev.bundle_items || []), newItem];
+      // Auto kalkulasi total modal dan estimasi kain dari gabungan item
+      const totalModal = nextItems.reduce((acc, it) => acc + (Number(it.harga_modal_item || 0) * (Number(it.qty) || 1)), 0);
+      const totalCm = nextItems.reduce((acc, it) => acc + (Number(it.panjang_kain_cm || 0) * (Number(it.qty) || 1)), 0);
+      const avgHargaCm = nextItems.length > 0 ? Math.round(nextItems.reduce((acc, it) => acc + Number(it.harga_kain_cm || 0), 0) / nextItems.length) : 150;
+      const combinedKainNama = nextItems.map(it => `${it.nama_komponen}: ${it.kain_nama || 'Kain'} (${it.panjang_kain_cm}cm)`).join(' + ');
+
+      return {
+        ...prev,
+        bundle_items: nextItems,
+        harga_beli: totalModal > 0 ? totalModal : prev.harga_beli,
+        panjang_kain_cm: totalCm > 0 ? totalCm : prev.panjang_kain_cm,
+        harga_kain_cm: avgHargaCm,
+        estimasi_kain: combinedKainNama || prev.estimasi_kain
+      };
+    });
+  };
+
+  const handleRemoveBundleItem = (index) => {
+    setFormData(prev => {
+      const nextItems = (prev.bundle_items || []).filter((_, i) => i !== index);
+      const totalModal = nextItems.reduce((acc, it) => acc + (Number(it.harga_modal_item || 0) * (Number(it.qty) || 1)), 0);
+      const totalCm = nextItems.reduce((acc, it) => acc + (Number(it.panjang_kain_cm || 0) * (Number(it.qty) || 1)), 0);
+      const avgHargaCm = nextItems.length > 0 ? Math.round(nextItems.reduce((acc, it) => acc + Number(it.harga_kain_cm || 0), 0) / nextItems.length) : 150;
+      const combinedKainNama = nextItems.map(it => `${it.nama_komponen}: ${it.kain_nama || 'Kain'} (${it.panjang_kain_cm}cm)`).join(' + ');
+
+      return {
+        ...prev,
+        bundle_items: nextItems,
+        harga_beli: totalModal > 0 ? totalModal : prev.harga_beli,
+        panjang_kain_cm: totalCm > 0 ? totalCm : prev.panjang_kain_cm,
+        harga_kain_cm: avgHargaCm,
+        estimasi_kain: combinedKainNama || prev.estimasi_kain
+      };
+    });
+  };
+
+  const handleUpdateBundleItem = (index, field, val) => {
+    setFormData(prev => {
+      const nextItems = [...(prev.bundle_items || [])];
+      let updatedItem = { ...nextItems[index], [field]: val };
+
+      // Jika user memilih produk dari master untuk komponen ini
+      if (field === 'produk_id') {
+        const found = produkList.find(p => p.id === Number(val)) || produkList.find(p => p.id === val);
+        if (found) {
+          updatedItem = {
+            ...updatedItem,
+            produk_id: found.id,
+            nama_komponen: found.nama_produk,
+            sku: found.sku,
+            kain_nama: found.estimasi_kain || 'Kain Polos',
+            panjang_kain_cm: Number(found.panjang_kain_cm || 100),
+            harga_kain_cm: Number(found.harga_kain_cm || 150),
+            harga_modal_item: Number(found.harga_beli || 0)
+          };
+        }
+      }
+
+      nextItems[index] = updatedItem;
+
+      const totalModal = nextItems.reduce((acc, it) => acc + (Number(it.harga_modal_item || 0) * (Number(it.qty) || 1)), 0);
+      const totalCm = nextItems.reduce((acc, it) => acc + (Number(it.panjang_kain_cm || 0) * (Number(it.qty) || 1)), 0);
+      const avgHargaCm = nextItems.length > 0 ? Math.round(nextItems.reduce((acc, it) => acc + Number(it.harga_kain_cm || 0), 0) / nextItems.length) : 150;
+      const combinedKainNama = nextItems.map(it => `${it.nama_komponen}: ${it.kain_nama || 'Kain'} (${it.panjang_kain_cm}cm)`).join(' + ');
+
+      return {
+        ...prev,
+        bundle_items: nextItems,
+        harga_beli: totalModal > 0 ? totalModal : prev.harga_beli,
+        panjang_kain_cm: totalCm > 0 ? totalCm : prev.panjang_kain_cm,
+        harga_kain_cm: avgHargaCm,
+        estimasi_kain: combinedKainNama || prev.estimasi_kain
+      };
+    });
   };
 
   const handleDelete = async (item) => {
@@ -1353,18 +1459,20 @@ export default function ProdukView() {
                             {item.kategori}
                           </span>
 
-                          {/* Tipe: Satu Setel / Single */}
+                          {/* Tipe: Bundle / Satu Setel / Single */}
                           <span style={{
                             display: 'inline-block',
                             padding: '1px 6px',
                             borderRadius: '4px',
                             fontSize: '10px',
                             fontWeight: '700',
-                            backgroundColor: item.tipe_set === 'Satu Setel' ? '#f5f3ff' : '#f1f5f9',
-                            color: item.tipe_set === 'Satu Setel' ? '#6d28d9' : '#475569',
-                            border: item.tipe_set === 'Satu Setel' ? '1px solid #ddd6fe' : '1px solid #cbd5e1'
+                            backgroundColor: (item.tipe_set === 'Satu Setel' || item.tipe_set === 'Bundle') ? '#f5f3ff' : '#f1f5f9',
+                            color: (item.tipe_set === 'Satu Setel' || item.tipe_set === 'Bundle') ? '#6d28d9' : '#475569',
+                            border: (item.tipe_set === 'Satu Setel' || item.tipe_set === 'Bundle') ? '1px solid #ddd6fe' : '1px solid #cbd5e1'
                           }}>
-                            {item.tipe_set || 'Single'}
+                            {(item.tipe_set === 'Satu Setel' || item.tipe_set === 'Bundle') 
+                              ? `Bundle Set (${Array.isArray(item.bundle_items) ? item.bundle_items.length : 2} Komp)` 
+                              : (item.tipe_set || 'Single')}
                           </span>
 
                           {/* Status Order: Ready Stok / PO (Bisa diklik untuk ubah cepat) */}
@@ -1917,12 +2025,50 @@ export default function ProdukView() {
                     </div>
                     <div>
                       <SearchableSelect
-                        label="Tipe Gamis"
+                        label="Tipe Produk"
                         value={formData.tipe_set || 'Single'}
-                        onChange={(val) => setFormData({ ...formData, tipe_set: val })}
+                        onChange={(val) => {
+                          setFormData(prev => {
+                            const updated = { ...prev, tipe_set: val };
+                            if ((val === 'Bundle' || val === 'Satu Setel') && (!prev.bundle_items || prev.bundle_items.length === 0)) {
+                              // Inisialisasi awal 2 komponen (misal: Baju + Celana)
+                              const singleProds = produkList.filter(p => (p.tipe_set || 'Single') === 'Single');
+                              const p1 = singleProds[0] || { id: 0, nama_produk: 'Baju / Atasan', sku: 'SKU-ATAS', panjang_kain_cm: 120, harga_kain_cm: 150, harga_beli: 40000 };
+                              const p2 = singleProds[1] || { id: 0, nama_produk: 'Celana / Bawahan', sku: 'SKU-BAWAH', panjang_kain_cm: 100, harga_kain_cm: 150, harga_beli: 35000 };
+                              
+                              const it1 = {
+                                id: `bi-${Date.now()}-1`,
+                                produk_id: p1.id || null,
+                                nama_komponen: p1.nama_produk || 'Baju Kemeja Seragam',
+                                sku: p1.sku || '',
+                                qty: 1,
+                                kain_nama: p1.estimasi_kain || 'Drill Premium',
+                                panjang_kain_cm: Number(p1.panjang_kain_cm || 120),
+                                harga_kain_cm: Number(p1.harga_kain_cm || 150),
+                                harga_modal_item: Number(p1.harga_beli || 40000)
+                              };
+                              const it2 = {
+                                id: `bi-${Date.now()}-2`,
+                                produk_id: p2.id || null,
+                                nama_komponen: p2.nama_produk || 'Celana Seragam',
+                                sku: p2.sku || '',
+                                qty: 1,
+                                kain_nama: p2.estimasi_kain || 'Drill Premium',
+                                panjang_kain_cm: Number(p2.panjang_kain_cm || 100),
+                                harga_kain_cm: Number(p2.harga_kain_cm || 150),
+                                harga_modal_item: Number(p2.harga_beli || 35000)
+                              };
+                              updated.bundle_items = [it1, it2];
+                              updated.harga_beli = it1.harga_modal_item + it2.harga_modal_item;
+                              updated.panjang_kain_cm = it1.panjang_kain_cm + it2.panjang_kain_cm;
+                              updated.estimasi_kain = `${it1.nama_komponen}: ${it1.kain_nama} (${it1.panjang_kain_cm}cm) + ${it2.nama_komponen}: ${it2.kain_nama} (${it2.panjang_kain_cm}cm)`;
+                            }
+                            return updated;
+                          });
+                        }}
                         options={[
-                          { value: 'Single', label: 'Single (Gamis Saja)' },
-                          { value: 'Satu Setel', label: 'Satu Setel (Gamis + Khimar/Jilbab)' }
+                          { value: 'Single', label: 'Single (Satuan / Non-Bundle)' },
+                          { value: 'Satu Setel', label: 'Bundle / Satu Setel (Multi Komponen: Baju + Celana dll)' }
                         ]}
                       />
                     </div>
@@ -1939,6 +2085,235 @@ export default function ProdukView() {
                     </div>
                   </div>
                 </div>
+
+                {/* KOMPONEN PEMISAH BUNDLE / SATU SETEL (JIKA TIPE SATU SETEL) */}
+                {(formData.tipe_set === 'Satu Setel' || formData.tipe_set === 'Bundle') && (
+                  <div style={{
+                    backgroundColor: '#ffffff',
+                    borderRadius: '8px',
+                    border: '1.5px solid #8b5cf6',
+                    padding: '10px 12px',
+                    boxShadow: '0 2px 5px rgba(139, 92, 246, 0.1)'
+                  }}>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      marginBottom: '8px',
+                      paddingBottom: '5px',
+                      borderBottom: '1px solid #ede9fe'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Boxes size={14} color="#7c3aed" />
+                        <div>
+                          <span style={{ fontSize: '11px', fontWeight: '800', color: '#6d28d9', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                            Komponen Pemisah Bundle ({(formData.bundle_items || []).length} Item)
+                          </span>
+                          <span style={{ display: 'block', fontSize: '9.5px', color: '#6b7280' }}>
+                            Contoh: Setelan = Baju (120cm) + Celana (100cm). Modal & Kain otomatis terakumulasi!
+                          </span>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleAddBundleItem}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '3px',
+                          padding: '3px 8px',
+                          borderRadius: '4px',
+                          border: '1px solid #c4b5fd',
+                          backgroundColor: '#f5f3ff',
+                          color: '#7c3aed',
+                          fontSize: '10.5px',
+                          fontWeight: '700',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <Plus size={12} />
+                        <span>Tambah Komponen</span>
+                      </button>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {(formData.bundle_items || []).map((bi, bIdx) => {
+                        const singleOptions = produkList.map(p => ({
+                          value: p.id,
+                          label: p.nama_produk,
+                          sku: p.sku,
+                          kategori: p.kategori,
+                          estimasi_kain: p.estimasi_kain,
+                          panjang_kain_cm: p.panjang_kain_cm,
+                          harga_kain_cm: p.harga_kain_cm,
+                          harga_beli: p.harga_beli
+                        }));
+
+                        return (
+                          <div
+                            key={bIdx}
+                            style={{
+                              backgroundColor: '#fbfbfe',
+                              border: '1px solid #e2e8f0',
+                              borderRadius: '6px',
+                              padding: '8px 10px',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '6px'
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
+                              <span style={{ fontSize: '10px', fontWeight: '800', color: '#7c3aed', textTransform: 'uppercase' }}>
+                                #{bIdx + 1}. Komponen:
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveBundleItem(bIdx)}
+                                style={{
+                                  border: 'none',
+                                  background: 'transparent',
+                                  color: '#ef4444',
+                                  cursor: 'pointer',
+                                  padding: '2px',
+                                  display: 'flex',
+                                  alignItems: 'center'
+                                }}
+                                title="Hapus komponen ini"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '8px' }}>
+                              <div>
+                                <label style={{ display: 'block', fontSize: '9.5px', fontWeight: '700', color: '#475569', marginBottom: '2px' }}>
+                                  Pilih dari Master (Opsional)
+                                </label>
+                                <SearchableSelect
+                                  value={bi.produk_id}
+                                  options={singleOptions}
+                                  placeholder="Pilih produk..."
+                                  onChange={(val) => handleUpdateBundleItem(bIdx, 'produk_id', val)}
+                                />
+                              </div>
+                              <div>
+                                <label style={{ display: 'block', fontSize: '9.5px', fontWeight: '700', color: '#475569', marginBottom: '2px' }}>
+                                  Nama Komponen
+                                </label>
+                                <input
+                                  type="text"
+                                  value={bi.nama_komponen || ''}
+                                  onChange={(e) => handleUpdateBundleItem(bIdx, 'nama_komponen', e.target.value)}
+                                  placeholder="Contoh: Kemeja Seragam"
+                                  style={{
+                                    width: '100%',
+                                    padding: '5px 8px',
+                                    borderRadius: '4px',
+                                    border: '1px solid #cbd5e1',
+                                    fontSize: '11px',
+                                    fontWeight: '600',
+                                    color: '#0f172a'
+                                  }}
+                                />
+                              </div>
+                            </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: '6px', alignItems: 'center' }}>
+                              <div>
+                                <label style={{ display: 'block', fontSize: '9px', fontWeight: '700', color: '#64748b', marginBottom: '2px' }}>
+                                  JENIS KAIN
+                                </label>
+                                <input
+                                  type="text"
+                                  value={bi.kain_nama || ''}
+                                  onChange={(e) => handleUpdateBundleItem(bIdx, 'kain_nama', e.target.value)}
+                                  placeholder="Kain Drill"
+                                  style={{
+                                    width: '100%',
+                                    padding: '4px 6px',
+                                    borderRadius: '4px',
+                                    border: '1px solid #cbd5e1',
+                                    fontSize: '10.5px',
+                                    fontWeight: '600'
+                                  }}
+                                />
+                              </div>
+
+                              <div>
+                                <label style={{ display: 'block', fontSize: '9px', fontWeight: '700', color: '#64748b', marginBottom: '2px' }}>
+                                  EST. KAIN (CM)
+                                </label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={bi.panjang_kain_cm || ''}
+                                  onChange={(e) => handleUpdateBundleItem(bIdx, 'panjang_kain_cm', Number(e.target.value))}
+                                  placeholder="120"
+                                  style={{
+                                    width: '100%',
+                                    padding: '4px 6px',
+                                    borderRadius: '4px',
+                                    border: '1px solid #cbd5e1',
+                                    fontSize: '10.5px',
+                                    fontWeight: '700',
+                                    textAlign: 'right',
+                                    color: '#0284c7'
+                                  }}
+                                />
+                              </div>
+
+                              <div>
+                                <label style={{ display: 'block', fontSize: '9px', fontWeight: '700', color: '#64748b', marginBottom: '2px' }}>
+                                  HARGA/CM
+                                </label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={bi.harga_kain_cm || ''}
+                                  onChange={(e) => handleUpdateBundleItem(bIdx, 'harga_kain_cm', Number(e.target.value))}
+                                  placeholder="150"
+                                  style={{
+                                    width: '100%',
+                                    padding: '4px 6px',
+                                    borderRadius: '4px',
+                                    border: '1px solid #cbd5e1',
+                                    fontSize: '10.5px',
+                                    fontWeight: '700',
+                                    textAlign: 'right'
+                                  }}
+                                />
+                              </div>
+
+                              <div>
+                                <label style={{ display: 'block', fontSize: '9px', fontWeight: '700', color: '#64748b', marginBottom: '2px' }}>
+                                  MODAL ITEM (RP)
+                                </label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={bi.harga_modal_item || ''}
+                                  onChange={(e) => handleUpdateBundleItem(bIdx, 'harga_modal_item', Number(e.target.value))}
+                                  placeholder="35000"
+                                  style={{
+                                    width: '100%',
+                                    padding: '4px 6px',
+                                    borderRadius: '4px',
+                                    border: '1px solid #cbd5e1',
+                                    fontSize: '10.5px',
+                                    fontWeight: '800',
+                                    textAlign: 'right',
+                                    color: '#059669'
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
               </div>
 
@@ -2423,6 +2798,28 @@ export default function ProdukView() {
                   <span>Est. Biaya Bahan/Pcs: <b style={{ color: '#059669' }}>{formatRupiah((selectedProduk.panjang_kain_cm || 0) * (selectedProduk.harga_kain_cm || 0))}</b></span>
                 </div>
               </div>
+
+              {/* Rincian Komponen Bundle (Jika ada) */}
+              {Array.isArray(selectedProduk.bundle_items) && selectedProduk.bundle_items.length > 0 && (
+                <div style={{ padding: '10px 12px', backgroundColor: '#f5f3ff', borderRadius: '6px', border: '1px solid #ddd6fe' }}>
+                  <div style={{ fontSize: '10.5px', color: '#6d28d9', fontWeight: '800', textTransform: 'uppercase', marginBottom: '6px' }}>
+                    RINCIAN KOMPONEN BUNDLE ({selectedProduk.bundle_items.length} ITEM)
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                    {selectedProduk.bundle_items.map((bi, i) => (
+                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', padding: '4px 6px', backgroundColor: '#ffffff', borderRadius: '4px', border: '1px solid #ede9fe' }}>
+                        <div>
+                          <b style={{ color: '#4c1d95' }}>#{i+1}. {bi.nama_komponen}</b>
+                          <span style={{ color: '#6b7280', marginLeft: '6px', fontSize: '10px' }}>({bi.kain_nama || 'Kain'} - {bi.panjang_kain_cm || 0}cm @Rp{bi.harga_kain_cm || 0})</span>
+                        </div>
+                        <span style={{ color: '#059669', fontWeight: '700' }}>
+                          Modal: {formatRupiah(bi.harga_modal_item || 0)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Barcode Visual */}
               <div style={{ textAlign: 'center', padding: '10px', border: '1px dashed #cbd5e1', borderRadius: '6px', backgroundColor: '#fafbfc' }}>

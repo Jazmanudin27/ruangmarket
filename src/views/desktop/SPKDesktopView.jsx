@@ -629,6 +629,18 @@ export default function SPKView() {
       const cmPerPcs = Number(prod.panjang_kain_cm || 200);
       const hargaCm = Number(prod.harga_kain_cm || 150);
 
+      const hasBundle = Array.isArray(prod.bundle_items) && prod.bundle_items.length > 0;
+      let estimasiKainText = buildEstimasiKain(kainNama, cmPerPcs, hargaCm, targetQty);
+      if (hasBundle) {
+        const bundleBreakdown = prod.bundle_items.map(bi => {
+          const bCm = (Number(bi.panjang_kain_cm) || 0) * targetQty;
+          const bMeter = (bCm / 100).toFixed(1).replace(/\.0$/, '');
+          const bBiaya = bCm * (Number(bi.harga_kain_cm) || 0);
+          return `${bi.nama_komponen}: ${bCm.toLocaleString('id-ID')} CM (${bMeter}M) - Rp ${bBiaya.toLocaleString('id-ID')}`;
+        }).join(' | ');
+        estimasiKainText = `Bundle (${prod.bundle_items.length} Komp) ➔ ${bundleBreakdown}`;
+      }
+
       items[prodIdx] = {
         ...items[prodIdx],
         produk_id: prod.id,
@@ -639,7 +651,8 @@ export default function SPKView() {
         kain_nama: kainNama,
         panjang_kain_cm: cmPerPcs,
         harga_kain_cm: hargaCm,
-        estimasi_kain: buildEstimasiKain(kainNama, cmPerPcs, hargaCm, targetQty)
+        bundle_items: prod.bundle_items || [],
+        estimasi_kain: estimasiKainText
       };
       list[spkIdx] = { ...list[spkIdx], produk_items: items };
       return { ...prev, spk_list: list };
