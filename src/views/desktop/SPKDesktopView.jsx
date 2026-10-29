@@ -1793,8 +1793,8 @@ export default function SPKView() {
                                   const namaShort = nama.length > 40 ? nama.slice(0, 40).trimEnd() + '...' : nama;
                                   return {
                                     value: p.id,
-                                    label: `${nama} (${p.kategori})`,
-                                    displayLabel: `${namaShort} (${p.kategori})`,
+                                    label: nama,
+                                    displayLabel: namaShort,
                                     nama_produk: p.nama_produk,
                                     sku: p.sku,
                                     kategori: p.kategori,
