@@ -27,8 +27,16 @@ import {
   ChevronDown,
   Check,
   CheckSquare,
-  Loader2
+  Loader2,
+  Upload,
+  Download,
+  FileSpreadsheet,
+  FileText,
+  CheckCircle2,
+  HelpCircle,
+  RefreshCw
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { showConfirm, toastSuccess, toastError } from '../../utils/alert.util';
 import { INITIAL_PRODUK_DATA } from '../../data/initialProduk';
 import { INITIAL_KATEGORI_DATA } from '../../data/initialKategori';
@@ -342,6 +350,152 @@ export default function ProdukView() {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
+
+  // Import Modal & Template state
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isTemplateMenuOpen, setIsTemplateMenuOpen] = useState(false);
+  const [importRows, setImportRows] = useState([]);
+  const [importFileName, setImportFileName] = useState('');
+  const [isParsingImport, setIsParsingImport] = useState(false);
+  const [isSubmittingImport, setIsSubmittingImport] = useState(false);
+  const [importResult, setImportResult] = useState(null);
+  const [importFilterAction, setImportFilterAction] = useState('ALL'); // ALL, INSERT, UPDATE, SKIP, FAIL
+  const importFileInputRef = useRef(null);
+
+  const handleDownloadTemplate = (format = 'xlsx') => {
+    setIsTemplateMenuOpen(false);
+    const link = document.createElement('a');
+    link.href = `/api/marketplace/master/template?format=${format}`;
+    link.setAttribute('download', format === 'csv' ? 'template_master_produk.csv' : 'template_import_master_produk.xlsx');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleOpenImportModal = () => {
+    setIsImportModalOpen(true);
+    setImportRows([]);
+    setImportFileName('');
+    setImportResult(null);
+    setImportFilterAction('ALL');
+    if (importFileInputRef.current) {
+      importFileInputRef.current.value = '';
+    }
+  };
+
+  const handleImportFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setImportFileName(file.name);
+    setIsParsingImport(true);
+    setImportResult(null);
+
+    try {
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: 'array' });
+      
+      const sheetName = workbook.SheetNames.includes('Master_Produk') 
+        ? 'Master_Produk' 
+        : workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const rawJson = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+
+      if (rawJson.length === 0) {
+        toastError('File Excel/CSV kosong atau format baris tidak terdeteksi.');
+        setImportRows([]);
+        return;
+      }
+
+      const parsed = rawJson.map((r, i) => {
+        const getVal = (keys, fallback = '') => {
+          for (const k of keys) {
+            if (r[k] !== undefined && r[k] !== '') return r[k];
+          }
+          return fallback;
+        };
+
+        const rawSku = getVal(['kode_sku', 'Kode SKU', 'sku', 'SKU', 'kode']);
+        const nama = getVal(['nama_produk', 'Nama Produk', 'nama', 'Nama', 'product_name']);
+        const kategori = getVal(['kategori', 'Kategori', 'category'], 'Pakaian');
+        const satuan = getVal(['satuan', 'Satuan', 'unit'], 'PCS');
+        const hargaJual = Number(getVal(['harga_jual', 'Harga Jual', 'price', 'harga'], 0)) || 0;
+        const hargaModal = Number(getVal(['harga_modal', 'Harga Modal', 'harga_beli', 'Harga Beli', 'cogs'], 0)) || 0;
+        const stokFisik = Number(getVal(['stok_fisik', 'Stok Fisik', 'stok', 'Stok', 'qty'], 0)) || 0;
+        const status = getVal(['status', 'Status'], 'Aktif');
+        const statusOrder = getVal(['status_order', 'Status Order'], 'Ready Stok');
+        const tipeSet = getVal(['tipe_set', 'Tipe Set', 'tipe'], 'Single');
+        const skuKain = getVal(['sku_kain', 'SKU Kain', 'kode_sku_kain'], '');
+        const estimasiKain = getVal(['estimasi_kain', 'Estimasi Kain', 'kain'], '');
+        const panjangKainCm = Number(getVal(['panjang_kain_cm', 'Panjang Kain (CM)', 'panjang_kain'], 200)) || 200;
+        const hargaKainCm = Number(getVal(['harga_kain_cm', 'Harga Kain (CM)', 'harga_kain'], 150)) || 150;
+        const idKategoriHpp = getVal(['id_kategori_hpp', 'ID Kategori HPP', 'kategori_hpp'], '');
+
+        return {
+          _index: i + 1,
+          kode_sku: String(rawSku).trim(),
+          nama_produk: String(nama).trim(),
+          kategori: String(kategori).trim(),
+          satuan: String(satuan).trim(),
+          harga_jual: hargaJual,
+          harga_modal: hargaModal,
+          stok_fisik: stokFisik,
+          status: String(status).trim(),
+          status_order: String(statusOrder).trim(),
+          tipe_set: String(tipeSet).trim(),
+          sku_kain: String(skuKain).trim(),
+          estimasi_kain: String(estimasiKain).trim(),
+          panjang_kain_cm: panjangKainCm,
+          harga_kain_cm: hargaKainCm,
+          id_kategori_hpp: String(idKategoriHpp).trim()
+        };
+      }).filter(row => row.kode_sku || row.nama_produk);
+
+      setImportRows(parsed);
+      toastSuccess(`Berhasil memuat ${parsed.length} baris data dari file "${file.name}"`);
+    } catch (err) {
+      console.error('Error parse file:', err);
+      toastError(`Gagal membaca file: ${err.message}`);
+    } finally {
+      setIsParsingImport(false);
+    }
+  };
+
+  const handleExecuteImport = async () => {
+    if (importRows.length === 0) {
+      toastError('Tidak ada baris produk untuk diimport!');
+      return;
+    }
+
+    setIsSubmittingImport(true);
+    try {
+      const payload = {
+        kode_perusahaan: activeCompany?.code || 'RSG',
+        items: importRows
+      };
+
+      const res = await fetch('/api/marketplace/master/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const json = await res.json();
+      if (!res.ok || json.status !== 'success') {
+        throw new Error(json.message || 'Gagal import produk ke server');
+      }
+
+      setImportResult(json);
+      const s = json.summary || {};
+      toastSuccess(
+        `Import selesai! +${s.inserted || 0} Baru, ~${s.updated || 0} Diupdate, =${s.skipped || 0} Skip, !${s.failed || 0} Gagal`
+      );
+      loadMasterProduk(1, entriesPerPage);
+    } catch (err) {
+      toastError(`Gagal import: ${err.message}`);
+    } finally {
+      setIsSubmittingImport(false);
+    }
+  };
 
   const [serverCounts, setServerCounts] = useState({
     semua: 0,
@@ -1171,6 +1325,149 @@ export default function ProdukView() {
               <Boxes size={13} />
             )}
             <span>{isBatchProcessing ? 'Memproses...' : 'Deteksi Bundle'}</span>
+          </button>
+
+          {/* Menu Dropdown Unduh Template */}
+          <div style={{ position: 'relative' }}>
+            <button
+              type="button"
+              onClick={() => setIsTemplateMenuOpen(prev => !prev)}
+              title="Unduh format template Excel/CSV untuk update masal atau penambahan SKU baru"
+              style={{
+                height: '30px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '5px',
+                padding: '0 11px',
+                borderRadius: '6px',
+                border: '1px solid rgba(255, 255, 255, 0.4)',
+                backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                color: '#ffffff',
+                fontSize: '12px',
+                fontWeight: '700',
+                lineHeight: 1,
+                cursor: 'pointer',
+                backdropFilter: 'blur(4px)',
+                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+                transition: 'all 0.15s ease'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.25)'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.15)'}
+            >
+              <Download size={13} />
+              <span>Template</span>
+              <ChevronDown size={12} />
+            </button>
+
+            {isTemplateMenuOpen && (
+              <div 
+                style={{
+                  position: 'absolute',
+                  top: '100%',
+                  right: 0,
+                  marginTop: '4px',
+                  backgroundColor: '#ffffff',
+                  borderRadius: '8px',
+                  border: '1px solid #cbd5e1',
+                  boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.15)',
+                  minWidth: '230px',
+                  padding: '6px',
+                  zIndex: 100,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '2px'
+                }}
+              >
+                <div style={{ padding: '6px 8px', fontSize: '10px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Format Template Master
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleDownloadTemplate('xlsx')}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '8px 10px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    backgroundColor: 'transparent',
+                    color: '#0f172a',
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    transition: 'all 0.1s ease'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                >
+                  <FileSpreadsheet size={16} color="#16a34a" />
+                  <div>
+                    <div style={{ fontWeight: '700', color: '#16a34a' }}>Template Excel (.xlsx)</div>
+                    <div style={{ fontSize: '10px', color: '#64748b' }}>Multi-sheet: Ref SKU Kain & HPP</div>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDownloadTemplate('csv')}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '8px 10px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    backgroundColor: 'transparent',
+                    color: '#0f172a',
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    transition: 'all 0.1s ease'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                >
+                  <FileText size={16} color="#0284c7" />
+                  <div>
+                    <div style={{ fontWeight: '700', color: '#0284c7' }}>Template CSV (.csv)</div>
+                    <div style={{ fontSize: '10px', color: '#64748b' }}>Standar teks cepat & kompatibel</div>
+                  </div>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Tombol Import Excel & Smart Update */}
+          <button
+            type="button"
+            onClick={handleOpenImportModal}
+            title="Import Excel/CSV: SKU baru di-insert, SKU berubah di-update, SKU sama di-skip cerdas"
+            style={{
+              height: '30px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              padding: '0 13px',
+              borderRadius: '6px',
+              border: 'none',
+              backgroundColor: '#059669',
+              color: '#ffffff',
+              fontSize: '12px',
+              fontWeight: '700',
+              lineHeight: 1,
+              cursor: 'pointer',
+              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.15)',
+              transition: 'all 0.15s ease'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#047857'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#059669'}
+          >
+            <Upload size={13} />
+            <span>Import / Update SKU</span>
           </button>
 
           <button
@@ -3933,6 +4230,588 @@ export default function ProdukView() {
 
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL IMPORT EXCEL & SMART UPSERT MASTER PRODUK */}
+      {isImportModalOpen && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: 'rgba(15, 23, 42, 0.65)',
+          backdropFilter: 'blur(4px)',
+          zIndex: 3500,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '16px',
+          boxSizing: 'border-box'
+        }}>
+          <div style={{
+            backgroundColor: '#ffffff',
+            borderRadius: '12px',
+            width: '100%',
+            maxWidth: '960px',
+            maxHeight: '92vh',
+            display: 'flex',
+            flexDirection: 'column',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+            border: '1px solid #cbd5e1',
+            overflow: 'hidden'
+          }}>
+            {/* Modal Header */}
+            <div style={{
+              background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+              padding: '14px 20px',
+              color: '#ffffff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexShrink: 0
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '8px',
+                  backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <FileSpreadsheet size={20} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '800', lineHeight: 1.2 }}>
+                    Import & Smart Update Master Produk
+                  </h3>
+                  <p style={{ margin: 0, fontSize: '11px', color: 'rgba(255, 255, 255, 0.88)' }}>
+                    Unggah file Excel/CSV: Otomatis INSERT jika SKU baru, UPDATE jika berubah, SKIP jika sama
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (importResult) {
+                    loadMasterProduk(1, entriesPerPage);
+                  }
+                  setIsImportModalOpen(false);
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#ffffff',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  display: 'flex',
+                  borderRadius: '6px',
+                  backgroundColor: 'rgba(255, 255, 255, 0.15)'
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: '16px 20px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              
+              {/* Rules Cards Banner */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(3, 1fr)',
+                gap: '10px',
+                backgroundColor: '#f8fafc',
+                border: '1px solid #e2e8f0',
+                borderRadius: '8px',
+                padding: '10px 12px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                  <div style={{ width: '22px', height: '22px', borderRadius: '50%', backgroundColor: '#dcfce7', color: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '11px', fontWeight: '800' }}>+</div>
+                  <div>
+                    <div style={{ fontSize: '11.5px', fontWeight: '800', color: '#16a34a' }}>SKU Baru → INSERT</div>
+                    <div style={{ fontSize: '10.5px', color: '#64748b', lineHeight: 1.3 }}>SKU belum ada di DB langsung didaftarkan jadi produk master baru.</div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                  <div style={{ width: '22px', height: '22px', borderRadius: '50%', backgroundColor: '#e0f2fe', color: '#0284c7', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '11px', fontWeight: '800' }}>~</div>
+                  <div>
+                    <div style={{ fontSize: '11.5px', fontWeight: '800', color: '#0284c7' }}>SKU Berubah → UPDATE</div>
+                    <div style={{ fontSize: '10.5px', color: '#64748b', lineHeight: 1.3 }}>SKU ada & data berbeda (nama, harga, stok, kain) otomatis di-update.</div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                  <div style={{ width: '22px', height: '22px', borderRadius: '50%', backgroundColor: '#f1f5f9', color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '11px', fontWeight: '800' }}>=</div>
+                  <div>
+                    <div style={{ fontSize: '11.5px', fontWeight: '800', color: '#475569' }}>SKU Sama → SKIP</div>
+                    <div style={{ fontSize: '10.5px', color: '#64748b', lineHeight: 1.3 }}>SKU ada & data sama persis dilewati tanpa query (hemat beban server).</div>
+                  </div>
+                </div>
+              </div>
+
+              {!importResult ? (
+                <>
+                  {/* Download Template Bar */}
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    backgroundColor: '#ecfdf5',
+                    border: '1px solid #a7f3d0'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <HelpCircle size={16} color="#059669" />
+                      <span style={{ fontSize: '11.5px', fontWeight: '600', color: '#065f46' }}>
+                        Perlu file acuan atau daftar SKU Kain terkini?
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button
+                        type="button"
+                        onClick={() => handleDownloadTemplate('xlsx')}
+                        style={{
+                          height: '26px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          padding: '0 10px',
+                          borderRadius: '5px',
+                          border: '1px solid #059669',
+                          backgroundColor: '#ffffff',
+                          color: '#059669',
+                          fontSize: '11px',
+                          fontWeight: '700',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <Download size={12} />
+                        <span>Unduh Excel (.xlsx)</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDownloadTemplate('csv')}
+                        style={{
+                          height: '26px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          padding: '0 10px',
+                          borderRadius: '5px',
+                          border: '1px solid #059669',
+                          backgroundColor: '#ffffff',
+                          color: '#059669',
+                          fontSize: '11px',
+                          fontWeight: '700',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <Download size={12} />
+                        <span>Unduh CSV</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Dropzone Upload */}
+                  <input
+                    type="file"
+                    ref={importFileInputRef}
+                    accept=".xlsx,.xls,.csv"
+                    onChange={handleImportFileChange}
+                    style={{ display: 'none' }}
+                  />
+
+                  <div
+                    onClick={() => importFileInputRef.current?.click()}
+                    style={{
+                      border: '2px dashed #059669',
+                      borderRadius: '10px',
+                      padding: '28px 20px',
+                      backgroundColor: '#f0fdf4',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      cursor: 'pointer',
+                      textAlign: 'center',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <div style={{
+                      width: '48px',
+                      height: '48px',
+                      borderRadius: '50%',
+                      backgroundColor: '#dcfce7',
+                      color: '#059669',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}>
+                      {isParsingImport ? (
+                        <Loader2 size={24} className="animate-spin" />
+                      ) : (
+                        <Upload size={24} />
+                      )}
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '13px', fontWeight: '800', color: '#065f46' }}>
+                        {isParsingImport ? 'Membaca data file...' : 'Klik untuk Pilih File Excel / CSV'}
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+                        Mendukung format .xlsx, .xls, atau .csv (Sheet "Master_Produk" otomatis diprioritaskan)
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Preview Table If File Selected */}
+                  {importRows.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div style={{ fontSize: '12px', fontWeight: '800', color: '#0f172a' }}>
+                          File: <span style={{ color: '#059669' }}>{importFileName}</span> ({importRows.length} baris siap diproses)
+                        </div>
+                        <span style={{ fontSize: '11px', color: '#64748b' }}>
+                          Menampilkan pratinjau 10 baris pertama
+                        </span>
+                      </div>
+
+                      <div style={{
+                        maxHeight: '220px',
+                        overflow: 'auto',
+                        border: '1px solid #cbd5e1',
+                        borderRadius: '8px',
+                        backgroundColor: '#ffffff'
+                      }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
+                          <thead>
+                            <tr style={{ backgroundColor: '#f1f5f9', color: '#334155', borderBottom: '1px solid #cbd5e1', position: 'sticky', top: 0 }}>
+                              <th style={{ padding: '6px 8px', textAlign: 'center', width: '35px' }}>#</th>
+                              <th style={{ padding: '6px 8px', textAlign: 'left' }}>Kode SKU</th>
+                              <th style={{ padding: '6px 8px', textAlign: 'left' }}>Nama Produk</th>
+                              <th style={{ padding: '6px 8px', textAlign: 'left' }}>Kategori</th>
+                              <th style={{ padding: '6px 8px', textAlign: 'right' }}>Harga Jual</th>
+                              <th style={{ padding: '6px 8px', textAlign: 'right' }}>Harga Modal</th>
+                              <th style={{ padding: '6px 8px', textAlign: 'center' }}>Stok</th>
+                              <th style={{ padding: '6px 8px', textAlign: 'left' }}>SKU Kain</th>
+                              <th style={{ padding: '6px 8px', textAlign: 'center' }}>Tipe</th>
+                              <th style={{ padding: '6px 8px', textAlign: 'center' }}>Status Order</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {importRows.slice(0, 10).map((row, idx) => (
+                              <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                                <td style={{ padding: '5px 8px', textAlign: 'center', color: '#94a3b8' }}>{row._index}</td>
+                                <td style={{ padding: '5px 8px', fontWeight: '800', color: '#0f172a', fontFamily: 'monospace' }}>{row.kode_sku}</td>
+                                <td style={{ padding: '5px 8px', color: '#334155' }}>{row.nama_produk}</td>
+                                <td style={{ padding: '5px 8px', color: '#64748b' }}>{row.kategori}</td>
+                                <td style={{ padding: '5px 8px', textAlign: 'right', fontWeight: '700', color: '#059669' }}>Rp {row.harga_jual.toLocaleString('id-ID')}</td>
+                                <td style={{ padding: '5px 8px', textAlign: 'right', color: '#64748b' }}>Rp {row.harga_modal.toLocaleString('id-ID')}</td>
+                                <td style={{ padding: '5px 8px', textAlign: 'center', fontWeight: '700' }}>{row.stok_fisik}</td>
+                                <td style={{ padding: '5px 8px' }}>
+                                  {row.sku_kain ? (
+                                    <span style={{ backgroundColor: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', padding: '1px 5px', borderRadius: '4px', fontSize: '10px', fontFamily: 'monospace', fontWeight: '700' }}>
+                                      {row.sku_kain}
+                                    </span>
+                                  ) : (
+                                    <span style={{ color: '#94a3b8' }}>-</span>
+                                  )}
+                                </td>
+                                <td style={{ padding: '5px 8px', textAlign: 'center', color: '#64748b' }}>{row.tipe_set}</td>
+                                <td style={{ padding: '5px 8px', textAlign: 'center' }}>
+                                  <span style={{
+                                    padding: '1px 6px',
+                                    borderRadius: '4px',
+                                    fontSize: '10px',
+                                    fontWeight: '700',
+                                    backgroundColor: row.status_order === 'PO' ? '#fef3c7' : '#e0f2fe',
+                                    color: row.status_order === 'PO' ? '#b45309' : '#0369a1'
+                                  }}>
+                                    {row.status_order}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                /* RESULT SCREEN */
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  {/* Summary Metric Cards */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px' }}>
+                    <div style={{ padding: '12px', borderRadius: '8px', backgroundColor: '#f0fdf4', border: '1.5px solid #86efac', textAlign: 'center' }}>
+                      <div style={{ fontSize: '20px', fontWeight: '900', color: '#16a34a' }}>
+                        +{importResult.summary?.inserted || 0}
+                      </div>
+                      <div style={{ fontSize: '11px', fontWeight: '700', color: '#15803d', marginTop: '2px' }}>
+                        Baru Ditambahkan
+                      </div>
+                      <div style={{ fontSize: '10px', color: '#4ade80' }}>Action: INSERT</div>
+                    </div>
+
+                    <div style={{ padding: '12px', borderRadius: '8px', backgroundColor: '#eff6ff', border: '1.5px solid #93c5fd', textAlign: 'center' }}>
+                      <div style={{ fontSize: '20px', fontWeight: '900', color: '#0284c7' }}>
+                        ~{importResult.summary?.updated || 0}
+                      </div>
+                      <div style={{ fontSize: '11px', fontWeight: '700', color: '#0369a1', marginTop: '2px' }}>
+                        Berhasil Diupdate
+                      </div>
+                      <div style={{ fontSize: '10px', color: '#60a5fa' }}>Action: UPDATE</div>
+                    </div>
+
+                    <div style={{ padding: '12px', borderRadius: '8px', backgroundColor: '#f8fafc', border: '1.5px solid #cbd5e1', textAlign: 'center' }}>
+                      <div style={{ fontSize: '20px', fontWeight: '900', color: '#475569' }}>
+                        ={importResult.summary?.skipped || 0}
+                      </div>
+                      <div style={{ fontSize: '11px', fontWeight: '700', color: '#334155', marginTop: '2px' }}>
+                        Dilewati (Sama)
+                      </div>
+                      <div style={{ fontSize: '10px', color: '#94a3b8' }}>Action: SKIP</div>
+                    </div>
+
+                    <div style={{ padding: '12px', borderRadius: '8px', backgroundColor: '#fef2f2', border: '1.5px solid #fca5a5', textAlign: 'center' }}>
+                      <div style={{ fontSize: '20px', fontWeight: '900', color: '#dc2626' }}>
+                        !{importResult.summary?.failed || 0}
+                      </div>
+                      <div style={{ fontSize: '11px', fontWeight: '700', color: '#b91c1c', marginTop: '2px' }}>
+                        Gagal / Error
+                      </div>
+                      <div style={{ fontSize: '10px', color: '#f87171' }}>Action: FAIL</div>
+                    </div>
+                  </div>
+
+                  {/* Filter Tabs for Results */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', borderBottom: '1px solid #e2e8f0', paddingBottom: '8px' }}>
+                    {[
+                      { key: 'ALL', label: `Semua (${(importResult.details || []).length})` },
+                      { key: 'INSERT', label: `Baru (+${importResult.summary?.inserted || 0})` },
+                      { key: 'UPDATE', label: `Diupdate (~${importResult.summary?.updated || 0})` },
+                      { key: 'SKIP', label: `Dilewati (=${importResult.summary?.skipped || 0})` },
+                      { key: 'FAIL', label: `Gagal (!${importResult.summary?.failed || 0})` }
+                    ].map(f => (
+                      <button
+                        key={f.key}
+                        type="button"
+                        onClick={() => setImportFilterAction(f.key)}
+                        style={{
+                          height: '26px',
+                          padding: '0 10px',
+                          borderRadius: '5px',
+                          fontSize: '11px',
+                          fontWeight: '700',
+                          border: importFilterAction === f.key ? '1px solid #059669' : '1px solid #e2e8f0',
+                          backgroundColor: importFilterAction === f.key ? '#059669' : '#ffffff',
+                          color: importFilterAction === f.key ? '#ffffff' : '#475569',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Details Breakdown Table */}
+                  <div style={{
+                    maxHeight: '280px',
+                    overflowY: 'auto',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '8px',
+                    backgroundColor: '#ffffff'
+                  }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
+                      <thead>
+                        <tr style={{ backgroundColor: '#f1f5f9', color: '#334155', borderBottom: '1px solid #cbd5e1', position: 'sticky', top: 0 }}>
+                          <th style={{ padding: '6px 8px', textAlign: 'center', width: '45px' }}>Baris</th>
+                          <th style={{ padding: '6px 8px', textAlign: 'left', width: '150px' }}>Kode SKU</th>
+                          <th style={{ padding: '6px 8px', textAlign: 'left', width: '220px' }}>Nama Produk</th>
+                          <th style={{ padding: '6px 8px', textAlign: 'center', width: '80px' }}>Aksi</th>
+                          <th style={{ padding: '6px 8px', textAlign: 'left' }}>Rincian Perubahan / Keterangan</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(importResult.details || [])
+                          .filter(d => importFilterAction === 'ALL' || d.action === importFilterAction)
+                          .map((d, i) => {
+                            const isInsert = d.action === 'INSERT';
+                            const isUpdate = d.action === 'UPDATE';
+                            const isSkip = d.action === 'SKIP';
+                            const isFail = d.action === 'FAIL';
+
+                            return (
+                              <tr key={i} style={{ borderBottom: '1px solid #e2e8f0', backgroundColor: isFail ? '#fef2f2' : 'transparent' }}>
+                                <td style={{ padding: '6px 8px', textAlign: 'center', color: '#94a3b8' }}>#{d.row}</td>
+                                <td style={{ padding: '6px 8px', fontWeight: '800', color: '#0f172a', fontFamily: 'monospace' }}>{d.sku}</td>
+                                <td style={{ padding: '6px 8px', color: '#334155' }}>{d.nama_produk || '-'}</td>
+                                <td style={{ padding: '6px 8px', textAlign: 'center' }}>
+                                  <span style={{
+                                    display: 'inline-block',
+                                    padding: '2px 8px',
+                                    borderRadius: '4px',
+                                    fontSize: '10px',
+                                    fontWeight: '800',
+                                    backgroundColor: isInsert ? '#dcfce7' : (isUpdate ? '#e0f2fe' : (isSkip ? '#f1f5f9' : '#fee2e2')),
+                                    color: isInsert ? '#15803d' : (isUpdate ? '#0369a1' : (isSkip ? '#475569' : '#b91c1c'))
+                                  }}>
+                                    {d.action}
+                                  </span>
+                                </td>
+                                <td style={{ padding: '6px 8px', color: '#334155' }}>
+                                  {isUpdate && Array.isArray(d.changes) ? (
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                                      {d.changes.map((ch, idx) => (
+                                        <span key={idx} style={{
+                                          padding: '1px 6px',
+                                          borderRadius: '3px',
+                                          backgroundColor: '#eff6ff',
+                                          border: '1px solid #bfdbfe',
+                                          color: '#1e40af',
+                                          fontSize: '10px',
+                                          fontFamily: 'monospace'
+                                        }}>
+                                          {ch}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <span style={{ color: isFail ? '#b91c1c' : (isSkip ? '#64748b' : '#15803d'), fontSize: '10.5px' }}>
+                                      {d.reason || '-'}
+                                    </span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{
+              padding: '12px 20px',
+              backgroundColor: '#f8fafc',
+              borderTop: '1px solid #cbd5e1',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'flex-end',
+              gap: '10px',
+              flexShrink: 0
+            }}>
+              {!importResult ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setIsImportModalOpen(false)}
+                    style={{
+                      height: '32px',
+                      padding: '0 14px',
+                      borderRadius: '6px',
+                      border: '1px solid #cbd5e1',
+                      backgroundColor: '#ffffff',
+                      color: '#475569',
+                      fontSize: '12px',
+                      fontWeight: '700',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="button"
+                    disabled={importRows.length === 0 || isSubmittingImport}
+                    onClick={handleExecuteImport}
+                    style={{
+                      height: '32px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '0 16px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      backgroundColor: (importRows.length === 0 || isSubmittingImport) ? '#94a3b8' : '#059669',
+                      color: '#ffffff',
+                      fontSize: '12px',
+                      fontWeight: '800',
+                      cursor: (importRows.length === 0 || isSubmittingImport) ? 'not-allowed' : 'pointer',
+                      boxShadow: '0 2px 4px rgba(5, 150, 105, 0.25)'
+                    }}
+                  >
+                    {isSubmittingImport ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <Upload size={14} />
+                    )}
+                    <span>
+                      {isSubmittingImport 
+                        ? 'Memproses Smart Upsert...' 
+                        : `Mulai Import & Smart Update (${importRows.length} Baris)`}
+                    </span>
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setImportResult(null);
+                      setImportRows([]);
+                      setImportFileName('');
+                    }}
+                    style={{
+                      height: '32px',
+                      padding: '0 14px',
+                      borderRadius: '6px',
+                      border: '1px solid #cbd5e1',
+                      backgroundColor: '#ffffff',
+                      color: '#475569',
+                      fontSize: '12px',
+                      fontWeight: '700',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Import File Lain
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsImportModalOpen(false);
+                      loadMasterProduk(1, entriesPerPage);
+                    }}
+                    style={{
+                      height: '32px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '0 18px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      backgroundColor: '#0284c7',
+                      color: '#ffffff',
+                      fontSize: '12px',
+                      fontWeight: '800',
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 4px rgba(2, 132, 199, 0.25)'
+                    }}
+                  >
+                    <CheckCircle2 size={14} />
+                    <span>Selesai & Muat Ulang Produk</span>
+                  </button>
+                </>
+              )}
+            </div>
+
           </div>
         </div>
       )}

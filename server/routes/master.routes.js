@@ -1,6 +1,377 @@
 import { sendJson, parseJsonBody } from '../utils/response.js';
+import * as XLSX from 'xlsx';
 
 export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
+  // 0a. Download Template Master Produk (Excel / CSV)
+  if ((pathname === '/api/produk/master/template' || pathname === '/api/marketplace/master/template') && req.method === 'GET') {
+    try {
+      const format = (urlObj.searchParams.get('format') || 'xlsx').toLowerCase();
+      const templateHeaders = [
+        'kode_sku',
+        'nama_produk',
+        'kategori',
+        'satuan',
+        'harga_jual',
+        'harga_modal',
+        'stok_fisik',
+        'status',
+        'status_order',
+        'tipe_set',
+        'sku_kain',
+        'estimasi_kain',
+        'panjang_kain_cm',
+        'harga_kain_cm',
+        'id_kategori_hpp'
+      ];
+
+      const sampleData = [
+        {
+          kode_sku: 'BB-TH-MERAH-LPJ-S',
+          nama_produk: 'Baju Batik Tunas Harapan Merah Lengan Panjang Size S',
+          kategori: 'Baju Batik',
+          satuan: 'PCS',
+          harga_jual: 85000,
+          harga_modal: 55000,
+          stok_fisik: 50,
+          status: 'Aktif',
+          status_order: 'Ready Stok',
+          tipe_set: 'Single',
+          sku_kain: 'KB-TH-MERAH',
+          estimasi_kain: 'Kain Batik TH Merah',
+          panjang_kain_cm: 200,
+          harga_kain_cm: 150,
+          id_kategori_hpp: ''
+        },
+        {
+          kode_sku: 'ROK-SD-MERAH-M',
+          nama_produk: 'Rok Rampel Merah SD Size M',
+          kategori: 'Rok Seragam',
+          satuan: 'PCS',
+          harga_jual: 75000,
+          harga_modal: 45000,
+          stok_fisik: 40,
+          status: 'Aktif',
+          status_order: 'Ready Stok',
+          tipe_set: 'Single',
+          sku_kain: 'K-DRILL-UON',
+          estimasi_kain: 'Kain Drill Union',
+          panjang_kain_cm: 180,
+          harga_kain_cm: 150,
+          id_kategori_hpp: ''
+        },
+        {
+          kode_sku: 'PO-KP-GM-LPJ-SD-L',
+          nama_produk: 'Kemeja Putih Katun GM Lengan Panjang SD Size L',
+          kategori: 'Kemeja',
+          satuan: 'PCS',
+          harga_jual: 70000,
+          harga_modal: 40000,
+          stok_fisik: 25,
+          status: 'Aktif',
+          status_order: 'PO',
+          tipe_set: 'Single',
+          sku_kain: 'K-GM',
+          estimasi_kain: 'Kain Katun GM',
+          panjang_kain_cm: 190,
+          harga_kain_cm: 150,
+          id_kategori_hpp: ''
+        }
+      ];
+
+      if (format === 'csv') {
+        const ws = XLSX.utils.json_to_sheet(sampleData, { header: templateHeaders });
+        const csvContent = XLSX.utils.sheet_to_csv(ws);
+        res.writeHead(200, {
+          'Content-Type': 'text/csv; charset=utf-8',
+          'Content-Disposition': 'attachment; filename="template_master_produk.csv"'
+        });
+        res.end(csvContent);
+        return true;
+      }
+
+      // Ambil daftar SKU Kain & HPP dari DB untuk tab referensi
+      const [kainRows] = await pool.query('SELECT kode_sku_kain, nama_kain, jenis_kain, warna FROM master_kain ORDER BY id ASC');
+      const [hppRows] = await pool.query('SELECT id_kategori_hpp, nama_kategori_hpp, total_hpp FROM master_hpp_produk ORDER BY id ASC');
+
+      const wb = XLSX.utils.book_new();
+
+      // Sheet 1: Master_Produk
+      const ws1 = XLSX.utils.json_to_sheet(sampleData, { header: templateHeaders });
+      ws1['!cols'] = [
+        { wch: 24 }, { wch: 48 }, { wch: 18 }, { wch: 10 },
+        { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 12 },
+        { wch: 14 }, { wch: 14 }, { wch: 18 }, { wch: 25 },
+        { wch: 18 }, { wch: 16 }, { wch: 20 }
+      ];
+      XLSX.utils.book_append_sheet(wb, ws1, 'Master_Produk');
+
+      // Sheet 2: Referensi SKU Kain
+      const refKain = kainRows.map(k => ({
+        KODE_SKU_KAIN: k.kode_sku_kain,
+        NAMA_KAIN: k.nama_kain,
+        JENIS: k.jenis_kain || '-',
+        WARNA: k.warna || '-'
+      }));
+      const ws2 = XLSX.utils.json_to_sheet(refKain);
+      ws2['!cols'] = [{ wch: 20 }, { wch: 32 }, { wch: 18 }, { wch: 18 }];
+      XLSX.utils.book_append_sheet(wb, ws2, 'Referensi_SKU_Kain');
+
+      // Sheet 3: Referensi Kategori HPP
+      const refHpp = hppRows.map(h => ({
+        ID_KATEGORI_HPP: h.id_kategori_hpp,
+        NAMA_KATEGORI: h.nama_kategori_hpp,
+        TOTAL_HPP: Number(h.total_hpp || 0)
+      }));
+      const ws3 = XLSX.utils.json_to_sheet(refHpp);
+      ws3['!cols'] = [{ wch: 22 }, { wch: 35 }, { wch: 16 }];
+      XLSX.utils.book_append_sheet(wb, ws3, 'Referensi_HPP');
+
+      // Sheet 4: Petunjuk Pengisian
+      const panduan = [
+        { ATURAN: 'Logika Upload Baru', PENJELASAN: 'Jika kode_sku belum ada di database, baris otomatis di-INSERT sebagai produk baru.' },
+        { ATURAN: 'Logika Update', PENJELASAN: 'Jika kode_sku sudah ada dan ada kolom yang diubah (harga, stok, nama, dll), baris otomatis di-UPDATE.' },
+        { ATURAN: 'Logika Skip', PENJELASAN: 'Jika kode_sku sudah ada dan seluruh datanya sama persis, baris otomatis di-SKIP tanpa query update.' },
+        { ATURAN: 'SKU Kain', PENJELASAN: 'Isi dengan kode SKU Kain dari sheet "Referensi_SKU_Kain" (misal: KB-TH-MERAH).' },
+        { ATURAN: 'Status Order', PENJELASAN: 'Isi dengan "Ready Stok" atau "PO".' },
+        { ATURAN: 'Tipe Set', PENJELASAN: 'Isi dengan "Single" atau "Satu Setel" / "Bundle".' }
+      ];
+      const ws4 = XLSX.utils.json_to_sheet(panduan);
+      ws4['!cols'] = [{ wch: 22 }, { wch: 75 }];
+      XLSX.utils.book_append_sheet(wb, ws4, 'Petunjuk_Pengisian');
+
+      const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+      res.writeHead(200, {
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition': 'attachment; filename="template_import_master_produk.xlsx"'
+      });
+      res.end(buffer);
+      return true;
+    } catch (err) {
+      console.error('[Template API Error]:', err);
+      sendJson(res, 500, { status: 'error', message: err.message });
+      return true;
+    }
+  }
+
+  // 0b. Import & Smart Upsert Master Produk (Insert baru, Update jika ada perubahan, Skip jika sama)
+  if ((pathname === '/api/produk/master/import' || pathname === '/api/marketplace/master/import') && req.method === 'POST') {
+    try {
+      const body = await parseJsonBody(req);
+      const items = Array.isArray(body?.items) ? body.items : (Array.isArray(body) ? body : []);
+
+      if (items.length === 0) {
+        sendJson(res, 400, { status: 'error', message: 'Data baris produk tidak ditemukan' });
+        return true;
+      }
+
+      const kodePerusahaan = String(body.kode_perusahaan || 'RSG').slice(0, 32);
+
+      // Ambil seluruh master produk yang ada untuk perbandingan cepat dalam memori
+      const [existingRows] = await pool.query(`
+        SELECT 
+          id, kode_perusahaan, kode_sku, nama_produk, kategori, satuan,
+          harga_jual, harga_modal, stok_fisik, status, status_order, tipe_set,
+          sku_kain, estimasi_kain, panjang_kain_cm, harga_kain_cm, id_kategori_hpp
+        FROM produk_master
+      `);
+
+      const existingMap = new Map();
+      for (const row of existingRows) {
+        const cleanSku = String(row.kode_sku || '').trim().toUpperCase();
+        existingMap.set(cleanSku, row);
+        if (cleanSku.startsWith('RSG-')) {
+          existingMap.set(cleanSku.substring(4), row);
+        }
+      }
+
+      // Ambil daftar valid SKU Kain
+      const [kainRows] = await pool.query('SELECT kode_sku_kain, nama_kain FROM master_kain');
+      const kainMap = new Map();
+      for (const k of kainRows) {
+        kainMap.set(String(k.kode_sku_kain).trim().toUpperCase(), k.nama_kain);
+      }
+
+      let inserted = 0;
+      let updated = 0;
+      let skipped = 0;
+      let failed = 0;
+      const details = [];
+
+      for (let idx = 0; idx < items.length; idx++) {
+        const item = items[idx];
+        const rawSku = String(item.kode_sku || item.sku || '').trim();
+        if (!rawSku) {
+          failed++;
+          details.push({
+            row: idx + 1,
+            sku: '(KOSONG)',
+            action: 'FAIL',
+            reason: 'Kolom kode_sku wajib diisi'
+          });
+          continue;
+        }
+
+        const cleanSku = (rawSku.startsWith('RSG-') ? rawSku.substring(4) : rawSku).slice(0, 255);
+        const matchKey = cleanSku.toUpperCase();
+
+        const namaProduk = String(item.nama_produk || item.nama || `Produk ${cleanSku}`).trim().slice(0, 255);
+        const kategori = String(item.kategori || 'Pakaian').trim().slice(0, 64);
+        const satuan = String(item.satuan || 'PCS').trim().slice(0, 32);
+        const hargaJual = Number(item.harga_jual) || 0;
+        const hargaModal = Number(item.harga_modal ?? item.harga_beli) || 0;
+        const stokFisik = Number(item.stok_fisik ?? item.stok) || 0;
+        const status = String(item.status || 'Aktif').trim().slice(0, 32);
+        const statusOrder = String(item.status_order || 'Ready Stok').trim().slice(0, 32);
+        const tipeSet = String(item.tipe_set || 'Single').trim().slice(0, 32);
+        const rawSkuKain = item.sku_kain ? String(item.sku_kain).trim() : null;
+        const skuKain = rawSkuKain ? rawSkuKain.slice(0, 64) : null;
+        let estimasiKain = item.estimasi_kain ? String(item.estimasi_kain).trim().slice(0, 100) : null;
+        
+        // Jika estimasi_kain kosong tapi sku_kain ada di master_kain, gunakan nama kain otomatis
+        if (!estimasiKain && skuKain && kainMap.has(skuKain.toUpperCase())) {
+          estimasiKain = kainMap.get(skuKain.toUpperCase());
+        }
+        estimasiKain = (estimasiKain || 'Kain Polos').slice(0, 100);
+
+        const panjangKainCm = Number(item.panjang_kain_cm) || 200;
+        const hargaKainCm = Number(item.harga_kain_cm) || 150;
+        const idKategoriHpp = item.id_kategori_hpp ? String(item.id_kategori_hpp).trim().slice(0, 64) : null;
+
+        // Jika sku_kain baru belum ada di master_kain, buat entri otomatis di master_kain
+        if (skuKain && !kainMap.has(skuKain.toUpperCase())) {
+          try {
+            await pool.query(`
+              INSERT IGNORE INTO master_kain (kode_perusahaan, kode_sku_kain, nama_kain)
+              VALUES (?, ?, ?)
+            `, [kodePerusahaan, skuKain, estimasiKain || `Kain ${skuKain}`]);
+            kainMap.set(skuKain.toUpperCase(), estimasiKain || `Kain ${skuKain}`);
+          } catch (e) {}
+        }
+
+        const existing = existingMap.get(matchKey);
+
+        if (existing) {
+          // Bandingkan apakah ada perubahan
+          const diffs = [];
+          if (existing.nama_produk !== namaProduk) diffs.push(`nama_produk: "${existing.nama_produk}" -> "${namaProduk}"`);
+          if (existing.kategori !== kategori) diffs.push(`kategori: "${existing.kategori}" -> "${kategori}"`);
+          if (existing.satuan !== satuan) diffs.push(`satuan: "${existing.satuan}" -> "${satuan}"`);
+          if (Number(existing.harga_jual) !== hargaJual) diffs.push(`harga_jual: ${existing.harga_jual} -> ${hargaJual}`);
+          if (Number(existing.harga_modal) !== hargaModal) diffs.push(`harga_modal: ${existing.harga_modal} -> ${hargaModal}`);
+          if (Number(existing.stok_fisik) !== stokFisik) diffs.push(`stok_fisik: ${existing.stok_fisik} -> ${stokFisik}`);
+          if (existing.status !== status) diffs.push(`status: "${existing.status}" -> "${status}"`);
+          if (existing.status_order !== statusOrder) diffs.push(`status_order: "${existing.status_order}" -> "${statusOrder}"`);
+          if (existing.tipe_set !== tipeSet) diffs.push(`tipe_set: "${existing.tipe_set}" -> "${tipeSet}"`);
+          if ((existing.sku_kain || null) !== skuKain) diffs.push(`sku_kain: "${existing.sku_kain || '-'}" -> "${skuKain || '-'}"`);
+          if (existing.estimasi_kain !== estimasiKain) diffs.push(`estimasi_kain: "${existing.estimasi_kain}" -> "${estimasiKain}"`);
+          if (Number(existing.panjang_kain_cm) !== panjangKainCm) diffs.push(`panjang_kain_cm: ${existing.panjang_kain_cm} -> ${panjangKainCm}`);
+          if (Number(existing.harga_kain_cm) !== hargaKainCm) diffs.push(`harga_kain_cm: ${existing.harga_kain_cm} -> ${hargaKainCm}`);
+          if ((existing.id_kategori_hpp || null) !== idKategoriHpp) diffs.push(`id_kategori_hpp: "${existing.id_kategori_hpp || '-'}" -> "${idKategoriHpp || '-'}"`);
+
+          if (diffs.length === 0) {
+            // Data identik -> SKIP
+            skipped++;
+            details.push({
+              row: idx + 1,
+              sku: cleanSku,
+              nama_produk: namaProduk,
+              action: 'SKIP',
+              reason: 'Data identik (tidak ada perubahan)'
+            });
+          } else {
+            // Ada perbedaan -> UPDATE
+            await pool.query(`
+              UPDATE produk_master SET
+                nama_produk = ?,
+                kategori = ?,
+                satuan = ?,
+                harga_jual = ?,
+                harga_modal = ?,
+                stok_fisik = ?,
+                status = ?,
+                status_order = ?,
+                tipe_set = ?,
+                sku_kain = ?,
+                estimasi_kain = ?,
+                panjang_kain_cm = ?,
+                harga_kain_cm = ?,
+                id_kategori_hpp = ?
+              WHERE id = ?
+            `, [
+              namaProduk, kategori, satuan, hargaJual, hargaModal, stokFisik,
+              status, statusOrder, tipeSet, skuKain, estimasiKain,
+              panjangKainCm, hargaKainCm, idKategoriHpp, existing.id
+            ]);
+            updated++;
+            existingMap.set(matchKey, {
+              ...existing,
+              nama_produk: namaProduk,
+              kategori, satuan, harga_jual: hargaJual, harga_modal: hargaModal,
+              stok_fisik: stokFisik, status, status_order: statusOrder,
+              tipe_set: tipeSet, sku_kain: skuKain, estimasi_kain: estimasiKain,
+              panjang_kain_cm: panjangKainCm, harga_kain_cm: hargaKainCm, id_kategori_hpp: idKategoriHpp
+            });
+            details.push({
+              row: idx + 1,
+              sku: cleanSku,
+              nama_produk: namaProduk,
+              action: 'UPDATE',
+              changes: diffs
+            });
+          }
+        } else {
+          // Belum ada -> INSERT
+          const [insertRes] = await pool.query(`
+            INSERT INTO produk_master (
+              kode_perusahaan, kode_sku, nama_produk, kategori, satuan,
+              harga_jual, harga_modal, stok_fisik, status, status_order,
+              tipe_set, sku_kain, estimasi_kain, panjang_kain_cm, harga_kain_cm, id_kategori_hpp
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `, [
+            kodePerusahaan, cleanSku, namaProduk, kategori, satuan,
+            hargaJual, hargaModal, stokFisik, status, statusOrder,
+            tipeSet, skuKain, estimasiKain, panjangKainCm, hargaKainCm, idKategoriHpp
+          ]);
+          inserted++;
+          existingMap.set(matchKey, {
+            id: insertRes.insertId,
+            kode_perusahaan: kodePerusahaan,
+            kode_sku: cleanSku,
+            nama_produk: namaProduk,
+            kategori, satuan, harga_jual: hargaJual, harga_modal: hargaModal,
+            stok_fisik: stokFisik, status, status_order: statusOrder,
+            tipe_set: tipeSet, sku_kain: skuKain, estimasi_kain: estimasiKain,
+            panjang_kain_cm: panjangKainCm, harga_kain_cm: hargaKainCm, id_kategori_hpp: idKategoriHpp
+          });
+          details.push({
+            row: idx + 1,
+            sku: cleanSku,
+            nama_produk: namaProduk,
+            action: 'INSERT',
+            reason: 'Produk baru ditambahkan'
+          });
+        }
+      }
+
+      sendJson(res, 200, {
+        status: 'success',
+        summary: {
+          total: items.length,
+          inserted,
+          updated,
+          skipped,
+          failed
+        },
+        details
+      });
+      return true;
+    } catch (err) {
+      console.error('[Import API Error]:', err);
+      sendJson(res, 500, { status: 'error', message: err.message });
+      return true;
+    }
+  }
+
   // 1. Ambil Master Produk ERP
   if ((pathname === '/api/produk/master' || pathname === '/api/marketplace/master') && req.method === 'GET') {
     try {
@@ -14,8 +385,6 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
       const status = urlObj.searchParams.get('status');
 
       const tabParam = urlObj.searchParams.get('tab');
-
-      // Jika ada param page atau limit, aktifkan server pagination
       const isPaginated = pageParam !== null || limitParam !== null;
       const page = Math.max(1, parseInt(pageParam, 10) || 1);
       const limit = Math.max(1, Math.min(200, parseInt(limitParam, 10) || 50));
