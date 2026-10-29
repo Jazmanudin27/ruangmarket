@@ -938,29 +938,6 @@ export default function SPKView() {
     toastSuccess("Kode produksi & SPK berhasil dihapus dari database");
   };
 
-  // Kosongkan Semua Data SPK dari Database (Untuk Test Dari Awal)
-  const handleClearAllSPK = async () => {
-    const confirmed = await showConfirm(
-      "Kosongkan Semua Data SPK?",
-      "Seluruh data SPK Produksi di database MySQL akan dihapus bersih agar bisa dites dari awal.",
-      "Ya, Kosongkan Database",
-      "Batal",
-    );
-    if (!confirmed) return;
-
-    try {
-      await fetch("/api/spk?clear=all", { method: "DELETE" });
-    } catch (err) {
-      console.warn("Gagal truncate SPK database:", err);
-    }
-
-    setBatchList([]);
-    try {
-      localStorage.removeItem(SPK_STORAGE_KEY);
-    } catch (e) {}
-    toastSuccess("Database SPK berhasil dikosongkan bersih!");
-  };
-
   // Filter batch list by company (Multi-Tenant)
   const companyBatches = batchList.filter(
     (b) => !b.company_code || b.company_code === activeCompany.code,
@@ -1083,28 +1060,6 @@ export default function SPKView() {
             >
               <RefreshCw size={12} className={isLoadingSpk ? "animate-spin" : ""} />
               <span>Muat Ulang</span>
-            </button>
-
-            <button
-              onClick={handleClearAllSPK}
-              title="Kosongkan seluruh data SPK di database untuk pengetesan dari awal"
-              style={{
-                height: "28px",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "5px",
-                padding: "0 10px",
-                borderRadius: "5px",
-                border: "1px solid #fecaca",
-                backgroundColor: "#fee2e2",
-                color: "#dc2626",
-                fontSize: "11px",
-                fontWeight: "700",
-                cursor: "pointer",
-              }}
-            >
-              <Trash2 size={12} />
-              <span>Kosongkan Data</span>
             </button>
 
             <button
