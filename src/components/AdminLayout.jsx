@@ -23,7 +23,8 @@ import {
   ShoppingBag,
   RotateCcw,
   Building,
-  Check
+  Check,
+  Megaphone
 } from 'lucide-react';
 import { getCompanies, getActiveCompany, setActiveCompanyCode } from '../utils/tenant.util';
 import { useDeviceType } from '../hooks/useDeviceType';
@@ -69,6 +70,8 @@ export default function AdminLayout() {
   const dataMasterRef = useRef(null);
   const [isProduksiOpen, setIsProduksiOpen] = useState(false);
   const produksiRef = useRef(null);
+  const [isMarketingOpen, setIsMarketingOpen] = useState(false);
+  const marketingRef = useRef(null);
   const [isMarketplaceOpen, setIsMarketplaceOpen] = useState(false);
   const marketplaceRef = useRef(null);
   const [isCompanyDropdownOpen, setIsCompanyDropdownOpen] = useState(false);
@@ -87,6 +90,9 @@ export default function AdminLayout() {
       }
       if (produksiRef.current && !produksiRef.current.contains(event.target)) {
         setIsProduksiOpen(false);
+      }
+      if (marketingRef.current && !marketingRef.current.contains(event.target)) {
+        setIsMarketingOpen(false);
       }
       if (marketplaceRef.current && !marketplaceRef.current.contains(event.target)) {
         setIsMarketplaceOpen(false);
@@ -176,6 +182,9 @@ export default function AdminLayout() {
     localStorage.setItem(TAB_STORAGE_KEY, tab);
     setIsMobileMenuOpen(false);
     setIsDataMasterOpen(false);
+    setIsProduksiOpen(false);
+    setIsMarketingOpen(false);
+    setIsMarketplaceOpen(false);
   };
 
   const toggleFullscreen = () => {
@@ -828,89 +837,153 @@ export default function AdminLayout() {
               )}
             </div>
 
-            {/* 3b. Tab Pesanan Masuk Langsung di Top Nav */}
-            <button
-              type="button"
-              onClick={() => changeTab('pesanan_masuk')}
-              style={{
-                height: '24px',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '4px',
-                padding: '0 8px',
-                borderRadius: '5px',
-                border: (activeTab === 'pesanan_masuk' || activeTab === 'pesanan') ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.08)',
-                backgroundColor: (activeTab === 'pesanan_masuk' || activeTab === 'pesanan') ? '#0284c7' : 'rgba(255, 255, 255, 0.05)',
-                color: (activeTab === 'pesanan_masuk' || activeTab === 'pesanan') ? '#ffffff' : '#cbd5e1',
-                fontSize: '11px',
-                fontWeight: (activeTab === 'pesanan_masuk' || activeTab === 'pesanan') ? '800' : '600',
-                lineHeight: 1,
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-                whiteSpace: 'nowrap',
-                boxShadow: (activeTab === 'pesanan_masuk' || activeTab === 'pesanan') ? '0 0 10px rgba(2, 132, 199, 0.5)' : 'none'
-              }}
-              onMouseEnter={(e) => {
-                if (activeTab !== 'pesanan_masuk' && activeTab !== 'pesanan') {
-                  e.currentTarget.style.backgroundColor = 'rgba(56, 189, 248, 0.15)';
-                  e.currentTarget.style.borderColor = 'rgba(56, 189, 248, 0.3)';
-                  e.currentTarget.style.color = '#ffffff';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (activeTab !== 'pesanan_masuk' && activeTab !== 'pesanan') {
-                  e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
-                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
-                  e.currentTarget.style.color = '#cbd5e1';
-                }
-              }}
-            >
-              <ShoppingBag size={13} color={(activeTab === 'pesanan_masuk' || activeTab === 'pesanan') ? '#ffffff' : '#38bdf8'} style={{ flexShrink: 0 }} />
-              <span>Pesanan Masuk</span>
-            </button>
+            {/* 3b. Marketing (Dropdown Menu: Pesanan Masuk & Retur Masuk) */}
+            <div style={{ position: 'relative' }} ref={marketingRef}>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsMarketingOpen(prev => !prev);
+                }}
+                style={{
+                  height: '24px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '4px',
+                  padding: '0 8px',
+                  borderRadius: '5px',
+                  border: (activeTab === 'pesanan_masuk' || activeTab === 'pesanan' || activeTab === 'retur_barang' || activeTab === 'retur' || isMarketingOpen) ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.08)',
+                  backgroundColor: (activeTab === 'pesanan_masuk' || activeTab === 'pesanan' || activeTab === 'retur_barang' || activeTab === 'retur' || isMarketingOpen) ? '#0284c7' : 'rgba(255, 255, 255, 0.05)',
+                  color: (activeTab === 'pesanan_masuk' || activeTab === 'pesanan' || activeTab === 'retur_barang' || activeTab === 'retur' || isMarketingOpen) ? '#ffffff' : '#cbd5e1',
+                  fontSize: '11px',
+                  fontWeight: (activeTab === 'pesanan_masuk' || activeTab === 'pesanan' || activeTab === 'retur_barang' || activeTab === 'retur' || isMarketingOpen) ? '800' : '600',
+                  lineHeight: 1,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                  whiteSpace: 'nowrap',
+                  boxShadow: (activeTab === 'pesanan_masuk' || activeTab === 'pesanan' || activeTab === 'retur_barang' || activeTab === 'retur' || isMarketingOpen) ? '0 0 10px rgba(2, 132, 199, 0.5)' : 'none'
+                }}
+                onMouseEnter={(e) => {
+                  if (activeTab !== 'pesanan_masuk' && activeTab !== 'pesanan' && activeTab !== 'retur_barang' && activeTab !== 'retur' && !isMarketingOpen) {
+                    e.currentTarget.style.backgroundColor = 'rgba(56, 189, 248, 0.15)';
+                    e.currentTarget.style.borderColor = 'rgba(56, 189, 248, 0.3)';
+                    e.currentTarget.style.color = '#ffffff';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (activeTab !== 'pesanan_masuk' && activeTab !== 'pesanan' && activeTab !== 'retur_barang' && activeTab !== 'retur' && !isMarketingOpen) {
+                    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                    e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
+                    e.currentTarget.style.color = '#cbd5e1';
+                  }
+                }}
+              >
+                <Megaphone size={13} color={(activeTab === 'pesanan_masuk' || activeTab === 'pesanan' || activeTab === 'retur_barang' || activeTab === 'retur' || isMarketingOpen) ? '#ffffff' : '#38bdf8'} style={{ flexShrink: 0 }} />
+                <span>Marketing</span>
+                <ChevronDown 
+                  size={11} 
+                  color={(activeTab === 'pesanan_masuk' || activeTab === 'pesanan' || activeTab === 'retur_barang' || activeTab === 'retur' || isMarketingOpen) ? '#ffffff' : '#38bdf8'} 
+                  style={{ 
+                    transform: isMarketingOpen ? 'rotate(180deg)' : 'none', 
+                    transition: 'transform 0.15s ease',
+                    marginLeft: '1px'
+                  }} 
+                />
+              </button>
 
-            {/* 3c. Tab Retur Barang Langsung di Top Nav */}
-            <button
-              type="button"
-              onClick={() => changeTab('retur_barang')}
-              style={{
-                height: '24px',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '4px',
-                padding: '0 8px',
-                borderRadius: '5px',
-                border: (activeTab === 'retur_barang' || activeTab === 'retur') ? '1px solid #f87171' : '1px solid rgba(255, 255, 255, 0.08)',
-                backgroundColor: (activeTab === 'retur_barang' || activeTab === 'retur') ? '#ef4444' : 'rgba(255, 255, 255, 0.05)',
-                color: (activeTab === 'retur_barang' || activeTab === 'retur') ? '#ffffff' : '#cbd5e1',
-                fontSize: '11px',
-                fontWeight: (activeTab === 'retur_barang' || activeTab === 'retur') ? '800' : '600',
-                lineHeight: 1,
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-                whiteSpace: 'nowrap',
-                boxShadow: (activeTab === 'retur_barang' || activeTab === 'retur') ? '0 0 10px rgba(239, 68, 68, 0.5)' : 'none'
-              }}
-              onMouseEnter={(e) => {
-                if (activeTab !== 'retur_barang' && activeTab !== 'retur') {
-                  e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.15)';
-                  e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.3)';
-                  e.currentTarget.style.color = '#ffffff';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (activeTab !== 'retur_barang' && activeTab !== 'retur') {
-                  e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
-                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
-                  e.currentTarget.style.color = '#cbd5e1';
-                }
-              }}
-            >
-              <RotateCcw size={13} color={(activeTab === 'retur_barang' || activeTab === 'retur') ? '#ffffff' : '#f87171'} style={{ flexShrink: 0 }} />
-              <span>Retur Barang</span>
-            </button>
+              {/* Marketing Dropdown Popup */}
+              {isMarketingOpen && (
+                <div style={{
+                  position: 'absolute',
+                  left: 0,
+                  top: '100%',
+                  marginTop: '6px',
+                  backgroundColor: '#0f172a',
+                  borderRadius: '8px',
+                  border: '1px solid #334155',
+                  boxShadow: '0 12px 30px rgba(0, 0, 0, 0.6)',
+                  padding: '5px',
+                  minWidth: '170px',
+                  zIndex: 2000,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '3px'
+                }}>
+                  {/* Submenu 1: Pesanan Masuk */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      changeTab('pesanan_masuk');
+                      setIsMarketingOpen(false);
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'flex-start',
+                      gap: '8px',
+                      width: '100%',
+                      padding: '7px 10px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      backgroundColor: (activeTab === 'pesanan_masuk' || activeTab === 'pesanan') ? 'rgba(2, 132, 199, 0.2)' : 'transparent',
+                      color: (activeTab === 'pesanan_masuk' || activeTab === 'pesanan') ? '#38bdf8' : '#cbd5e1',
+                      fontSize: '11.5px',
+                      fontWeight: (activeTab === 'pesanan_masuk' || activeTab === 'pesanan') ? '800' : '600',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'background-color 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (activeTab !== 'pesanan_masuk' && activeTab !== 'pesanan') e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (activeTab !== 'pesanan_masuk' && activeTab !== 'pesanan') e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
+                  >
+                    <ShoppingBag size={14} color={(activeTab === 'pesanan_masuk' || activeTab === 'pesanan') ? '#38bdf8' : '#94a3b8'} style={{ flexShrink: 0 }} />
+                    <span style={{ textAlign: 'left', flex: 1 }}>Pesanan Masuk</span>
+                  </button>
+
+                  {/* Submenu 2: Retur Masuk */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      changeTab('retur_barang');
+                      setIsMarketingOpen(false);
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'flex-start',
+                      gap: '8px',
+                      width: '100%',
+                      padding: '7px 10px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      backgroundColor: (activeTab === 'retur_barang' || activeTab === 'retur') ? 'rgba(239, 68, 68, 0.2)' : 'transparent',
+                      color: (activeTab === 'retur_barang' || activeTab === 'retur') ? '#f87171' : '#cbd5e1',
+                      fontSize: '11.5px',
+                      fontWeight: (activeTab === 'retur_barang' || activeTab === 'retur') ? '800' : '600',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'background-color 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (activeTab !== 'retur_barang' && activeTab !== 'retur') e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (activeTab !== 'retur_barang' && activeTab !== 'retur') e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
+                  >
+                    <RotateCcw size={14} color={(activeTab === 'retur_barang' || activeTab === 'retur') ? '#f87171' : '#94a3b8'} style={{ flexShrink: 0 }} />
+                    <span style={{ textAlign: 'left', flex: 1 }}>Retur Masuk</span>
+                  </button>
+                </div>
+              )}
+            </div>
 
             {/* 4. Marketplace & Toko Online */}
             <div style={{ position: 'relative' }} ref={marketplaceRef}>
@@ -985,43 +1058,7 @@ export default function AdminLayout() {
                   flexDirection: 'column',
                   gap: '3px'
                 }}>
-                  {/* Submenu 1: Pesanan Masuk (Shopee & TikTok) */}
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      changeTab('pesanan_masuk');
-                      setIsMarketplaceOpen(false);
-                    }}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'flex-start',
-                      gap: '8px',
-                      width: '100%',
-                      padding: '7px 10px',
-                      borderRadius: '6px',
-                      border: 'none',
-                      backgroundColor: activeTab === 'pesanan_masuk' ? 'rgba(2, 132, 199, 0.2)' : 'transparent',
-                      color: activeTab === 'pesanan_masuk' ? '#38bdf8' : '#cbd5e1',
-                      fontSize: '11.5px',
-                      fontWeight: activeTab === 'pesanan_masuk' ? '800' : '600',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      transition: 'background-color 0.15s ease'
-                    }}
-                    onMouseEnter={(e) => {
-                      if (activeTab !== 'pesanan_masuk') e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)';
-                    }}
-                    onMouseLeave={(e) => {
-                      if (activeTab !== 'pesanan_masuk') e.currentTarget.style.backgroundColor = 'transparent';
-                    }}
-                  >
-                    <ShoppingBag size={14} color={activeTab === 'pesanan_masuk' ? '#38bdf8' : '#94a3b8'} style={{ flexShrink: 0 }} />
-                    <span style={{ textAlign: 'left', flex: 1 }}>Pesanan Masuk</span>
-                  </button>
-
-                  {/* Submenu 2: Tambah Toko Marketplace */}
+                  {/* Submenu: Tambah Toko Marketplace */}
                   <button
                     type="button"
                     onClick={(e) => {
@@ -1393,6 +1430,58 @@ export default function AdminLayout() {
               <Factory size={15} color={activeTab === 'produksi' ? '#ffffff' : '#38bdf8'} />
               <span>Monitoring Jahit & QC</span>
             </button>
+            {/* 3b. Marketing Section Mobile */}
+            <div style={{
+              fontSize: '10px',
+              fontWeight: '700',
+              color: '#94a3b8',
+              padding: '8px 12px 2px 12px',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em'
+            }}>
+              Marketing
+            </div>
+            <button
+              onClick={() => changeTab('pesanan_masuk')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '8px 12px 8px 20px',
+                borderRadius: '6px',
+                border: (activeTab === 'pesanan_masuk' || activeTab === 'pesanan') ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.08)',
+                backgroundColor: (activeTab === 'pesanan_masuk' || activeTab === 'pesanan') ? '#0284c7' : 'rgba(255, 255, 255, 0.05)',
+                color: '#ffffff',
+                fontSize: '12px',
+                fontWeight: (activeTab === 'pesanan_masuk' || activeTab === 'pesanan') ? '800' : '600',
+                cursor: 'pointer',
+                textAlign: 'left'
+              }}
+            >
+              <ShoppingBag size={15} color={(activeTab === 'pesanan_masuk' || activeTab === 'pesanan') ? '#ffffff' : '#38bdf8'} />
+              <span>Pesanan Masuk</span>
+            </button>
+            <button
+              onClick={() => changeTab('retur_barang')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '8px 12px 8px 20px',
+                borderRadius: '6px',
+                border: (activeTab === 'retur_barang' || activeTab === 'retur') ? '1px solid #f87171' : '1px solid rgba(255, 255, 255, 0.08)',
+                backgroundColor: (activeTab === 'retur_barang' || activeTab === 'retur') ? '#ef4444' : 'rgba(255, 255, 255, 0.05)',
+                color: '#ffffff',
+                fontSize: '12px',
+                fontWeight: (activeTab === 'retur_barang' || activeTab === 'retur') ? '800' : '600',
+                cursor: 'pointer',
+                textAlign: 'left'
+              }}
+            >
+              <RotateCcw size={15} color={(activeTab === 'retur_barang' || activeTab === 'retur') ? '#ffffff' : '#f87171'} />
+              <span>Retur Masuk</span>
+            </button>
+
             {/* 4. Marketplace Section Mobile */}
             <div style={{
               fontSize: '10px',
@@ -1405,26 +1494,6 @@ export default function AdminLayout() {
               Marketplace & POS
             </div>
             <button
-              onClick={() => changeTab('pesanan_masuk')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '8px 12px 8px 20px',
-                borderRadius: '6px',
-                border: activeTab === 'pesanan_masuk' ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.08)',
-                backgroundColor: activeTab === 'pesanan_masuk' ? '#0284c7' : 'rgba(255, 255, 255, 0.05)',
-                color: '#ffffff',
-                fontSize: '12px',
-                fontWeight: activeTab === 'pesanan_masuk' ? '800' : '600',
-                cursor: 'pointer',
-                textAlign: 'left'
-              }}
-            >
-              <ShoppingBag size={15} color={activeTab === 'pesanan_masuk' ? '#ffffff' : '#38bdf8'} />
-              <span>Pesanan Masuk</span>
-            </button>
-            <button
               onClick={() => changeTab('marketplace')}
               style={{
                 display: 'flex',
@@ -1432,16 +1501,16 @@ export default function AdminLayout() {
                 gap: '8px',
                 padding: '8px 12px 8px 20px',
                 borderRadius: '6px',
-                border: activeTab === 'marketplace' ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.08)',
-                backgroundColor: activeTab === 'marketplace' ? '#0284c7' : 'rgba(255, 255, 255, 0.05)',
+                border: (activeTab === 'marketplace' || activeTab === 'toko') ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.08)',
+                backgroundColor: (activeTab === 'marketplace' || activeTab === 'toko') ? '#0284c7' : 'rgba(255, 255, 255, 0.05)',
                 color: '#ffffff',
                 fontSize: '12px',
-                fontWeight: activeTab === 'marketplace' ? '800' : '600',
+                fontWeight: (activeTab === 'marketplace' || activeTab === 'toko') ? '800' : '600',
                 cursor: 'pointer',
                 textAlign: 'left'
               }}
             >
-              <Store size={15} color={activeTab === 'marketplace' ? '#ffffff' : '#38bdf8'} />
+              <Store size={15} color={(activeTab === 'marketplace' || activeTab === 'toko') ? '#ffffff' : '#38bdf8'} />
               <span>Tambah Toko Marketplace</span>
             </button>
           </div>

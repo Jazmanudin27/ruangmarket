@@ -16,7 +16,6 @@ import {
   Layers,
   FileText,
   Eye,
-  Plus,
   Calendar
 } from 'lucide-react';
 import { toastSuccess, toastError } from '../../utils/alert.util';
@@ -52,20 +51,6 @@ export default function ReturBarangDesktopView() {
   const [restockCondition, setRestockCondition] = useState('Bagus / Layak Jual (Restok)');
   const [restockNotes, setRestockNotes] = useState('');
   const [isSubmittingRestock, setIsSubmittingRestock] = useState(false);
-
-  // Modal Ajukan Retur Manual
-  const [isManualModalOpen, setIsManualModalOpen] = useState(false);
-  const [manualForm, setManualForm] = useState({
-    no_pesanan: '',
-    nama_pembeli: '',
-    nama_toko: 'Shopee / TikTok',
-    saluran: 'shopee',
-    alasan_retur: '',
-    no_resi_retur: '',
-    kurir_retur: 'J&T Express',
-    total_refund: '',
-    catatan: ''
-  });
 
   // Listen to company change
   useEffect(() => {
@@ -155,46 +140,6 @@ export default function ReturBarangDesktopView() {
       toastError(`Gagal restok: ${e.message}`);
     } finally {
       setIsSubmittingRestock(false);
-    }
-  };
-
-  // Submit Ajukan Retur Manual
-  const handleSubmitManual = async (e) => {
-    e.preventDefault();
-    if (!manualForm.no_pesanan.trim()) {
-      toastError('Nomor pesanan wajib diisi');
-      return;
-    }
-    try {
-      const res = await fetch('/api/marketplace/returns', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...manualForm,
-          company_code: activeCompany.code
-        })
-      });
-      const json = await res.json();
-      if (res.ok && json.status === 'success') {
-        toastSuccess('Data retur berhasil disimpan!');
-        setIsManualModalOpen(false);
-        setManualForm({
-          no_pesanan: '',
-          nama_pembeli: '',
-          nama_toko: 'Shopee / TikTok',
-          saluran: 'shopee',
-          alasan_retur: '',
-          no_resi_retur: '',
-          kurir_retur: 'J&T Express',
-          total_refund: '',
-          catatan: ''
-        });
-        await loadReturns();
-      } else {
-        throw new Error(json.message || 'Gagal menyimpan retur');
-      }
-    } catch (err) {
-      toastError(`Error: ${err.message}`);
     }
   };
 
@@ -391,29 +336,6 @@ export default function ReturBarangDesktopView() {
           >
             <RefreshCw size={13} className={isSyncing ? 'spin-icon' : ''} />
             <span>{isSyncing ? 'Menyinkronkan...' : 'Cek Retur Marketplace'}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setIsManualModalOpen(true)}
-            style={{
-              height: '32px',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '0 14px',
-              borderRadius: '6px',
-              border: 'none',
-              background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
-              color: '#ffffff',
-              fontSize: '11.5px',
-              fontWeight: '700',
-              cursor: 'pointer',
-              boxShadow: '0 2px 8px rgba(2, 132, 199, 0.3)'
-            }}
-          >
-            <Plus size={14} />
-            <span>Catat Retur Baru</span>
           </button>
         </div>
       </div>
@@ -1572,197 +1494,7 @@ export default function ReturBarangDesktopView() {
         </div>
       )}
 
-      {/* 8. MODAL AJUKAN RETUR MANUAL */}
-      {isManualModalOpen && (
-        <div
-          onClick={() => setIsManualModalOpen(false)}
-          style={{
-            position: 'fixed',
-            inset: 0,
-            backgroundColor: 'rgba(15, 23, 42, 0.65)',
-            backdropFilter: 'blur(3px)',
-            zIndex: 99999,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '16px'
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              backgroundColor: '#ffffff',
-              borderRadius: '10px',
-              width: '100%',
-              maxWidth: '520px',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
-              overflow: 'hidden'
-            }}
-          >
-            <div style={{
-              padding: '14px 18px',
-              borderBottom: '1px solid #e2e8f0',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              backgroundColor: '#f8fafc'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Plus size={18} color="#0284c7" />
-                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '800', color: '#0f172a' }}>
-                  Catat Retur Baru Manual
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsManualModalOpen(false)}
-                style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#64748b' }}
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmitManual}>
-              <div style={{ padding: '18px', fontSize: '12px', color: '#334155', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <div>
-                  <label style={{ display: 'block', fontWeight: '700', marginBottom: '4px' }}>Nomor Pesanan *</label>
-                  <input
-                    type="text"
-                    required
-                    value={manualForm.no_pesanan}
-                    onChange={(e) => setManualForm({ ...manualForm, no_pesanan: e.target.value })}
-                    placeholder="Contoh: 241029XXXXXX"
-                    style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
-                  />
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                  <div>
-                    <label style={{ display: 'block', fontWeight: '700', marginBottom: '4px' }}>Saluran</label>
-                    <select
-                      value={manualForm.saluran}
-                      onChange={(e) => setManualForm({ ...manualForm, saluran: e.target.value })}
-                      style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
-                    >
-                      <option value="shopee">Shopee</option>
-                      <option value="tiktok">TikTok Shop</option>
-                      <option value="offline">Offline / Manual</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontWeight: '700', marginBottom: '4px' }}>Nama Toko</label>
-                    <input
-                      type="text"
-                      value={manualForm.nama_toko}
-                      onChange={(e) => setManualForm({ ...manualForm, nama_toko: e.target.value })}
-                      placeholder="Nama toko"
-                      style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontWeight: '700', marginBottom: '4px' }}>Nama Pembeli</label>
-                  <input
-                    type="text"
-                    value={manualForm.nama_pembeli}
-                    onChange={(e) => setManualForm({ ...manualForm, nama_pembeli: e.target.value })}
-                    placeholder="Nama pelanggan"
-                    style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontWeight: '700', marginBottom: '4px' }}>Alasan Retur</label>
-                  <input
-                    type="text"
-                    value={manualForm.alasan_retur}
-                    onChange={(e) => setManualForm({ ...manualForm, alasan_retur: e.target.value })}
-                    placeholder="Contoh: Barang Rusak / Salah Warna"
-                    style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
-                  />
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                  <div>
-                    <label style={{ display: 'block', fontWeight: '700', marginBottom: '4px' }}>Kurir Pengembalian</label>
-                    <input
-                      type="text"
-                      value={manualForm.kurir_retur}
-                      onChange={(e) => setManualForm({ ...manualForm, kurir_retur: e.target.value })}
-                      placeholder="J&T / SPX"
-                      style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontWeight: '700', marginBottom: '4px' }}>No. Resi Pengembalian</label>
-                    <input
-                      type="text"
-                      value={manualForm.no_resi_retur}
-                      onChange={(e) => setManualForm({ ...manualForm, no_resi_retur: e.target.value })}
-                      placeholder="Nomor resi return"
-                      style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontWeight: '700', marginBottom: '4px' }}>Catatan Tambahan</label>
-                  <textarea
-                    rows={2}
-                    value={manualForm.catatan}
-                    onChange={(e) => setManualForm({ ...manualForm, catatan: e.target.value })}
-                    placeholder="Keterangan komplain pelanggan..."
-                    style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
-                  />
-                </div>
-              </div>
-
-              <div style={{
-                padding: '12px 18px',
-                borderTop: '1px solid #e2e8f0',
-                backgroundColor: '#f8fafc',
-                display: 'flex',
-                justifyContent: 'flex-end',
-                gap: '8px'
-              }}>
-                <button
-                  type="button"
-                  onClick={() => setIsManualModalOpen(false)}
-                  style={{
-                    padding: '7px 14px',
-                    borderRadius: '6px',
-                    border: '1px solid #cbd5e1',
-                    backgroundColor: '#ffffff',
-                    fontSize: '12px',
-                    fontWeight: '700',
-                    color: '#475569',
-                    cursor: 'pointer'
-                  }}
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  style={{
-                    padding: '7px 16px',
-                    borderRadius: '6px',
-                    border: 'none',
-                    backgroundColor: '#0284c7',
-                    fontSize: '12px',
-                    fontWeight: '700',
-                    color: '#ffffff',
-                    cursor: 'pointer'
-                  }}
-                >
-                  Simpan Retur
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
     </div>
   );
 }
+
