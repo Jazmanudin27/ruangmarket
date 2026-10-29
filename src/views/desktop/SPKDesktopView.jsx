@@ -69,11 +69,13 @@ function SearchableSelect({ label, value, onChange, options, placeholder = "Pili
     return text.toLowerCase().includes(searchTerm.toLowerCase());
   });
 
+  const selectedFound = options.find(opt => (typeof opt === 'string' ? opt === value : opt.value === value));
   const selectedDisplay = () => {
-    const found = options.find(opt => (typeof opt === 'string' ? opt === value : opt.value === value));
+    const found = selectedFound;
     if (!found) return placeholder;
-    return typeof found === 'string' ? found : (found.label || found.value);
+    return typeof found === 'string' ? found : (found.displayLabel || found.label || found.value);
   };
+  const selectedTitle = selectedFound && typeof selectedFound !== 'string' ? (selectedFound.label || '') : (selectedFound || '');
 
   return (
     <div style={{ position: 'relative', width: '100%' }} ref={wrapperRef}>
@@ -105,7 +107,7 @@ function SearchableSelect({ label, value, onChange, options, placeholder = "Pili
           transition: 'all 0.15s ease'
         }}
       >
-        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        <span title={selectedTitle} style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {selectedDisplay()}
         </span>
         <ChevronDown size={12} color="#64748b" style={{ flexShrink: 0, transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
@@ -156,7 +158,7 @@ function SearchableSelect({ label, value, onChange, options, placeholder = "Pili
             ) : (
               filteredOptions.map((opt, i) => {
                 const optVal = typeof opt === 'string' ? opt : opt.value;
-                const optLabel = typeof opt === 'string' ? opt : (opt.label || opt.value);
+                const optLabel = typeof opt === 'string' ? opt : (opt.displayLabel || opt.label || opt.value);
                 const isSelected = optVal === value;
 
                 return (
@@ -1789,14 +1791,19 @@ export default function SPKView() {
                             </thead>
                             <tbody>
                               {spk.produk_items.map((prod, pIdx) => {
-                                const productSelectOptions = produkList.map(p => ({
-                                  value: p.id,
-                                  label: `${p.nama_produk} (${p.kategori})`,
-                                  nama_produk: p.nama_produk,
-                                  sku: p.sku,
-                                  kategori: p.kategori,
-                                  satuan: p.satuan
-                                }));
+                                const productSelectOptions = produkList.map(p => {
+                                  const nama = p.nama_produk || '';
+                                  const namaShort = nama.length > 40 ? nama.slice(0, 40).trimEnd() + '...' : nama;
+                                  return {
+                                    value: p.id,
+                                    label: `${nama} (${p.kategori})`,
+                                    displayLabel: `${namaShort} (${p.kategori})`,
+                                    nama_produk: p.nama_produk,
+                                    sku: p.sku,
+                                    kategori: p.kategori,
+                                    satuan: p.satuan
+                                  };
+                                });
 
                                 return (
                                   <tr key={pIdx} style={{ borderBottom: '1px solid #f1f5f9' }}>
