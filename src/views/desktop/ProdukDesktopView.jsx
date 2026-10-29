@@ -26,7 +26,8 @@ import {
   ShieldAlert,
   ChevronDown,
   Check,
-  CheckSquare
+  CheckSquare,
+  Loader2
 } from 'lucide-react';
 import { showConfirm, toastSuccess, toastError } from '../../utils/alert.util';
 import { INITIAL_PRODUK_DATA } from '../../data/initialProduk';
@@ -416,6 +417,7 @@ export default function ProdukView() {
   const [entriesPerPage, setEntriesPerPage] = useState(25);
   const [selectedIds, setSelectedIds] = useState([]);
   const [isBatchProcessing, setIsBatchProcessing] = useState(false);
+  const [processMessage, setProcessMessage] = useState('Memproses...');
 
   // Modals state
   const [selectedProduk, setSelectedProduk] = useState(null);
@@ -633,6 +635,7 @@ export default function ProdukView() {
     );
     if (!confirmed) return;
 
+    setProcessMessage(`Mendeteksi Status PO & Ready Stok untuk ${targets.length} produk...`);
     setIsBatchProcessing(true);
     try {
       const res = await fetch('/api/marketplace/master/batch-status-order', {
@@ -694,6 +697,7 @@ export default function ProdukView() {
     );
     if (!confirmed) return;
 
+    setProcessMessage(`Mendeteksi & Menyimpan ${countBundle} Paket Bundle ke Database...`);
     setIsBatchProcessing(true);
     try {
       // 1. Simpan permanen ke database MySQL
@@ -1055,6 +1059,7 @@ export default function ProdukView() {
           
           {/* Tombol Deteksi PO */}
           <button
+            disabled={isBatchProcessing}
             onClick={() => handleBatchAutoDetectStatusOrder(false)}
             title="Scan dan deteksi otomatis semua produk: kata PO (bukan Polos) & Custom otomatis jadi PO, lainnya Ready Stok"
             style={{
@@ -1066,24 +1071,29 @@ export default function ProdukView() {
               padding: '0 12px',
               borderRadius: '6px',
               border: 'none',
-              backgroundColor: '#8b5cf6',
+              backgroundColor: isBatchProcessing ? '#a78bfa' : '#8b5cf6',
               color: '#ffffff',
               fontSize: '12px',
               fontWeight: '700',
               lineHeight: 1,
-              cursor: 'pointer',
+              cursor: isBatchProcessing ? 'not-allowed' : 'pointer',
               boxShadow: '0 2px 4px rgba(0, 0, 0, 0.15)',
               transition: 'all 0.15s ease'
             }}
-            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#7c3aed'}
-            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#8b5cf6'}
+            onMouseEnter={(e) => { if (!isBatchProcessing) e.currentTarget.style.backgroundColor = '#7c3aed'; }}
+            onMouseLeave={(e) => { if (!isBatchProcessing) e.currentTarget.style.backgroundColor = '#8b5cf6'; }}
           >
-            <Sparkles size={13} />
-            <span>Deteksi PO</span>
+            {isBatchProcessing ? (
+              <Loader2 size={13} className="animate-spin" />
+            ) : (
+              <Sparkles size={13} />
+            )}
+            <span>{isBatchProcessing ? 'Memproses...' : 'Deteksi PO'}</span>
           </button>
 
           {/* Tombol Deteksi Bundle */}
           <button
+            disabled={isBatchProcessing}
             onClick={() => handleAutoDetectBundle(false)}
             title="Scan SKU 'SET-' atau nama produk 'Setelan / 1 Set / Bundle' dan jadikan Bundle Set otomatis"
             style={{
@@ -1095,20 +1105,24 @@ export default function ProdukView() {
               padding: '0 12px',
               borderRadius: '6px',
               border: 'none',
-              backgroundColor: '#0284c7',
+              backgroundColor: isBatchProcessing ? '#38bdf8' : '#0284c7',
               color: '#ffffff',
               fontSize: '12px',
               fontWeight: '700',
               lineHeight: 1,
-              cursor: 'pointer',
+              cursor: isBatchProcessing ? 'not-allowed' : 'pointer',
               boxShadow: '0 2px 4px rgba(0, 0, 0, 0.15)',
               transition: 'all 0.15s ease'
             }}
-            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#0369a1'}
-            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#0284c7'}
+            onMouseEnter={(e) => { if (!isBatchProcessing) e.currentTarget.style.backgroundColor = '#0369a1'; }}
+            onMouseLeave={(e) => { if (!isBatchProcessing) e.currentTarget.style.backgroundColor = '#0284c7'; }}
           >
-            <Boxes size={13} />
-            <span>Deteksi Bundle</span>
+            {isBatchProcessing ? (
+              <Loader2 size={13} className="animate-spin" />
+            ) : (
+              <Boxes size={13} />
+            )}
+            <span>{isBatchProcessing ? 'Memproses...' : 'Deteksi Bundle'}</span>
           </button>
 
           <button
@@ -1552,19 +1566,19 @@ export default function ProdukView() {
                 padding: '0 12px',
                 borderRadius: '6px',
                 border: '1px solid #7c3aed',
-                backgroundColor: '#8b5cf6',
+                backgroundColor: isBatchProcessing ? '#a78bfa' : '#8b5cf6',
                 color: '#ffffff',
                 fontSize: '11.5px',
                 fontWeight: '700',
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '5px',
-                cursor: 'pointer',
+                cursor: isBatchProcessing ? 'not-allowed' : 'pointer',
                 boxShadow: '0 1px 3px rgba(139, 92, 246, 0.3)'
               }}
             >
-              <Sparkles size={13} />
-              <span>Deteksi PO</span>
+              {isBatchProcessing ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+              <span>{isBatchProcessing ? 'Memproses...' : 'Deteksi PO'}</span>
             </button>
 
             {/* Tombol Masal: Deteksi Bundle */}
@@ -1578,19 +1592,19 @@ export default function ProdukView() {
                 padding: '0 12px',
                 borderRadius: '6px',
                 border: '1px solid #0284c7',
-                backgroundColor: '#0284c7',
+                backgroundColor: isBatchProcessing ? '#38bdf8' : '#0284c7',
                 color: '#ffffff',
                 fontSize: '11.5px',
                 fontWeight: '700',
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '5px',
-                cursor: 'pointer',
+                cursor: isBatchProcessing ? 'not-allowed' : 'pointer',
                 boxShadow: '0 1px 3px rgba(2, 132, 199, 0.3)'
               }}
             >
-              <Boxes size={13} />
-              <span>Deteksi Bundle</span>
+              {isBatchProcessing ? <Loader2 size={13} className="animate-spin" /> : <Boxes size={13} />}
+              <span>{isBatchProcessing ? 'Memproses...' : 'Deteksi Bundle'}</span>
             </button>
 
             {/* Tombol Batal Pilih */}
@@ -1652,7 +1666,34 @@ export default function ProdukView() {
               </tr>
             </thead>
             <tbody>
-              {filteredList.length === 0 ? (
+              {isLoading ? (
+                <tr>
+                  <td colSpan="9" style={{ padding: '48px 16px', textAlign: 'center', backgroundColor: '#fbfcfe', border: '1px solid #cbd5e1' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+                      <div style={{
+                        width: '46px',
+                        height: '46px',
+                        borderRadius: '50%',
+                        background: 'linear-gradient(135deg, #e0f2fe 0%, #f0fdf4 100%)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        boxShadow: '0 4px 12px rgba(2, 132, 199, 0.12)'
+                      }}>
+                        <Loader2 size={24} color="#0284c7" className="animate-spin" />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '13.5px', fontWeight: '800', color: '#0f172a', letterSpacing: '-0.01em' }}>
+                          Menarik Data Master Produk...
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#64748b', marginTop: '3px' }}>
+                          Sinkronisasi katalog dari database MySQL & perhitungan stok real-time
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              ) : filteredList.length === 0 ? (
                 <tr>
                   <td colSpan="9" style={{ padding: '24px 16px', textAlign: 'center', color: '#64748b', border: '1px solid #cbd5e1' }}>
                     <Package size={32} color="#cbd5e1" style={{ marginBottom: '6px' }} />
@@ -3757,6 +3798,74 @@ export default function ProdukView() {
                 </div>
               );
             })()}
+          </div>
+        </div>
+      )}
+
+      {/* FULL SCREEN BATCH PROCESSING OVERLAY / POPUP */}
+      {isBatchProcessing && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: 'rgba(15, 23, 42, 0.72)',
+          backdropFilter: 'blur(5px)',
+          zIndex: 4000,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '20px'
+        }}>
+          <div style={{
+            backgroundColor: '#ffffff',
+            borderRadius: '14px',
+            border: '1.5px solid #e0f2fe',
+            padding: '28px 36px',
+            maxWidth: '460px',
+            width: '100%',
+            textAlign: 'center',
+            boxShadow: '0 20px 40px -10px rgba(0, 0, 0, 0.35)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '14px'
+          }}>
+            {/* Pulsing Spinner Icon */}
+            <div style={{
+              width: '64px',
+              height: '64px',
+              borderRadius: '50%',
+              background: 'linear-gradient(135deg, #0284c7 0%, #7c3aed 100%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#ffffff',
+              boxShadow: '0 8px 24px rgba(2, 132, 199, 0.35)'
+            }}>
+              <Loader2 size={32} className="animate-spin" />
+            </div>
+
+            <div>
+              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '900', color: '#0f172a', letterSpacing: '-0.02em' }}>
+                Sedang Memproses Data
+              </h3>
+              <p style={{ margin: '6px 0 0 0', fontSize: '12.5px', color: '#475569', lineHeight: 1.4, fontWeight: '600' }}>
+                {processMessage}
+              </p>
+            </div>
+
+            {/* Progress Bar Visual */}
+            <div style={{ width: '100%', height: '6px', backgroundColor: '#e2e8f0', borderRadius: '3px', overflow: 'hidden' }}>
+              <div style={{
+                width: '70%',
+                height: '100%',
+                background: 'linear-gradient(90deg, #0284c7 0%, #7c3aed 100%)',
+                borderRadius: '3px'
+              }} />
+            </div>
+
+            <span style={{ fontSize: '10.5px', color: '#94a3b8', fontStyle: 'italic' }}>
+              Harap jangan menutup browser selama proses sinkronisasi berlangsung...
+            </span>
           </div>
         </div>
       )}
