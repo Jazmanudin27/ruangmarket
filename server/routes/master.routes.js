@@ -19,8 +19,6 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
         'tipe_set',
         'sku_kain',
         'estimasi_kain',
-        'panjang_kain_cm',
-        'harga_kain_cm',
         'id_kategori_hpp'
       ];
 
@@ -37,9 +35,7 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
           status_order: 'Ready Stok',
           tipe_set: 'Single',
           sku_kain: 'KB-TH-MERAH',
-          estimasi_kain: 'Kain Batik TH Merah',
-          panjang_kain_cm: 200,
-          harga_kain_cm: 150,
+          estimasi_kain: 200,
           id_kategori_hpp: ''
         },
         {
@@ -54,9 +50,7 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
           status_order: 'Ready Stok',
           tipe_set: 'Single',
           sku_kain: 'K-DRILL-UON',
-          estimasi_kain: 'Kain Drill Union',
-          panjang_kain_cm: 180,
-          harga_kain_cm: 150,
+          estimasi_kain: 180,
           id_kategori_hpp: ''
         },
         {
@@ -71,9 +65,7 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
           status_order: 'PO',
           tipe_set: 'Single',
           sku_kain: 'K-GM',
-          estimasi_kain: 'Kain Katun GM',
-          panjang_kain_cm: 190,
-          harga_kain_cm: 150,
+          estimasi_kain: 190,
           id_kategori_hpp: ''
         }
       ];
@@ -100,8 +92,8 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
       ws1['!cols'] = [
         { wch: 24 }, { wch: 48 }, { wch: 18 }, { wch: 10 },
         { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 12 },
-        { wch: 14 }, { wch: 14 }, { wch: 18 }, { wch: 25 },
-        { wch: 18 }, { wch: 16 }, { wch: 20 }
+        { wch: 14 }, { wch: 14 }, { wch: 18 }, { wch: 18 },
+        { wch: 20 }
       ];
       XLSX.utils.book_append_sheet(wb, ws1, 'Master_Produk');
 
@@ -132,6 +124,7 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
         { ATURAN: 'Logika Update', PENJELASAN: 'Jika kode_sku sudah ada dan ada kolom yang diubah (harga, stok, nama, dll), baris otomatis di-UPDATE.' },
         { ATURAN: 'Logika Skip', PENJELASAN: 'Jika kode_sku sudah ada dan seluruh datanya sama persis, baris otomatis di-SKIP tanpa query update.' },
         { ATURAN: 'SKU Kain', PENJELASAN: 'Isi dengan kode SKU Kain dari sheet "Referensi_SKU_Kain" (misal: KB-TH-MERAH).' },
+        { ATURAN: 'Estimasi Kain (CM)', PENJELASAN: 'Isi estimasi panjang kain yang dibutuhkan per pcs dalam satuan CM (misal: 200, 180, 190).' },
         { ATURAN: 'Status Order', PENJELASAN: 'Isi dengan "Ready Stok" atau "PO".' },
         { ATURAN: 'Tipe Set', PENJELASAN: 'Isi dengan "Single" atau "Satu Setel" / "Bundle".' }
       ];
@@ -185,10 +178,13 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
       }
 
       // Ambil daftar valid SKU Kain
-      const [kainRows] = await pool.query('SELECT kode_sku_kain, nama_kain FROM master_kain');
+      const [kainRows] = await pool.query('SELECT kode_sku_kain, nama_kain, harga_per_meter FROM master_kain');
       const kainMap = new Map();
       for (const k of kainRows) {
-        kainMap.set(String(k.kode_sku_kain).trim().toUpperCase(), k.nama_kain);
+        kainMap.set(String(k.kode_sku_kain).trim().toUpperCase(), {
+          nama_kain: k.nama_kain,
+          harga_per_meter: Number(k.harga_per_meter) || 0
+        });
       }
 
       let inserted = 0;
@@ -225,16 +221,31 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
         const tipeSet = String(item.tipe_set || 'Single').trim().slice(0, 32);
         const rawSkuKain = item.sku_kain ? String(item.sku_kain).trim() : null;
         const skuKain = rawSkuKain ? rawSkuKain.slice(0, 64) : null;
-        let estimasiKain = item.estimasi_kain ? String(item.estimasi_kain).trim().slice(0, 100) : null;
-        
-        // Jika estimasi_kain kosong tapi sku_kain ada di master_kain, gunakan nama kain otomatis
-        if (!estimasiKain && skuKain && kainMap.has(skuKain.toUpperCase())) {
-          estimasiKain = kainMap.get(skuKain.toUpperCase());
-        }
-        estimasiKain = (estimasiKain || 'Kain Polos').slice(0, 100);
+        const kainInfo = skuKain ? kainMap.get(skuKain.toUpperCase()) : null;
 
-        const panjangKainCm = Number(item.panjang_kain_cm) || 200;
-        const hargaKainCm = Number(item.harga_kain_cm) || 150;
+        // Ambil estimasi kain (berapa cm, misal: 200, 180, atau "200 cm")
+        const rawEstimasi = (item.estimasi_kain !== undefined && item.estimasi_kain !== null && String(item.estimasi_kain).trim() !== '')
+          ? String(item.estimasi_kain).trim()
+          : (item.panjang_kain_cm ? String(item.panjang_kain_cm).trim() : '');
+
+        let panjangKainCm = 200;
+        let estimasiKain = '200 cm';
+
+        if (rawEstimasi) {
+          const numMatch = rawEstimasi.match(/([0-9]+(\.[0-9]+)?)/);
+          if (numMatch) {
+            panjangKainCm = parseFloat(numMatch[1]) || 200;
+            estimasiKain = `${panjangKainCm} cm`;
+          } else {
+            estimasiKain = rawEstimasi.slice(0, 100);
+          }
+        }
+
+        // Harga per cm otomatis dari master_kain jika tersedia, fallback 150
+        const hargaKainCm = (kainInfo?.harga_per_meter && kainInfo.harga_per_meter > 0)
+          ? Math.round(kainInfo.harga_per_meter / 100)
+          : (Number(item.harga_kain_cm) || 150);
+
         const idKategoriHpp = item.id_kategori_hpp ? String(item.id_kategori_hpp).trim().slice(0, 64) : null;
 
         // Jika sku_kain baru belum ada di master_kain, buat entri otomatis di master_kain
@@ -243,8 +254,8 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
             await pool.query(`
               INSERT IGNORE INTO master_kain (kode_perusahaan, kode_sku_kain, nama_kain)
               VALUES (?, ?, ?)
-            `, [kodePerusahaan, skuKain, estimasiKain || `Kain ${skuKain}`]);
-            kainMap.set(skuKain.toUpperCase(), estimasiKain || `Kain ${skuKain}`);
+            `, [kodePerusahaan, skuKain, `Kain ${skuKain}`]);
+            kainMap.set(skuKain.toUpperCase(), { nama_kain: `Kain ${skuKain}`, harga_per_meter: 0 });
           } catch (e) {}
         }
 
@@ -263,9 +274,9 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
           if (existing.status_order !== statusOrder) diffs.push(`status_order: "${existing.status_order}" -> "${statusOrder}"`);
           if (existing.tipe_set !== tipeSet) diffs.push(`tipe_set: "${existing.tipe_set}" -> "${tipeSet}"`);
           if ((existing.sku_kain || null) !== skuKain) diffs.push(`sku_kain: "${existing.sku_kain || '-'}" -> "${skuKain || '-'}"`);
-          if (existing.estimasi_kain !== estimasiKain) diffs.push(`estimasi_kain: "${existing.estimasi_kain}" -> "${estimasiKain}"`);
-          if (Number(existing.panjang_kain_cm) !== panjangKainCm) diffs.push(`panjang_kain_cm: ${existing.panjang_kain_cm} -> ${panjangKainCm}`);
-          if (Number(existing.harga_kain_cm) !== hargaKainCm) diffs.push(`harga_kain_cm: ${existing.harga_kain_cm} -> ${hargaKainCm}`);
+          if (Number(existing.panjang_kain_cm) !== panjangKainCm) {
+            diffs.push(`estimasi_kain: ${existing.panjang_kain_cm || existing.estimasi_kain || '-'}cm -> ${panjangKainCm}cm`);
+          }
           if ((existing.id_kategori_hpp || null) !== idKategoriHpp) diffs.push(`id_kategori_hpp: "${existing.id_kategori_hpp || '-'}" -> "${idKategoriHpp || '-'}"`);
 
           if (diffs.length === 0) {

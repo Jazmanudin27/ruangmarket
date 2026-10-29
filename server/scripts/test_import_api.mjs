@@ -13,9 +13,7 @@ const testData = {
       status_order: 'Ready Stok',
       tipe_set: 'Single',
       sku_kain: 'KB-TH-MERAH',
-      estimasi_kain: 'Kain Batik TH Merah',
-      panjang_kain_cm: 200,
-      harga_kain_cm: 150
+      estimasi_kain: 200
     },
     {
       // 2. Should INSERT as new product
@@ -30,8 +28,7 @@ const testData = {
       status_order: 'Ready Stok',
       tipe_set: 'Single',
       sku_kain: 'KB-TH-MERAH',
-      panjang_kain_cm: 200,
-      harga_kain_cm: 150
+      estimasi_kain: 185
     }
   ]
 };

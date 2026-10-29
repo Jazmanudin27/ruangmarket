@@ -426,9 +426,8 @@ export default function ProdukView() {
         const statusOrder = getVal(['status_order', 'Status Order'], 'Ready Stok');
         const tipeSet = getVal(['tipe_set', 'Tipe Set', 'tipe'], 'Single');
         const skuKain = getVal(['sku_kain', 'SKU Kain', 'kode_sku_kain'], '');
-        const estimasiKain = getVal(['estimasi_kain', 'Estimasi Kain', 'kain'], '');
-        const panjangKainCm = Number(getVal(['panjang_kain_cm', 'Panjang Kain (CM)', 'panjang_kain'], 200)) || 200;
-        const hargaKainCm = Number(getVal(['harga_kain_cm', 'Harga Kain (CM)', 'harga_kain'], 150)) || 150;
+        const rawEstimasi = getVal(['estimasi_kain', 'Estimasi Kain', 'estimasi_kain_cm', 'panjang_kain_cm', 'panjang_kain'], '');
+        const estimasiKain = String(rawEstimasi).trim();
         const idKategoriHpp = getVal(['id_kategori_hpp', 'ID Kategori HPP', 'kategori_hpp'], '');
 
         return {
@@ -444,9 +443,7 @@ export default function ProdukView() {
           status_order: String(statusOrder).trim(),
           tipe_set: String(tipeSet).trim(),
           sku_kain: String(skuKain).trim(),
-          estimasi_kain: String(estimasiKain).trim(),
-          panjang_kain_cm: panjangKainCm,
-          harga_kain_cm: hargaKainCm,
+          estimasi_kain: estimasiKain,
           id_kategori_hpp: String(idKategoriHpp).trim()
         };
       }).filter(row => row.kode_sku || row.nama_produk);
@@ -4499,6 +4496,7 @@ export default function ProdukView() {
                               <th style={{ padding: '6px 8px', textAlign: 'right' }}>Harga Modal</th>
                               <th style={{ padding: '6px 8px', textAlign: 'center' }}>Stok</th>
                               <th style={{ padding: '6px 8px', textAlign: 'left' }}>SKU Kain</th>
+                              <th style={{ padding: '6px 8px', textAlign: 'center' }}>Estimasi (CM)</th>
                               <th style={{ padding: '6px 8px', textAlign: 'center' }}>Tipe</th>
                               <th style={{ padding: '6px 8px', textAlign: 'center' }}>Status Order</th>
                             </tr>
@@ -4517,6 +4515,15 @@ export default function ProdukView() {
                                   {row.sku_kain ? (
                                     <span style={{ backgroundColor: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', padding: '1px 5px', borderRadius: '4px', fontSize: '10px', fontFamily: 'monospace', fontWeight: '700' }}>
                                       {row.sku_kain}
+                                    </span>
+                                  ) : (
+                                    <span style={{ color: '#94a3b8' }}>-</span>
+                                  )}
+                                </td>
+                                <td style={{ padding: '5px 8px', textAlign: 'center' }}>
+                                  {row.estimasi_kain ? (
+                                    <span style={{ backgroundColor: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: '700' }}>
+                                      {row.estimasi_kain.includes('cm') ? row.estimasi_kain : `${row.estimasi_kain} cm`}
                                     </span>
                                   ) : (
                                     <span style={{ color: '#94a3b8' }}>-</span>
