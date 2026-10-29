@@ -33,7 +33,7 @@ import { showConfirm, toastSuccess, toastError } from '../../utils/alert.util';
 import { INITIAL_PRODUK_DATA } from '../../data/initialProduk';
 import { INITIAL_KATEGORI_DATA } from '../../data/initialKategori';
 import { getActiveCompany, getActiveCompanyCode } from '../../utils/tenant.util';
-import { detectStatusOrder } from '../../utils/orderStatus.util';
+import { detectStatusOrder, detectBundleSet } from '../../utils/orderStatus.util';
 
 const STORAGE_KEY = 'ruangmarket_produk_gamis_v4';
 const KATEGORI_STORAGE_KEY = 'ruangmarket_kategori_v1';
@@ -533,6 +533,77 @@ export default function ProdukView() {
     }
   };
 
+  // Deteksi Otomatis Produk Bundle / Satu Setel (Mendeteksi SET-, Setelan, dll)
+  const handleAutoDetectBundle = async (onlySelected = false) => {
+    const targets = onlySelected && selectedIds.length > 0
+      ? produkList.filter(p => selectedIds.includes(p.id))
+      : filteredList;
+
+    if (targets.length === 0) {
+      toastError('Tidak ada produk untuk dideteksi!');
+      return;
+    }
+
+    const itemsToUpdate = targets.map(p => {
+      const detectedTipe = detectBundleSet(p.nama_produk, p.sku);
+      let updatedBundleItems = Array.isArray(p.bundle_items) ? [...p.bundle_items] : [];
+      
+      // Jika terdeteksi Satu Setel / Bundle dan belum ada komponennya, buatkan default 2 komponen (Baju + Celana)
+      if (detectedTipe === 'Satu Setel' && updatedBundleItems.length === 0) {
+        const it1 = {
+          id: `bi-${Date.now()}-1`,
+          nama_komponen: 'Baju / Atasan',
+          sku: '',
+          qty: 1,
+          kain_nama: p.estimasi_kain || 'Drill Premium',
+          panjang_kain_cm: Math.round((Number(p.panjang_kain_cm) || 200) * 0.55),
+          harga_kain_cm: Number(p.harga_kain_cm || 150),
+          harga_modal_item: Math.round((Number(p.harga_beli) || 60000) * 0.55)
+        };
+        const it2 = {
+          id: `bi-${Date.now()}-2`,
+          nama_komponen: 'Celana / Bawahan',
+          sku: '',
+          qty: 1,
+          kain_nama: p.estimasi_kain || 'Drill Premium',
+          panjang_kain_cm: Math.round((Number(p.panjang_kain_cm) || 200) * 0.45),
+          harga_kain_cm: Number(p.harga_kain_cm || 150),
+          harga_modal_item: Math.round((Number(p.harga_beli) || 60000) * 0.45)
+        };
+        updatedBundleItems = [it1, it2];
+      }
+
+      return {
+        ...p,
+        tipe_set: detectedTipe,
+        bundle_items: updatedBundleItems
+      };
+    });
+
+    const countBundle = itemsToUpdate.filter(i => i.tipe_set === 'Satu Setel').length;
+    const countSingle = itemsToUpdate.length - countBundle;
+
+    const confirmed = await showConfirm(
+      'Deteksi Bundle / Satu Setel?',
+      `Sistem akan menganalisis nama & SKU dari ${targets.length} produk. SKU berawalan "SET-" atau nama yang memuat "Setelan/1 Set/Bundle" akan diset sebagai Bundle (Satu Setel).\n\nHasil: ${countBundle} Bundle/Setel, ${countSingle} Single. Terapkan?`,
+      'Ya, Terapkan Sekarang',
+      'Batal'
+    );
+    if (!confirmed) return;
+
+    setIsBatchProcessing(true);
+    try {
+      const mapUpdates = new Map(itemsToUpdate.map(it => [it.id, it]));
+      setProdukList(prev => prev.map(p => mapUpdates.has(p.id) ? mapUpdates.get(p.id) : p));
+      toastSuccess(`Berhasil! ${countBundle} produk diset Bundle, ${countSingle} diset Single.`);
+      setSelectedIds([]);
+    } catch (err) {
+      toastError(`Gagal deteksi bundle: ${err.message}`);
+    } finally {
+      setIsBatchProcessing(false);
+    }
+  };
+
   const handleOpenAdd = () => {
     setEditingId(null);
     const nextId = produkList.length > 0 ? Math.max(...produkList.map(p => p.id)) + 1 : 1;
@@ -834,6 +905,7 @@ export default function ProdukView() {
             <span>Cetak Barcode</span>
           </button>
 
+          {/* Tombol Deteksi PO */}
           <button
             onClick={() => handleBatchAutoDetectStatusOrder(false)}
             title="Scan dan deteksi otomatis semua produk: kata PO (bukan Polos) & Custom otomatis jadi PO, lainnya Ready Stok"
@@ -843,7 +915,7 @@ export default function ProdukView() {
               alignItems: 'center',
               justifyContent: 'center',
               gap: '6px',
-              padding: '0 14px',
+              padding: '0 12px',
               borderRadius: '6px',
               border: 'none',
               backgroundColor: '#8b5cf6',
@@ -858,8 +930,37 @@ export default function ProdukView() {
             onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#7c3aed'}
             onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#8b5cf6'}
           >
-            <Sparkles size={14} />
-            <span>Deteksi Otomatis PO</span>
+            <Sparkles size={13} />
+            <span>Deteksi PO</span>
+          </button>
+
+          {/* Tombol Deteksi Bundle */}
+          <button
+            onClick={() => handleAutoDetectBundle(false)}
+            title="Scan SKU 'SET-' atau nama produk 'Setelan / 1 Set / Bundle' dan jadikan Bundle Set otomatis"
+            style={{
+              height: '30px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              padding: '0 12px',
+              borderRadius: '6px',
+              border: 'none',
+              backgroundColor: '#0284c7',
+              color: '#ffffff',
+              fontSize: '12px',
+              fontWeight: '700',
+              lineHeight: 1,
+              cursor: 'pointer',
+              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.15)',
+              transition: 'all 0.15s ease'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#0369a1'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#0284c7'}
+          >
+            <Boxes size={13} />
+            <span>Deteksi Bundle</span>
           </button>
 
           <button
@@ -1292,12 +1393,12 @@ export default function ProdukView() {
               <span>{isBatchProcessing ? 'Memproses...' : 'Ubah Masal ke Ready Stok'}</span>
             </button>
 
-            {/* Tombol Masal: Deteksi Otomatis PO/Ready */}
+            {/* Tombol Masal: Deteksi PO */}
             <button
               type="button"
               disabled={isBatchProcessing}
               onClick={() => handleBatchAutoDetectStatusOrder(true)}
-              title="Deteksi otomatis kata PO & Custom (bukan Polos)"
+              title="Deteksi kata PO & Custom (bukan Polos)"
               style={{
                 height: '28px',
                 padding: '0 12px',
@@ -1315,7 +1416,33 @@ export default function ProdukView() {
               }}
             >
               <Sparkles size={13} />
-              <span>Deteksi Otomatis PO/Ready</span>
+              <span>Deteksi PO</span>
+            </button>
+
+            {/* Tombol Masal: Deteksi Bundle */}
+            <button
+              type="button"
+              disabled={isBatchProcessing}
+              onClick={() => handleAutoDetectBundle(true)}
+              title="Deteksi SKU 'SET-' atau nama produk 'Setelan / 1 Set / Bundle' untuk produk terpilih"
+              style={{
+                height: '28px',
+                padding: '0 12px',
+                borderRadius: '6px',
+                border: '1px solid #0284c7',
+                backgroundColor: '#0284c7',
+                color: '#ffffff',
+                fontSize: '11.5px',
+                fontWeight: '700',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+                cursor: 'pointer',
+                boxShadow: '0 1px 3px rgba(2, 132, 199, 0.3)'
+              }}
+            >
+              <Boxes size={13} />
+              <span>Deteksi Bundle</span>
             </button>
 
             {/* Tombol Batal Pilih */}

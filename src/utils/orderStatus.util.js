@@ -18,3 +18,20 @@ export function detectStatusOrder(namaProduk = '', sku = '') {
 
   return 'Ready Stok';
 }
+
+/**
+ * Deteksi otomatis apakah suatu produk merupakan tipe Bundle / Satu Setel atau Single.
+ * Aturan:
+ * - SKU mengandung awalan 'SET-' atau pola bundle setelan (misal 'SET-BP-...', 'SETELAN')
+ * - Nama mengandung 'Satu Setel', '1 Set', 'Setelan', 'Setel', 'Bundle', 'Paket'
+ * - Default: 'Single'
+ */
+export function detectBundleSet(namaProduk = '', sku = '') {
+  const combined = `${namaProduk || ''} ${sku || ''}`;
+
+  if (/^SET-/i.test(sku?.trim() || '')) return 'Satu Setel';
+  if (/\b(satu\s*setel|1\s*setel|1\s*set|setelan|bundle|paket)\b/i.test(combined)) return 'Satu Setel';
+
+  return 'Single';
+}
+
