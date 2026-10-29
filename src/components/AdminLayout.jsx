@@ -25,7 +25,8 @@ import {
   RotateCcw,
   Building,
   Check,
-  Megaphone
+  Megaphone,
+  Calculator
 } from 'lucide-react';
 import { getCompanies, getActiveCompany, setActiveCompanyCode } from '../utils/tenant.util';
 import { useDeviceType } from '../hooks/useDeviceType';
@@ -37,6 +38,7 @@ import KategoriDesktopView from '../views/desktop/KategoriDesktopView';
 import KaryawanDesktopView from '../views/desktop/KaryawanDesktopView';
 import PelangganDesktopView from '../views/desktop/PelangganDesktopView';
 import TahapanSPKDesktopView from '../views/desktop/TahapanSPKDesktopView';
+import MasterHPPDesktopView from '../views/desktop/MasterHPPDesktopView';
 import ProduksiDesktopView from '../views/desktop/ProduksiDesktopView';
 import SPKDesktopView from '../views/desktop/SPKDesktopView';
 import MarketplaceDesktopView from '../views/desktop/MarketplaceDesktopView';
@@ -233,6 +235,8 @@ export default function AdminLayout() {
         return <PelangganDesktopView />;
       case 'tahapan_spk':
         return <TahapanSPKDesktopView />;
+      case 'hpp_produk':
+        return <MasterHPPDesktopView />;
       case 'produksi':
         return <ProduksiDesktopView />;
       case 'spk':
@@ -492,37 +496,37 @@ export default function AdminLayout() {
                   gap: '4px',
                   padding: '0 8px',
                   borderRadius: '5px',
-                  border: (activeTab === 'produk' || activeTab === 'produk_marketplace' || activeTab === 'kategori' || activeTab === 'karyawan' || activeTab === 'pelanggan' || activeTab === 'tahapan_spk' || isDataMasterOpen) ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.08)',
-                  backgroundColor: (activeTab === 'produk' || activeTab === 'produk_marketplace' || activeTab === 'kategori' || activeTab === 'karyawan' || activeTab === 'pelanggan' || activeTab === 'tahapan_spk' || isDataMasterOpen) ? '#0284c7' : 'rgba(255, 255, 255, 0.05)',
-                  color: (activeTab === 'produk' || activeTab === 'produk_marketplace' || activeTab === 'kategori' || activeTab === 'karyawan' || activeTab === 'pelanggan' || activeTab === 'tahapan_spk' || isDataMasterOpen) ? '#ffffff' : '#cbd5e1',
+                  border: (activeTab === 'produk' || activeTab === 'produk_marketplace' || activeTab === 'kategori' || activeTab === 'karyawan' || activeTab === 'pelanggan' || activeTab === 'tahapan_spk' || activeTab === 'hpp_produk' || isDataMasterOpen) ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.08)',
+                  backgroundColor: (activeTab === 'produk' || activeTab === 'produk_marketplace' || activeTab === 'kategori' || activeTab === 'karyawan' || activeTab === 'pelanggan' || activeTab === 'tahapan_spk' || activeTab === 'hpp_produk' || isDataMasterOpen) ? '#0284c7' : 'rgba(255, 255, 255, 0.05)',
+                  color: (activeTab === 'produk' || activeTab === 'produk_marketplace' || activeTab === 'kategori' || activeTab === 'karyawan' || activeTab === 'pelanggan' || activeTab === 'tahapan_spk' || activeTab === 'hpp_produk' || isDataMasterOpen) ? '#ffffff' : '#cbd5e1',
                   fontSize: '11px',
-                  fontWeight: (activeTab === 'produk' || activeTab === 'produk_marketplace' || activeTab === 'kategori' || activeTab === 'karyawan' || activeTab === 'pelanggan' || activeTab === 'tahapan_spk' || isDataMasterOpen) ? '800' : '600',
+                  fontWeight: (activeTab === 'produk' || activeTab === 'produk_marketplace' || activeTab === 'kategori' || activeTab === 'karyawan' || activeTab === 'pelanggan' || activeTab === 'tahapan_spk' || activeTab === 'hpp_produk' || isDataMasterOpen) ? '800' : '600',
                   lineHeight: 1,
                   cursor: 'pointer',
                   transition: 'all 0.15s ease',
                   whiteSpace: 'nowrap',
-                  boxShadow: (activeTab === 'produk' || activeTab === 'kategori' || activeTab === 'karyawan' || activeTab === 'pelanggan' || activeTab === 'tahapan_spk' || isDataMasterOpen) ? '0 0 10px rgba(2, 132, 199, 0.5)' : 'none'
+                  boxShadow: (activeTab === 'produk' || activeTab === 'kategori' || activeTab === 'karyawan' || activeTab === 'pelanggan' || activeTab === 'tahapan_spk' || activeTab === 'hpp_produk' || isDataMasterOpen) ? '0 0 10px rgba(2, 132, 199, 0.5)' : 'none'
                 }}
                 onMouseEnter={(e) => {
-                  if (activeTab !== 'produk' && activeTab !== 'produk_marketplace' && activeTab !== 'kategori' && activeTab !== 'karyawan' && activeTab !== 'pelanggan' && activeTab !== 'tahapan_spk' && !isDataMasterOpen) {
+                  if (activeTab !== 'produk' && activeTab !== 'produk_marketplace' && activeTab !== 'kategori' && activeTab !== 'karyawan' && activeTab !== 'pelanggan' && activeTab !== 'tahapan_spk' && activeTab !== 'hpp_produk' && !isDataMasterOpen) {
                     e.currentTarget.style.backgroundColor = 'rgba(56, 189, 248, 0.15)';
                     e.currentTarget.style.borderColor = 'rgba(56, 189, 248, 0.3)';
                     e.currentTarget.style.color = '#ffffff';
                   }
                 }}
                 onMouseLeave={(e) => {
-                  if (activeTab !== 'produk' && activeTab !== 'produk_marketplace' && activeTab !== 'kategori' && activeTab !== 'karyawan' && activeTab !== 'pelanggan' && activeTab !== 'tahapan_spk' && !isDataMasterOpen) {
+                  if (activeTab !== 'produk' && activeTab !== 'produk_marketplace' && activeTab !== 'kategori' && activeTab !== 'karyawan' && activeTab !== 'pelanggan' && activeTab !== 'tahapan_spk' && activeTab !== 'hpp_produk' && !isDataMasterOpen) {
                     e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
                     e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
                     e.currentTarget.style.color = '#cbd5e1';
                   }
                 }}
               >
-                <Boxes size={13} color={(activeTab === 'produk' || activeTab === 'produk_marketplace' || activeTab === 'kategori' || activeTab === 'karyawan' || activeTab === 'pelanggan' || activeTab === 'tahapan_spk' || isDataMasterOpen) ? '#ffffff' : '#38bdf8'} style={{ flexShrink: 0 }} />
+                <Boxes size={13} color={(activeTab === 'produk' || activeTab === 'produk_marketplace' || activeTab === 'kategori' || activeTab === 'karyawan' || activeTab === 'pelanggan' || activeTab === 'tahapan_spk' || activeTab === 'hpp_produk' || isDataMasterOpen) ? '#ffffff' : '#38bdf8'} style={{ flexShrink: 0 }} />
                 <span>Data Master</span>
                 <ChevronDown 
                   size={11} 
-                  color={(activeTab === 'produk' || activeTab === 'produk_marketplace' || activeTab === 'kategori' || activeTab === 'karyawan' || activeTab === 'pelanggan' || activeTab === 'tahapan_spk' || isDataMasterOpen) ? '#ffffff' : '#38bdf8'} 
+                  color={(activeTab === 'produk' || activeTab === 'produk_marketplace' || activeTab === 'kategori' || activeTab === 'karyawan' || activeTab === 'pelanggan' || activeTab === 'tahapan_spk' || activeTab === 'hpp_produk' || isDataMasterOpen) ? '#ffffff' : '#38bdf8'} 
                   style={{ 
                     transform: isDataMasterOpen ? 'rotate(180deg)' : 'none', 
                     transition: 'transform 0.15s ease',
@@ -763,6 +767,42 @@ export default function AdminLayout() {
                   >
                     <Layers size={14} color={activeTab === 'tahapan_spk' ? '#38bdf8' : '#94a3b8'} style={{ flexShrink: 0 }} />
                     <span style={{ textAlign: 'left', flex: 1 }}>Tahapan SPK</span>
+                  </button>
+
+                  {/* Submenu 7: Master HPP Produk */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      changeTab('hpp_produk');
+                      setIsDataMasterOpen(false);
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'flex-start',
+                      gap: '8px',
+                      width: '100%',
+                      padding: '7px 10px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      backgroundColor: activeTab === 'hpp_produk' ? 'rgba(2, 132, 199, 0.2)' : 'transparent',
+                      color: activeTab === 'hpp_produk' ? '#38bdf8' : '#cbd5e1',
+                      fontSize: '11.5px',
+                      fontWeight: activeTab === 'hpp_produk' ? '800' : '600',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'background-color 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (activeTab !== 'hpp_produk') e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (activeTab !== 'hpp_produk') e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
+                  >
+                    <Calculator size={14} color={activeTab === 'hpp_produk' ? '#38bdf8' : '#94a3b8'} style={{ flexShrink: 0 }} />
+                    <span style={{ textAlign: 'left', flex: 1 }}>Master HPP Produk</span>
                   </button>
                 </div>
               )}
@@ -1496,6 +1536,28 @@ export default function AdminLayout() {
             >
               <Layers size={15} color={activeTab === 'tahapan_spk' ? '#ffffff' : '#38bdf8'} />
               <span>Tahapan SPK</span>
+            </button>
+
+            {/* 2f. Master HPP Produk (Submenu) */}
+            <button
+              onClick={() => changeTab('hpp_produk')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '8px 12px 8px 20px',
+                borderRadius: '6px',
+                border: activeTab === 'hpp_produk' ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.08)',
+                backgroundColor: activeTab === 'hpp_produk' ? '#0284c7' : 'rgba(255, 255, 255, 0.05)',
+                color: '#ffffff',
+                fontSize: '12px',
+                fontWeight: activeTab === 'hpp_produk' ? '800' : '600',
+                cursor: 'pointer',
+                textAlign: 'left'
+              }}
+            >
+              <Calculator size={15} color={activeTab === 'hpp_produk' ? '#ffffff' : '#38bdf8'} />
+              <span>Master HPP Produk</span>
             </button>
 
             {/* 3. Produksi Section Header */}

@@ -360,8 +360,45 @@ export async function initDb() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Tabel Master Tahapan SPK Produksi';
     `);
 
+    // 10. Tabel Master HPP Produk (master_hpp_produk)
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS master_hpp_produk (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        kode_perusahaan VARCHAR(32) DEFAULT 'RSG',
+        id_kategori_hpp VARCHAR(64) NOT NULL UNIQUE,
+        nama_kategori_hpp VARCHAR(255) NOT NULL,
+        keterangan TEXT NULL,
+        total_hpp DECIMAL(15,2) DEFAULT 0,
+        status VARCHAR(32) DEFAULT 'Aktif',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_id_kategori_hpp (id_kategori_hpp),
+        INDEX idx_kode_perusahaan (kode_perusahaan)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Kategori Master HPP Produk';
+    `);
+
+    // 11. Tabel Detail Master HPP Produk (detail_master_hpp_produk)
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS detail_master_hpp_produk (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        id_kategori_hpp VARCHAR(64) NOT NULL,
+        nama_jasa VARCHAR(255) NOT NULL,
+        jumlah DECIMAL(10,2) DEFAULT 1,
+        harga DECIMAL(15,2) DEFAULT 0,
+        total DECIMAL(15,2) DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_detail_id_kategori_hpp (id_kategori_hpp)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Detail Komponen & Jasa HPP Produk';
+    `);
+
+    // Tambah kolom id_kategori_hpp di produk_master jika belum ada
+    try {
+      await conn.query(`ALTER TABLE produk_master ADD COLUMN id_kategori_hpp VARCHAR(64) NULL`);
+    } catch (e) {}
+
     conn.release();
-    console.log('[MySQL] Tabel Bahasa Indonesia (toko_marketplace, produk_marketplace, produk_master, pesanan_marketplace, spk_batch, pelanggan_master, tahapan_spk_master) siap!');
+    console.log('[MySQL] Tabel Bahasa Indonesia (toko_marketplace, produk_marketplace, produk_master, pesanan_marketplace, spk_batch, pelanggan_master, tahapan_spk_master, master_hpp_produk, detail_master_hpp_produk) siap!');
   } catch (err) {
     console.error('[MySQL Init Error]:', err.message);
   }
