@@ -164,7 +164,7 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
         SELECT 
           id, kode_perusahaan, kode_sku, nama_produk, kategori, satuan,
           harga_jual, harga_modal, stok_fisik, status, status_order, tipe_set,
-          sku_kain, estimasi_kain, panjang_kain_cm, harga_kain_cm, id_kategori_hpp
+          sku_kain, estimasi_kain, panjang_kain_cm, id_kategori_hpp
         FROM produk_master
       `);
 
@@ -305,13 +305,12 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
                 sku_kain = ?,
                 estimasi_kain = ?,
                 panjang_kain_cm = ?,
-                harga_kain_cm = ?,
                 id_kategori_hpp = ?
               WHERE id = ?
             `, [
               namaProduk, kategori, satuan, hargaJual, hargaModal, stokFisik,
               status, statusOrder, tipeSet, skuKain, estimasiKain,
-              panjangKainCm, hargaKainCm, idKategoriHpp, existing.id
+              panjangKainCm, idKategoriHpp, existing.id
             ]);
             updated++;
             existingMap.set(matchKey, {
@@ -320,7 +319,7 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
               kategori, satuan, harga_jual: hargaJual, harga_modal: hargaModal,
               stok_fisik: stokFisik, status, status_order: statusOrder,
               tipe_set: tipeSet, sku_kain: skuKain, estimasi_kain: estimasiKain,
-              panjang_kain_cm: panjangKainCm, harga_kain_cm: hargaKainCm, id_kategori_hpp: idKategoriHpp
+              panjang_kain_cm: panjangKainCm, id_kategori_hpp: idKategoriHpp
             });
             details.push({
               row: idx + 1,
@@ -336,12 +335,12 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
             INSERT INTO produk_master (
               kode_perusahaan, kode_sku, nama_produk, kategori, satuan,
               harga_jual, harga_modal, stok_fisik, status, status_order,
-              tipe_set, sku_kain, estimasi_kain, panjang_kain_cm, harga_kain_cm, id_kategori_hpp
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              tipe_set, sku_kain, estimasi_kain, panjang_kain_cm, id_kategori_hpp
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `, [
             kodePerusahaan, cleanSku, namaProduk, kategori, satuan,
             hargaJual, hargaModal, stokFisik, status, statusOrder,
-            tipeSet, skuKain, estimasiKain, panjangKainCm, hargaKainCm, idKategoriHpp
+            tipeSet, skuKain, estimasiKain, panjangKainCm, idKategoriHpp
           ]);
           inserted++;
           existingMap.set(matchKey, {
@@ -352,7 +351,7 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
             kategori, satuan, harga_jual: hargaJual, harga_modal: hargaModal,
             stok_fisik: stokFisik, status, status_order: statusOrder,
             tipe_set: tipeSet, sku_kain: skuKain, estimasi_kain: estimasiKain,
-            panjang_kain_cm: panjangKainCm, harga_kain_cm: hargaKainCm, id_kategori_hpp: idKategoriHpp
+            panjang_kain_cm: panjangKainCm, id_kategori_hpp: idKategoriHpp
           });
           details.push({
             row: idx + 1,
@@ -549,9 +548,14 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
             parsedBundle = [];
           }
         }
+        // Hitung harga_kain_cm murni dari master_kain (harga_per_meter / 100)
+        const meterPrice = Number(r.harga_kain_meter) || 0;
+        const computedHargaKainCm = meterPrice > 0 ? Math.round(meterPrice / 100) : 0;
+
         return {
           ...r,
-          bundle_items: parsedBundle
+          bundle_items: parsedBundle,
+          harga_kain_cm: computedHargaKainCm
         };
       });
 
@@ -611,19 +615,18 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
           const bundleItems = item.bundle_items ? (typeof item.bundle_items === 'string' ? item.bundle_items : JSON.stringify(item.bundle_items)) : null;
           const estimasiKain = String(item.estimasi_kain || 'Kain Polos').slice(0, 100);
           const panjangKainCm = Number(item.panjang_kain_cm) || 200;
-          const hargaKainCm = Number(item.harga_kain_cm) || 150;
           const idKategoriHpp = item.id_kategori_hpp ? String(item.id_kategori_hpp).slice(0, 64) : null;
           const skuKain = item.sku_kain ? String(item.sku_kain).slice(0, 64) : null;
 
-          values.push(kodePerusahaan, kodeSku, namaProduk, kategori, satuan, hargaJual, hargaModal, stokFisik, status, statusOrder, fotoProduk, tipeSet, bundleItems, estimasiKain, panjangKainCm, hargaKainCm, idKategoriHpp, skuKain);
-          return '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
+          values.push(kodePerusahaan, kodeSku, namaProduk, kategori, satuan, hargaJual, hargaModal, stokFisik, status, statusOrder, fotoProduk, tipeSet, bundleItems, estimasiKain, panjangKainCm, idKategoriHpp, skuKain);
+          return '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
         }).join(', ');
 
         const sql = `
           INSERT INTO produk_master (
             kode_perusahaan, kode_sku, nama_produk, kategori, satuan,
             harga_jual, harga_modal, stok_fisik, status, status_order, foto_produk,
-            tipe_set, bundle_items, estimasi_kain, panjang_kain_cm, harga_kain_cm, id_kategori_hpp, sku_kain
+            tipe_set, bundle_items, estimasi_kain, panjang_kain_cm, id_kategori_hpp, sku_kain
           ) VALUES ${placeholders}
           ON DUPLICATE KEY UPDATE
             nama_produk = VALUES(nama_produk),
@@ -639,7 +642,6 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
             bundle_items = VALUES(bundle_items),
             estimasi_kain = VALUES(estimasi_kain),
             panjang_kain_cm = VALUES(panjang_kain_cm),
-            harga_kain_cm = VALUES(harga_kain_cm),
             id_kategori_hpp = VALUES(id_kategori_hpp),
             sku_kain = COALESCE(VALUES(sku_kain), sku_kain)
         `;
@@ -728,7 +730,7 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
       const allowed = [
         'nama_produk', 'kategori', 'satuan', 'harga_jual', 'harga_modal',
         'stok_fisik', 'status', 'status_order', 'kode_sku', 'kode_perusahaan',
-        'tipe_set', 'bundle_items', 'estimasi_kain', 'panjang_kain_cm', 'harga_kain_cm',
+        'tipe_set', 'bundle_items', 'estimasi_kain', 'panjang_kain_cm',
         'id_kategori_hpp', 'sku_kain'
       ];
       for (const col of allowed) {

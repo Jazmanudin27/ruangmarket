@@ -128,9 +128,6 @@ export async function initDb() {
     try {
       await conn.query(`ALTER TABLE produk_master ADD COLUMN panjang_kain_cm INT DEFAULT 200`);
     } catch (e) {}
-    try {
-      await conn.query(`ALTER TABLE produk_master ADD COLUMN harga_kain_cm DECIMAL(15,2) DEFAULT 150.00`);
-    } catch (e) {}
 
     // Auto-migrate: Bersihkan prefix RSG- dari kode_sku yang terlanjur tersimpan di produk_master
     try {

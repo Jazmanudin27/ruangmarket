@@ -647,11 +647,13 @@ export default function ProdukView() {
           if (json && Array.isArray(json.data)) {
             setKainOptions(json.data.map(k => ({
               value: k.kode_sku_kain,
-              label: `${k.nama_kain} (${k.kode_sku_kain})`,
+              label: `${k.nama_kain} (${k.kode_sku_kain})${Number(k.harga_per_meter) > 0 ? ` - Rp ${Number(k.harga_per_meter).toLocaleString('id-ID')}/m` : ''}`,
               sku: k.kode_sku_kain,
               nama_kain: k.nama_kain,
               jenis_kain: k.jenis_kain,
-              warna: k.warna
+              warna: k.warna,
+              harga_per_meter: Number(k.harga_per_meter) || 0,
+              harga_kain_cm: Math.round((Number(k.harga_per_meter) || 0) / 100)
             })));
           }
         }
@@ -1133,7 +1135,6 @@ export default function ProdukView() {
             estimasi_kain: formData.estimasi_kain || 'Kain Polos',
             sku_kain: formData.sku_kain || null,
             panjang_kain_cm: Number(formData.panjang_kain_cm) || 200,
-            harga_kain_cm: Number(formData.harga_kain_cm) || 150,
             id_kategori_hpp: formData.id_kategori_hpp || null
           })
         });
@@ -1144,6 +1145,7 @@ export default function ProdukView() {
         ...formData, 
         id: editingId,
         nama_kain: selectedKain ? selectedKain.nama_kain : p.nama_kain,
+        harga_kain_cm: selectedKain ? (selectedKain.harga_kain_cm || 0) : p.harga_kain_cm,
         nama_kategori_hpp: selectedHpp ? selectedHpp.label.split(' (HPP:')[0] : '',
         hpp_kategori: selectedHpp ? selectedHpp.total_hpp : 0
       } : p);
@@ -1153,11 +1155,14 @@ export default function ProdukView() {
     } else {
       const newId = produkList.length > 0 ? Math.max(...produkList.map(p => p.id)) + 1 : 1;
       const selectedHpp = hppOptions.find(h => h.value === formData.id_kategori_hpp);
+      const selectedKain = kainOptions.find(k => k.value === formData.sku_kain);
       const newProduk = {
         ...formData,
         id: newId,
         company_code: activeCompany.code || 'RSG',
         status_order: formData.status_order || detectStatusOrder(formData.nama_produk, formData.sku),
+        nama_kain: selectedKain ? selectedKain.nama_kain : '',
+        harga_kain_cm: selectedKain ? (selectedKain.harga_kain_cm || 0) : 0,
         nama_kategori_hpp: selectedHpp ? selectedHpp.label.split(' (HPP:')[0] : '',
         hpp_kategori: selectedHpp ? selectedHpp.total_hpp : 0
       };
@@ -1182,7 +1187,6 @@ export default function ProdukView() {
             estimasi_kain: newProduk.estimasi_kain || 'Kain Polos',
             sku_kain: newProduk.sku_kain || null,
             panjang_kain_cm: Number(newProduk.panjang_kain_cm) || 200,
-            harga_kain_cm: Number(newProduk.harga_kain_cm) || 150,
             id_kategori_hpp: newProduk.id_kategori_hpp || null
           })
         });
@@ -3360,32 +3364,42 @@ export default function ProdukView() {
                     </div>
 
                     <div>
-                      <label style={{ display: 'block', fontSize: '10.5px', fontWeight: '700', color: '#334155', marginBottom: '3px' }}>
-                        Harga Kain per CM (Rp)
+                      <label style={{ display: 'block', fontSize: '10.5px', fontWeight: '700', color: '#64748b', marginBottom: '3px' }}>
+                        Harga Kain (Otomatis dari SKU Kain)
                       </label>
-                      <div style={{ position: 'relative' }}>
-                        <span style={{ position: 'absolute', left: '8px', top: '6px', fontSize: '10.5px', fontWeight: '700', color: '#64748b' }}>Rp</span>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          placeholder="0"
-                          value={formData.harga_kain_cm ? Number(formData.harga_kain_cm).toLocaleString('id-ID') : ''}
-                          onChange={(e) => {
-                            const raw = e.target.value.replace(/\D/g, '');
-                            setFormData({ ...formData, harga_kain_cm: raw ? Number(raw) : 0 });
-                          }}
-                          style={{
-                            width: '100%',
-                            padding: '6px 36px 6px 28px',
-                            borderRadius: '5px',
-                            border: '1px solid #cbd5e1',
-                            fontSize: '11.5px',
-                            fontWeight: '800',
-                            textAlign: 'right',
-                            color: '#0f172a'
-                          }}
-                        />
-                        <span style={{ position: 'absolute', right: '6px', top: '7px', fontSize: '10px', fontWeight: '700', color: '#64748b' }}>/CM</span>
+                      <div style={{
+                        padding: '6px 10px',
+                        borderRadius: '5px',
+                        border: '1px solid #cbd5e1',
+                        backgroundColor: '#f8fafc',
+                        fontSize: '11.5px',
+                        fontWeight: '800',
+                        color: formData.sku_kain ? '#0284c7' : '#94a3b8',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        minHeight: '20px'
+                      }}>
+                        {(() => {
+                          const kFound = kainOptions.find(k => k.sku === formData.sku_kain);
+                          const cmPrice = kFound ? (kFound.harga_kain_cm || Math.round(kFound.harga_per_meter / 100)) : 0;
+                          return (
+                            <>
+                              <span>
+                                {formData.sku_kain ? (
+                                  cmPrice > 0 ? `@Rp ${cmPrice.toLocaleString('id-ID')} / CM` : '@Rp 0 / CM'
+                                ) : (
+                                  'Pilih SKU Kain di atas'
+                                )}
+                              </span>
+                              {kFound?.harga_per_meter > 0 && (
+                                <span style={{ fontSize: '10px', color: '#64748b', fontWeight: '600' }}>
+                                  (Rp {kFound.harga_per_meter.toLocaleString('id-ID')} / m)
+                                </span>
+                              )}
+                            </>
+                          );
+                        })()}
                       </div>
                     </div>
                   </div>
@@ -4207,7 +4221,7 @@ export default function ProdukView() {
 
                     <div>
                       <span style={{ display: 'block', fontSize: '10.5px', fontWeight: '700', color: '#64748b', marginBottom: '2px' }}>
-                        Harga Kain per CM (Rp)
+                        Harga Kain per CM (Dari SKU Kain)
                       </span>
                       <div style={{
                         padding: '6px 10px',
@@ -4216,7 +4230,7 @@ export default function ProdukView() {
                         fontSize: '11.5px',
                         fontWeight: '800',
                         textAlign: 'right',
-                        color: '#0f172a',
+                        color: '#0284c7',
                         backgroundColor: '#f8fafc'
                       }}>
                         @Rp {Number(selectedProduk.harga_kain_cm || 0).toLocaleString('id-ID')} / CM
