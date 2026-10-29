@@ -18,6 +18,7 @@ import {
   Tag,
   Factory,
   Users,
+  UserCheck,
   ClipboardList,
   Store,
   ShoppingBag,
