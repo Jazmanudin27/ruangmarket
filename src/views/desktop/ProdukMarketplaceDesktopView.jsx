@@ -54,7 +54,10 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
   const [filterMapping, setFilterMapping] = useState('Semua');
   const [filterStok, setFilterStok] = useState('Semua');
   const [currentPage, setCurrentPage] = useState(1);
-  const [entriesPerPage, setEntriesPerPage] = useState(25);
+  const [entriesPerPage, setEntriesPerPage] = useState(50);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [isLoading, setIsLoading] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
   const [isBatchProcessing, setIsBatchProcessing] = useState(false);
   const [detailItem, setDetailItem] = useState(null);
@@ -66,32 +69,23 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
   }, []);
 
   // Data staging produk marketplace
-  const [mktProdukList, setMktProdukList] = useState(() => {
-    try {
-      const saved = localStorage.getItem(PRODUK_MARKETPLACE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch (e) {}
-    return [];
-  });
+  const [mktProdukList, setMktProdukList] = useState([]);
 
   // Kumpulan SKU yang benar-benar ada di Master Produk (diambil dari database)
   const [masterSkuSet, setMasterSkuSet] = useState(new Set());
 
   // Muat data master produk dan simpan set SKU untuk pencocokan real-time
   const loadMasterSkus = () => {
-    fetch('/api/marketplace/master')
+    fetch('/api/marketplace/master?limit=1000')
       .then(res => res.json())
-      .then(data => {
+      .then(json => {
+        const data = Array.isArray(json) ? json : (json.data || []);
         if (Array.isArray(data)) {
           const skus = new Set();
           data.forEach(p => {
             const rawSku = (p.kode_sku || p.sku || '').trim().toLowerCase();
             if (rawSku) {
               skus.add(rawSku);
-              // Tambahkan juga versi tanpa prefix (misal RSG-XXX -> XXX)
               const parts = rawSku.split('-');
               if (parts.length > 1) {
                 skus.add(parts.slice(1).join('-'));
@@ -104,85 +98,66 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
       .catch(() => {});
   };
 
-  // Muat produk marketplace dan master produk saat render
-  useEffect(() => {
-    let isMounted = true;
-    loadMasterSkus();
+  // Muat produk marketplace per halaman (Server-side Pagination)
+  const loadMarketplaceProducts = async (page = currentPage, limit = entriesPerPage) => {
+    setIsLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (activeCompany?.code) params.set('kode_perusahaan', activeCompany.code);
+      params.set('page', page);
+      params.set('limit', limit);
+      if (search.trim()) params.set('search', search.trim());
+      if (filterChannel !== 'Semua') params.set('channel', filterChannel);
+      if (filterMapping !== 'Semua') params.set('mapping', filterMapping);
 
-    fetch('/api/marketplace/products')
-      .then(res => res.json())
-      .then(json => {
-        if (isMounted && json.status === 'success' && Array.isArray(json.data)) {
+      const res = await fetch(`/api/marketplace/products?${params.toString()}`);
+      if (res.ok) {
+        const json = await res.json();
+        if (json.status === 'success' && Array.isArray(json.data)) {
           setMktProdukList(json.data);
-          try {
-            localStorage.setItem(PRODUK_MARKETPLACE_KEY, JSON.stringify(json.data));
-          } catch (e) {}
+          const pagination = json.pagination || { total: json.data.length, totalPages: Math.ceil(json.data.length / limit) || 1 };
+          setTotalCount(pagination.total);
+          setTotalPages(pagination.totalPages);
         }
-      })
-      .catch(() => {});
+      }
+    } catch (e) {
+      console.warn('Gagal memuat produk marketplace:', e);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-    return () => { isMounted = false; };
+  useEffect(() => {
+    loadMasterSkus();
   }, []);
+
+  useEffect(() => {
+    loadMarketplaceProducts(currentPage, entriesPerPage);
+  }, [currentPage, entriesPerPage, search, filterChannel, filterMapping, activeCompany?.code]);
 
   // Helper dinamis: produk dianggap terhubung HANYA jika SKU-nya benar-benar ada di master produk
   const checkIsItemMapped = (item) => {
     if (!item) return false;
+    if (item.status === 'Sudah di Master') return true;
     const sku = (item.sku_marketplace || '').trim().toLowerCase();
     if (!sku) return false;
     const prefixSku = `${(item.company_code || activeCompany.code || 'RSG').toLowerCase()}-${sku}`;
     return masterSkuSet.has(sku) || masterSkuSet.has(prefixSku);
   };
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(PRODUK_MARKETPLACE_KEY, JSON.stringify(mktProdukList));
-    } catch (e) {}
-  }, [mktProdukList]);
-
   // Filter list by company
-  const companyItems = mktProdukList.filter(item => !item.company_code || item.company_code === activeCompany.code);
+  const companyItems = mktProdukList;
 
   const tabCounts = {
-    semua: companyItems.length,
+    semua: totalCount,
     belum_dimapping: companyItems.filter(i => !checkIsItemMapped(i)).length,
     sudah_dimapping: companyItems.filter(i => checkIsItemMapped(i)).length,
     tersedia: companyItems.filter(i => (Number(i.stok_marketplace) || 0) > 0).length,
     habis: companyItems.filter(i => (Number(i.stok_marketplace) || 0) <= 0).length
   };
 
-  const filteredItems = companyItems.filter(item => {
-    const stok = Number(item.stok_marketplace) || 0;
-    const mapped = checkIsItemMapped(item);
-
-    // 1. Tab Filter
-    if (activeFilterTab === 'belum_dimapping' && mapped) return false;
-    if (activeFilterTab === 'sudah_dimapping' && !mapped) return false;
-    if (activeFilterTab === 'tersedia' && stok <= 0) return false;
-    if (activeFilterTab === 'habis' && stok > 0) return false;
-
-    // 2. Dropdown Filters
-    if (filterChannel !== 'Semua' && item.channel !== filterChannel) return false;
-    if (filterMapping === 'Belum Dimapping' && mapped) return false;
-    if (filterMapping === 'Sudah Dimapping' && !mapped) return false;
-    if (filterStok === 'Tersedia' && stok <= 0) return false;
-    if (filterStok === 'Habis' && stok > 0) return false;
-
-    // 3. Search
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      return (
-        item.nama_produk.toLowerCase().includes(q) ||
-        (item.sku_marketplace || '').toLowerCase().includes(q) ||
-        (item.varian_marketplace || '').toLowerCase().includes(q) ||
-        (item.shopName || '').toLowerCase().includes(q) ||
-        String(item.item_id || '').includes(q)
-      );
-    }
-    return true;
-  });
-
-  const totalPages = Math.ceil(filteredItems.length / entriesPerPage) || 1;
-  const paginatedItems = filteredItems.slice((currentPage - 1) * entriesPerPage, currentPage * entriesPerPage);
+  const filteredItems = mktProdukList;
+  const paginatedItems = mktProdukList;
 
   // Toggle item selection
   const toggleSelectOne = (id) => {

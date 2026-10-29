@@ -5,6 +5,59 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
   if ((pathname === '/api/produk/master' || pathname === '/api/marketplace/master') && req.method === 'GET') {
     try {
       const kodePerusahaan = urlObj.searchParams.get('kode_perusahaan');
+      const pageParam = urlObj.searchParams.get('page');
+      const limitParam = urlObj.searchParams.get('limit') || urlObj.searchParams.get('entriesPerPage');
+      const search = urlObj.searchParams.get('search');
+      const kategori = urlObj.searchParams.get('kategori');
+      const tipeSet = urlObj.searchParams.get('tipe_set');
+      const statusOrder = urlObj.searchParams.get('status_order');
+      const status = urlObj.searchParams.get('status');
+
+      // Jika ada param page atau limit, aktifkan server pagination
+      const isPaginated = pageParam !== null || limitParam !== null;
+      const page = Math.max(1, parseInt(pageParam, 10) || 1);
+      const limit = Math.max(1, Math.min(200, parseInt(limitParam, 10) || 50));
+      const offset = (page - 1) * limit;
+
+      const whereClauses = [];
+      const whereParams = [];
+
+      if (kodePerusahaan) {
+        whereClauses.push('p.kode_perusahaan = ?');
+        whereParams.push(kodePerusahaan);
+      }
+      if (kategori && kategori !== 'Semua') {
+        whereClauses.push('p.kategori = ?');
+        whereParams.push(kategori);
+      }
+      if (tipeSet && tipeSet !== 'Semua') {
+        whereClauses.push('p.tipe_set = ?');
+        whereParams.push(tipeSet);
+      }
+      if (statusOrder && statusOrder !== 'Semua') {
+        whereClauses.push('p.status_order = ?');
+        whereParams.push(statusOrder);
+      }
+      if (status && status !== 'Semua') {
+        whereClauses.push('p.status = ?');
+        whereParams.push(status);
+      }
+      if (search && search.trim()) {
+        const q = `%${search.trim()}%`;
+        whereClauses.push('(p.nama_produk LIKE ? OR p.kode_sku LIKE ? OR p.varian LIKE ?)');
+        whereParams.push(q, q, q);
+      }
+
+      const whereSql = whereClauses.length > 0 ? ` WHERE ${whereClauses.join(' AND ')}` : '';
+
+      // Hitung total data
+      let total = 0;
+      if (isPaginated) {
+        const countSql = `SELECT COUNT(*) as total FROM produk_master p ${whereSql}`;
+        const [[countRow]] = await pool.query(countSql, whereParams);
+        total = Number(countRow?.total || 0);
+      }
+
       let sql = `
         SELECT 
           p.*,
@@ -12,14 +65,17 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
           h.total_hpp as hpp_kategori
         FROM produk_master p
         LEFT JOIN master_hpp_produk h ON p.id_kategori_hpp = h.id_kategori_hpp
+        ${whereSql}
+        ORDER BY p.id DESC
       `;
-      const params = [];
-      if (kodePerusahaan) {
-        sql += ' WHERE p.kode_perusahaan = ?';
-        params.push(kodePerusahaan);
+
+      let queryParams = [...whereParams];
+      if (isPaginated) {
+        sql += ' LIMIT ? OFFSET ?';
+        queryParams.push(limit, offset);
       }
-      sql += ' ORDER BY p.id DESC';
-      const [rows] = await pool.query(sql, params);
+
+      const [rows] = await pool.query(sql, queryParams);
       const mapped = rows.map(r => {
         let parsedBundle = [];
         if (r.bundle_items) {
@@ -34,7 +90,21 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
           bundle_items: parsedBundle
         };
       });
-      sendJson(res, 200, mapped);
+
+      if (isPaginated) {
+        sendJson(res, 200, {
+          status: 'success',
+          data: mapped,
+          pagination: {
+            page,
+            limit,
+            total,
+            totalPages: Math.ceil(total / limit) || 1
+          }
+        });
+      } else {
+        sendJson(res, 200, mapped);
+      }
       return true;
     } catch (err) {
       sendJson(res, 500, { status: 'error', message: err.message });

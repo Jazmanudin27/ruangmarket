@@ -313,103 +313,6 @@ export default function ProdukView() {
   const [produkList, setProdukList] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Fetch data produk langsung dari MySQL
-  const loadMasterProduk = async () => {
-    setIsLoading(true);
-    try {
-      const res = await fetch('/api/marketplace/master');
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data)) {
-          const rawMapped = data.map(p => {
-            const detectedBundle = detectBundleSet(p.nama_produk, p.kode_sku);
-            const tipeSet = p.tipe_set || (detectedBundle.isBundle ? 'Satu Setel' : 'Single');
-            let bundleItems = Array.isArray(p.bundle_items) ? p.bundle_items : (typeof p.bundle_items === 'string' && p.bundle_items ? JSON.parse(p.bundle_items) : []);
-
-            return {
-              id: p.id,
-              company_code: p.kode_perusahaan || 'RSG',
-              nama_produk: p.nama_produk,
-              sku: p.kode_sku,
-              kategori: p.kategori || 'Gamis Casual',
-              tipe_set: tipeSet,
-              bundle_items: bundleItems,
-              status_order: p.status_order || detectStatusOrder(p.nama_produk, p.kode_sku),
-              varian: p.varian || 'Standar',
-              stok: Number(p.stok_fisik || 0),
-              min_stok: 5,
-              satuan: p.satuan || 'PCS',
-              harga_beli: Number(p.harga_modal || 0),
-              harga_jual: Number(p.harga_jual || 0),
-              estimasi_kain: p.estimasi_kain || 'Kain Polos',
-              panjang_kain_cm: Number(p.panjang_kain_cm) || 200,
-              harga_kain_cm: Number(p.harga_kain_cm || 150),
-              id_kategori_hpp: p.id_kategori_hpp || '',
-              nama_kategori_hpp: p.nama_kategori_hpp || '',
-              hpp_kategori: Number(p.hpp_kategori || 0)
-            };
-          });
-
-          // Lengkapi bundle_items dengan auto match ke master produk jika belum memiliki produk_id
-          const mapped = rawMapped.map(item => {
-            if ((item.tipe_set === 'Satu Setel' || item.tipe_set === 'Bundle') || (item.sku && item.sku.startsWith('SET-'))) {
-              const needsParse = !item.bundle_items || item.bundle_items.length === 0 || item.bundle_items.some(bi => !bi.produk_id);
-              if (needsParse) {
-                const parsed = parseBundleComponents(item.sku, item.nama_produk, rawMapped, item.harga_beli, item.panjang_kain_cm, item.harga_kain_cm);
-                // Jika sudah ada beberapa komponen manual, gabungkan informasi id-nya
-                const merged = parsed.map((pi, idx) => {
-                  const existing = item.bundle_items?.[idx];
-                  return existing ? { ...existing, produk_id: existing.produk_id || pi.produk_id, sku: existing.sku || pi.sku } : pi;
-                });
-                return { ...item, bundle_items: merged };
-              }
-            }
-            return item;
-          });
-
-          setProdukList(mapped);
-          try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(mapped));
-          } catch (storageErr) {
-            console.warn('LocalStorage penuh, data tetap tersimpan di memory & database');
-          }
-          setIsLoading(false);
-          return;
-        }
-      }
-    } catch (err) {
-      console.warn('Gagal load produk dari database:', err.message);
-    }
-
-    // Fallback jika API offline: baca dari localStorage saja tanpa memaksa INITIAL_PRODUK_DATA
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        setProdukList(JSON.parse(saved));
-      } else {
-        setProdukList([]);
-      }
-    } catch (e) {
-      setProdukList([]);
-    }
-    setIsLoading(false);
-  };
-
-  useEffect(() => {
-    loadMasterProduk();
-  }, []);
-
-  const [activeCompany, setActiveCompany] = useState(getActiveCompany);
-
-  // Listen to company change from topbar
-  useEffect(() => {
-    const handleCompanyChange = () => {
-      setActiveCompany(getActiveCompany());
-    };
-    window.addEventListener('companyChange', handleCompanyChange);
-    return () => window.removeEventListener('companyChange', handleCompanyChange);
-  }, []);
-
   const [activeFilterTab, setActiveFilterTab] = useState('semua');
   const [search, setSearch] = useState('');
   const [filterKategori, setFilterKategori] = useState('Semua');
@@ -417,7 +320,9 @@ export default function ProdukView() {
   const [filterStatusOrder, setFilterStatusOrder] = useState('Semua');
   const [filterStatus, setFilterStatus] = useState('Semua');
   const [currentPage, setCurrentPage] = useState(1);
-  const [entriesPerPage, setEntriesPerPage] = useState(25);
+  const [entriesPerPage, setEntriesPerPage] = useState(50);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   const [selectedIds, setSelectedIds] = useState([]);
   const [isBatchProcessing, setIsBatchProcessing] = useState(false);
   const [processMessage, setProcessMessage] = useState('Memproses...');
@@ -427,6 +332,87 @@ export default function ProdukView() {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
+
+  // Fetch data produk langsung dari MySQL per halaman (Server-side Pagination)
+  const loadMasterProduk = async (page = currentPage, limit = entriesPerPage) => {
+    setIsLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (activeCompany?.code) params.set('kode_perusahaan', activeCompany.code);
+      params.set('page', page);
+      params.set('limit', limit);
+      if (search.trim()) params.set('search', search.trim());
+      if (filterKategori !== 'Semua') params.set('kategori', filterKategori);
+      if (filterTipeSet !== 'Semua') params.set('tipe_set', filterTipeSet);
+      if (filterStatusOrder !== 'Semua') params.set('status_order', filterStatusOrder);
+      if (filterStatus !== 'Semua') params.set('status', filterStatus);
+
+      const res = await fetch(`/api/marketplace/master?${params.toString()}`);
+      if (res.ok) {
+        const json = await res.json();
+        const rawData = Array.isArray(json) ? json : (json.data || []);
+        const pagination = json.pagination || { total: rawData.length, totalPages: Math.ceil(rawData.length / limit) || 1 };
+
+        const rawMapped = rawData.map(p => {
+          const detectedBundle = detectBundleSet(p.nama_produk, p.kode_sku);
+          const tipeSet = p.tipe_set || (detectedBundle.isBundle ? 'Satu Setel' : 'Single');
+          let bundleItems = Array.isArray(p.bundle_items) ? p.bundle_items : (typeof p.bundle_items === 'string' && p.bundle_items ? JSON.parse(p.bundle_items) : []);
+
+          return {
+            id: p.id,
+            company_code: p.kode_perusahaan || 'RSG',
+            nama_produk: p.nama_produk,
+            sku: p.kode_sku,
+            kategori: p.kategori || 'Gamis Casual',
+            tipe_set: tipeSet,
+            bundle_items: bundleItems,
+            status_order: p.status_order || detectStatusOrder(p.nama_produk, p.kode_sku),
+            varian: p.varian || 'Standar',
+            stok: Number(p.stok_fisik || 0),
+            min_stok: 5,
+            satuan: p.satuan || 'PCS',
+            harga_beli: Number(p.harga_modal || 0),
+            harga_jual: Number(p.harga_jual || 0),
+            estimasi_kain: p.estimasi_kain || 'Kain Polos',
+            panjang_kain_cm: Number(p.panjang_kain_cm) || 200,
+            harga_kain_cm: Number(p.harga_kain_cm || 150),
+            id_kategori_hpp: p.id_kategori_hpp || '',
+            nama_kategori_hpp: p.nama_kategori_hpp || '',
+            hpp_kategori: Number(p.hpp_kategori || 0)
+          };
+        });
+
+        // Lengkapi bundle_items dengan auto match ke master produk jika belum memiliki produk_id
+        const mapped = rawMapped.map(item => {
+          if ((item.tipe_set === 'Satu Setel' || item.tipe_set === 'Bundle') || (item.sku && item.sku.startsWith('SET-'))) {
+            const needsParse = !item.bundle_items || item.bundle_items.length === 0 || item.bundle_items.some(bi => !bi.produk_id);
+            if (needsParse) {
+              const parsed = parseBundleComponents(item.sku, item.nama_produk, rawMapped, item.harga_beli, item.panjang_kain_cm, item.harga_kain_cm);
+              const merged = parsed.map((pi, idx) => {
+                const existing = item.bundle_items?.[idx];
+                return existing ? { ...existing, produk_id: existing.produk_id || pi.produk_id, sku: existing.sku || pi.sku } : pi;
+              });
+              return { ...item, bundle_items: merged };
+            }
+          }
+          return item;
+        });
+
+        setProdukList(mapped);
+        setTotalCount(pagination.total);
+        setTotalPages(pagination.totalPages);
+        setIsLoading(false);
+        return;
+      }
+    } catch (err) {
+      console.warn('Gagal load produk dari database:', err.message);
+    }
+    setIsLoading(false);
+  };
+
+  useEffect(() => {
+    loadMasterProduk(currentPage, entriesPerPage);
+  }, [currentPage, entriesPerPage, search, filterKategori, filterTipeSet, filterStatusOrder, filterStatus, activeCompany?.code]);
 
   // Form State
   const initialForm = {
@@ -528,41 +514,8 @@ export default function ProdukView() {
   const totalPO = companyProdukList.filter(p => (p.status_order || 'Ready Stok') === 'PO').length;
   const totalReady = companyProdukList.filter(p => (p.status_order || 'Ready Stok') !== 'PO').length;
 
-  // Filter logic
-  const filteredList = companyProdukList.filter(p => {
-    const isHabis = p.stok <= 0;
-    const isMenipis = p.stok > 0 && p.stok <= p.min_stok;
-    const isTersedia = p.stok > p.min_stok;
-    const isPO = (p.status_order || 'Ready Stok') === 'PO';
-
-    if (activeFilterTab === 'tersedia' && !isTersedia) return false;
-    if (activeFilterTab === 'menipis' && !isMenipis) return false;
-    if (activeFilterTab === 'habis' && !isHabis) return false;
-    if (activeFilterTab === 'po' && !isPO) return false;
-    if (activeFilterTab === 'ready' && isPO) return false;
-
-    if (filterKategori !== 'Semua' && p.kategori !== filterKategori) return false;
-    if (filterTipeSet !== 'Semua' && (p.tipe_set || 'Single') !== filterTipeSet) return false;
-    if (filterStatusOrder !== 'Semua' && (p.status_order || 'Ready Stok') !== filterStatusOrder) return false;
-    if (filterStatus === 'Tersedia' && !isTersedia) return false;
-    if (filterStatus === 'Menipis' && !isMenipis) return false;
-    if (filterStatus === 'Habis' && !isHabis) return false;
-
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      const matchName = p.nama_produk.toLowerCase().includes(q);
-      const matchSku = p.sku.toLowerCase().includes(q);
-      const matchVarian = (p.varian || '').toLowerCase().includes(q);
-      const matchTipe = (p.tipe_set || '').toLowerCase().includes(q);
-      const matchOrder = (p.status_order || '').toLowerCase().includes(q);
-      return matchName || matchSku || matchVarian || matchTipe || matchOrder;
-    }
-
-    return true;
-  });
-
-  const totalPages = Math.ceil(filteredList.length / entriesPerPage) || 1;
-  const paginatedList = filteredList.slice((currentPage - 1) * entriesPerPage, currentPage * entriesPerPage);
+  // Data yang ditampilkan langsung berasal dari server yang sudah dipaginasi
+  const paginatedList = produkList;
 
   const changeTab = (tab) => {
     setActiveFilterTab(tab);
@@ -1733,7 +1686,7 @@ export default function ProdukView() {
                     </div>
                   </td>
                 </tr>
-              ) : filteredList.length === 0 ? (
+              ) : paginatedList.length === 0 ? (
                 <tr>
                   <td colSpan="9" style={{ padding: '24px 16px', textAlign: 'center', color: '#64748b', border: '1px solid #cbd5e1' }}>
                     <Package size={32} color="#cbd5e1" style={{ marginBottom: '6px' }} />
@@ -2078,7 +2031,7 @@ export default function ProdukView() {
           color: '#64748b'
         }}>
           <div>
-            Menampilkan <strong>{filteredList.length === 0 ? 0 : (currentPage - 1) * entriesPerPage + 1}</strong> sampai <strong>{Math.min(currentPage * entriesPerPage, filteredList.length)}</strong> dari <strong>{filteredList.length}</strong> produk (Total: {totalProduk})
+            Menampilkan <strong>{totalCount === 0 ? 0 : (currentPage - 1) * entriesPerPage + 1}</strong> sampai <strong>{Math.min(currentPage * entriesPerPage, totalCount)}</strong> dari <strong>{totalCount}</strong> produk
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>

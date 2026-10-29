@@ -4,7 +4,70 @@ export async function handleProductsRoutes(req, res, pathname, urlObj, { pool, s
   // 1. API Ambil Data Produk Marketplace Staging dari MySQL
   if (pathname === '/api/marketplace/products' && req.method === 'GET') {
     try {
-      const [rows] = await pool.query(`
+      const kodePerusahaan = urlObj.searchParams.get('kode_perusahaan');
+      const pageParam = urlObj.searchParams.get('page');
+      const limitParam = urlObj.searchParams.get('limit') || urlObj.searchParams.get('entriesPerPage');
+      const search = urlObj.searchParams.get('search');
+      const channel = urlObj.searchParams.get('channel');
+      const mapping = urlObj.searchParams.get('mapping'); // 'Belum Dimapping' | 'Sudah Dimapping'
+
+      const isPaginated = pageParam !== null || limitParam !== null;
+      const page = Math.max(1, parseInt(pageParam, 10) || 1);
+      const limit = Math.max(1, Math.min(200, parseInt(limitParam, 10) || 50));
+      const offset = (page - 1) * limit;
+
+      const whereClauses = [];
+      const whereParams = [];
+
+      if (kodePerusahaan) {
+        whereClauses.push('(pm.kode_perusahaan IS NULL OR pm.kode_perusahaan = ?)');
+        whereParams.push(kodePerusahaan);
+      }
+      if (channel && channel !== 'Semua') {
+        whereClauses.push('pm.saluran = ?');
+        whereParams.push(channel);
+      }
+      if (search && search.trim()) {
+        const q = `%${search.trim()}%`;
+        whereClauses.push('(pm.nama_produk LIKE ? OR pm.sku_marketplace LIKE ? OR pm.nama_toko LIKE ? OR pm.varian LIKE ?)');
+        whereParams.push(q, q, q, q);
+      }
+
+      let havingSql = '';
+      if (mapping === 'Belum Dimapping') {
+        havingSql = " HAVING status = 'Belum Dimapping'";
+      } else if (mapping === 'Sudah Dimapping') {
+        havingSql = " HAVING status = 'Sudah di Master'";
+      }
+
+      const whereSql = whereClauses.length > 0 ? ` WHERE ${whereClauses.join(' AND ')}` : '';
+
+      // Hitung total jika dipaginasi
+      let total = 0;
+      if (isPaginated) {
+        const countSql = `
+          SELECT COUNT(*) as total FROM (
+            SELECT 
+              pm.id,
+              CASE 
+                WHEN m.id IS NOT NULL THEN 'Sudah di Master'
+                WHEN m2.id IS NOT NULL THEN 'Sudah di Master'
+                ELSE 'Belum Dimapping'
+              END as status
+            FROM produk_marketplace pm
+            LEFT JOIN produk_master m 
+              ON m.kode_sku = pm.sku_marketplace AND m.kode_sku != ''
+            LEFT JOIN produk_master m2 
+              ON m2.kode_sku = CONCAT(IFNULL(pm.kode_perusahaan, 'RSG'), '-', pm.sku_marketplace) AND pm.sku_marketplace != ''
+            ${whereSql}
+            ${havingSql}
+          ) sub
+        `;
+        const [[countRow]] = await pool.query(countSql, whereParams);
+        total = Number(countRow?.total || 0);
+      }
+
+      let sql = `
         SELECT 
           pm.id, 
           pm.id_produk_marketplace as item_id, 
@@ -30,9 +93,32 @@ export async function handleProductsRoutes(req, res, pathname, urlObj, { pool, s
           ON m.kode_sku = pm.sku_marketplace AND m.kode_sku != ''
         LEFT JOIN produk_master m2 
           ON m2.kode_sku = CONCAT(IFNULL(pm.kode_perusahaan, 'RSG'), '-', pm.sku_marketplace) AND pm.sku_marketplace != ''
+        ${whereSql}
+        ${havingSql}
         ORDER BY pm.ditarik_pada DESC
-      `);
-      sendJson(res, 200, { status: 'success', data: rows });
+      `;
+
+      let queryParams = [...whereParams];
+      if (isPaginated) {
+        sql += ' LIMIT ? OFFSET ?';
+        queryParams.push(limit, offset);
+      }
+
+      const [rows] = await pool.query(sql, queryParams);
+      if (isPaginated) {
+        sendJson(res, 200, {
+          status: 'success',
+          data: rows,
+          pagination: {
+            page,
+            limit,
+            total,
+            totalPages: Math.ceil(total / limit) || 1
+          }
+        });
+      } else {
+        sendJson(res, 200, { status: 'success', data: rows });
+      }
       return true;
     } catch (err) {
       sendJson(res, 500, { status: 'error', message: err.message });
