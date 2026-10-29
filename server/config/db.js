@@ -123,10 +123,7 @@ export async function initDb() {
       await conn.query(`ALTER TABLE produk_master ADD COLUMN bundle_items LONGTEXT NULL`);
     } catch (e) {}
     try {
-      await conn.query(`ALTER TABLE produk_master ADD COLUMN estimasi_kain VARCHAR(100) DEFAULT 'Kain Polos'`);
-    } catch (e) {}
-    try {
-      await conn.query(`ALTER TABLE produk_master ADD COLUMN panjang_kain_cm INT DEFAULT 200`);
+      await conn.query(`ALTER TABLE produk_master ADD COLUMN estimasi_kain VARCHAR(100) DEFAULT '200'`);
     } catch (e) {}
 
     // Auto-migrate: Bersihkan prefix RSG- dari kode_sku yang terlanjur tersimpan di produk_master

@@ -666,12 +666,12 @@ export default function SPKView() {
               kategori: p1.kategori,
               satuan: p1.satuan,
               qty: 50,
-              kain_nama: p1.estimasi_kain || "Kain Polos",
-              panjang_kain_cm: p1.panjang_kain_cm || 200,
+              kain_nama: p1.nama_kain || p1.sku_kain || "Kain",
+              panjang_kain_cm: Number(p1.estimasi_kain || p1.panjang_kain_cm || 200),
               harga_kain_cm: p1.harga_kain_cm || 150,
               estimasi_kain: buildEstimasiKain(
-                p1.estimasi_kain || "Kain Polos",
-                p1.panjang_kain_cm || 200,
+                p1.nama_kain || p1.sku_kain || "Kain",
+                Number(p1.estimasi_kain || p1.panjang_kain_cm || 200),
                 p1.harga_kain_cm || 150,
                 50,
               ),
@@ -718,8 +718,8 @@ export default function SPKView() {
       harga_kain_cm: 200,
     };
     const qty = 50;
-    const kainNama = pDefault.estimasi_kain || "Kain Polos";
-    const cmPerPcs = Number(pDefault.panjang_kain_cm || 200);
+    const kainNama = pDefault.nama_kain || pDefault.sku_kain || "Kain";
+    const cmPerPcs = Number(pDefault.estimasi_kain || pDefault.panjang_kain_cm || 200);
     const hargaCm = Number(pDefault.harga_kain_cm || 150);
 
     const newSpk = {
@@ -797,8 +797,8 @@ export default function SPKView() {
       harga_kain_cm: 200,
     };
     const qty = 50;
-    const kainNama = pDefault.estimasi_kain || "Kain Polos";
-    const cmPerPcs = Number(pDefault.panjang_kain_cm || 200);
+    const kainNama = pDefault.nama_kain || pDefault.sku_kain || "Kain";
+    const cmPerPcs = Number(pDefault.estimasi_kain || pDefault.panjang_kain_cm || 200);
     const hargaCm = Number(pDefault.harga_kain_cm || 150);
 
     const newItem = {
@@ -869,8 +869,8 @@ export default function SPKView() {
       const list = [...prev.spk_list];
       const items = [...list[spkIdx].produk_items];
       const targetQty = items[prodIdx]?.qty || 50;
-      const kainNama = prod.estimasi_kain || "Kain Polos";
-      const cmPerPcs = Number(prod.panjang_kain_cm || 200);
+      const kainNama = prod.nama_kain || prod.sku_kain || "Kain";
+      const cmPerPcs = Number(prod.estimasi_kain || prod.panjang_kain_cm || 200);
       const hargaCm = Number(prod.harga_kain_cm || 150);
 
       const hasBundle =
@@ -884,7 +884,7 @@ export default function SPKView() {
       if (hasBundle) {
         const bundleBreakdown = prod.bundle_items
           .map((bi) => {
-            const bCm = (Number(bi.panjang_kain_cm) || 0) * targetQty;
+            const bCm = (Number(bi.estimasi_kain || bi.panjang_kain_cm) || 0) * targetQty;
             const bMeter = (bCm / 100).toFixed(1).replace(/\.0$/, "");
             const bBiaya = bCm * (Number(bi.harga_kain_cm) || 0);
             return `${bi.nama_komponen}: ${bCm.toLocaleString("id-ID")} CM (${bMeter}M) - Rp ${bBiaya.toLocaleString("id-ID")}`;

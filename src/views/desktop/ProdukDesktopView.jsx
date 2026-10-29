@@ -79,8 +79,8 @@ export function parseBundleComponents(bundleSku = '', bundleName = '', allProduc
     sku: found1 ? found1.sku : (part1Sku || 'BP-KOMP'),
     nama_komponen: found1 ? found1.nama_produk : `Baju / Atasan (${part1Sku || 'Atasan'})`,
     qty: 1,
-    kain_nama: found1?.estimasi_kain || 'Drill Premium',
-    panjang_kain_cm: Number(found1?.panjang_kain_cm) || Math.round((Number(panjangKain) || 200) * 0.55),
+    kain_nama: found1?.nama_kain || found1?.sku_kain || 'Kain',
+    estimasi_kain: Number(found1?.estimasi_kain || found1?.panjang_kain_cm) || Math.round((Number(panjangKain) || 200) * 0.55),
     harga_kain_cm: Number(found1?.harga_kain_cm) || Number(hargaKainCm || 150),
     harga_modal_item: Number(found1?.harga_beli) || Math.round((Number(hargaBeli) || 60000) * 0.55)
   };
@@ -94,8 +94,8 @@ export function parseBundleComponents(bundleSku = '', bundleName = '', allProduc
     sku: found2 ? found2.sku : (part2Sku || (isRok ? 'ROK-KOMP' : 'CLN-KOMP')),
     nama_komponen: found2 ? found2.nama_produk : (isRok ? `Rok Bawahan (${part2Sku || 'ROK'})` : `Celana Bawahan (${part2Sku || 'CLN'})`),
     qty: 1,
-    kain_nama: found2?.estimasi_kain || 'Drill Premium',
-    panjang_kain_cm: Number(found2?.panjang_kain_cm) || Math.round((Number(panjangKain) || 200) * 0.45),
+    kain_nama: found2?.nama_kain || found2?.sku_kain || 'Kain',
+    estimasi_kain: Number(found2?.estimasi_kain || found2?.panjang_kain_cm) || Math.round((Number(panjangKain) || 200) * 0.45),
     harga_kain_cm: Number(found2?.harga_kain_cm) || Number(hargaKainCm || 150),
     harga_modal_item: Number(found2?.harga_beli) || Math.round((Number(hargaBeli) || 60000) * 0.45)
   };
@@ -290,9 +290,9 @@ function SearchableSelect({ label, value, onChange, options, placeholder = "Pili
                           {optLabel.length > 55 ? `${optLabel.slice(0, 55)}...` : optLabel}
                         </span>
                       </div>
-                      {typeof opt === 'object' && opt.panjang_kain_cm !== undefined && (
+                      {typeof opt === 'object' && (opt.estimasi_kain !== undefined || opt.panjang_kain_cm !== undefined) && (
                         <div style={{ fontSize: '9.5px', color: '#64748b', marginTop: '1px' }}>
-                          Kain: <b>{opt.estimasi_kain || 'Drill'}</b> ({opt.panjang_kain_cm || 0}cm) • Modal: Rp {Number(opt.harga_beli || 0).toLocaleString('id-ID')}
+                          Kain: <b>{opt.nama_kain || opt.sku_kain || '-'}</b> ({opt.estimasi_kain || opt.panjang_kain_cm || 0}cm) • Modal: Rp {Number(opt.harga_beli || 0).toLocaleString('id-ID')}
                         </div>
                       )}
                     </div>
@@ -553,8 +553,7 @@ export default function ProdukView() {
             nama_kain: p.nama_kain || '',
             jenis_kain: p.jenis_kain || '',
             warna_kain: p.warna_kain || '',
-            estimasi_kain: p.nama_kain || p.estimasi_kain || 'Kain Polos',
-            panjang_kain_cm: Number(p.panjang_kain_cm) || 200,
+            estimasi_kain: Number(p.estimasi_kain || p.panjang_kain_cm) || 200,
             harga_kain_cm: Number(p.harga_kain_cm || 150),
             id_kategori_hpp: p.id_kategori_hpp || '',
             nama_kategori_hpp: p.nama_kategori_hpp || '',
@@ -567,7 +566,7 @@ export default function ProdukView() {
           if ((item.tipe_set === 'Satu Setel' || item.tipe_set === 'Bundle') || (item.sku && item.sku.startsWith('SET-'))) {
             const needsParse = !item.bundle_items || item.bundle_items.length === 0 || item.bundle_items.some(bi => !bi.produk_id);
             if (needsParse) {
-              const parsed = parseBundleComponents(item.sku, item.nama_produk, rawMapped, item.harga_beli, item.panjang_kain_cm, item.harga_kain_cm);
+              const parsed = parseBundleComponents(item.sku, item.nama_produk, rawMapped, item.harga_beli, item.estimasi_kain, item.harga_kain_cm);
               const merged = parsed.map((pi, idx) => {
                 const existing = item.bundle_items?.[idx];
                 return existing ? { ...existing, produk_id: existing.produk_id || pi.produk_id, sku: existing.sku || pi.sku } : pi;
@@ -610,8 +609,7 @@ export default function ProdukView() {
     harga_jual: 250000,
     sku_kain: '',
     nama_kain: '',
-    estimasi_kain: 'Silk Jetblack Premium',
-    panjang_kain_cm: 250,
+    estimasi_kain: 200,
     harga_kain_cm: 200,
     id_kategori_hpp: '',
     bundle_items: [] // Komponen pemisah jika produk bertipe Bundle / Setel
@@ -859,7 +857,7 @@ export default function ProdukView() {
       
       // Jika terdeteksi Satu Setel / Bundle dan belum ada komponennya atau belum linked ke master
       if (detectedTipe === 'Satu Setel' && (updatedBundleItems.length === 0 || updatedBundleItems.some(bi => !bi.produk_id))) {
-        updatedBundleItems = parseBundleComponents(p.sku, p.nama_produk, produkList, p.harga_beli, p.panjang_kain_cm, p.harga_kain_cm);
+        updatedBundleItems = parseBundleComponents(p.sku, p.nama_produk, produkList, p.harga_beli, p.estimasi_kain, p.harga_kain_cm);
       }
 
       return {
@@ -934,7 +932,7 @@ export default function ProdukView() {
     
     // Jika bundle tapi bundle_items kosong atau belum memiliki produk_id, auto-parse dari SKU
     if (isBundle && (bundleItems.length === 0 || bundleItems.some(bi => !bi.produk_id))) {
-      const parsed = parseBundleComponents(item.sku, item.nama_produk, produkList, item.harga_beli, item.panjang_kain_cm, item.harga_kain_cm);
+      const parsed = parseBundleComponents(item.sku, item.nama_produk, produkList, item.harga_beli, item.estimasi_kain, item.harga_kain_cm);
       bundleItems = parsed.map((pi, idx) => {
         const existing = bundleItems[idx];
         return existing ? { ...existing, produk_id: existing.produk_id || pi.produk_id, sku: existing.sku || pi.sku } : pi;
@@ -946,8 +944,7 @@ export default function ProdukView() {
       id_kategori_hpp: item.id_kategori_hpp || '',
       sku_kain: item.sku_kain || '',
       nama_kain: item.nama_kain || '',
-      estimasi_kain: item.nama_kain || item.estimasi_kain || '',
-      panjang_kain_cm: item.panjang_kain_cm !== undefined ? item.panjang_kain_cm : 200,
+      estimasi_kain: Number(item.estimasi_kain || item.panjang_kain_cm) || 200,
       harga_kain_cm: item.harga_kain_cm !== undefined ? item.harga_kain_cm : 150,
       bundle_items: bundleItems
     });
@@ -959,7 +956,7 @@ export default function ProdukView() {
     const isBundle = (item.tipe_set === 'Satu Setel' || item.tipe_set === 'Bundle') || (item.sku && item.sku.startsWith('SET-'));
     let bundleItems = Array.isArray(item.bundle_items) ? [...item.bundle_items] : [];
     if (isBundle && (bundleItems.length === 0 || bundleItems.some(bi => !bi.produk_id))) {
-      const parsed = parseBundleComponents(item.sku, item.nama_produk, produkList, item.harga_beli, item.panjang_kain_cm, item.harga_kain_cm);
+      const parsed = parseBundleComponents(item.sku, item.nama_produk, produkList, item.harga_beli, item.estimasi_kain, item.harga_kain_cm);
       bundleItems = parsed.map((pi, idx) => {
         const existing = bundleItems[idx];
         return existing ? { ...existing, produk_id: existing.produk_id || pi.produk_id, sku: existing.sku || pi.sku } : pi;
@@ -978,8 +975,8 @@ export default function ProdukView() {
       id: 0,
       nama_produk: 'Komponen Baru (Baju/Celana/Dll)',
       sku: 'SKU-KOMP',
-      estimasi_kain: 'Drill',
-      panjang_kain_cm: 100,
+      nama_kain: 'Kain Polos',
+      estimasi_kain: 100,
       harga_kain_cm: 150,
       harga_beli: 30000
     };
@@ -990,8 +987,8 @@ export default function ProdukView() {
       nama_komponen: pRef.nama_produk || 'Komponen Baju',
       sku: pRef.sku || '',
       qty: 1,
-      kain_nama: pRef.estimasi_kain || 'Kain Polos',
-      panjang_kain_cm: Number(pRef.panjang_kain_cm || 120),
+      kain_nama: pRef.nama_kain || pRef.sku_kain || 'Kain',
+      estimasi_kain: Number(pRef.estimasi_kain || pRef.panjang_kain_cm || 120),
       harga_kain_cm: Number(pRef.harga_kain_cm || 150),
       harga_modal_item: Number(pRef.harga_beli || 35000)
     };
@@ -1000,17 +997,15 @@ export default function ProdukView() {
       const nextItems = [...(prev.bundle_items || []), newItem];
       // Auto kalkulasi total modal dan estimasi kain dari gabungan item
       const totalModal = nextItems.reduce((acc, it) => acc + (Number(it.harga_modal_item || 0) * (Number(it.qty) || 1)), 0);
-      const totalCm = nextItems.reduce((acc, it) => acc + (Number(it.panjang_kain_cm || 0) * (Number(it.qty) || 1)), 0);
+      const totalCm = nextItems.reduce((acc, it) => acc + (Number(it.estimasi_kain || it.panjang_kain_cm || 0) * (Number(it.qty) || 1)), 0);
       const avgHargaCm = nextItems.length > 0 ? Math.round(nextItems.reduce((acc, it) => acc + Number(it.harga_kain_cm || 0), 0) / nextItems.length) : 150;
-      const combinedKainNama = nextItems.map(it => `${it.nama_komponen}: ${it.kain_nama || 'Kain'} (${it.panjang_kain_cm}cm)`).join(' + ');
 
       return {
         ...prev,
         bundle_items: nextItems,
         harga_beli: totalModal > 0 ? totalModal : prev.harga_beli,
-        panjang_kain_cm: totalCm > 0 ? totalCm : prev.panjang_kain_cm,
-        harga_kain_cm: avgHargaCm,
-        estimasi_kain: combinedKainNama || prev.estimasi_kain
+        estimasi_kain: totalCm > 0 ? totalCm : prev.estimasi_kain,
+        harga_kain_cm: avgHargaCm
       };
     });
   };
@@ -1019,17 +1014,15 @@ export default function ProdukView() {
     setFormData(prev => {
       const nextItems = (prev.bundle_items || []).filter((_, i) => i !== index);
       const totalModal = nextItems.reduce((acc, it) => acc + (Number(it.harga_modal_item || 0) * (Number(it.qty) || 1)), 0);
-      const totalCm = nextItems.reduce((acc, it) => acc + (Number(it.panjang_kain_cm || 0) * (Number(it.qty) || 1)), 0);
+      const totalCm = nextItems.reduce((acc, it) => acc + (Number(it.estimasi_kain || it.panjang_kain_cm || 0) * (Number(it.qty) || 1)), 0);
       const avgHargaCm = nextItems.length > 0 ? Math.round(nextItems.reduce((acc, it) => acc + Number(it.harga_kain_cm || 0), 0) / nextItems.length) : 150;
-      const combinedKainNama = nextItems.map(it => `${it.nama_komponen}: ${it.kain_nama || 'Kain'} (${it.panjang_kain_cm}cm)`).join(' + ');
 
       return {
         ...prev,
         bundle_items: nextItems,
         harga_beli: totalModal > 0 ? totalModal : prev.harga_beli,
-        panjang_kain_cm: totalCm > 0 ? totalCm : prev.panjang_kain_cm,
-        harga_kain_cm: avgHargaCm,
-        estimasi_kain: combinedKainNama || prev.estimasi_kain
+        estimasi_kain: totalCm > 0 ? totalCm : prev.estimasi_kain,
+        harga_kain_cm: avgHargaCm
       };
     });
   };
@@ -1048,8 +1041,8 @@ export default function ProdukView() {
             produk_id: found.id,
             nama_komponen: found.nama_produk,
             sku: found.sku,
-            kain_nama: found.estimasi_kain || 'Kain Polos',
-            panjang_kain_cm: Number(found.panjang_kain_cm || 100),
+            kain_nama: found.nama_kain || found.sku_kain || 'Kain',
+            estimasi_kain: Number(found.estimasi_kain || found.panjang_kain_cm || 100),
             harga_kain_cm: Number(found.harga_kain_cm || 150),
             harga_modal_item: Number(found.harga_beli || 0)
           };
@@ -1064,8 +1057,8 @@ export default function ProdukView() {
             produk_id: found.id,
             nama_komponen: found.nama_produk,
             sku: found.sku,
-            kain_nama: found.estimasi_kain || 'Kain Polos',
-            panjang_kain_cm: Number(found.panjang_kain_cm || 100),
+            kain_nama: found.nama_kain || found.sku_kain || 'Kain',
+            estimasi_kain: Number(found.estimasi_kain || found.panjang_kain_cm || 100),
             harga_kain_cm: Number(found.harga_kain_cm || 150),
             harga_modal_item: Number(found.harga_beli || 0)
           };
@@ -1077,17 +1070,15 @@ export default function ProdukView() {
       nextItems[index] = updatedItem;
 
       const totalModal = nextItems.reduce((acc, it) => acc + (Number(it.harga_modal_item || 0) * (Number(it.qty) || 1)), 0);
-      const totalCm = nextItems.reduce((acc, it) => acc + (Number(it.panjang_kain_cm || 0) * (Number(it.qty) || 1)), 0);
+      const totalCm = nextItems.reduce((acc, it) => acc + (Number(it.estimasi_kain || it.panjang_kain_cm || 0) * (Number(it.qty) || 1)), 0);
       const avgHargaCm = nextItems.length > 0 ? Math.round(nextItems.reduce((acc, it) => acc + Number(it.harga_kain_cm || 0), 0) / nextItems.length) : 150;
-      const combinedKainNama = nextItems.map(it => `${it.nama_komponen}: ${it.kain_nama || 'Kain'} (${it.panjang_kain_cm}cm)`).join(' + ');
 
       return {
         ...prev,
         bundle_items: nextItems,
         harga_beli: totalModal > 0 ? totalModal : prev.harga_beli,
-        panjang_kain_cm: totalCm > 0 ? totalCm : prev.panjang_kain_cm,
-        harga_kain_cm: avgHargaCm,
-        estimasi_kain: combinedKainNama || prev.estimasi_kain
+        estimasi_kain: totalCm > 0 ? totalCm : prev.estimasi_kain,
+        harga_kain_cm: avgHargaCm
       };
     });
   };
@@ -1132,9 +1123,8 @@ export default function ProdukView() {
             kode_sku: formData.sku,
             tipe_set: formData.tipe_set || 'Single',
             bundle_items: formData.bundle_items || [],
-            estimasi_kain: formData.estimasi_kain || 'Kain Polos',
+            estimasi_kain: Number(formData.estimasi_kain) || 200,
             sku_kain: formData.sku_kain || null,
-            panjang_kain_cm: Number(formData.panjang_kain_cm) || 200,
             id_kategori_hpp: formData.id_kategori_hpp || null
           })
         });
@@ -1184,9 +1174,8 @@ export default function ProdukView() {
             status_order: newProduk.status_order,
             tipe_set: newProduk.tipe_set || 'Single',
             bundle_items: newProduk.bundle_items || [],
-            estimasi_kain: newProduk.estimasi_kain || 'Kain Polos',
+            estimasi_kain: Number(newProduk.estimasi_kain) || 200,
             sku_kain: newProduk.sku_kain || null,
-            panjang_kain_cm: Number(newProduk.panjang_kain_cm) || 200,
             id_kategori_hpp: newProduk.id_kategori_hpp || null
           })
         });
@@ -1328,118 +1317,6 @@ export default function ProdukView() {
             <span>{isBatchProcessing ? 'Memproses...' : 'Deteksi Bundle'}</span>
           </button>
 
-          {/* Menu Dropdown Unduh Template */}
-          <div style={{ position: 'relative' }}>
-            <button
-              type="button"
-              onClick={() => setIsTemplateMenuOpen(prev => !prev)}
-              title="Unduh format template Excel/CSV untuk update masal atau penambahan SKU baru"
-              style={{
-                height: '30px',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '5px',
-                padding: '0 11px',
-                borderRadius: '6px',
-                border: '1px solid rgba(255, 255, 255, 0.4)',
-                backgroundColor: 'rgba(255, 255, 255, 0.15)',
-                color: '#ffffff',
-                fontSize: '12px',
-                fontWeight: '700',
-                lineHeight: 1,
-                cursor: 'pointer',
-                backdropFilter: 'blur(4px)',
-                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
-                transition: 'all 0.15s ease'
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.25)'}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.15)'}
-            >
-              <Download size={13} />
-              <span>Template</span>
-              <ChevronDown size={12} />
-            </button>
-
-            {isTemplateMenuOpen && (
-              <div 
-                style={{
-                  position: 'absolute',
-                  top: '100%',
-                  right: 0,
-                  marginTop: '4px',
-                  backgroundColor: '#ffffff',
-                  borderRadius: '8px',
-                  border: '1px solid #cbd5e1',
-                  boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.15)',
-                  minWidth: '230px',
-                  padding: '6px',
-                  zIndex: 100,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '2px'
-                }}
-              >
-                <div style={{ padding: '6px 8px', fontSize: '10px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  Format Template Master
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleDownloadTemplate('xlsx')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    padding: '8px 10px',
-                    borderRadius: '6px',
-                    border: 'none',
-                    backgroundColor: 'transparent',
-                    color: '#0f172a',
-                    fontSize: '12px',
-                    fontWeight: '600',
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                    transition: 'all 0.1s ease'
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                >
-                  <FileSpreadsheet size={16} color="#16a34a" />
-                  <div>
-                    <div style={{ fontWeight: '700', color: '#16a34a' }}>Template Excel (.xlsx)</div>
-                    <div style={{ fontSize: '10px', color: '#64748b' }}>Multi-sheet: Ref SKU Kain & HPP</div>
-                  </div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleDownloadTemplate('csv')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    padding: '8px 10px',
-                    borderRadius: '6px',
-                    border: 'none',
-                    backgroundColor: 'transparent',
-                    color: '#0f172a',
-                    fontSize: '12px',
-                    fontWeight: '600',
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                    transition: 'all 0.1s ease'
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                >
-                  <FileText size={16} color="#0284c7" />
-                  <div>
-                    <div style={{ fontWeight: '700', color: '#0284c7' }}>Template CSV (.csv)</div>
-                    <div style={{ fontSize: '10px', color: '#64748b' }}>Standar teks cepat & kompatibel</div>
-                  </div>
-                </button>
-              </div>
-            )}
-          </div>
 
           {/* Tombol Import Excel & Smart Update */}
           <button
@@ -2242,7 +2119,7 @@ export default function ProdukView() {
                             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                               <Layers size={11} color="#0284c7" />
                               <span style={{ fontWeight: '800', color: '#0f172a', fontSize: '11px', lineHeight: 1.2 }}>
-                                {item.nama_kain || item.estimasi_kain || '-'}
+                                {item.nama_kain || item.sku_kain || '-'}
                               </span>
                             </div>
                             <span style={{
@@ -2255,7 +2132,7 @@ export default function ProdukView() {
                               border: '1px solid #bfdbfe',
                               whiteSpace: 'nowrap'
                             }}>
-                              {item.panjang_kain_cm || 0} CM
+                              {item.estimasi_kain || 0} CM
                             </span>
                           </div>
 
@@ -2299,7 +2176,7 @@ export default function ProdukView() {
                               color: '#059669',
                               whiteSpace: 'nowrap'
                             }}>
-                              Rp {((Number(item.panjang_kain_cm) || 0) * (Number(item.harga_kain_cm) || 0)).toLocaleString('id-ID')}/pcs
+                              Rp {((Number(item.estimasi_kain) || 0) * (Number(item.harga_kain_cm) || 0)).toLocaleString('id-ID')}/pcs
                             </span>
                           </div>
                         </div>
@@ -2740,8 +2617,8 @@ export default function ProdukView() {
                             if ((val === 'Bundle' || val === 'Satu Setel') && (!prev.bundle_items || prev.bundle_items.length === 0)) {
                               // Inisialisasi awal 2 komponen (misal: Baju + Celana)
                               const singleProds = produkList.filter(p => (p.tipe_set || 'Single') === 'Single');
-                              const p1 = singleProds[0] || { id: 0, nama_produk: 'Baju / Atasan', sku: 'SKU-ATAS', panjang_kain_cm: 120, harga_kain_cm: 150, harga_beli: 40000 };
-                              const p2 = singleProds[1] || { id: 0, nama_produk: 'Celana / Bawahan', sku: 'SKU-BAWAH', panjang_kain_cm: 100, harga_kain_cm: 150, harga_beli: 35000 };
+                              const p1 = singleProds[0] || { id: 0, nama_produk: 'Baju / Atasan', sku: 'SKU-ATAS', estimasi_kain: 120, harga_kain_cm: 150, harga_beli: 40000 };
+                              const p2 = singleProds[1] || { id: 0, nama_produk: 'Celana / Bawahan', sku: 'SKU-BAWAH', estimasi_kain: 100, harga_kain_cm: 150, harga_beli: 35000 };
                               
                               const it1 = {
                                 id: `bi-${Date.now()}-1`,
@@ -2749,8 +2626,8 @@ export default function ProdukView() {
                                 nama_komponen: p1.nama_produk || 'Baju Kemeja Seragam',
                                 sku: p1.sku || '',
                                 qty: 1,
-                                kain_nama: p1.estimasi_kain || 'Drill Premium',
-                                panjang_kain_cm: Number(p1.panjang_kain_cm || 120),
+                                kain_nama: p1.nama_kain || p1.sku_kain || 'Kain',
+                                estimasi_kain: Number(p1.estimasi_kain || p1.panjang_kain_cm || 120),
                                 harga_kain_cm: Number(p1.harga_kain_cm || 150),
                                 harga_modal_item: Number(p1.harga_beli || 40000)
                               };
@@ -2760,15 +2637,14 @@ export default function ProdukView() {
                                 nama_komponen: p2.nama_produk || 'Celana Seragam',
                                 sku: p2.sku || '',
                                 qty: 1,
-                                kain_nama: p2.estimasi_kain || 'Drill Premium',
-                                panjang_kain_cm: Number(p2.panjang_kain_cm || 100),
+                                kain_nama: p2.nama_kain || p2.sku_kain || 'Kain',
+                                estimasi_kain: Number(p2.estimasi_kain || p2.panjang_kain_cm || 100),
                                 harga_kain_cm: Number(p2.harga_kain_cm || 150),
                                 harga_modal_item: Number(p2.harga_beli || 35000)
                               };
                               updated.bundle_items = [it1, it2];
                               updated.harga_beli = it1.harga_modal_item + it2.harga_modal_item;
-                              updated.panjang_kain_cm = it1.panjang_kain_cm + it2.panjang_kain_cm;
-                              updated.estimasi_kain = `${it1.nama_komponen}: ${it1.kain_nama} (${it1.panjang_kain_cm}cm) + ${it2.nama_komponen}: ${it2.kain_nama} (${it2.panjang_kain_cm}cm)`;
+                              updated.estimasi_kain = it1.estimasi_kain + it2.estimasi_kain;
                             }
                             return updated;
                           });
@@ -2876,7 +2752,7 @@ export default function ProdukView() {
                           sku: p.sku,
                           kategori: p.kategori,
                           estimasi_kain: p.estimasi_kain,
-                          panjang_kain_cm: p.panjang_kain_cm,
+                          nama_kain: p.nama_kain,
                           harga_kain_cm: p.harga_kain_cm,
                           harga_beli: p.harga_beli
                         }));
@@ -2999,8 +2875,12 @@ export default function ProdukView() {
                                 <input
                                   type="number"
                                   min="0"
-                                  value={bi.panjang_kain_cm || ''}
-                                  onChange={(e) => handleUpdateBundleItem(bIdx, 'panjang_kain_cm', Number(e.target.value))}
+                                  value={bi.estimasi_kain || bi.panjang_kain_cm || ''}
+                                  onChange={(e) => {
+                                    const v = Number(e.target.value);
+                                    handleUpdateBundleItem(bIdx, 'estimasi_kain', v);
+                                    handleUpdateBundleItem(bIdx, 'panjang_kain_cm', v);
+                                  }}
                                   placeholder="120"
                                   style={{
                                     width: '100%',
@@ -3282,7 +3162,7 @@ export default function ProdukView() {
                         5. Estimasi Kain & Kebutuhan Bahan (Otomatis ke SPK)
                       </span>
                     </div>
-                    {Number(formData.panjang_kain_cm || 0) > 0 && (
+                    {Number(formData.estimasi_kain || 0) > 0 && (
                       <span style={{
                         fontSize: '10.5px',
                         fontWeight: '800',
@@ -3292,7 +3172,7 @@ export default function ProdukView() {
                         color: '#0284c7',
                         border: '1px solid #bae6fd'
                       }}>
-                        Kain/Pcs: {formData.panjang_kain_cm} CM ({((Number(formData.panjang_kain_cm) || 0) / 100).toFixed(1)} Meter) • Est. Biaya: {formatRupiah((Number(formData.panjang_kain_cm) || 0) * (Number(formData.harga_kain_cm) || 0))}
+                        Kain/Pcs: {formData.estimasi_kain} CM ({((Number(formData.estimasi_kain) || 0) / 100).toFixed(1)} Meter) • Est. Biaya: {formatRupiah((Number(formData.estimasi_kain) || 0) * (Number(formData.harga_kain_cm) || 0))}
                       </span>
                     )}
                   </div>
@@ -3306,8 +3186,7 @@ export default function ProdukView() {
                         setFormData(prev => ({
                           ...prev,
                           sku_kain: val,
-                          nama_kain: found ? found.nama_kain : prev.nama_kain,
-                          estimasi_kain: found ? found.nama_kain : prev.estimasi_kain
+                          nama_kain: found ? found.nama_kain : prev.nama_kain
                         }));
                       }}
                       options={kainOptions}
@@ -3318,36 +3197,33 @@ export default function ProdukView() {
                   <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: '8px' }}>
                     <div>
                       <label style={{ display: 'block', fontSize: '10.5px', fontWeight: '700', color: '#334155', marginBottom: '3px' }}>
-                        Nama / Jenis Kain
+                        Nama Kain (Dari Master Kain)
                       </label>
-                      <input
-                        type="text"
-                        placeholder="Contoh: Silk Jetblack, Drill, Rayon Twill"
-                        value={formData.estimasi_kain || ''}
-                        onChange={(e) => setFormData({ ...formData, estimasi_kain: e.target.value })}
-                        style={{
-                          width: '100%',
-                          padding: '6px 10px',
-                          borderRadius: '5px',
-                          border: '1px solid #cbd5e1',
-                          fontSize: '11.5px',
-                          fontWeight: '700',
-                          color: '#0f172a'
-                        }}
-                      />
+                      <div style={{
+                        padding: '6px 10px',
+                        borderRadius: '5px',
+                        border: '1px solid #cbd5e1',
+                        fontSize: '11.5px',
+                        fontWeight: '700',
+                        color: '#0f172a',
+                        backgroundColor: '#f8fafc',
+                        minHeight: '20px'
+                      }}>
+                        {formData.nama_kain || (kainOptions.find(k => k.value === formData.sku_kain)?.nama_kain) || '-'}
+                      </div>
                     </div>
 
                     <div>
                       <label style={{ display: 'block', fontSize: '10.5px', fontWeight: '700', color: '#334155', marginBottom: '3px' }}>
-                        Panjang Kain (CM / Pcs)
+                        Estimasi Kain (CM / Pcs)
                       </label>
                       <div style={{ position: 'relative' }}>
                         <input
                           type="number"
                           min="0"
-                          placeholder="Contoh: 250"
-                          value={formData.panjang_kain_cm || ''}
-                          onChange={(e) => setFormData({ ...formData, panjang_kain_cm: Number(e.target.value) || 0 })}
+                          placeholder="Contoh: 100, 120, 200"
+                          value={formData.estimasi_kain || ''}
+                          onChange={(e) => setFormData({ ...formData, estimasi_kain: Number(e.target.value) || 0 })}
                           style={{
                             width: '100%',
                             padding: '6px 36px 6px 10px',
@@ -3381,8 +3257,8 @@ export default function ProdukView() {
                         minHeight: '20px'
                       }}>
                         {(() => {
-                          const kFound = kainOptions.find(k => k.sku === formData.sku_kain);
-                          const cmPrice = kFound ? (kFound.harga_kain_cm || Math.round(kFound.harga_per_meter / 100)) : 0;
+                          const kFound = kainOptions.find(k => k.sku === formData.sku_kain || k.value === formData.sku_kain);
+                          const cmPrice = kFound ? (kFound.harga_kain_cm || Math.round((kFound.harga_per_meter || 0) / 100)) : 0;
                           return (
                             <>
                               <span>
@@ -3394,7 +3270,7 @@ export default function ProdukView() {
                               </span>
                               {kFound?.harga_per_meter > 0 && (
                                 <span style={{ fontSize: '10px', color: '#64748b', fontWeight: '600' }}>
-                                  (Rp {kFound.harga_per_meter.toLocaleString('id-ID')} / m)
+                                  (Rp {Number(kFound.harga_per_meter).toLocaleString('id-ID')} / m)
                                 </span>
                               )}
                             </>
@@ -3835,8 +3711,8 @@ export default function ProdukView() {
                           nama_komponen: 'Baju Atasan',
                           sku: selectedProduk.sku || '',
                           qty: 1,
-                          kain_nama: selectedProduk.estimasi_kain || 'Toyobo Premium',
-                          panjang_kain_cm: Math.round((Number(selectedProduk.panjang_kain_cm) || 200) * 0.55),
+                          kain_nama: selectedProduk.nama_kain || selectedProduk.sku_kain || 'Kain',
+                          estimasi_kain: Math.round((Number(selectedProduk.estimasi_kain) || 200) * 0.55),
                           harga_kain_cm: Number(selectedProduk.harga_kain_cm || 150),
                           harga_modal_item: Math.round((Number(selectedProduk.harga_beli) || 60000) * 0.55)
                         },
@@ -3845,14 +3721,14 @@ export default function ProdukView() {
                           nama_komponen: 'Celana / Bawahan',
                           sku: '',
                           qty: 1,
-                          kain_nama: selectedProduk.estimasi_kain || 'Drill Premium',
-                          panjang_kain_cm: Math.round((Number(selectedProduk.panjang_kain_cm) || 200) * 0.45),
+                          kain_nama: selectedProduk.nama_kain || selectedProduk.sku_kain || 'Kain',
+                          estimasi_kain: Math.round((Number(selectedProduk.estimasi_kain) || 200) * 0.45),
                           harga_kain_cm: Number(selectedProduk.harga_kain_cm || 150),
                           harga_modal_item: Math.round((Number(selectedProduk.harga_beli) || 60000) * 0.45)
                         }
                       ];
 
-                  const totalAccumCm = activeBundleItems.reduce((acc, it) => acc + (Number(it.panjang_kain_cm) || 0), 0);
+                  const totalAccumCm = activeBundleItems.reduce((acc, it) => acc + (Number(it.estimasi_kain || it.panjang_kain_cm) || 0), 0);
                   const totalAccumModal = activeBundleItems.reduce((acc, it) => acc + (Number(it.harga_modal_item) || 0), 0);
 
                   return (
@@ -3895,7 +3771,7 @@ export default function ProdukView() {
 
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                         {activeBundleItems.map((bi, bIdx) => {
-                          const pctKain = totalAccumCm > 0 ? Math.round(((Number(bi.panjang_kain_cm) || 0) / totalAccumCm) * 100) : 50;
+                          const pctKain = totalAccumCm > 0 ? Math.round(((Number(bi.estimasi_kain || bi.panjang_kain_cm) || 0) / totalAccumCm) * 100) : 50;
                           return (
                             <div
                               key={bIdx}
@@ -3953,7 +3829,7 @@ export default function ProdukView() {
                                     EST. KAIN (CM)
                                   </label>
                                   <div style={{ padding: '4px 6px', borderRadius: '4px', backgroundColor: '#ffffff', border: '1px solid #cbd5e1', fontSize: '11px', fontWeight: '800', color: '#0284c7', textAlign: 'right' }}>
-                                    {bi.panjang_kain_cm || 0} CM
+                                    {bi.estimasi_kain || bi.panjang_kain_cm || 0} CM
                                   </div>
                                 </div>
 
@@ -4168,7 +4044,7 @@ export default function ProdukView() {
                       </span>
                     </div>
 
-                    {Number(selectedProduk.panjang_kain_cm || 0) > 0 && (
+                    {Number(selectedProduk.estimasi_kain || 0) > 0 && (
                       <span style={{
                         fontSize: '10.5px',
                         fontWeight: '800',
@@ -4178,7 +4054,7 @@ export default function ProdukView() {
                         color: '#0284c7',
                         border: '1px solid #bae6fd'
                       }}>
-                        Kain/Pcs: {selectedProduk.panjang_kain_cm} CM ({((Number(selectedProduk.panjang_kain_cm) || 0) / 100).toFixed(1)} Meter) • Est. Biaya: {formatRupiah((Number(selectedProduk.panjang_kain_cm) || 0) * (Number(selectedProduk.harga_kain_cm) || 0))}
+                        Kain/Pcs: {selectedProduk.estimasi_kain} CM ({((Number(selectedProduk.estimasi_kain) || 0) / 100).toFixed(1)} Meter) • Est. Biaya: {formatRupiah((Number(selectedProduk.estimasi_kain) || 0) * (Number(selectedProduk.harga_kain_cm) || 0))}
                       </span>
                     )}
                   </div>
@@ -4186,7 +4062,7 @@ export default function ProdukView() {
                   <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: '8px' }}>
                     <div>
                       <span style={{ display: 'block', fontSize: '10.5px', fontWeight: '700', color: '#64748b', marginBottom: '2px' }}>
-                        Nama / Jenis Kain
+                        Nama Kain (Dari Master Kain)
                       </span>
                       <div style={{
                         padding: '6px 10px',
@@ -4197,13 +4073,13 @@ export default function ProdukView() {
                         color: '#0f172a',
                         backgroundColor: '#f8fafc'
                       }}>
-                        {selectedProduk.estimasi_kain || '-'}
+                        {selectedProduk.nama_kain || selectedProduk.sku_kain || '-'}
                       </div>
                     </div>
 
                     <div>
                       <span style={{ display: 'block', fontSize: '10.5px', fontWeight: '700', color: '#64748b', marginBottom: '2px' }}>
-                        Panjang Kain (CM / Pcs)
+                        Estimasi Kain (CM / Pcs)
                       </span>
                       <div style={{
                         padding: '6px 10px',
@@ -4215,7 +4091,7 @@ export default function ProdukView() {
                         color: '#0284c7',
                         backgroundColor: '#f8fafc'
                       }}>
-                        {selectedProduk.panjang_kain_cm || 0} CM
+                        {selectedProduk.estimasi_kain || 0} CM
                       </div>
                     </div>
 
