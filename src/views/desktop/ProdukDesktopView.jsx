@@ -37,6 +37,63 @@ import { detectStatusOrder, detectBundleSet } from '../../utils/orderStatus.util
 const STORAGE_KEY = 'ruangmarket_produk_gamis_v4';
 const KATEGORI_STORAGE_KEY = 'ruangmarket_kategori_v1';
 
+// Helper memecah SKU Bundle menjadi rincian komponen cerdas
+export function parseBundleComponents(bundleSku = '', bundleName = '', allProducts = [], hargaBeli = 0, panjangKain = 200, hargaKainCm = 150) {
+  const cleanSku = (bundleSku || '').replace(/^SET[-_]/i, '').trim();
+  const splitRegex = /-(?=CLN-|ROK-|JLB-|RMP-|CELANA-|BAWAHAN-)/i;
+  let part1Sku = '';
+  let part2Sku = '';
+
+  if (splitRegex.test(cleanSku)) {
+    const parts = cleanSku.split(splitRegex);
+    part1Sku = parts[0] || '';
+    part2Sku = parts[1] || '';
+  } else {
+    // Cari produk terpanjang yang cocok di awal
+    const candidates = [...allProducts]
+      .filter(p => p.sku && !p.sku.startsWith('SET-') && cleanSku.startsWith(p.sku + '-'))
+      .sort((a, b) => b.sku.length - a.sku.length);
+    if (candidates.length > 0) {
+      part1Sku = candidates[0].sku;
+      part2Sku = cleanSku.slice(candidates[0].sku.length + 1);
+    } else {
+      part1Sku = cleanSku;
+      part2Sku = '';
+    }
+  }
+
+  // Komponen 1: Baju / Atasan
+  const found1 = allProducts.find(p => p.sku && p.sku.toLowerCase() === part1Sku.toLowerCase());
+  const comp1 = {
+    id: `bi-${Date.now()}-1`,
+    produk_id: found1 ? found1.id : null,
+    sku: found1 ? found1.sku : (part1Sku || 'BP-KOMP'),
+    nama_komponen: found1 ? found1.nama_produk : `Baju / Atasan (${part1Sku || 'Atasan'})`,
+    qty: 1,
+    kain_nama: found1?.estimasi_kain || 'Drill Premium',
+    panjang_kain_cm: Number(found1?.panjang_kain_cm) || Math.round((Number(panjangKain) || 200) * 0.55),
+    harga_kain_cm: Number(found1?.harga_kain_cm) || Number(hargaKainCm || 150),
+    harga_modal_item: Number(found1?.harga_beli) || Math.round((Number(hargaBeli) || 60000) * 0.55)
+  };
+
+  // Komponen 2: Celana / Bawahan
+  const found2 = allProducts.find(p => p.sku && p.sku.toLowerCase() === part2Sku.toLowerCase());
+  const isRok = /ROK/i.test(part2Sku);
+  const comp2 = {
+    id: `bi-${Date.now()}-2`,
+    produk_id: found2 ? found2.id : null,
+    sku: found2 ? found2.sku : (part2Sku || (isRok ? 'ROK-KOMP' : 'CLN-KOMP')),
+    nama_komponen: found2 ? found2.nama_produk : (isRok ? `Rok Bawahan (${part2Sku || 'ROK'})` : `Celana Bawahan (${part2Sku || 'CLN'})`),
+    qty: 1,
+    kain_nama: found2?.estimasi_kain || 'Drill Premium',
+    panjang_kain_cm: Number(found2?.panjang_kain_cm) || Math.round((Number(panjangKain) || 200) * 0.45),
+    harga_kain_cm: Number(found2?.harga_kain_cm) || Number(hargaKainCm || 150),
+    harga_modal_item: Number(found2?.harga_beli) || Math.round((Number(hargaBeli) || 60000) * 0.45)
+  };
+
+  return [comp1, comp2];
+}
+
 // Searchable Select Component with integrated filter search and dropdown
 function SearchableSelect({ label, value, onChange, options, placeholder = "Pilih opsi...", required = false }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -62,14 +119,17 @@ function SearchableSelect({ label, value, onChange, options, placeholder = "Pili
   }, [isOpen]);
 
   const filteredOptions = options.filter(opt => {
-    const text = typeof opt === 'string' ? opt : (opt.label || opt.value || '');
-    return text.toLowerCase().includes(searchTerm.toLowerCase());
+    const optLabel = typeof opt === 'string' ? opt : (opt.label || opt.value || '');
+    const optSku = typeof opt === 'object' && opt.sku ? opt.sku : '';
+    const q = searchTerm.toLowerCase();
+    return optLabel.toLowerCase().includes(q) || optSku.toLowerCase().includes(q);
   });
 
   const selectedDisplay = () => {
-    const found = options.find(opt => (typeof opt === 'string' ? opt === value : opt.value === value));
+    const found = options.find(opt => (typeof opt === 'string' ? opt === value : String(opt.value) === String(value)));
     if (!found) return placeholder;
-    return typeof found === 'string' ? found : (found.label || found.value);
+    if (typeof found === 'string') return found;
+    return found.sku ? `[${found.sku}] ${found.label}` : (found.label || found.value);
   };
 
   return (
@@ -118,23 +178,23 @@ function SearchableSelect({ label, value, onChange, options, placeholder = "Pili
           backgroundColor: '#ffffff',
           borderRadius: '6px',
           border: '1px solid #cbd5e1',
-          boxShadow: '0 10px 20px -3px rgba(0, 0, 0, 0.18)',
-          zIndex: 3000,
+          boxShadow: '0 12px 24px -4px rgba(0, 0, 0, 0.22)',
+          zIndex: 3500,
           padding: '6px',
-          maxHeight: '220px',
+          maxHeight: '260px',
           display: 'flex',
           flexDirection: 'column'
         }}>
           {/* Search box inside dropdown */}
           <div style={{
             position: 'relative',
-            marginBottom: '5px'
+            marginBottom: '6px'
           }}>
             <Search size={12} color="#94a3b8" style={{ position: 'absolute', left: '7px', top: '7px' }} />
             <input
               ref={inputRef}
               type="text"
-              placeholder="Ketik untuk mencari..."
+              placeholder="Cari SKU atau nama produk..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               style={{
@@ -151,12 +211,13 @@ function SearchableSelect({ label, value, onChange, options, placeholder = "Pili
           </div>
 
           {/* Options list */}
-          <div style={{ overflowY: 'auto', maxHeight: '160px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+          <div style={{ overflowY: 'auto', maxHeight: '190px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
             {filteredOptions.length > 0 ? (
-              filteredOptions.map((opt, idx) => {
+              filteredOptions.slice(0, 50).map((opt, idx) => {
                 const optVal = typeof opt === 'string' ? opt : opt.value;
                 const optLabel = typeof opt === 'string' ? opt : (opt.label || opt.value);
-                const isSelected = optVal === value;
+                const optSku = typeof opt === 'object' ? opt.sku : '';
+                const isSelected = String(optVal) === String(value);
 
                 return (
                   <button
@@ -174,11 +235,10 @@ function SearchableSelect({ label, value, onChange, options, placeholder = "Pili
                       width: '100%',
                       padding: '5px 7px',
                       borderRadius: '4px',
-                      border: 'none',
-                      backgroundColor: isSelected ? '#e0f2fe' : 'transparent',
-                      color: isSelected ? '#0284c7' : '#1e293b',
+                      border: isSelected ? '1px solid #bae6fd' : '1px solid transparent',
+                      backgroundColor: isSelected ? '#f0f9ff' : 'transparent',
+                      color: isSelected ? '#0369a1' : '#1e293b',
                       fontSize: '11px',
-                      fontWeight: isSelected ? '700' : '500',
                       cursor: 'pointer',
                       textAlign: 'left'
                     }}
@@ -189,14 +249,44 @@ function SearchableSelect({ label, value, onChange, options, placeholder = "Pili
                       if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent';
                     }}
                   >
-                    <span>{optLabel}</span>
-                    {isSelected && <Check size={12} color="#0284c7" />}
+                    <div style={{ minWidth: 0, flex: 1, paddingRight: '6px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                        {optSku && (
+                          <span style={{
+                            fontFamily: 'monospace',
+                            fontSize: '9.5px',
+                            fontWeight: '800',
+                            color: '#0284c7',
+                            backgroundColor: '#e0f2fe',
+                            padding: '1px 5px',
+                            borderRadius: '3px',
+                            flexShrink: 0
+                          }}>
+                            {optSku}
+                          </span>
+                        )}
+                        <span style={{ fontSize: '11px', fontWeight: '700', color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {optLabel}
+                        </span>
+                      </div>
+                      {typeof opt === 'object' && opt.panjang_kain_cm !== undefined && (
+                        <div style={{ fontSize: '9.5px', color: '#64748b', marginTop: '1px' }}>
+                          Kain: <b>{opt.estimasi_kain || 'Drill'}</b> ({opt.panjang_kain_cm || 0}cm) • Modal: Rp {Number(opt.harga_beli || 0).toLocaleString('id-ID')}
+                        </div>
+                      )}
+                    </div>
+                    {isSelected && <Check size={14} color="#0284c7" style={{ flexShrink: 0 }} />}
                   </button>
                 );
               })
             ) : (
               <div style={{ padding: '8px', fontSize: '11px', color: '#94a3b8', textAlign: 'center' }}>
-                Tidak ada opsi cocok
+                Tidak ada produk cocok "{searchTerm}"
+              </div>
+            )}
+            {filteredOptions.length > 50 && (
+              <div style={{ padding: '4px 8px', fontSize: '9.5px', color: '#64748b', textAlign: 'center', backgroundColor: '#f8fafc', borderTop: '1px solid #f1f5f9' }}>
+                Menampilkan 50 dari {filteredOptions.length} produk. Ketik untuk mencari lebih spesifik.
               </div>
             )}
           </div>
@@ -218,35 +308,10 @@ export default function ProdukView() {
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
-          const mapped = data.map(p => {
+          const rawMapped = data.map(p => {
             const detectedBundle = detectBundleSet(p.nama_produk, p.kode_sku);
             const tipeSet = p.tipe_set || (detectedBundle.isBundle ? 'Satu Setel' : 'Single');
             let bundleItems = Array.isArray(p.bundle_items) ? p.bundle_items : (typeof p.bundle_items === 'string' && p.bundle_items ? JSON.parse(p.bundle_items) : []);
-
-            if ((tipeSet === 'Satu Setel' || tipeSet === 'Bundle') && bundleItems.length === 0) {
-              bundleItems = [
-                {
-                  id: `bi-${p.id || Date.now()}-1`,
-                  nama_komponen: 'Baju Atasan',
-                  sku: p.kode_sku || '',
-                  qty: 1,
-                  kain_nama: p.estimasi_kain || 'Toyobo Premium',
-                  panjang_kain_cm: Math.round((Number(p.panjang_kain_cm) || 200) * 0.55),
-                  harga_kain_cm: Number(p.harga_kain_cm || 150),
-                  harga_modal_item: Math.round((Number(p.harga_modal) || 75000) * 0.55)
-                },
-                {
-                  id: `bi-${p.id || Date.now()}-2`,
-                  nama_komponen: 'Celana / Bawahan',
-                  sku: '',
-                  qty: 1,
-                  kain_nama: p.estimasi_kain || 'Drill Premium',
-                  panjang_kain_cm: Math.round((Number(p.panjang_kain_cm) || 200) * 0.45),
-                  harga_kain_cm: Number(p.harga_kain_cm || 150),
-                  harga_modal_item: Math.round((Number(p.harga_modal) || 75000) * 0.45)
-                }
-              ];
-            }
 
             return {
               id: p.id,
@@ -265,9 +330,27 @@ export default function ProdukView() {
               harga_jual: Number(p.harga_jual || 0),
               estimasi_kain: p.estimasi_kain || 'Kain Polos',
               panjang_kain_cm: Number(p.panjang_kain_cm) || 200,
-              harga_kain_cm: Number(p.harga_kain_cm) || 150
+              harga_kain_cm: Number(p.harga_kain_cm || 150)
             };
           });
+
+          // Lengkapi bundle_items dengan auto match ke master produk jika belum memiliki produk_id
+          const mapped = rawMapped.map(item => {
+            if ((item.tipe_set === 'Satu Setel' || item.tipe_set === 'Bundle') || (item.sku && item.sku.startsWith('SET-'))) {
+              const needsParse = !item.bundle_items || item.bundle_items.length === 0 || item.bundle_items.some(bi => !bi.produk_id);
+              if (needsParse) {
+                const parsed = parseBundleComponents(item.sku, item.nama_produk, rawMapped, item.harga_beli, item.panjang_kain_cm, item.harga_kain_cm);
+                // Jika sudah ada beberapa komponen manual, gabungkan informasi id-nya
+                const merged = parsed.map((pi, idx) => {
+                  const existing = item.bundle_items?.[idx];
+                  return existing ? { ...existing, produk_id: existing.produk_id || pi.produk_id, sku: existing.sku || pi.sku } : pi;
+                });
+                return { ...item, bundle_items: merged };
+              }
+            }
+            return item;
+          });
+
           setProdukList(mapped);
           try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(mapped));
@@ -576,29 +659,9 @@ export default function ProdukView() {
       const detectedTipe = detectBundleSet(p.nama_produk, p.sku);
       let updatedBundleItems = Array.isArray(p.bundle_items) ? [...p.bundle_items] : [];
       
-      // Jika terdeteksi Satu Setel / Bundle dan belum ada komponennya, buatkan default 2 komponen (Baju + Celana)
-      if (detectedTipe === 'Satu Setel' && updatedBundleItems.length === 0) {
-        const it1 = {
-          id: `bi-${Date.now()}-1`,
-          nama_komponen: 'Baju / Atasan',
-          sku: '',
-          qty: 1,
-          kain_nama: p.estimasi_kain || 'Drill Premium',
-          panjang_kain_cm: Math.round((Number(p.panjang_kain_cm) || 200) * 0.55),
-          harga_kain_cm: Number(p.harga_kain_cm || 150),
-          harga_modal_item: Math.round((Number(p.harga_beli) || 60000) * 0.55)
-        };
-        const it2 = {
-          id: `bi-${Date.now()}-2`,
-          nama_komponen: 'Celana / Bawahan',
-          sku: '',
-          qty: 1,
-          kain_nama: p.estimasi_kain || 'Drill Premium',
-          panjang_kain_cm: Math.round((Number(p.panjang_kain_cm) || 200) * 0.45),
-          harga_kain_cm: Number(p.harga_kain_cm || 150),
-          harga_modal_item: Math.round((Number(p.harga_beli) || 60000) * 0.45)
-        };
-        updatedBundleItems = [it1, it2];
+      // Jika terdeteksi Satu Setel / Bundle dan belum ada komponennya atau belum linked ke master
+      if (detectedTipe === 'Satu Setel' && (updatedBundleItems.length === 0 || updatedBundleItems.some(bi => !bi.produk_id))) {
+        updatedBundleItems = parseBundleComponents(p.sku, p.nama_produk, produkList, p.harga_beli, p.panjang_kain_cm, p.harga_kain_cm);
       }
 
       return {
@@ -667,12 +730,24 @@ export default function ProdukView() {
 
   const handleOpenEdit = (item) => {
     setEditingId(item.id);
+    let bundleItems = Array.isArray(item.bundle_items) ? JSON.parse(JSON.stringify(item.bundle_items)) : [];
+    const isBundle = (item.tipe_set === 'Satu Setel' || item.tipe_set === 'Bundle') || (item.sku && item.sku.startsWith('SET-'));
+    
+    // Jika bundle tapi bundle_items kosong atau belum memiliki produk_id, auto-parse dari SKU
+    if (isBundle && (bundleItems.length === 0 || bundleItems.some(bi => !bi.produk_id))) {
+      const parsed = parseBundleComponents(item.sku, item.nama_produk, produkList, item.harga_beli, item.panjang_kain_cm, item.harga_kain_cm);
+      bundleItems = parsed.map((pi, idx) => {
+        const existing = bundleItems[idx];
+        return existing ? { ...existing, produk_id: existing.produk_id || pi.produk_id, sku: existing.sku || pi.sku } : pi;
+      });
+    }
+
     setFormData({
       ...item,
       estimasi_kain: item.estimasi_kain || '',
       panjang_kain_cm: item.panjang_kain_cm !== undefined ? item.panjang_kain_cm : 200,
       harga_kain_cm: item.harga_kain_cm !== undefined ? item.harga_kain_cm : 150,
-      bundle_items: Array.isArray(item.bundle_items) ? JSON.parse(JSON.stringify(item.bundle_items)) : []
+      bundle_items: bundleItems
     });
     setIsFormModalOpen(true);
   };
@@ -753,7 +828,7 @@ export default function ProdukView() {
 
       // Jika user memilih produk dari master untuk komponen ini
       if (field === 'produk_id') {
-        const found = produkList.find(p => p.id === Number(val)) || produkList.find(p => p.id === val);
+        const found = produkList.find(p => String(p.id) === String(val));
         if (found) {
           updatedItem = {
             ...updatedItem,
@@ -765,6 +840,24 @@ export default function ProdukView() {
             harga_kain_cm: Number(found.harga_kain_cm || 150),
             harga_modal_item: Number(found.harga_beli || 0)
           };
+        } else {
+          updatedItem.produk_id = val;
+        }
+      } else if (field === 'sku') {
+        const found = produkList.find(p => p.sku && p.sku.toLowerCase() === (val || '').toLowerCase());
+        if (found) {
+          updatedItem = {
+            ...updatedItem,
+            produk_id: found.id,
+            nama_komponen: found.nama_produk,
+            sku: found.sku,
+            kain_nama: found.estimasi_kain || 'Kain Polos',
+            panjang_kain_cm: Number(found.panjang_kain_cm || 100),
+            harga_kain_cm: Number(found.harga_kain_cm || 150),
+            harga_modal_item: Number(found.harga_beli || 0)
+          };
+        } else {
+          updatedItem.sku = val;
         }
       }
 
@@ -2249,7 +2342,7 @@ export default function ProdukView() {
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      {(formData.bundle_items || []).map((bi, bIdx) => {
+                      {(() => {
                         const singleOptions = produkList.map(p => ({
                           value: p.id,
                           label: p.nama_produk,
@@ -2261,7 +2354,7 @@ export default function ProdukView() {
                           harga_beli: p.harga_beli
                         }));
 
-                        return (
+                        return (formData.bundle_items || []).map((bi, bIdx) => (
                           <div
                             key={bIdx}
                             style={{
@@ -2276,7 +2369,7 @@ export default function ProdukView() {
                           >
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
                               <span style={{ fontSize: '10px', fontWeight: '800', color: '#7c3aed', textTransform: 'uppercase' }}>
-                                #{bIdx + 1}. Komponen:
+                                #{bIdx + 1}. Komponen: {bi.sku ? `(${bi.sku})` : ''}
                               </span>
                               <button
                                 type="button"
@@ -2296,7 +2389,7 @@ export default function ProdukView() {
                               </button>
                             </div>
 
-                            <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '8px' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.9fr 1.1fr', gap: '8px' }}>
                               <div>
                                 <label style={{ display: 'block', fontSize: '9.5px', fontWeight: '700', color: '#475569', marginBottom: '2px' }}>
                                   Pilih dari Master (Opsional)
@@ -2306,6 +2399,27 @@ export default function ProdukView() {
                                   options={singleOptions}
                                   placeholder="Pilih produk..."
                                   onChange={(val) => handleUpdateBundleItem(bIdx, 'produk_id', val)}
+                                />
+                              </div>
+                              <div>
+                                <label style={{ display: 'block', fontSize: '9.5px', fontWeight: '700', color: '#475569', marginBottom: '2px' }}>
+                                  Kode SKU Komponen
+                                </label>
+                                <input
+                                  type="text"
+                                  value={bi.sku || ''}
+                                  onChange={(e) => handleUpdateBundleItem(bIdx, 'sku', e.target.value)}
+                                  placeholder="Contoh: BP-SMA-LPK-XXXL"
+                                  style={{
+                                    width: '100%',
+                                    padding: '5px 8px',
+                                    borderRadius: '4px',
+                                    border: '1px solid #cbd5e1',
+                                    fontSize: '11px',
+                                    fontWeight: '700',
+                                    color: '#0284c7',
+                                    backgroundColor: '#f8fafc'
+                                  }}
                                 />
                               </div>
                               <div>
@@ -2420,8 +2534,8 @@ export default function ProdukView() {
                               </div>
                             </div>
                           </div>
-                        );
-                      })}
+                        ));
+                      })()}
                     </div>
                   </div>
                 )}
