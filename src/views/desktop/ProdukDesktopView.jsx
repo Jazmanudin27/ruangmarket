@@ -383,6 +383,36 @@ export default function ProdukView() {
     }
   };
 
+  const [isAutoDetectingRelations, setIsAutoDetectingRelations] = useState(false);
+
+  const handleAutoDetectAllRelations = async () => {
+    const confirmed = await showConfirm(
+      'Auto-Deteksi Relasi Kain & HPP?',
+      'Sistem akan memindai seluruh produk yang SKU Kain atau Kategori HPP-nya masih kosong dan mengisinya otomatis berdasarkan pola SKU & Kamus Standar.',
+      'Ya, Jalankan Cerdas',
+      'Batal'
+    );
+    if (!confirmed) return;
+
+    setIsAutoDetectingRelations(true);
+    try {
+      const res = await fetch('/api/marketplace/master/auto-detect-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const json = await res.json();
+      if (!res.ok || json.status !== 'success') {
+        throw new Error(json.message || 'Gagal auto deteksi relasi');
+      }
+      toastSuccess(json.message || 'Auto deteksi relasi selesai!');
+      loadMasterProduk(currentPage, entriesPerPage);
+    } catch (err) {
+      toastError(`Gagal auto deteksi: ${err.message}`);
+    } finally {
+      setIsAutoDetectingRelations(false);
+    }
+  };
+
   const handleImportFileChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -483,9 +513,12 @@ export default function ProdukView() {
 
       setImportResult(json);
       const s = json.summary || {};
-      const newKatMsg = s.kategori_baru ? ` (+${s.kategori_baru} Kategori Baru Terdaftar Otomatis)` : '';
+      const newKatMsg = s.kategori_baru ? ` (+${s.kategori_baru} Kategori Baru)` : '';
+      const autoRelMsg = (s.kain_auto_terdeteksi || s.hpp_auto_terdeteksi) 
+        ? ` (Auto-deteksi: +${s.kain_auto_terdeteksi || 0} Kain, +${s.hpp_auto_terdeteksi || 0} HPP)` 
+        : '';
       toastSuccess(
-        `Import selesai! +${s.inserted || 0} Baru, ~${s.updated || 0} Diupdate, =${s.skipped || 0} Skip, !${s.failed || 0} Gagal${newKatMsg}`
+        `Import selesai! +${s.inserted || 0} Baru, ~${s.updated || 0} Diupdate, =${s.skipped || 0} Skip, !${s.failed || 0} Gagal${newKatMsg}${autoRelMsg}`
       );
 
       // Sinkronisasi kategori baru ke localStorage & state jika ada penambahan otomatis
@@ -1361,6 +1394,42 @@ export default function ProdukView() {
             <span>{isBatchProcessing ? 'Memproses...' : 'Deteksi Bundle'}</span>
           </button>
 
+
+          {/* Tombol Auto-Deteksi Relasi Kain & HPP */}
+          <button
+            type="button"
+            onClick={handleAutoDetectAllRelations}
+            disabled={isAutoDetectingRelations}
+            title="Pindai seluruh master produk yang belum punya SKU Kain atau Kategori HPP dan isi otomatis berdasarkan pola SKU"
+            style={{
+              height: '30px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              padding: '0 12px',
+              borderRadius: '6px',
+              border: 'none',
+              backgroundColor: '#7c3aed',
+              color: '#ffffff',
+              fontSize: '12px',
+              fontWeight: '700',
+              lineHeight: 1,
+              cursor: isAutoDetectingRelations ? 'not-allowed' : 'pointer',
+              opacity: isAutoDetectingRelations ? 0.7 : 1,
+              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.15)',
+              transition: 'all 0.15s ease'
+            }}
+            onMouseEnter={(e) => { if (!isAutoDetectingRelations) e.currentTarget.style.backgroundColor = '#6d28d9'; }}
+            onMouseLeave={(e) => { if (!isAutoDetectingRelations) e.currentTarget.style.backgroundColor = '#7c3aed'; }}
+          >
+            {isAutoDetectingRelations ? (
+              <Loader2 size={13} className="animate-spin" />
+            ) : (
+              <Sparkles size={13} />
+            )}
+            <span>{isAutoDetectingRelations ? 'Memindai...' : 'Auto Relasi Kain & HPP'}</span>
+          </button>
 
           {/* Tombol Import Excel & Smart Update */}
           <button
@@ -4529,6 +4598,25 @@ export default function ProdukView() {
                       <div style={{ fontSize: '10px', color: '#f87171' }}>Action: FAIL</div>
                     </div>
                   </div>
+
+                  {(importResult.summary?.kain_auto_terdeteksi > 0 || importResult.summary?.hpp_auto_terdeteksi > 0 || importResult.summary?.kategori_baru > 0) && (
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '8px 12px',
+                      borderRadius: '6px',
+                      backgroundColor: '#f5f3ff',
+                      border: '1px solid #ddd6fe',
+                      fontSize: '12px',
+                      color: '#6d28d9'
+                    }}>
+                      <Sparkles size={15} style={{ flexShrink: 0 }} />
+                      <div>
+                        <strong>Deteksi Otomatis Cerdas:</strong> Terdeteksi <strong>+{importResult.summary?.kain_auto_terdeteksi || 0}</strong> SKU Kain, <strong>+{importResult.summary?.hpp_auto_terdeteksi || 0}</strong> Kategori HPP, dan <strong>+{importResult.summary?.kategori_baru || 0}</strong> Kategori Baru ditambahkan otomatis.
+                      </div>
+                    </div>
+                  )}
 
                   {/* Filter Tabs for Results */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', borderBottom: '1px solid #e2e8f0', paddingBottom: '8px' }}>

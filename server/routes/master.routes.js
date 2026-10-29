@@ -1,5 +1,6 @@
 import { sendJson, parseJsonBody } from '../utils/response.js';
 import * as XLSX from 'xlsx';
+import { detectSkuKain, detectIdKategoriHpp } from '../utils/autoDetector.util.js';
 
 export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
   // 0a. Download Template Master Produk (Excel / CSV)
@@ -204,10 +205,15 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
       const katSet = new Set(katRows.map(k => String(k.nama_kategori || '').trim().toUpperCase()));
       const newCategoriesAdded = [];
 
+      // Ambil referensi master_hpp_produk untuk auto-deteksi HPP jika kolom kosong
+      const [hppMasterList] = await pool.query('SELECT id_kategori_hpp, nama_kategori_hpp FROM master_hpp_produk');
+
       let inserted = 0;
       let updated = 0;
       let skipped = 0;
       let failed = 0;
+      let autoKainCount = 0;
+      let autoHppCount = 0;
       const details = [];
 
       for (let idx = 0; idx < items.length; idx++) {
@@ -255,7 +261,16 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
         const status = String(item.status || 'Aktif').trim().slice(0, 32);
         const statusOrder = String(item.status_order || 'Ready Stok').trim().slice(0, 32);
         const tipeSet = String(item.tipe_set || 'Single').trim().slice(0, 32);
-        const rawSkuKain = item.sku_kain ? String(item.sku_kain).trim() : null;
+        
+        // Auto-deteksi SKU Kain jika kosong
+        let rawSkuKain = item.sku_kain ? String(item.sku_kain).trim() : null;
+        if (!rawSkuKain) {
+          const detectedKain = detectSkuKain(cleanSku, namaProduk, null);
+          if (detectedKain) {
+            rawSkuKain = detectedKain;
+            autoKainCount++;
+          }
+        }
         const skuKain = rawSkuKain ? rawSkuKain.slice(0, 64) : null;
 
         // Ambil estimasi kain (berapa cm, misal: 200, 180, 100, 120)
@@ -273,7 +288,15 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
           }
         }
 
-        const idKategoriHpp = item.id_kategori_hpp ? String(item.id_kategori_hpp).trim().slice(0, 64) : null;
+        // Auto-deteksi ID Kategori HPP jika kosong
+        let idKategoriHpp = item.id_kategori_hpp ? String(item.id_kategori_hpp).trim().slice(0, 64) : null;
+        if (!idKategoriHpp) {
+          const detectedHpp = detectIdKategoriHpp(cleanSku, namaProduk, hppMasterList);
+          if (detectedHpp) {
+            idKategoriHpp = detectedHpp.slice(0, 64);
+            autoHppCount++;
+          }
+        }
 
         // Jika sku_kain baru belum ada di master_kain, buat entri otomatis di master_kain
         if (skuKain && !kainMap.has(skuKain.toUpperCase())) {
@@ -400,7 +423,9 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
           updated,
           skipped,
           failed,
-          kategori_baru: newCategoriesAdded.length
+          kategori_baru: newCategoriesAdded.length,
+          kain_auto_terdeteksi: autoKainCount,
+          hpp_auto_terdeteksi: autoHppCount
         },
         new_categories: newCategoriesAdded,
         details
@@ -408,6 +433,79 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
       return true;
     } catch (err) {
       console.error('[Import API Error]:', err);
+      sendJson(res, 500, { status: 'error', message: err.message });
+      return true;
+    }
+  }
+
+  // 0c. Auto-Detect Relasi Kain & HPP untuk Semua Produk yang masih kosong
+  if ((pathname === '/api/produk/master/auto-detect-all' || pathname === '/api/marketplace/master/auto-detect-all') && req.method === 'POST') {
+    try {
+      const [prods] = await pool.query(`
+        SELECT id, kode_sku, nama_produk, sku_kain, id_kategori_hpp
+        FROM produk_master
+        WHERE (sku_kain IS NULL OR sku_kain = '') OR (id_kategori_hpp IS NULL OR id_kategori_hpp = '')
+      `);
+
+      const [hppMasterList] = await pool.query('SELECT id_kategori_hpp, nama_kategori_hpp FROM master_hpp_produk');
+      const [kainRows] = await pool.query('SELECT kode_sku_kain, nama_kain FROM master_kain');
+      const kainMap = new Set(kainRows.map(k => String(k.kode_sku_kain).trim().toUpperCase()));
+
+      let kainFilled = 0;
+      let hppFilled = 0;
+      let totalUpdated = 0;
+
+      for (const p of prods) {
+        let updateKain = false;
+        let updateHpp = false;
+        let newKain = p.sku_kain;
+        let newHpp = p.id_kategori_hpp;
+
+        if (!p.sku_kain || String(p.sku_kain).trim() === '') {
+          const det = detectSkuKain(p.kode_sku, p.nama_produk, null);
+          if (det) {
+            newKain = det;
+            updateKain = true;
+            kainFilled++;
+
+            // Pastikan terdaftar di master_kain
+            if (!kainMap.has(det.toUpperCase())) {
+              try {
+                await pool.query('INSERT IGNORE INTO master_kain (kode_perusahaan, kode_sku_kain, nama_kain) VALUES (?, ?, ?)', ['RSG', det, `Kain ${det}`]);
+                kainMap.add(det.toUpperCase());
+              } catch (e) {}
+            }
+          }
+        }
+
+        if (!p.id_kategori_hpp || String(p.id_kategori_hpp).trim() === '') {
+          const detHpp = detectIdKategoriHpp(p.kode_sku, p.nama_produk, hppMasterList);
+          if (detHpp) {
+            newHpp = detHpp;
+            updateHpp = true;
+            hppFilled++;
+          }
+        }
+
+        if (updateKain || updateHpp) {
+          await pool.query('UPDATE produk_master SET sku_kain = ?, id_kategori_hpp = ? WHERE id = ?', [newKain, newHpp, p.id]);
+          totalUpdated++;
+        }
+      }
+
+      sendJson(res, 200, {
+        status: 'success',
+        message: `Berhasil mendeteksi otomatis! ${totalUpdated} produk diperbarui (${kainFilled} SKU Kain, ${hppFilled} Kategori HPP).`,
+        summary: {
+          scanned: prods.length,
+          total_updated: totalUpdated,
+          kain_filled: kainFilled,
+          hpp_filled: hppFilled
+        }
+      });
+      return true;
+    } catch (err) {
+      console.error('[Auto-Detect All Error]:', err);
       sendJson(res, 500, { status: 'error', message: err.message });
       return true;
     }
