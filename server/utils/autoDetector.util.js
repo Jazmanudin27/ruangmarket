@@ -33,7 +33,16 @@ export function detectSkuKain(sku = '', nama = '', existingSkuKain = null) {
   const noSize = cleanSku.replace(/-(XXXL|XXL|XL|XS|S|M|L|XXS|[0-9]+)$/, '');
   if (rawMap.has(noSize)) return rawMap.get(noSize);
 
-  // 3. Deteksi Pola Cerdas (Batik Tunas Harapan - TH)
+  // 3a. Deteksi Bundle / Setelan (awalan SET-)
+  // Contoh: SET-BB-TH-BIRU-... -> deteksi dari komponen pertamanya
+  if (cleanSku.startsWith('SET-')) {
+    const afterSet = cleanSku.substring(4);
+    const firstPart = afterSet.split(/-(?:CLN|ROK|CELANA)/)[0];
+    const subDetect = detectSkuKain(firstPart, n);
+    if (subDetect) return subDetect;
+  }
+
+  // 3b. Deteksi Pola Cerdas (Batik Tunas Harapan - TH)
   if (cleanSku.includes('TH-MERAH') || (cleanSku.includes('TH') && (cleanSku.includes('MERAH') || cleanSku.includes('SD') || n.includes('SD') || n.includes('MERAH')))) {
     return 'KB-TH-MERAH';
   }
@@ -65,7 +74,31 @@ export function detectSkuKain(sku = '', nama = '', existingSkuKain = null) {
   if (cleanSku.includes('BL-MERAH') || (cleanSku.includes('BL') && (cleanSku.includes('MERAH') || n.includes('MERAH')))) return 'KB-BL-MERAH';
   if (cleanSku.includes('POR') || n.includes('BATIK POR')) return 'KB-POR';
 
-  // 5. Deteksi Kain Polos / Seragam Umum
+  // 5. Deteksi Baju Putih / Kemeja Putih / Kurung Putih / Koko Putih
+  if (
+    cleanSku.startsWith('BP-') || 
+    cleanSku.includes('PUTIH') || 
+    cleanSku.includes('-PUTIH-') || 
+    cleanSku.startsWith('SET-BP-') ||
+    n.includes('PUTIH') || 
+    n.includes('KEMEJA PUTIH') ||
+    n.includes('KURUNG PUTIH') ||
+    n.includes('KOKO PUTIH')
+  ) {
+    return 'K-CLF-PUTIH';
+  }
+
+  // 6. Deteksi Bahan Custom Khusus
+  if (cleanSku.includes('PLY') || cleanSku.includes('POLYMICRO') || n.includes('POLYMICRO')) return 'K-PLY';
+  if (cleanSku.includes('TYB') || cleanSku.includes('TOYOBO') || n.includes('TOYOBO')) return 'K-TYB';
+  if (cleanSku.includes('BSY') || cleanSku.includes('BESWAY') || n.includes('BESWAY') || n.includes('BSY')) return 'K-BSY';
+  if (cleanSku.includes('-PE-') || cleanSku.endsWith('-PE') || (cleanSku.includes('SETOLG') && cleanSku.includes('PE')) || n.includes('BAHAN PE')) return 'K-PE';
+  if (cleanSku.includes('-CTN-') || cleanSku.endsWith('-CTN') || (cleanSku.includes('SETOLG') && cleanSku.includes('CTN')) || n.includes('CATOON') || n.includes('COTTON')) return 'K-CTN';
+  if (cleanSku.includes('DIADORA') || n.includes('DIADORA')) return 'K-DIADORA';
+  if (cleanSku.includes('LOTO') || n.includes('LOTO')) return 'K-LOTO';
+  if (cleanSku.includes('KRUDUNG') || n.includes('KERUDUNG') || n.includes('JILBAB')) return 'K-CLF';
+
+  // 7. Deteksi Kain Polos / Seragam Umum
   if (cleanSku.includes('CLF-PUTIH') || (cleanSku.includes('CLF') && (cleanSku.includes('PUTIH') || n.includes('PUTIH')))) return 'K-CLF-PUTIH';
   if (cleanSku.includes('CLF') || cleanSku.includes('CALISTA') || n.includes('CALISTA')) return 'K-CLF';
   if (cleanSku.includes('OXFORD') || cleanSku.includes('OXFRD') || n.includes('OXFORD')) return 'K-OXFRD';

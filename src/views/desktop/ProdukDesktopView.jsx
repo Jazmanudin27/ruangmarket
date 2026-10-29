@@ -362,6 +362,131 @@ export default function ProdukView() {
   const [importFilterAction, setImportFilterAction] = useState('ALL'); // ALL, INSERT, UPDATE, SKIP, FAIL
   const importFileInputRef = useRef(null);
 
+  // Helper deteksi SKU Kain di sisi client untuk preview modal
+  const clientDetectSkuKain = (sku = '', nama = '') => {
+    const s = String(sku || '').toUpperCase().trim();
+    const n = String(nama || '').toUpperCase().trim();
+    const cleanSku = s.startsWith('RSG-') ? s.substring(4) : s;
+
+    // Bundle / Setelan
+    if (cleanSku.startsWith('SET-')) {
+      const afterSet = cleanSku.substring(4);
+      const firstPart = afterSet.split(/-(?:CLN|ROK|CELANA)/)[0];
+      const sub = clientDetectSkuKain(firstPart, n);
+      if (sub) return sub;
+    }
+
+    // Batik Tunas Harapan (TH)
+    if (cleanSku.includes('TH-MERAH') || (cleanSku.includes('TH') && (cleanSku.includes('MERAH') || cleanSku.includes('SD') || n.includes('SD') || n.includes('MERAH')))) return 'KB-TH-MERAH';
+    if (cleanSku.includes('TH-BIRU') || cleanSku.includes('TH-SPM') || cleanSku.includes('TH-SMP') || (cleanSku.includes('TH') && (cleanSku.includes('BIRU') || cleanSku.includes('SMP') || cleanSku.includes('SPM') || n.includes('SMP') || n.includes('BIRU')))) return 'KB-TH-BIRU';
+    if (cleanSku.includes('TH-ABU') || (cleanSku.includes('TH') && (cleanSku.includes('ABU') || cleanSku.includes('SMA') || n.includes('SMA') || n.includes('ABU')))) return 'KB-TH-ABU';
+    if (cleanSku.includes('TH-HIJAU') || (cleanSku.includes('TH') && (cleanSku.includes('HIJAU') || n.includes('HIJAU')))) return 'KB-TH-HIJAU';
+
+    // Motif Batik Lainnya
+    if (cleanSku.includes('MI-JBR') || n.includes('MI JABAR')) return 'KB-MI-JBR';
+    if (cleanSku.includes('BR-MERAH') || (cleanSku.includes('BR') && (cleanSku.includes('MERAH') || n.includes('MERAH')))) return 'KB-BR-MERAH';
+    if (cleanSku.includes('BR-BIRU') || (cleanSku.includes('BR') && (cleanSku.includes('BIRU') || n.includes('BIRU')))) return 'KB-BR-BIRU';
+    if (cleanSku.includes('BR-ABU') || (cleanSku.includes('BR') && (cleanSku.includes('ABU') || n.includes('ABU')))) return 'KB-BR-ABU';
+    if (cleanSku.includes('BN-HIJAU') || (cleanSku.includes('BN') && (cleanSku.includes('HIJAU') || n.includes('HIJAU')))) return 'KB-BN-HIJAU';
+    if (cleanSku.includes('BM-MERAH') || (cleanSku.includes('BM') && (cleanSku.includes('MERAH') || n.includes('MERAH')))) return 'KB-BM-MERAH';
+    if (cleanSku.includes('BM-BIRU') || (cleanSku.includes('BM') && (cleanSku.includes('BIRU') || n.includes('BIRU')))) return 'KB-BM-BIRU';
+    if (cleanSku.includes('BM-DONGKER') || (cleanSku.includes('BM') && (cleanSku.includes('DONGKER') || n.includes('DONGKER') || n.includes('NAVY')))) return 'KB-BM-DONGKER';
+    if (cleanSku.includes('BB-MERAH') || (cleanSku.includes('BB') && (cleanSku.includes('MERAH') || n.includes('MERAH')))) return 'KB-BB-MERAH';
+    if (cleanSku.includes('BL-MERAH') || (cleanSku.includes('BL') && (cleanSku.includes('MERAH') || n.includes('MERAH')))) return 'KB-BL-MERAH';
+    if (cleanSku.includes('POR') || n.includes('BATIK POR')) return 'KB-POR';
+
+    // Baju Putih / Kemeja Putih / Kurung Putih / Koko Putih
+    if (
+      cleanSku.startsWith('BP-') || 
+      cleanSku.includes('PUTIH') || 
+      cleanSku.includes('-PUTIH-') || 
+      cleanSku.startsWith('SET-BP-') ||
+      n.includes('PUTIH') || 
+      n.includes('KEMEJA PUTIH') ||
+      n.includes('KURUNG PUTIH') ||
+      n.includes('KOKO PUTIH')
+    ) {
+      return 'K-CLF-PUTIH';
+    }
+
+    // Bahan Custom Khusus
+    if (cleanSku.includes('PLY') || cleanSku.includes('POLYMICRO') || n.includes('POLYMICRO')) return 'K-PLY';
+    if (cleanSku.includes('TYB') || cleanSku.includes('TOYOBO') || n.includes('TOYOBO')) return 'K-TYB';
+    if (cleanSku.includes('BSY') || cleanSku.includes('BESWAY') || n.includes('BESWAY') || n.includes('BSY')) return 'K-BSY';
+    if (cleanSku.includes('-PE-') || cleanSku.endsWith('-PE') || (cleanSku.includes('SETOLG') && cleanSku.includes('PE')) || n.includes('BAHAN PE')) return 'K-PE';
+    if (cleanSku.includes('-CTN-') || cleanSku.endsWith('-CTN') || (cleanSku.includes('SETOLG') && cleanSku.includes('CTN')) || n.includes('CATOON') || n.includes('COTTON')) return 'K-CTN';
+    if (cleanSku.includes('DIADORA') || n.includes('DIADORA')) return 'K-DIADORA';
+    if (cleanSku.includes('LOTO') || n.includes('LOTO')) return 'K-LOTO';
+    if (cleanSku.includes('KRUDUNG') || n.includes('KERUDUNG') || n.includes('JILBAB')) return 'K-CLF';
+
+    // Kain Polos Umum
+    if (cleanSku.includes('CLF-PUTIH')) return 'K-CLF-PUTIH';
+    if (cleanSku.includes('CLF') || cleanSku.includes('CALISTA')) return 'K-CLF';
+    if (cleanSku.includes('OXFORD') || cleanSku.includes('OXFRD') || n.includes('OXFORD')) return 'K-OXFRD';
+    if (cleanSku.includes('GM') || n.includes('KATUN GM')) return 'K-GM';
+    if (cleanSku.includes('DRILL-UON') || cleanSku.includes('DRIL-UON') || n.includes('UNION')) return 'K-DRILL-UON';
+    if (cleanSku.includes('DRIL') || cleanSku.includes('DRILL') || n.includes('DRILL')) return 'K-DRIL';
+    if (cleanSku.includes('SW') || n.includes('SEMI WOOL')) return 'K-SW';
+    if (cleanSku.includes('CR')) return 'K-CR';
+    if (cleanSku.includes('DN') || n.includes('DENIM') || n.includes('NAVY')) return 'K-DN';
+
+    return null;
+  };
+
+  // Helper deteksi ID Kategori HPP di sisi client untuk preview modal
+  const clientDetectIdKategoriHpp = (sku = '', nama = '', hppList = []) => {
+    const s = String(sku || '').toUpperCase().trim();
+    const n = String(nama || '').toUpperCase().trim();
+
+    let jenjang = null;
+    if (s.includes('TK') || n.includes('(TK)') || n.includes(' TK ') || n.endsWith(' TK')) jenjang = 'TK';
+    else if (s.includes('SMP') || s.includes('SPM') || n.includes('(SMP)') || n.includes(' SMP ') || n.endsWith(' SMP')) jenjang = 'SMP';
+    else if (s.includes('SMA') || s.includes('SMK') || n.includes('(SMA)') || n.includes(' SMA ') || n.endsWith(' SMA')) jenjang = 'SMA';
+    else if (s.includes('SD') || n.includes('(SD)') || n.includes(' SD ') || n.endsWith(' SD')) jenjang = 'SD';
+    else if (s.includes('DEWASA') || n.includes('(DEWASA)') || n.includes(' DEWASA')) jenjang = 'DEWASA';
+
+    let model = null;
+    if (s.includes('ROK-RAMPEL') || n.includes('ROK RAMPEL')) model = 'ROK-RAMPEL';
+    else if (s.includes('ROK') || n.includes('ROK')) model = 'ROK';
+    else if (s.includes('CLN') || s.includes('CELANA') || n.includes('CELANA')) model = 'CELANA';
+    else if (s.includes('GAMIS') || n.includes('GAMIS')) model = 'GAMIS';
+    else if (s.includes('TUNIK') || n.includes('TUNIK')) model = 'TUNIK';
+    else if (s.includes('KURUNG') || n.includes('KURUNG')) model = 'KURUNG';
+    else if (s.includes('KOKO') || n.includes('KOKO')) model = 'KOKO';
+    else if (s.includes('ROMPI') || n.includes('ROMPI')) model = 'ROMPI';
+    else if (s.includes('SETOLG') || s.includes('OLAHRAGA') || n.includes('OLAHRAGA')) model = 'OLAHRAGA';
+    else if (s.includes('KEMEJA') || s.includes('KP-') || s.includes('BP-') || s.includes('BB-') || n.includes('KEMEJA') || n.includes('BATIK')) model = 'KEMEJA';
+
+    let panjang = null;
+    if (s.includes('LPJ') || s.includes('PNJ') || s.includes('PANJANG') || n.includes('PANJANG')) panjang = 'PANJANG';
+    else if (s.includes('LPK') || s.includes('PNDK') || s.includes('PENDEK') || n.includes('PENDEK')) panjang = 'PENDEK';
+
+    if (hppList && hppList.length > 0) {
+      const exact = hppList.find(h => {
+        const hid = (h.value || h.id_kategori_hpp || '').toUpperCase();
+        if (jenjang && !hid.includes(jenjang)) return false;
+        if (panjang && !hid.includes(panjang)) return false;
+        if (model && !hid.includes(model)) return false;
+        return true;
+      });
+      if (exact) return exact.value || exact.id_kategori_hpp;
+
+      const fallback = hppList.find(h => {
+        const hid = (h.value || h.id_kategori_hpp || '').toUpperCase();
+        if (jenjang && !hid.includes(jenjang)) return false;
+        if (model && !hid.includes(model)) return false;
+        return true;
+      });
+      if (fallback) return fallback.value || fallback.id_kategori_hpp;
+    }
+
+    if (model && jenjang) {
+      if (panjang) return `HPP-${model}-LENGAN-${panjang}-${jenjang}`;
+      return `HPP-${model}-${jenjang}`;
+    }
+    return null;
+  };
+
   const handleDownloadTemplate = (format = 'xlsx') => {
     setIsTemplateMenuOpen(false);
     const link = document.createElement('a');
@@ -455,10 +580,28 @@ export default function ProdukView() {
         const status = getVal(['status', 'Status'], 'Aktif');
         const statusOrder = getVal(['status_order', 'Status Order'], 'Ready Stok');
         const tipeSet = getVal(['tipe_set', 'Tipe Set', 'tipe'], 'Single');
-        const skuKain = getVal(['sku_kain', 'SKU Kain', 'kode_sku_kain'], '');
+        let skuKain = getVal(['sku_kain', 'SKU Kain', 'kode_sku_kain'], '');
+        let isAutoKain = false;
+        if (!skuKain || String(skuKain).trim() === '') {
+          const autoK = clientDetectSkuKain(rawSku, nama);
+          if (autoK) {
+            skuKain = autoK;
+            isAutoKain = true;
+          }
+        }
+
         const rawEstimasi = getVal(['estimasi_kain', 'Estimasi Kain', 'estimasi_kain_cm', 'panjang_kain_cm', 'panjang_kain'], '');
         const estimasiKain = String(rawEstimasi).trim();
-        const idKategoriHpp = getVal(['id_kategori_hpp', 'ID Kategori HPP', 'kategori_hpp'], '');
+
+        let idKategoriHpp = getVal(['id_kategori_hpp', 'ID Kategori HPP', 'kategori_hpp'], '');
+        let isAutoHpp = false;
+        if (!idKategoriHpp || String(idKategoriHpp).trim() === '') {
+          const autoH = clientDetectIdKategoriHpp(rawSku, nama, hppOptions);
+          if (autoH) {
+            idKategoriHpp = autoH;
+            isAutoHpp = true;
+          }
+        }
 
         return {
           _index: i + 1,
@@ -473,13 +616,19 @@ export default function ProdukView() {
           status_order: String(statusOrder).trim(),
           tipe_set: String(tipeSet).trim(),
           sku_kain: String(skuKain).trim(),
+          is_auto_kain: isAutoKain,
           estimasi_kain: estimasiKain,
-          id_kategori_hpp: String(idKategoriHpp).trim()
+          id_kategori_hpp: String(idKategoriHpp).trim(),
+          is_auto_hpp: isAutoHpp
         };
       }).filter(row => row.kode_sku || row.nama_produk);
 
+      const autoKCount = parsed.filter(p => p.is_auto_kain).length;
+      const autoHCount = parsed.filter(p => p.is_auto_hpp).length;
+      const autoInfo = (autoKCount > 0 || autoHCount > 0) ? ` (${autoKCount} SKU Kain & ${autoHCount} HPP terisi otomatis)` : '';
+
       setImportRows(parsed);
-      toastSuccess(`Berhasil memuat ${parsed.length} baris data dari file "${file.name}"`);
+      toastSuccess(`Berhasil memuat ${parsed.length} baris data${autoInfo}`);
     } catch (err) {
       console.error('Error parse file:', err);
       toastError(`Gagal membaca file: ${err.message}`);
@@ -4499,6 +4648,7 @@ export default function ProdukView() {
                               <th style={{ padding: '6px 8px', textAlign: 'right' }}>Harga Modal</th>
                               <th style={{ padding: '6px 8px', textAlign: 'center' }}>Stok</th>
                               <th style={{ padding: '6px 8px', textAlign: 'left' }}>SKU Kain</th>
+                              <th style={{ padding: '6px 8px', textAlign: 'left' }}>Kategori HPP</th>
                               <th style={{ padding: '6px 8px', textAlign: 'center' }}>Estimasi (CM)</th>
                               <th style={{ padding: '6px 8px', textAlign: 'center' }}>Tipe</th>
                               <th style={{ padding: '6px 8px', textAlign: 'center' }}>Status Order</th>
@@ -4516,8 +4666,19 @@ export default function ProdukView() {
                                 <td style={{ padding: '5px 8px', textAlign: 'center', fontWeight: '700' }}>{row.stok_fisik}</td>
                                 <td style={{ padding: '5px 8px' }}>
                                   {row.sku_kain ? (
-                                    <span style={{ backgroundColor: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', padding: '1px 5px', borderRadius: '4px', fontSize: '10px', fontFamily: 'monospace', fontWeight: '700' }}>
+                                    <span style={{ backgroundColor: row.is_auto_kain ? '#fef3c7' : '#f0fdf4', color: row.is_auto_kain ? '#92400e' : '#16a34a', border: row.is_auto_kain ? '1px solid #fde68a' : '1px solid #bbf7d0', padding: '1px 5px', borderRadius: '4px', fontSize: '10px', fontFamily: 'monospace', fontWeight: '700', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
                                       {row.sku_kain}
+                                      {row.is_auto_kain && <span style={{ fontSize: '8.5px', color: '#b45309', fontWeight: '800' }}>[Auto]</span>}
+                                    </span>
+                                  ) : (
+                                    <span style={{ color: '#94a3b8' }}>-</span>
+                                  )}
+                                </td>
+                                <td style={{ padding: '5px 8px' }}>
+                                  {row.id_kategori_hpp ? (
+                                    <span style={{ backgroundColor: row.is_auto_hpp ? '#f5f3ff' : '#ecfdf5', color: row.is_auto_hpp ? '#6d28d9' : '#047857', border: row.is_auto_hpp ? '1px solid #ddd6fe' : '1px solid #a7f3d0', padding: '1px 5px', borderRadius: '4px', fontSize: '10px', fontWeight: '700', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                      {row.id_kategori_hpp}
+                                      {row.is_auto_hpp && <span style={{ fontSize: '8.5px', color: '#7c3aed', fontWeight: '800' }}>[Auto]</span>}
                                     </span>
                                   ) : (
                                     <span style={{ color: '#94a3b8' }}>-</span>
