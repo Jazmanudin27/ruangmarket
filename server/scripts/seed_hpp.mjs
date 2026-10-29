@@ -283,39 +283,40 @@ async function run() {
     const idKategori = `HPP-${slugify(model)}${size ? '-' + slugify(size) : ''}`;
 
     // Parsing kolom sesuai posisi di spreadsheet:
-    const jasaPotong = cleanNumber(cols[7]);
-    const jasaJahit = cleanNumber(cols[8]);
-    const bis = cleanNumber(cols[9]);
-    const kainKeras = cleanNumber(cols[10]);
-    const pita = cleanNumber(cols[11]);
-    const kancingQty = cleanNumber(cols[12]) || (cleanNumber(cols[13]) > 0 ? 1 : 0);
-    const kancingHarga = cleanNumber(cols[13]);
-    const lubangQty = cleanNumber(cols[14]) || (cleanNumber(cols[15]) > 0 ? 1 : 0);
-    const lubangHarga = cleanNumber(cols[15]);
-    const kancingKait = cleanNumber(cols[16]);
-    const karet = cleanNumber(cols[17]);
-    const plastik = cleanNumber(cols[18]);
-    const sleting = cleanNumber(cols[19]);
-    const aksesoris = cleanNumber(cols[20]);
-    const bordir = cleanNumber(cols[21]);
-    const setrika = cleanNumber(cols[22]);
-    const finishing = cleanNumber(cols[23]);
-    const listrik = cleanNumber(cols[24]);
-    const benang = cleanNumber(cols[25]);
-    const dll = cleanNumber(cols[26]);
-    const lebelSize = cleanNumber(cols[27]);
-    const pressDtf = cleanNumber(cols[28]);
-    const bop = cleanNumber(cols[29]);
-    const paymentVendor = cleanNumber(cols[30]);
-    const biayaPacking = cleanNumber(cols[31]);
-    let totalHpp = cleanNumber(cols[32]);
+    // cols[0]=Model, cols[1]=Size, cols[3]=Kebutuhan Kain
+    const jasaPotong = cleanNumber(cols[8]);
+    const jasaJahit = cleanNumber(cols[9]);
+    const bis = cleanNumber(cols[10]);
+    const kainKeras = cleanNumber(cols[11]);
+    const pita = cleanNumber(cols[12]);
+    const kancingQty = cleanNumber(cols[13]);
+    const kancingHarga = cleanNumber(cols[14]);
+    const lubangQty = cleanNumber(cols[15]);
+    const lubangHarga = cleanNumber(cols[16]);
+    const kancingKait = cleanNumber(cols[17]);
+    const karet = cleanNumber(cols[18]);
+    const plastik = cleanNumber(cols[19]);
+    const sleting = cleanNumber(cols[20]);
+    const aksesorisBordir = cleanNumber(cols[21]);
+    const aksesorisDll = cleanNumber(cols[22]);
+    const setrika = cleanNumber(cols[23]);
+    const finishing = cleanNumber(cols[24]);
+    const listrik = cleanNumber(cols[25]);
+    const benang = cleanNumber(cols[26]);
+    const dll = cleanNumber(cols[27]);
+    const lebelSize = cleanNumber(cols[28]);
+    const pressDtf = cleanNumber(cols[29]);
+    const bop = cleanNumber(cols[30]);
+    const paymentVendor = cleanNumber(cols[31]);
+    const biayaPacking = cleanNumber(cols[32]);
+    let totalHpp = cleanNumber(cols[33]);
 
     // Detail jasa & komponen
     const details = [];
     if (jasaPotong > 0) details.push({ nama_jasa: 'Jasa Potong', jumlah: 1, harga: jasaPotong, total: jasaPotong });
     if (jasaJahit > 0) details.push({ nama_jasa: 'Jasa Jahit', jumlah: 1, harga: jasaJahit, total: jasaJahit });
-    if (kainKeras > 0) details.push({ nama_jasa: 'Kain Keras', jumlah: 1, harga: kainKeras, total: kainKeras });
     if (bis > 0) details.push({ nama_jasa: 'Bis', jumlah: 1, harga: bis, total: bis });
+    if (kainKeras > 0) details.push({ nama_jasa: 'Kain Keras', jumlah: 1, harga: kainKeras, total: kainKeras });
     if (pita > 0) details.push({ nama_jasa: 'Pita', jumlah: 1, harga: pita, total: pita });
     if (kancingHarga > 0) details.push({ nama_jasa: 'Kancing', jumlah: kancingQty || 1, harga: Math.round(kancingHarga / (kancingQty || 1)), total: kancingHarga });
     if (lubangHarga > 0) details.push({ nama_jasa: 'Jasa Lubang Kancing', jumlah: lubangQty || 1, harga: Math.round(lubangHarga / (lubangQty || 1)), total: lubangHarga });
@@ -323,8 +324,8 @@ async function run() {
     if (karet > 0) details.push({ nama_jasa: 'Karet', jumlah: 1, harga: karet, total: karet });
     if (plastik > 0) details.push({ nama_jasa: 'Plastik Packing', jumlah: 1, harga: plastik, total: plastik });
     if (sleting > 0) details.push({ nama_jasa: 'Sleting', jumlah: 1, harga: sleting, total: sleting });
-    if (aksesoris > 0) details.push({ nama_jasa: 'Aksesoris', jumlah: 1, harga: aksesoris, total: aksesoris });
-    if (bordir > 0) details.push({ nama_jasa: 'Bordir', jumlah: 1, harga: bordir, total: bordir });
+    if (aksesorisBordir > 0) details.push({ nama_jasa: 'Aksesoris Bordir', jumlah: 1, harga: aksesorisBordir, total: aksesorisBordir });
+    if (aksesorisDll > 0) details.push({ nama_jasa: 'Aksesoris DLL', jumlah: 1, harga: aksesorisDll, total: aksesorisDll });
     if (setrika > 0) details.push({ nama_jasa: 'Setrika', jumlah: 1, harga: setrika, total: setrika });
     if (finishing > 0) details.push({ nama_jasa: 'Finishing', jumlah: 1, harga: finishing, total: finishing });
     if (listrik > 0) details.push({ nama_jasa: 'Beban Listrik', jumlah: 1, harga: listrik, total: listrik });
@@ -335,10 +336,10 @@ async function run() {
     if (bop > 0) details.push({ nama_jasa: 'BOP', jumlah: 1, harga: bop, total: bop });
     if (biayaPacking > 0) details.push({ nama_jasa: 'Biaya Packing', jumlah: 1, harga: biayaPacking, total: biayaPacking });
 
-    // Jika totalHpp kosong, hitung dari detail
+    // Jika totalHpp kosong, ambil paymentVendor atau sumDetail
     const sumDetail = details.reduce((acc, d) => acc + d.total, 0);
-    if (!totalHpp) {
-      totalHpp = sumDetail || paymentVendor;
+    if (!totalHpp || totalHpp === 0) {
+      totalHpp = paymentVendor || sumDetail;
     }
 
     // Jika details kosong tapi ada totalHpp (seperti Setelan Olahraga)
