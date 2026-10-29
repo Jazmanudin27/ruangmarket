@@ -36,6 +36,7 @@ import { INITIAL_BATCH_PRODUKSI } from "../../data/initialSPK";
 import { INITIAL_KARYAWAN_DATA } from "../../data/initialKaryawan";
 import { INITIAL_PRODUK_DATA } from "../../data/initialProduk";
 import { KARYAWAN_STORAGE_KEY } from "./KaryawanDesktopView";
+import { INITIAL_PELANGGAN_DATA } from "./PelangganDesktopView";
 import { getActiveCompany } from "../../utils/tenant.util";
 import CetakSPKModal from "../../components/CetakSPKModal";
 
@@ -389,7 +390,7 @@ export default function SPKView() {
     return INITIAL_PRODUK_DATA;
   });
 
-  const [pelangganOptions, setPelangganOptions] = useState([]);
+  const [pelangganOptions, setPelangganOptions] = useState(INITIAL_PELANGGAN_DATA);
 
   const loadPelangganOptions = async () => {
     try {
@@ -398,14 +399,24 @@ export default function SPKView() {
         const json = await res.json();
         if (json && Array.isArray(json.data) && json.data.length > 0) {
           setPelangganOptions(json.data);
+          try {
+            localStorage.setItem('ruangmarket_pelanggan_master', JSON.stringify(json.data));
+          } catch (e) {}
           return;
         }
       }
     } catch (e) {}
     try {
       const saved = localStorage.getItem('ruangmarket_pelanggan_master');
-      if (saved) setPelangganOptions(JSON.parse(saved) || []);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setPelangganOptions(parsed);
+          return;
+        }
+      }
     } catch (e) {}
+    setPelangganOptions(INITIAL_PELANGGAN_DATA);
   };
 
   const [activeCompany, setActiveCompany] = useState(getActiveCompany);
@@ -584,6 +595,7 @@ export default function SPKView() {
 
   // Open Add New Batch Modal
   const handleOpenAdd = () => {
+    loadPelangganOptions();
     setEditingId(null);
     const dateStr = new Date().toISOString().slice(0, 7).replace("-", "");
     const nextNum = batchList.length + 1;
@@ -643,6 +655,7 @@ export default function SPKView() {
 
   // Open Edit Batch Modal
   const handleOpenEdit = (batch) => {
+    loadPelangganOptions();
     setEditingId(batch.id);
     setFormData({
       kode_produksi: batch.kode_produksi,
@@ -2266,7 +2279,7 @@ export default function SPKView() {
                         color: "#334155",
                       }}
                     >
-                      Pelanggan (Dari Master Data) <span style={{ color: "#ef4444" }}>*</span>
+                      Pelanggan <span style={{ color: "#ef4444" }}>*</span>
                     </label>
                   </div>
                   <SearchableSelect

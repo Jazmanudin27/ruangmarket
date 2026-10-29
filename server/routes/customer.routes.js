@@ -7,8 +7,8 @@ export async function handleCustomerRoutes(req, res, pathname, urlObj, { pool })
       const kodePerusahaan = urlObj.searchParams.get('kode_perusahaan');
       let sql = 'SELECT * FROM pelanggan_master';
       const params = [];
-      if (kodePerusahaan) {
-        sql += ' WHERE kode_perusahaan = ?';
+      if (kodePerusahaan && kodePerusahaan !== 'ALL') {
+        sql += ' WHERE (kode_perusahaan = ? OR kode_perusahaan = "RSG" OR kode_perusahaan IS NULL)';
         params.push(kodePerusahaan);
       }
       sql += ' ORDER BY id DESC';

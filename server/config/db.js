@@ -338,6 +338,16 @@ export async function initDb() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Tabel Master Pelanggan';
     `);
 
+    // Auto-seed data awal pelanggan jika kosong
+    await conn.query(`
+      INSERT INTO pelanggan_master (kode_perusahaan, kode_pelanggan, nama_pelanggan, alamat, no_hp, status, kategori_pelanggan)
+      VALUES 
+        ('RSG', 'PLG-2026-001', 'Salmah Khairani Nasution', 'Jl. Merdeka No. 45, Medan', '+62 852-1858-3688', 'Aktif', 'Umum'),
+        ('RSG', 'PLG-2026-002', 'Distributor Utama Jakarta (Pelanggan ABC)', 'Kawasan Pergudangan Pluit Blok C No. 12, Jakarta Utara', '+62 812-3456-7890', 'Aktif', 'Dropship'),
+        ('RSG', 'PLG-2026-003', 'Pesantren Al-Hikmah Bandung', 'Jl. Pesantren No. 88, Cibiru, Bandung', '+62 878-9988-1122', 'Aktif', 'Lainnya')
+      ON DUPLICATE KEY UPDATE nama_pelanggan = VALUES(nama_pelanggan);
+    `);
+
     conn.release();
     console.log('[MySQL] Tabel Bahasa Indonesia (toko_marketplace, produk_marketplace, produk_master, pesanan_marketplace, spk_batch, pelanggan_master) siap!');
   } catch (err) {
