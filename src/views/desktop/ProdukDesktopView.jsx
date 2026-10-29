@@ -2192,22 +2192,49 @@ export default function ProdukView() {
                 <div style={{
                   backgroundColor: '#ffffff',
                   borderRadius: '8px',
-                  border: '1px solid #cbd5e1',
+                  border: '1px solid #38bdf8',
                   padding: '10px 12px',
-                  boxShadow: '0 1px 2px rgba(0, 0, 0, 0.04)'
+                  boxShadow: '0 1px 3px rgba(2, 132, 199, 0.08)'
                 }}>
                   <div style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '6px',
+                    justifyContent: 'space-between',
                     marginBottom: '8px',
                     paddingBottom: '5px',
-                    borderBottom: '1px solid #f1f5f9'
+                    borderBottom: '1px solid #e0f2fe'
                   }}>
-                    <Boxes size={13} color="#0284c7" />
-                    <span style={{ fontSize: '11px', fontWeight: '800', color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                      2. Kategori & Spesifikasi
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Boxes size={13} color="#0284c7" />
+                      <span style={{ fontSize: '11px', fontWeight: '800', color: '#0369a1', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        2. Kategori & Spesifikasi
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{
+                        fontSize: '10px',
+                        fontWeight: '800',
+                        padding: '1px 8px',
+                        borderRadius: '4px',
+                        backgroundColor: (formData.tipe_set === 'Satu Setel' || formData.tipe_set === 'Bundle') ? '#f3e8ff' : '#f0f9ff',
+                        color: (formData.tipe_set === 'Satu Setel' || formData.tipe_set === 'Bundle') ? '#7e22ce' : '#0284c7',
+                        border: (formData.tipe_set === 'Satu Setel' || formData.tipe_set === 'Bundle') ? '1px solid #d8b4fe' : '1px solid #bae6fd'
+                      }}>
+                        {(formData.tipe_set === 'Satu Setel' || formData.tipe_set === 'Bundle') ? 'Paket Bundle' : 'Single Item'}
+                      </span>
+                      <span style={{
+                        fontSize: '10px',
+                        fontWeight: '800',
+                        padding: '1px 8px',
+                        borderRadius: '4px',
+                        backgroundColor: formData.status_order === 'PO' ? '#fff7ed' : '#f0fdf4',
+                        color: formData.status_order === 'PO' ? '#c2410c' : '#15803d',
+                        border: formData.status_order === 'PO' ? '1px solid #fed7aa' : '1px solid #bbf7d0'
+                      }}>
+                        {formData.status_order === 'PO' ? 'PO' : 'Ready'}
+                      </span>
+                    </div>
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
@@ -2234,6 +2261,8 @@ export default function ProdukView() {
                           borderRadius: '5px',
                           border: '1px solid #cbd5e1',
                           fontSize: '11.5px',
+                          fontWeight: '600',
+                          color: '#0f172a',
                           backgroundColor: '#ffffff'
                         }}
                       />
