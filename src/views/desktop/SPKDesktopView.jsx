@@ -65,7 +65,7 @@ function SearchableSelect({ label, value, onChange, options, placeholder = "Pili
   }, [isOpen]);
 
   const filteredOptions = options.filter(opt => {
-    const text = typeof opt === 'string' ? opt : (opt.label || opt.value || opt.nama_produk || opt.nama || '');
+    const text = typeof opt === 'string' ? opt : `${opt.label || opt.value || opt.nama_produk || opt.nama || ''} ${opt.sku || ''} ${opt.kategori || ''}`;
     return text.toLowerCase().includes(searchTerm.toLowerCase());
   });
 
@@ -189,10 +189,20 @@ function SearchableSelect({ label, value, onChange, options, placeholder = "Pili
                     }}
                   >
                     {renderItem ? renderItem(opt, isSelected) : (
-                      <>
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{optLabel}</span>
-                        {isSelected && <Check size={12} color="#0284c7" />}
-                      </>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '8px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', overflow: 'hidden' }}>
+                          <span style={{ fontSize: '11px', color: isSelected ? '#0284c7' : '#0f172a', fontWeight: isSelected ? '700' : '600', lineHeight: 1.3 }}>
+                            {optLabel}
+                          </span>
+                          {opt.sku && (
+                            <span style={{ fontSize: '9.5px', color: '#64748b', fontFamily: 'monospace', fontWeight: '600' }}>
+                              SKU: <span style={{ color: '#0284c7' }}>{opt.sku}</span>
+                              {opt.kategori && <span style={{ marginLeft: '6px', color: '#94a3b8' }}>• {opt.kategori}</span>}
+                            </span>
+                          )}
+                        </div>
+                        {isSelected && <Check size={14} color="#0284c7" style={{ flexShrink: 0 }} />}
+                      </div>
                     )}
                   </div>
                 );
