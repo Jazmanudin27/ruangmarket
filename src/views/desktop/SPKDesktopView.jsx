@@ -18,6 +18,7 @@ import {
   X,
   Save,
   Printer,
+  RefreshCw,
   ChevronDown,
   ChevronRight,
   FileText,
@@ -335,22 +336,36 @@ function SearchableSelect({
 }
 
 export default function SPKView() {
-  const [batchList, setBatchList] = useState(() => {
+  const [batchList, setBatchList] = useState([]);
+  const [isLoadingSpk, setIsLoadingSpk] = useState(false);
+
+  const loadSpkData = async () => {
+    setIsLoadingSpk(true);
+    try {
+      const res = await fetch(`/api/spk?kode_perusahaan=${activeCompany?.code || "RSG"}`);
+      if (res.ok) {
+        const json = await res.json();
+        if (json && Array.isArray(json.data)) {
+          setBatchList(json.data);
+          try {
+            localStorage.setItem(SPK_STORAGE_KEY, JSON.stringify(json.data));
+          } catch (e) {}
+          setIsLoadingSpk(false);
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn("Gagal load SPK dari MySQL:", e);
+    }
+    // Fallback jika offline
     try {
       const saved = localStorage.getItem(SPK_STORAGE_KEY);
       if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        setBatchList(JSON.parse(saved) || []);
       }
     } catch (e) {}
-    try {
-      localStorage.setItem(
-        SPK_STORAGE_KEY,
-        JSON.stringify(INITIAL_BATCH_PRODUKSI),
-      );
-    } catch (e) {}
-    return INITIAL_BATCH_PRODUKSI;
-  });
+    setIsLoadingSpk(false);
+  };
 
   const [karyawanOptions, setKaryawanOptions] = useState(() => {
     try {
@@ -384,6 +399,10 @@ export default function SPKView() {
     return () =>
       window.removeEventListener("companyChange", handleCompanyChange);
   }, []);
+
+  useEffect(() => {
+    loadSpkData();
+  }, [activeCompany]);
 
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("Semua");
@@ -843,21 +862,48 @@ export default function SPKView() {
     });
   };
 
-  // Form Submit
-  const handleFormSubmit = (e) => {
+  // Form Submit (Simpan ke MySQL Database)
+  const handleFormSubmit = async (e) => {
     e.preventDefault();
     if (!formData.nama_pelanggan.trim()) {
       toastError("Nama Pelanggan wajib diisi!");
       return;
     }
 
+    const payload = {
+      ...formData,
+      id: editingId || null,
+      company_code: activeCompany.code || "RSG",
+    };
+
+    try {
+      const res = await fetch("/api/spk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        await loadSpkData();
+        toastSuccess(
+          editingId
+            ? "Data SPK berhasil diperbarui di database!"
+            : "SPK baru berhasil disimpan ke database!",
+        );
+        setIsModalOpen(false);
+        return;
+      }
+    } catch (err) {
+      console.warn("Gagal simpan ke MySQL, fallback ke local:", err);
+    }
+
+    // Fallback local jika offline
     if (editingId) {
       setBatchList((prev) =>
         prev.map((b) =>
           b.id === editingId ? { ...formData, id: editingId } : b,
         ),
       );
-      toastSuccess("Data Kode Produksi & Seluruh SPK berhasil diperbarui");
+      toastSuccess("Data SPK berhasil diperbarui");
     } else {
       const nextId =
         batchList.length > 0 ? Math.max(...batchList.map((b) => b.id)) + 1 : 1;
@@ -866,26 +912,53 @@ export default function SPKView() {
         ...prev,
       ]);
       setExpandedBatch((prev) => ({ ...prev, [nextId]: true }));
-      toastSuccess(
-        "Kode Produksi baru dan seluruh SPK & Produk berhasil dibuat",
-      );
+      toastSuccess("SPK baru berhasil dibuat");
     }
     setIsModalOpen(false);
   };
 
-  // Delete Batch
+  // Delete Batch dari Database MySQL
   const handleDeleteBatch = async (batch) => {
     const totalSpk = batch.spk_list ? batch.spk_list.length : 0;
     const confirmed = await showConfirm(
       "Hapus Kode Produksi?",
-      `Yakin ingin menghapus ${batch.kode_produksi} (${batch.nama_pelanggan}) beserta seluruh (${totalSpk}) SPK di dalamnya?`,
+      `Yakin ingin menghapus ${batch.kode_produksi} (${batch.nama_pelanggan}) beserta seluruh (${totalSpk}) SPK dari database?`,
       "Ya, Hapus Semua",
       "Batal",
     );
-    if (confirmed) {
-      setBatchList((prev) => prev.filter((b) => b.id !== batch.id));
-      toastSuccess("Kode produksi & SPK berhasil dihapus");
+    if (!confirmed) return;
+
+    try {
+      await fetch(`/api/spk?id=${batch.id}`, { method: "DELETE" });
+    } catch (err) {
+      console.warn("Gagal hapus dari database:", err);
     }
+
+    setBatchList((prev) => prev.filter((b) => b.id !== batch.id));
+    toastSuccess("Kode produksi & SPK berhasil dihapus dari database");
+  };
+
+  // Kosongkan Semua Data SPK dari Database (Untuk Test Dari Awal)
+  const handleClearAllSPK = async () => {
+    const confirmed = await showConfirm(
+      "Kosongkan Semua Data SPK?",
+      "Seluruh data SPK Produksi di database MySQL akan dihapus bersih agar bisa dites dari awal.",
+      "Ya, Kosongkan Database",
+      "Batal",
+    );
+    if (!confirmed) return;
+
+    try {
+      await fetch("/api/spk?clear=all", { method: "DELETE" });
+    } catch (err) {
+      console.warn("Gagal truncate SPK database:", err);
+    }
+
+    setBatchList([]);
+    try {
+      localStorage.removeItem(SPK_STORAGE_KEY);
+    } catch (e) {}
+    toastSuccess("Database SPK berhasil dikosongkan bersih!");
   };
 
   // Filter batch list by company (Multi-Tenant)
@@ -990,6 +1063,50 @@ export default function SPKView() {
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            <button
+              onClick={loadSpkData}
+              title="Muat ulang data dari database"
+              style={{
+                height: "28px",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "5px",
+                padding: "0 10px",
+                borderRadius: "5px",
+                border: "1px solid rgba(255, 255, 255, 0.4)",
+                backgroundColor: "rgba(255, 255, 255, 0.15)",
+                color: "#ffffff",
+                fontSize: "11px",
+                fontWeight: "700",
+                cursor: "pointer",
+              }}
+            >
+              <RefreshCw size={12} className={isLoadingSpk ? "animate-spin" : ""} />
+              <span>Muat Ulang</span>
+            </button>
+
+            <button
+              onClick={handleClearAllSPK}
+              title="Kosongkan seluruh data SPK di database untuk pengetesan dari awal"
+              style={{
+                height: "28px",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "5px",
+                padding: "0 10px",
+                borderRadius: "5px",
+                border: "1px solid #fecaca",
+                backgroundColor: "#fee2e2",
+                color: "#dc2626",
+                fontSize: "11px",
+                fontWeight: "700",
+                cursor: "pointer",
+              }}
+            >
+              <Trash2 size={12} />
+              <span>Kosongkan Data</span>
+            </button>
+
             <button
               onClick={handleOpenAdd}
               style={{

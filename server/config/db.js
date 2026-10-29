@@ -299,8 +299,29 @@ export async function initDb() {
         status_koneksi = VALUES(status_koneksi);
     `);
 
+    // 7. Tabel SPK Produksi & Batch (spk_batch)
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS spk_batch (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        kode_perusahaan VARCHAR(32) DEFAULT 'RSG',
+        kode_produksi VARCHAR(64) NOT NULL,
+        nama_pelanggan VARCHAR(255),
+        no_telepon VARCHAR(64),
+        instansi VARCHAR(255),
+        tgl_pesan VARCHAR(32),
+        deadline VARCHAR(32),
+        status VARCHAR(64) DEFAULT 'Dalam Proses',
+        catatan TEXT,
+        spk_list LONGTEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_kode_produksi (kode_produksi),
+        INDEX idx_kode_perusahaan (kode_perusahaan)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Tabel SPK Produksi & Batch';
+    `);
+
     conn.release();
-    console.log('[MySQL] Tabel Bahasa Indonesia (toko_marketplace, produk_marketplace, produk_master, pesanan_marketplace) siap!');
+    console.log('[MySQL] Tabel Bahasa Indonesia (toko_marketplace, produk_marketplace, produk_master, pesanan_marketplace, spk_batch) siap!');
   } catch (err) {
     console.error('[MySQL Init Error]:', err.message);
   }

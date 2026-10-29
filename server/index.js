@@ -11,6 +11,7 @@ import { handleMasterRoutes } from './routes/master.routes.js';
 import { handleOrdersRoutes } from './routes/orders.routes.js';
 import { handleReturnsRoutes } from './routes/returns.routes.js';
 import { handleWebhookRoutes } from './routes/webhook.routes.js';
+import { handleSPKRoutes } from './routes/spk.routes.js';
 
 import './config/env.js';
 
@@ -59,6 +60,7 @@ const server = http.createServer(async (req, res) => {
     if (await handleOrdersRoutes(req, res, pathname, urlObj, context)) return;
     if (await handleReturnsRoutes(req, res, pathname, urlObj, context)) return;
     if (await handleWebhookRoutes(req, res, pathname, urlObj, context)) return;
+    if (await handleSPKRoutes(req, res, pathname, urlObj, context)) return;
 
     // 404 Not Found
     sendJson(res, 404, { error: 'Endpoint tidak ditemukan' });
