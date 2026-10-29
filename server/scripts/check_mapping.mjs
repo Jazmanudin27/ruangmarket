@@ -35,11 +35,14 @@ async function main() {
   console.log('Filled sample (both sku_kain & id_kategori_hpp):');
   console.table(filled);
 
-  const [cols] = await pool.query('DESCRIBE master_hpp_produk');
-  console.log('HPP Columns:', cols.map(c => c.Field));
-  const [hppSamples] = await pool.query('SELECT * FROM master_hpp_produk LIMIT 5');
-  console.log('HPP Sample:');
-  console.table(hppSamples);
+  const [totalCount] = await pool.query('SELECT COUNT(*) as c FROM produk_master');
+  const [kainCount] = await pool.query('SELECT COUNT(*) as c FROM produk_master WHERE sku_kain IS NOT NULL AND sku_kain != ""');
+  const [hppCount] = await pool.query('SELECT COUNT(*) as c FROM produk_master WHERE id_kategori_hpp IS NOT NULL AND id_kategori_hpp != ""');
+  console.log('FINAL DB STATS:', { total: totalCount[0].c, with_kain: kainCount[0].c, with_hpp: hppCount[0].c });
+
+  const [spmRow] = await pool.query("SELECT kode_sku, nama_produk, sku_kain, id_kategori_hpp FROM produk_master WHERE kode_sku = 'BB-TH-SPM-L'");
+  console.log('BB-TH-SPM-L:');
+  console.table(spmRow);
 
   process.exit(0);
 }
