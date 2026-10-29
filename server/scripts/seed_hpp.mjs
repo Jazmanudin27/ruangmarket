@@ -1,13 +1,4 @@
-import mysql from 'mysql2/promise';
-
-const pool = mysql.createPool({
-  host: '127.0.0.1',
-  user: 'root',
-  password: 'RuangTech123!',
-  database: 'ruangmarket',
-  waitForConnections: true,
-  connectionLimit: 10
-});
+import { pool } from '../config/db.js';
 
 const RAW_DATA = `Kemeja Lengan Panjang	TK		1,3					Rp2.000	Rp7.000		Rp500		7	Rp350	7	Rp1.400			Rp400					Rp500	Rp550	Rp200	Rp800	Rp150		Rp2.500	Rp16.500	Rp1.500	Rp18.000
 Kemeja Lengan Pendek	TK							Rp2.000	Rp7.000		Rp500		5	Rp250	5	Rp1.000			Rp400					Rp500	Rp550	Rp200	Rp800	Rp150		Rp2.500	Rp16.000	Rp1.500	Rp17.500
