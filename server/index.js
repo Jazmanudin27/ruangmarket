@@ -1,7 +1,7 @@
 import http from 'http';
-import { ShopeeService } from './shopee.service.js';
-import { TiktokService } from './tiktok.service.js';
-import { pool, laravelPool, initDb } from './db.js';
+import { ShopeeService } from './services/shopee.service.js';
+import { TiktokService } from './services/tiktok.service.js';
+import { pool, laravelPool, initDb } from './config/db.js';
 import { sendJson } from './utils/response.js';
 
 import { handleAuthRoutes } from './routes/auth.routes.js';
@@ -11,7 +11,7 @@ import { handleMasterRoutes } from './routes/master.routes.js';
 import { handleOrdersRoutes } from './routes/orders.routes.js';
 import { handleWebhookRoutes } from './routes/webhook.routes.js';
 
-import './env.js';
+import './config/env.js';
 
 const PORT = process.env.PORT || 5010;
 

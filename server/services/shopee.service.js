@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import https from 'https';
-import './env.js';
+import '../config/env.js';
 
 export class ShopeeService {
   constructor(config = {}) {
