@@ -208,13 +208,36 @@ export default function MarketplaceView({ onBack, onNavigate }) {
   const handleDisconnect = async (id, name) => {
     const confirmed = await showConfirm(
       'Putuskan Koneksi Toko',
-      `Yakin ingin memutuskan koneksi toko "${name}"? Sinkronisasi stok otomatis akan dihentikan.`,
+      `Yakin ingin memutuskan koneksi toko "${name}"? Sinkronisasi stok otomatis akan dihentikan dan data toko dihapus dari database.`,
       'Ya, Putuskan',
       'Batal'
     );
     if (confirmed) {
-      setConnectedStores(prev => prev.filter(item => item.id !== id));
-      toastSuccess(`Koneksi toko ${name} diputuskan`);
+      try {
+        const res = await fetch(`/api/marketplace/stores/${encodeURIComponent(id)}`, {
+          method: 'DELETE'
+        });
+        const json = await res.json();
+        if (json.status === 'success') {
+          setConnectedStores(prev => {
+            const updated = prev.filter(item => item.id !== id && item.shopId !== id);
+            localStorage.setItem(STORAGE_KEY_TOKO, JSON.stringify(updated));
+            return updated;
+          });
+          toastSuccess(`Koneksi toko ${name} berhasil diputuskan`);
+        } else {
+          toastError(json.message || 'Gagal memutuskan koneksi toko');
+        }
+      } catch (err) {
+        console.error('Error disconnecting store:', err);
+        // Fallback UI filter
+        setConnectedStores(prev => {
+          const updated = prev.filter(item => item.id !== id && item.shopId !== id);
+          localStorage.setItem(STORAGE_KEY_TOKO, JSON.stringify(updated));
+          return updated;
+        });
+        toastSuccess(`Koneksi toko ${name} diputuskan`);
+      }
     }
   };
 

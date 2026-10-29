@@ -260,9 +260,7 @@ export async function initDb() {
         SELECT 
           CONCAT('tk_', c.code, '_', s.id) AS id,
           CASE s.tenant_id
-            WHEN 1 THEN 'EMR'
             WHEN 2 THEN 'RSG'
-            WHEN 3 THEN 'ABC'
             ELSE 'RSG'
           END AS kode_perusahaan,
           c.code AS saluran,

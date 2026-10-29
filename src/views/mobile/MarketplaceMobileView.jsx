@@ -33,8 +33,15 @@ export default function MarketplaceMobileView({ onNavigate }) {
       'Batal'
     );
     if (confirmed) {
+      try {
+        await fetch(`/api/marketplace/stores/${encodeURIComponent(id)}`, {
+          method: 'DELETE'
+        });
+      } catch (err) {
+        console.error('Error disconnecting store:', err);
+      }
       setConnectedStores(prev => {
-        const updated = prev.filter(item => item.id !== id);
+        const updated = prev.filter(item => item.id !== id && item.shopId !== id);
         localStorage.setItem(STORAGE_KEY_TOKO, JSON.stringify(updated));
         return updated;
       });
