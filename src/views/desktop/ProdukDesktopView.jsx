@@ -483,9 +483,37 @@ export default function ProdukView() {
 
       setImportResult(json);
       const s = json.summary || {};
+      const newKatMsg = s.kategori_baru ? ` (+${s.kategori_baru} Kategori Baru Terdaftar Otomatis)` : '';
       toastSuccess(
-        `Import selesai! +${s.inserted || 0} Baru, ~${s.updated || 0} Diupdate, =${s.skipped || 0} Skip, !${s.failed || 0} Gagal`
+        `Import selesai! +${s.inserted || 0} Baru, ~${s.updated || 0} Diupdate, =${s.skipped || 0} Skip, !${s.failed || 0} Gagal${newKatMsg}`
       );
+
+      // Sinkronisasi kategori baru ke localStorage & state jika ada penambahan otomatis
+      if (Array.isArray(json.new_categories) && json.new_categories.length > 0) {
+        try {
+          const saved = localStorage.getItem(KATEGORI_STORAGE_KEY);
+          let currentList = [];
+          if (saved) currentList = JSON.parse(saved);
+          if (!Array.isArray(currentList)) currentList = [];
+
+          json.new_categories.forEach(newKat => {
+            const trimmed = String(newKat).trim();
+            if (!currentList.some(k => String(k.nama || '').trim().toLowerCase() === trimmed.toLowerCase())) {
+              currentList.push({
+                id: Date.now() + Math.floor(Math.random() * 1000),
+                nama: trimmed,
+                deskripsi: 'Ditambahkan otomatis saat import produk',
+                status: 'Aktif'
+              });
+            }
+          });
+
+          localStorage.setItem(KATEGORI_STORAGE_KEY, JSON.stringify(currentList));
+          setKategoriOptions(currentList.filter(k => k.status !== 'Nonaktif').map(k => k.nama));
+          window.dispatchEvent(new Event('kategori_updated'));
+        } catch (e) {}
+      }
+
       loadMasterProduk(1, entriesPerPage);
     } catch (err) {
       toastError(`Gagal import: ${err.message}`);
@@ -689,6 +717,22 @@ export default function ProdukView() {
         }
       } catch (e) {}
     };
+
+    const fetchKategoriFromDb = async () => {
+      try {
+        const res = await fetch('/api/marketplace/kategori');
+        const json = await res.json();
+        if (res.ok && json.status === 'success' && Array.isArray(json.data) && json.data.length > 0) {
+          const activeList = json.data.filter(k => k.status !== 'Nonaktif').map(k => k.nama);
+          if (activeList.length > 0) {
+            setKategoriOptions(activeList);
+            localStorage.setItem(KATEGORI_STORAGE_KEY, JSON.stringify(json.data));
+          }
+        }
+      } catch (err) {}
+    };
+
+    fetchKategoriFromDb();
 
     window.addEventListener('kategori_updated', handleKategoriUpdate);
     window.addEventListener('storage', handleKategoriUpdate);

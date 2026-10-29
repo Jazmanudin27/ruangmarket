@@ -40,6 +40,23 @@ export default function KategoriView() {
     status: 'Aktif'
   });
 
+  // Fetch data dari database MySQL on mount
+  const fetchKategoriFromApi = async () => {
+    try {
+      const res = await fetch('/api/marketplace/kategori');
+      const json = await res.json();
+      if (res.ok && json.status === 'success' && Array.isArray(json.data) && json.data.length > 0) {
+        setKategoriList(json.data);
+      }
+    } catch (e) {
+      console.error('Gagal fetch kategori dari API:', e);
+    }
+  };
+
+  useEffect(() => {
+    fetchKategoriFromApi();
+  }, []);
+
   // Sync state to local storage & trigger window event so ProdukView can update
   useEffect(() => {
     try {
@@ -50,7 +67,7 @@ export default function KategoriView() {
   }, [kategoriList]);
 
   const filteredKategori = kategoriList.filter(k => 
-    k.nama.toLowerCase().includes(search.toLowerCase()) ||
+    (k.nama || '').toLowerCase().includes(search.toLowerCase()) ||
     (k.deskripsi || '').toLowerCase().includes(search.toLowerCase())
   );
 
@@ -74,21 +91,25 @@ export default function KategoriView() {
       'Batal'
     );
     if (confirmed) {
+      try {
+        await fetch(`/api/marketplace/kategori/${item.id}`, { method: 'DELETE' });
+      } catch (err) {}
       setKategoriList(prev => prev.filter(k => k.id !== item.id));
       toastSuccess('Kategori berhasil dihapus');
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.nama.trim()) {
+    const cleanNama = formData.nama.trim();
+    if (!cleanNama) {
       toastError('Nama kategori wajib diisi!');
       return;
     }
 
     // Duplicate check
     const isDup = kategoriList.some(k => 
-      k.nama.toLowerCase() === formData.nama.trim().toLowerCase() && k.id !== editingId
+      (k.nama || '').toLowerCase() === cleanNama.toLowerCase() && k.id !== editingId
     );
     if (isDup) {
       toastError('Nama kategori sudah ada!');
@@ -96,11 +117,27 @@ export default function KategoriView() {
     }
 
     if (editingId) {
-      setKategoriList(prev => prev.map(k => k.id === editingId ? { ...formData, id: editingId, nama: formData.nama.trim() } : k));
+      try {
+        await fetch(`/api/marketplace/kategori/${editingId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nama: cleanNama, deskripsi: formData.deskripsi, status: formData.status })
+        });
+      } catch (err) {}
+      setKategoriList(prev => prev.map(k => k.id === editingId ? { ...formData, id: editingId, nama: cleanNama } : k));
       toastSuccess('Kategori berhasil diperbarui');
     } else {
-      const nextId = kategoriList.length > 0 ? Math.max(...kategoriList.map(k => k.id)) + 1 : 1;
-      setKategoriList(prev => [...prev, { ...formData, id: nextId, nama: formData.nama.trim() }]);
+      let createdId = Date.now();
+      try {
+        const res = await fetch('/api/marketplace/kategori', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nama: cleanNama, deskripsi: formData.deskripsi, status: formData.status })
+        });
+        const json = await res.json();
+        if (json?.id) createdId = json.id;
+      } catch (err) {}
+      setKategoriList(prev => [...prev, { ...formData, id: createdId, nama: cleanNama }]);
       toastSuccess('Kategori baru berhasil ditambahkan');
     }
     setIsModalOpen(false);

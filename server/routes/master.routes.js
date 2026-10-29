@@ -81,9 +81,10 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
         return true;
       }
 
-      // Ambil daftar SKU Kain & HPP dari DB untuk tab referensi
+      // Ambil daftar SKU Kain, HPP & Kategori dari DB untuk tab referensi
       const [kainRows] = await pool.query('SELECT kode_sku_kain, nama_kain, jenis_kain, warna FROM master_kain ORDER BY id ASC');
       const [hppRows] = await pool.query('SELECT id_kategori_hpp, nama_kategori_hpp, total_hpp FROM master_hpp_produk ORDER BY id ASC');
+      const [katRows] = await pool.query('SELECT nama_kategori, deskripsi, status FROM master_kategori ORDER BY nama_kategori ASC');
 
       const wb = XLSX.utils.book_new();
 
@@ -118,19 +119,30 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
       ws3['!cols'] = [{ wch: 22 }, { wch: 35 }, { wch: 16 }];
       XLSX.utils.book_append_sheet(wb, ws3, 'Referensi_HPP');
 
-      // Sheet 4: Petunjuk Pengisian
+      // Sheet 4: Referensi Kategori Produk
+      const refKat = katRows.map(k => ({
+        NAMA_KATEGORI: k.nama_kategori,
+        DESKRIPSI: k.deskripsi || '-',
+        STATUS: k.status || 'Aktif'
+      }));
+      const wsKat = XLSX.utils.json_to_sheet(refKat);
+      wsKat['!cols'] = [{ wch: 25 }, { wch: 45 }, { wch: 12 }];
+      XLSX.utils.book_append_sheet(wb, wsKat, 'Referensi_Kategori');
+
+      // Sheet 5: Petunjuk Pengisian
       const panduan = [
         { ATURAN: 'Logika Upload Baru', PENJELASAN: 'Jika kode_sku belum ada di database, baris otomatis di-INSERT sebagai produk baru.' },
         { ATURAN: 'Logika Update', PENJELASAN: 'Jika kode_sku sudah ada dan ada kolom yang diubah (harga, stok, nama, dll), baris otomatis di-UPDATE.' },
         { ATURAN: 'Logika Skip', PENJELASAN: 'Jika kode_sku sudah ada dan seluruh datanya sama persis, baris otomatis di-SKIP tanpa query update.' },
+        { ATURAN: 'Kategori Otomatis', PENJELASAN: 'Jika kategori yang diinput belum ada di Master Kategori, sistem akan OTOMATIS MENAMBAHKANNYA ke Master Kategori.' },
         { ATURAN: 'SKU Kain', PENJELASAN: 'Isi dengan kode SKU Kain dari sheet "Referensi_SKU_Kain" (misal: KB-TH-MERAH).' },
         { ATURAN: 'Estimasi Kain (CM)', PENJELASAN: 'Isi estimasi panjang kain yang dibutuhkan per pcs dalam satuan CM (misal: 200, 180, 190).' },
         { ATURAN: 'Status Order', PENJELASAN: 'Isi dengan "Ready Stok" atau "PO".' },
         { ATURAN: 'Tipe Set', PENJELASAN: 'Isi dengan "Single" atau "Satu Setel" / "Bundle".' }
       ];
-      const ws4 = XLSX.utils.json_to_sheet(panduan);
-      ws4['!cols'] = [{ wch: 22 }, { wch: 75 }];
-      XLSX.utils.book_append_sheet(wb, ws4, 'Petunjuk_Pengisian');
+      const ws5 = XLSX.utils.json_to_sheet(panduan);
+      ws5['!cols'] = [{ wch: 22 }, { wch: 75 }];
+      XLSX.utils.book_append_sheet(wb, ws5, 'Petunjuk_Pengisian');
 
       const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
       res.writeHead(200, {
@@ -187,6 +199,11 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
         });
       }
 
+      // Ambil seluruh master kategori yang ada untuk deteksi & auto-tambah
+      const [katRows] = await pool.query('SELECT id, nama_kategori FROM master_kategori');
+      const katSet = new Set(katRows.map(k => String(k.nama_kategori || '').trim().toUpperCase()));
+      const newCategoriesAdded = [];
+
       let inserted = 0;
       let updated = 0;
       let skipped = 0;
@@ -211,7 +228,26 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
         const matchKey = cleanSku.toUpperCase();
 
         const namaProduk = String(item.nama_produk || item.nama || `Produk ${cleanSku}`).trim().slice(0, 255);
-        const kategori = String(item.kategori || 'Pakaian').trim().slice(0, 64);
+        const rawKategori = String(item.kategori || 'Pakaian').trim().slice(0, 64);
+        const kategori = rawKategori || 'Pakaian';
+
+        // Auto-tambah kategori ke master_kategori jika belum terdaftar
+        const katKey = kategori.toUpperCase();
+        if (!katSet.has(katKey)) {
+          try {
+            await pool.query(`
+              INSERT IGNORE INTO master_kategori (kode_perusahaan, nama_kategori, deskripsi, status)
+              VALUES (?, ?, 'Ditambahkan otomatis saat import produk', 'Aktif')
+            `, [kodePerusahaan, kategori]);
+            katSet.add(katKey);
+            if (!newCategoriesAdded.includes(kategori)) {
+              newCategoriesAdded.push(kategori);
+            }
+          } catch (katErr) {
+            console.error('[Auto-Insert Kategori Error]:', katErr.message);
+          }
+        }
+
         const satuan = String(item.satuan || 'PCS').trim().slice(0, 32);
         const hargaJual = Number(item.harga_jual) || 0;
         const hargaModal = Number(item.harga_modal ?? item.harga_beli) || 0;
@@ -363,8 +399,10 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
           inserted,
           updated,
           skipped,
-          failed
+          failed,
+          kategori_baru: newCategoriesAdded.length
         },
+        new_categories: newCategoriesAdded,
         details
       });
       return true;
@@ -751,6 +789,107 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
   if (masterIdMatch && req.method === 'DELETE') {
     try {
       await pool.query('DELETE FROM produk_master WHERE id = ?', [masterIdMatch[1]]);
+      sendJson(res, 200, { status: 'success' });
+      return true;
+    } catch (err) {
+      sendJson(res, 500, { status: 'error', message: err.message });
+      return true;
+    }
+  }
+
+  // 5. Master Kategori CRUD Endpoints
+  if ((pathname === '/api/kategori' || pathname === '/api/produk/kategori' || pathname === '/api/marketplace/kategori') && req.method === 'GET') {
+    try {
+      const [rows] = await pool.query(`
+        SELECT id, kode_perusahaan, nama_kategori AS nama, deskripsi, status, dibuat_pada, diperbarui_pada
+        FROM master_kategori
+        ORDER BY nama_kategori ASC
+      `);
+      sendJson(res, 200, { status: 'success', data: rows });
+      return true;
+    } catch (err) {
+      sendJson(res, 500, { status: 'error', message: err.message });
+      return true;
+    }
+  }
+
+  if ((pathname === '/api/kategori' || pathname === '/api/produk/kategori' || pathname === '/api/marketplace/kategori') && req.method === 'POST') {
+    try {
+      const body = await parseJsonBody(req);
+      const nama = String(body.nama || body.nama_kategori || '').trim();
+      if (!nama) {
+        sendJson(res, 400, { status: 'error', message: 'Nama kategori wajib diisi' });
+        return true;
+      }
+      const kodePerusahaan = String(body.kode_perusahaan || 'RSG').slice(0, 32);
+      const deskripsi = body.deskripsi ? String(body.deskripsi).trim() : null;
+      const status = String(body.status || 'Aktif').trim().slice(0, 32);
+
+      const [result] = await pool.query(`
+        INSERT INTO master_kategori (kode_perusahaan, nama_kategori, deskripsi, status)
+        VALUES (?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE
+          deskripsi = VALUES(deskripsi),
+          status = VALUES(status)
+      `, [kodePerusahaan, nama, deskripsi, status]);
+
+      sendJson(res, 200, {
+        status: 'success',
+        id: result.insertId || undefined,
+        nama,
+        deskripsi,
+        status
+      });
+      return true;
+    } catch (err) {
+      sendJson(res, 500, { status: 'error', message: err.message });
+      return true;
+    }
+  }
+
+  const kategoriIdMatch = pathname.match(/^\/api\/(?:kategori|produk\/kategori|marketplace\/kategori)\/([^/]+)$/);
+  if (kategoriIdMatch && req.method === 'PUT') {
+    try {
+      const id = kategoriIdMatch[1];
+      const body = await parseJsonBody(req);
+      const nama = body.nama || body.nama_kategori;
+      const deskripsi = body.deskripsi;
+      const status = body.status;
+
+      const sets = [];
+      const values = [];
+      if (nama !== undefined) {
+        sets.push('nama_kategori = ?');
+        values.push(String(nama).trim());
+      }
+      if (deskripsi !== undefined) {
+        sets.push('deskripsi = ?');
+        values.push(deskripsi ? String(deskripsi).trim() : null);
+      }
+      if (status !== undefined) {
+        sets.push('status = ?');
+        values.push(String(status).trim());
+      }
+
+      if (sets.length === 0) {
+        sendJson(res, 400, { status: 'error', message: 'Tidak ada data diubah' });
+        return true;
+      }
+
+      values.push(id);
+      await pool.query(`UPDATE master_kategori SET ${sets.join(', ')} WHERE id = ?`, values);
+      sendJson(res, 200, { status: 'success' });
+      return true;
+    } catch (err) {
+      sendJson(res, 500, { status: 'error', message: err.message });
+      return true;
+    }
+  }
+
+  if (kategoriIdMatch && req.method === 'DELETE') {
+    try {
+      const id = kategoriIdMatch[1];
+      await pool.query('DELETE FROM master_kategori WHERE id = ?', [id]);
       sendJson(res, 200, { status: 'success' });
       return true;
     } catch (err) {

@@ -139,6 +139,19 @@ export async function initDb() {
       console.warn('[MySQL] Info clean RSG- prefix:', e.message);
     }
 
+    // 3c. Tabel Master Kategori Produk (master_kategori)
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS master_kategori (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        kode_perusahaan VARCHAR(32) DEFAULT 'RSG',
+        nama_kategori VARCHAR(100) NOT NULL UNIQUE,
+        deskripsi TEXT NULL,
+        status VARCHAR(32) DEFAULT 'Aktif',
+        dibuat_pada TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        diperbarui_pada TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Master Kategori Produk ERP RuangMarket';
+    `);
+
     // 4. Tabel Pesanan Marketplace & SPK Produksi (pesanan_marketplace)
     await conn.query(`
       CREATE TABLE IF NOT EXISTS pesanan_marketplace (
