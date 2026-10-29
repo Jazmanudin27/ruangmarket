@@ -13,7 +13,21 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
       }
       sql += ' ORDER BY id DESC';
       const [rows] = await pool.query(sql, params);
-      sendJson(res, 200, rows);
+      const mapped = rows.map(r => {
+        let parsedBundle = [];
+        if (r.bundle_items) {
+          try {
+            parsedBundle = typeof r.bundle_items === 'string' ? JSON.parse(r.bundle_items) : r.bundle_items;
+          } catch (e) {
+            parsedBundle = [];
+          }
+        }
+        return {
+          ...r,
+          bundle_items: parsedBundle
+        };
+      });
+      sendJson(res, 200, mapped);
       return true;
     } catch (err) {
       sendJson(res, 500, { status: 'error', message: err.message });
@@ -51,15 +65,21 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
           const status = String(item.status || 'Aktif').slice(0, 32);
           const statusOrder = String(item.status_order || 'Ready Stok').slice(0, 32);
           const fotoProduk = String(item.foto_produk || item.image || '').slice(0, 1000);
+          const tipeSet = String(item.tipe_set || 'Single').slice(0, 32);
+          const bundleItems = item.bundle_items ? (typeof item.bundle_items === 'string' ? item.bundle_items : JSON.stringify(item.bundle_items)) : null;
+          const estimasiKain = String(item.estimasi_kain || 'Kain Polos').slice(0, 100);
+          const panjangKainCm = Number(item.panjang_kain_cm) || 200;
+          const hargaKainCm = Number(item.harga_kain_cm) || 150;
 
-          values.push(kodePerusahaan, kodeSku, namaProduk, kategori, satuan, hargaJual, hargaModal, stokFisik, status, statusOrder, fotoProduk);
-          return '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
+          values.push(kodePerusahaan, kodeSku, namaProduk, kategori, satuan, hargaJual, hargaModal, stokFisik, status, statusOrder, fotoProduk, tipeSet, bundleItems, estimasiKain, panjangKainCm, hargaKainCm);
+          return '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
         }).join(', ');
 
         const sql = `
           INSERT INTO produk_master (
             kode_perusahaan, kode_sku, nama_produk, kategori, satuan,
-            harga_jual, harga_modal, stok_fisik, status, status_order, foto_produk
+            harga_jual, harga_modal, stok_fisik, status, status_order, foto_produk,
+            tipe_set, bundle_items, estimasi_kain, panjang_kain_cm, harga_kain_cm
           ) VALUES ${placeholders}
           ON DUPLICATE KEY UPDATE
             nama_produk = VALUES(nama_produk),
@@ -70,7 +90,12 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
             stok_fisik = VALUES(stok_fisik),
             status = VALUES(status),
             status_order = VALUES(status_order),
-            foto_produk = COALESCE(NULLIF(VALUES(foto_produk), ''), foto_produk)
+            foto_produk = COALESCE(NULLIF(VALUES(foto_produk), ''), foto_produk),
+            tipe_set = VALUES(tipe_set),
+            bundle_items = VALUES(bundle_items),
+            estimasi_kain = VALUES(estimasi_kain),
+            panjang_kain_cm = VALUES(panjang_kain_cm),
+            harga_kain_cm = VALUES(harga_kain_cm)
         `;
 
         await pool.query(sql, values);
@@ -117,6 +142,36 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
     }
   }
 
+  // 3b. Batch Update Bundle Set Master Produk ERP
+  if ((pathname === '/api/produk/master/batch-bundle' || pathname === '/api/marketplace/master/batch-bundle') && req.method === 'POST') {
+    try {
+      const body = await parseJsonBody(req);
+      const { items } = body;
+
+      if (Array.isArray(items) && items.length > 0) {
+        for (const it of items) {
+          if (it.id) {
+            const tipeSet = it.tipe_set || 'Single';
+            const bundleItems = it.bundle_items ? (typeof it.bundle_items === 'string' ? it.bundle_items : JSON.stringify(it.bundle_items)) : null;
+            await pool.query(
+              'UPDATE produk_master SET tipe_set = ?, bundle_items = ? WHERE id = ?',
+              [tipeSet, bundleItems, it.id]
+            );
+          }
+        }
+        sendJson(res, 200, { status: 'success', updated: items.length });
+        return true;
+      }
+
+      sendJson(res, 400, { status: 'error', message: 'Parameter items diperlukan' });
+      return true;
+    } catch (err) {
+      console.error('[API Batch Bundle ERROR]:', err);
+      sendJson(res, 500, { status: 'error', message: err.message });
+      return true;
+    }
+  }
+
   // 4. Update / Delete Master Produk by ID
   const masterIdMatch = pathname.match(/^\/api\/(?:produk|marketplace)\/master\/([^/]+)$/);
   if (masterIdMatch && req.method === 'PUT') {
@@ -124,11 +179,19 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
       const body = await parseJsonBody(req);
       const sets = [];
       const values = [];
-      const allowed = ['nama_produk', 'kategori', 'satuan', 'harga_jual', 'harga_modal', 'stok_fisik', 'status', 'status_order', 'kode_sku', 'kode_perusahaan'];
+      const allowed = [
+        'nama_produk', 'kategori', 'satuan', 'harga_jual', 'harga_modal',
+        'stok_fisik', 'status', 'status_order', 'kode_sku', 'kode_perusahaan',
+        'tipe_set', 'bundle_items', 'estimasi_kain', 'panjang_kain_cm', 'harga_kain_cm'
+      ];
       for (const col of allowed) {
         if (body[col] !== undefined) {
           sets.push(`${col} = ?`);
-          values.push(body[col]);
+          if (col === 'bundle_items' && typeof body[col] === 'object' && body[col] !== null) {
+            values.push(JSON.stringify(body[col]));
+          } else {
+            values.push(body[col]);
+          }
         }
       }
       if (sets.length === 0) {
