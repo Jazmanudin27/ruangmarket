@@ -795,10 +795,10 @@ export default function AdminLayout() {
                     }}
                   >
                     <ClipboardList size={14} color={activeTab === 'spk' ? '#38bdf8' : '#94a3b8'} style={{ flexShrink: 0 }} />
-                    <span style={{ textAlign: 'left', flex: 1 }}>SPK Produksi (Multi Item)</span>
+                    <span style={{ textAlign: 'left', flex: 1 }}>SPK</span>
                   </button>
 
-                  {/* Submenu 2: Ikhtisar Produksi */}
+                  {/* Submenu 2: Monitoring */}
                   <button
                     type="button"
                     onClick={(e) => {
@@ -831,7 +831,7 @@ export default function AdminLayout() {
                     }}
                   >
                     <Factory size={14} color={activeTab === 'produksi' ? '#38bdf8' : '#94a3b8'} style={{ flexShrink: 0 }} />
-                    <span style={{ textAlign: 'left', flex: 1 }}>Monitoring Jahit & QC</span>
+                    <span style={{ textAlign: 'left', flex: 1 }}>Monitoring</span>
                   </button>
                 </div>
               )}
@@ -1387,7 +1387,7 @@ export default function AdminLayout() {
               Produksi
             </div>
 
-            {/* 3a. SPK Produksi */}
+            {/* 3a. SPK */}
             <button
               onClick={() => changeTab('spk')}
               style={{
@@ -1406,10 +1406,10 @@ export default function AdminLayout() {
               }}
             >
               <ClipboardList size={15} color={activeTab === 'spk' ? '#ffffff' : '#38bdf8'} />
-              <span>SPK Produksi (Multi Item)</span>
+              <span>SPK</span>
             </button>
 
-            {/* 3b. Monitoring Jahit */}
+            {/* 3b. Monitoring */}
             <button
               onClick={() => changeTab('produksi')}
               style={{
@@ -1428,7 +1428,7 @@ export default function AdminLayout() {
               }}
             >
               <Factory size={15} color={activeTab === 'produksi' ? '#ffffff' : '#38bdf8'} />
-              <span>Monitoring Jahit & QC</span>
+              <span>Monitoring</span>
             </button>
             {/* 3b. Marketing Section Mobile */}
             <div style={{
