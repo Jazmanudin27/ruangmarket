@@ -1334,7 +1334,7 @@ export default function SPKView() {
           <form onSubmit={handleFormSubmit} style={{
             flex: 1,
             overflowY: 'auto',
-            padding: '12px 16px',
+            padding: '12px 16px 140px 16px',
             backgroundColor: '#f1f5f9',
             display: 'flex',
             flexDirection: 'column',
@@ -1541,8 +1541,7 @@ export default function SPKView() {
                         border: '1px solid #0284c7',
                         borderRadius: '7px',
                         backgroundColor: '#ffffff',
-                        boxShadow: '0 1px 3px rgba(2, 132, 199, 0.08)',
-                        overflow: 'hidden'
+                        boxShadow: '0 1px 3px rgba(2, 132, 199, 0.08)'
                       }}
                     >
                       {/* SPK Header Form (No SPK, Nama SPK, Penjahit, Status, Upload Design) */}
@@ -1764,7 +1763,7 @@ export default function SPKView() {
                           </button>
                         </div>
 
-                        <div style={{ border: '1px solid #e2e8f0', borderRadius: '5px', overflowX: 'auto' }}>
+                        <div style={{ border: '1px solid #e2e8f0', borderRadius: '5px', overflowX: 'auto', minHeight: '240px' }}>
                           <table style={{ width: '100%', minWidth: '880px', borderCollapse: 'collapse', fontSize: '11px' }}>
                             <thead>
                               <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0', textAlign: 'left' }}>
