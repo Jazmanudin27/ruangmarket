@@ -44,10 +44,15 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
         whereClauses.push('p.status = ?');
         whereParams.push(status);
       }
+      const skuKainParam = urlObj.searchParams.get('sku_kain');
+      if (skuKainParam && skuKainParam !== 'Semua') {
+        whereClauses.push('p.sku_kain = ?');
+        whereParams.push(skuKainParam);
+      }
       if (search && search.trim()) {
         const q = `%${search.trim()}%`;
-        whereClauses.push('(p.nama_produk LIKE ? OR p.kode_sku LIKE ? OR p.varian LIKE ?)');
-        whereParams.push(q, q, q);
+        whereClauses.push('(p.nama_produk LIKE ? OR p.kode_sku LIKE ? OR p.sku_kain LIKE ? OR k.nama_kain LIKE ?)');
+        whereParams.push(q, q, q, q);
       }
 
       // Filter berdasarkan Tab aktif
@@ -68,7 +73,12 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
       // Hitung total data untuk halaman aktif
       let total = 0;
       if (isPaginated) {
-        const countSql = `SELECT COUNT(*) as total FROM produk_master p ${whereSql}`;
+        const countSql = `
+          SELECT COUNT(*) as total 
+          FROM produk_master p 
+          LEFT JOIN master_kain k ON p.sku_kain = k.kode_sku_kain
+          ${whereSql}
+        `;
         const [[countRow]] = await pool.query(countSql, whereParams);
         total = Number(countRow?.total || 0);
       }
@@ -90,10 +100,14 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
           baseWhereClauses.push('p.tipe_set = ?');
           baseWhereParams.push(tipeSet);
         }
+        if (skuKainParam && skuKainParam !== 'Semua') {
+          baseWhereClauses.push('p.sku_kain = ?');
+          baseWhereParams.push(skuKainParam);
+        }
         if (search && search.trim()) {
           const q = `%${search.trim()}%`;
-          baseWhereClauses.push('(p.nama_produk LIKE ? OR p.kode_sku LIKE ? OR p.varian LIKE ?)');
-          baseWhereParams.push(q, q, q);
+          baseWhereClauses.push('(p.nama_produk LIKE ? OR p.kode_sku LIKE ? OR p.sku_kain LIKE ? OR k.nama_kain LIKE ?)');
+          baseWhereParams.push(q, q, q, q);
         }
         const baseWhereSql = baseWhereClauses.length > 0 ? ` WHERE ${baseWhereClauses.join(' AND ')}` : '';
         const [[countsRow]] = await pool.query(`
@@ -105,6 +119,7 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
             SUM(CASE WHEN p.status_order = 'PO' THEN 1 ELSE 0 END) as total_po,
             SUM(CASE WHEN p.status_order != 'PO' OR p.status_order IS NULL THEN 1 ELSE 0 END) as total_ready
           FROM produk_master p
+          LEFT JOIN master_kain k ON p.sku_kain = k.kode_sku_kain
           ${baseWhereSql}
         `, baseWhereParams);
 
@@ -123,9 +138,16 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
       let sql = `
         SELECT 
           p.*,
+          k.nama_kain,
+          k.jenis_kain,
+          k.warna as warna_kain,
+          k.satuan as satuan_kain,
+          k.stok_kain,
+          k.harga_per_meter as harga_kain_meter,
           h.nama_kategori_hpp,
           h.total_hpp as hpp_kategori
         FROM produk_master p
+        LEFT JOIN master_kain k ON p.sku_kain = k.kode_sku_kain
         LEFT JOIN master_hpp_produk h ON p.id_kategori_hpp = h.id_kategori_hpp
         ${whereSql}
         ORDER BY p.id DESC
@@ -211,16 +233,17 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
           const panjangKainCm = Number(item.panjang_kain_cm) || 200;
           const hargaKainCm = Number(item.harga_kain_cm) || 150;
           const idKategoriHpp = item.id_kategori_hpp ? String(item.id_kategori_hpp).slice(0, 64) : null;
+          const skuKain = item.sku_kain ? String(item.sku_kain).slice(0, 64) : null;
 
-          values.push(kodePerusahaan, kodeSku, namaProduk, kategori, satuan, hargaJual, hargaModal, stokFisik, status, statusOrder, fotoProduk, tipeSet, bundleItems, estimasiKain, panjangKainCm, hargaKainCm, idKategoriHpp);
-          return '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
+          values.push(kodePerusahaan, kodeSku, namaProduk, kategori, satuan, hargaJual, hargaModal, stokFisik, status, statusOrder, fotoProduk, tipeSet, bundleItems, estimasiKain, panjangKainCm, hargaKainCm, idKategoriHpp, skuKain);
+          return '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
         }).join(', ');
 
         const sql = `
           INSERT INTO produk_master (
             kode_perusahaan, kode_sku, nama_produk, kategori, satuan,
             harga_jual, harga_modal, stok_fisik, status, status_order, foto_produk,
-            tipe_set, bundle_items, estimasi_kain, panjang_kain_cm, harga_kain_cm, id_kategori_hpp
+            tipe_set, bundle_items, estimasi_kain, panjang_kain_cm, harga_kain_cm, id_kategori_hpp, sku_kain
           ) VALUES ${placeholders}
           ON DUPLICATE KEY UPDATE
             nama_produk = VALUES(nama_produk),
@@ -237,7 +260,8 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
             estimasi_kain = VALUES(estimasi_kain),
             panjang_kain_cm = VALUES(panjang_kain_cm),
             harga_kain_cm = VALUES(harga_kain_cm),
-            id_kategori_hpp = VALUES(id_kategori_hpp)
+            id_kategori_hpp = VALUES(id_kategori_hpp),
+            sku_kain = COALESCE(VALUES(sku_kain), sku_kain)
         `;
 
         await pool.query(sql, values);
@@ -325,7 +349,7 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
         'nama_produk', 'kategori', 'satuan', 'harga_jual', 'harga_modal',
         'stok_fisik', 'status', 'status_order', 'kode_sku', 'kode_perusahaan',
         'tipe_set', 'bundle_items', 'estimasi_kain', 'panjang_kain_cm', 'harga_kain_cm',
-        'id_kategori_hpp'
+        'id_kategori_hpp', 'sku_kain'
       ];
       for (const col of allowed) {
         if (body[col] !== undefined) {

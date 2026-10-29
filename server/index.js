@@ -15,6 +15,7 @@ import { handleSPKRoutes } from './routes/spk.routes.js';
 import { handleCustomerRoutes } from './routes/customer.routes.js';
 import { handleTahapanSPKRoutes } from './routes/tahapan-spk.routes.js';
 import { handleHPPProdukRoutes } from './routes/hpp-produk.routes.js';
+import { handleKainRoutes } from './routes/kain.routes.js';
 
 import './config/env.js';
 
@@ -67,6 +68,7 @@ const server = http.createServer(async (req, res) => {
     if (await handleCustomerRoutes(req, res, pathname, urlObj, context)) return;
     if (await handleTahapanSPKRoutes(req, res, pathname, urlObj, context)) return;
     if (await handleHPPProdukRoutes(req, res, pathname, urlObj, context)) return;
+    if (await handleKainRoutes(req, res, pathname, urlObj, context)) return;
 
     // 404 Not Found
     sendJson(res, 404, { error: 'Endpoint tidak ditemukan' });

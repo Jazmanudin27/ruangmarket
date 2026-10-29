@@ -395,8 +395,36 @@ export async function initDb() {
       await conn.query(`ALTER TABLE produk_master ADD COLUMN id_kategori_hpp VARCHAR(64) NULL`);
     } catch (e) {}
 
+    // 12. Tabel Master Kain (master_kain)
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS master_kain (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        kode_perusahaan VARCHAR(32) DEFAULT 'RSG',
+        kode_sku_kain VARCHAR(64) NOT NULL UNIQUE,
+        nama_kain VARCHAR(255) NOT NULL,
+        jenis_kain VARCHAR(100) NULL,
+        warna VARCHAR(100) NULL,
+        satuan VARCHAR(32) DEFAULT 'METER',
+        stok_kain DECIMAL(15,2) DEFAULT 0,
+        harga_per_meter DECIMAL(15,2) DEFAULT 0,
+        keterangan TEXT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_kode_sku_kain (kode_sku_kain),
+        INDEX idx_kode_perusahaan (kode_perusahaan)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Master Data Kain ERP RuangMarket';
+    `);
+
+    // Tambah kolom sku_kain di produk_master jika belum ada
+    try {
+      await conn.query(`ALTER TABLE produk_master ADD COLUMN sku_kain VARCHAR(64) NULL`);
+    } catch (e) {}
+    try {
+      await conn.query(`ALTER TABLE produk_master ADD INDEX idx_sku_kain (sku_kain)`);
+    } catch (e) {}
+
     conn.release();
-    console.log('[MySQL] Tabel Bahasa Indonesia (toko_marketplace, produk_marketplace, produk_master, pesanan_marketplace, spk_batch, pelanggan_master, tahapan_spk_master, master_hpp_produk, detail_master_hpp_produk) siap!');
+    console.log('[MySQL] Tabel Bahasa Indonesia (toko_marketplace, produk_marketplace, produk_master, pesanan_marketplace, spk_batch, pelanggan_master, tahapan_spk_master, master_hpp_produk, detail_master_hpp_produk, master_kain) siap!');
   } catch (err) {
     console.error('[MySQL Init Error]:', err.message);
   }

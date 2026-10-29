@@ -327,6 +327,8 @@ export default function ProdukView() {
   const [filterTipeSet, setFilterTipeSet] = useState('Semua');
   const [filterStatusOrder, setFilterStatusOrder] = useState('Semua');
   const [filterStatus, setFilterStatus] = useState('Semua');
+  const [filterSkuKain, setFilterSkuKain] = useState('Semua');
+  const [kainOptions, setKainOptions] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [entriesPerPage, setEntriesPerPage] = useState(50);
   const [totalCount, setTotalCount] = useState(0);
@@ -363,6 +365,7 @@ export default function ProdukView() {
       if (filterTipeSet !== 'Semua') params.set('tipe_set', filterTipeSet);
       if (filterStatusOrder !== 'Semua') params.set('status_order', filterStatusOrder);
       if (filterStatus !== 'Semua') params.set('status', filterStatus);
+      if (filterSkuKain !== 'Semua') params.set('sku_kain', filterSkuKain);
       if (activeFilterTab && activeFilterTab !== 'semua') params.set('tab', activeFilterTab);
 
       const res = await fetch(`/api/marketplace/master?${params.toString()}`);
@@ -395,7 +398,11 @@ export default function ProdukView() {
             satuan: p.satuan || 'PCS',
             harga_beli: Number(p.harga_modal || 0),
             harga_jual: Number(p.harga_jual || 0),
-            estimasi_kain: p.estimasi_kain || 'Kain Polos',
+            sku_kain: p.sku_kain || '',
+            nama_kain: p.nama_kain || '',
+            jenis_kain: p.jenis_kain || '',
+            warna_kain: p.warna_kain || '',
+            estimasi_kain: p.nama_kain || p.estimasi_kain || 'Kain Polos',
             panjang_kain_cm: Number(p.panjang_kain_cm) || 200,
             harga_kain_cm: Number(p.harga_kain_cm || 150),
             id_kategori_hpp: p.id_kategori_hpp || '',
@@ -434,7 +441,7 @@ export default function ProdukView() {
 
   useEffect(() => {
     loadMasterProduk(currentPage, entriesPerPage);
-  }, [currentPage, entriesPerPage, search, filterKategori, filterTipeSet, filterStatusOrder, filterStatus, activeFilterTab, activeCompany?.code]);
+  }, [currentPage, entriesPerPage, search, filterKategori, filterTipeSet, filterStatusOrder, filterStatus, filterSkuKain, activeFilterTab, activeCompany?.code]);
 
   // Form State
   const initialForm = {
@@ -450,6 +457,8 @@ export default function ProdukView() {
     satuan: 'PCS',
     harga_beli: 150000,
     harga_jual: 250000,
+    sku_kain: '',
+    nama_kain: '',
     estimasi_kain: 'Silk Jetblack Premium',
     panjang_kain_cm: 250,
     harga_kain_cm: 200,
@@ -479,7 +488,28 @@ export default function ProdukView() {
         console.warn('Gagal memuat HPP options:', e);
       }
     }
+    async function fetchKainList() {
+      try {
+        const res = await fetch('/api/kain/master');
+        if (res.ok) {
+          const json = await res.json();
+          if (json && Array.isArray(json.data)) {
+            setKainOptions(json.data.map(k => ({
+              value: k.kode_sku_kain,
+              label: `${k.nama_kain} (${k.kode_sku_kain})`,
+              sku: k.kode_sku_kain,
+              nama_kain: k.nama_kain,
+              jenis_kain: k.jenis_kain,
+              warna: k.warna
+            })));
+          }
+        }
+      } catch (e) {
+        console.warn('Gagal memuat Kain options:', e);
+      }
+    }
     fetchHppList();
+    fetchKainList();
   }, []);
 
   // Dynamic Kategori List from Storage
@@ -761,7 +791,9 @@ export default function ProdukView() {
     setFormData({
       ...item,
       id_kategori_hpp: item.id_kategori_hpp || '',
-      estimasi_kain: item.estimasi_kain || '',
+      sku_kain: item.sku_kain || '',
+      nama_kain: item.nama_kain || '',
+      estimasi_kain: item.nama_kain || item.estimasi_kain || '',
       panjang_kain_cm: item.panjang_kain_cm !== undefined ? item.panjang_kain_cm : 200,
       harga_kain_cm: item.harga_kain_cm !== undefined ? item.harga_kain_cm : 150,
       bundle_items: bundleItems
@@ -948,6 +980,7 @@ export default function ProdukView() {
             tipe_set: formData.tipe_set || 'Single',
             bundle_items: formData.bundle_items || [],
             estimasi_kain: formData.estimasi_kain || 'Kain Polos',
+            sku_kain: formData.sku_kain || null,
             panjang_kain_cm: Number(formData.panjang_kain_cm) || 200,
             harga_kain_cm: Number(formData.harga_kain_cm) || 150,
             id_kategori_hpp: formData.id_kategori_hpp || null
@@ -955,9 +988,11 @@ export default function ProdukView() {
         });
       } catch (err) {}
       const selectedHpp = hppOptions.find(h => h.value === formData.id_kategori_hpp);
+      const selectedKain = kainOptions.find(k => k.value === formData.sku_kain);
       const updatedList = produkList.map(p => p.id === editingId ? { 
         ...formData, 
         id: editingId,
+        nama_kain: selectedKain ? selectedKain.nama_kain : p.nama_kain,
         nama_kategori_hpp: selectedHpp ? selectedHpp.label.split(' (HPP:')[0] : '',
         hpp_kategori: selectedHpp ? selectedHpp.total_hpp : 0
       } : p);
@@ -994,6 +1029,7 @@ export default function ProdukView() {
             tipe_set: newProduk.tipe_set || 'Single',
             bundle_items: newProduk.bundle_items || [],
             estimasi_kain: newProduk.estimasi_kain || 'Kain Polos',
+            sku_kain: newProduk.sku_kain || null,
             panjang_kain_cm: Number(newProduk.panjang_kain_cm) || 200,
             harga_kain_cm: Number(newProduk.harga_kain_cm) || 150,
             id_kategori_hpp: newProduk.id_kategori_hpp || null
@@ -1469,6 +1505,30 @@ export default function ProdukView() {
           <option value="Habis">Habis</option>
         </select>
 
+        {/* Filter SKU Kain */}
+        <select
+          value={filterSkuKain}
+          onChange={(e) => {
+            setFilterSkuKain(e.target.value);
+            setCurrentPage(1);
+          }}
+          style={{
+            padding: '6px 10px',
+            borderRadius: '6px',
+            border: '1px solid #cbd5e1',
+            fontSize: '12px',
+            color: '#334155',
+            backgroundColor: '#ffffff',
+            cursor: 'pointer',
+            minWidth: '135px'
+          }}
+        >
+          <option value="Semua">Semua Bahan Kain</option>
+          {kainOptions.map(k => (
+            <option key={k.value} value={k.value}>{k.sku} ({k.nama_kain})</option>
+          ))}
+        </select>
+
         {/* Select Baris Per Halaman (Paging) */}
         <select
           value={entriesPerPage}
@@ -1884,7 +1944,7 @@ export default function ProdukView() {
                             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                               <Layers size={11} color="#0284c7" />
                               <span style={{ fontWeight: '800', color: '#0f172a', fontSize: '11px', lineHeight: 1.2 }}>
-                                {item.estimasi_kain || '-'}
+                                {item.nama_kain || item.estimasi_kain || '-'}
                               </span>
                             </div>
                             <span style={{
@@ -1900,6 +1960,26 @@ export default function ProdukView() {
                               {item.panjang_kain_cm || 0} CM
                             </span>
                           </div>
+
+                          {/* SKU Kain Badge */}
+                          {item.sku_kain ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '3px', marginTop: '2px' }}>
+                              <span style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '3px',
+                                padding: '1px 5px',
+                                borderRadius: '3px',
+                                fontSize: '9.5px',
+                                fontWeight: '800',
+                                backgroundColor: '#fef3c7',
+                                color: '#92400e',
+                                border: '1px solid #fde68a'
+                              }} title={`Master Kain: ${item.nama_kain || item.sku_kain}`}>
+                                <span>SKU Kain: {item.sku_kain}</span>
+                              </span>
+                            </div>
+                          ) : null}
 
                           {/* Baris 2: Harga / CM & Biaya per Pcs */}
                           <div style={{
@@ -2917,6 +2997,24 @@ export default function ProdukView() {
                         Kain/Pcs: {formData.panjang_kain_cm} CM ({((Number(formData.panjang_kain_cm) || 0) / 100).toFixed(1)} Meter) • Est. Biaya: {formatRupiah((Number(formData.panjang_kain_cm) || 0) * (Number(formData.harga_kain_cm) || 0))}
                       </span>
                     )}
+                  </div>
+
+                  <div style={{ marginBottom: '8px' }}>
+                    <SearchableSelect
+                      label="Pilih SKU Master Kain"
+                      value={formData.sku_kain || ''}
+                      onChange={(val) => {
+                        const found = kainOptions.find(k => k.value === val);
+                        setFormData(prev => ({
+                          ...prev,
+                          sku_kain: val,
+                          nama_kain: found ? found.nama_kain : prev.nama_kain,
+                          estimasi_kain: found ? found.nama_kain : prev.estimasi_kain
+                        }));
+                      }}
+                      options={kainOptions}
+                      placeholder="-- Pilih SKU Kain dari Master Kain --"
+                    />
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: '8px' }}>
