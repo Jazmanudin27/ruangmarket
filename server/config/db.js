@@ -249,55 +249,57 @@ export async function initDb() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Tabel retur barang marketplace dan offline';
     `);
 
-    // 5. Masukkan Akun Toko Shopee Resmi jika belum ada
-    await conn.query(`
-      INSERT INTO toko_marketplace (
-        id, kode_perusahaan, saluran, nama_saluran, nama_toko, id_toko, 
-        logo_toko, token_akses, token_refresh, status_koneksi
-      ) VALUES (
-        'tk_shopee_sahabat',
-        'RSG',
-        'shopee',
-        'Shopee Marketplace',
-        'Koperasi Sahabat Anak Bangsa',
-        '1030191310',
-        'store-logos/Vh3cR1kfR2HNhWFVqpEdtZdr82NDQk6lorx7ktKK.jpg',
-        'eyJhbGciOiJIUzI1NiJ9.CLekfBABGM7xnesDIAEozLKC1wYw_4S4xwk4AUABSAc.Akf_2_Oh892XxGfWUbY4HXNPqIn3DsQUBZpI1DTivMY',
-        'eyJhbGciOiJIUzI1NiJ9.CLekfBABGM7xnesDIAIozLKC1wYwrduHtAQ4AUABSAc.WM8feqDMjMxCNQcvMwwvCLiHCMN0A0AKjS8Z5JopdKY',
-        'Aktif (Terhubung)'
-      ) ON DUPLICATE KEY UPDATE 
-        token_akses = VALUES(token_akses),
-        token_refresh = VALUES(token_refresh);
-    `);
-
-    // 6. Masukkan Akun Toko TikTok Shop RUANG SERAGAM yang benar
-    await conn.query(`DELETE FROM toko_marketplace WHERE id_toko = '943001511'`);
-    await conn.query(`
-      INSERT INTO toko_marketplace (
-        id, kode_perusahaan, saluran, nama_saluran, nama_toko, id_toko, 
-        logo_toko, cipher_toko, token_akses, token_refresh, kadaluarsa_pada, status_koneksi
-      ) VALUES (
-        'tk_tiktok_ruangseragam',
-        'RSG',
-        'tiktok',
-        'TikTok Shop',
-        'RUANG SERAGAM',
-        '7495487525216094891',
-        'store-logos/phX8jRSXxcz9FYAR8q5CxuzY0hzRnIJPsxJCxaRV.png',
-        'ROW_Hbd_fAAAAACqX58asQX4uCOsoefXXn4c',
-        'ROW_hrW2eAAAAADXzfcAbFNM2vF4sGvyrLklzSslk4uklv4KXG8FDCL8TMDVZVSXm1QNwF3HkXc-CfZT-WsF6yF-qO2wOSJKCKh0f2aji_gApWDGMP1FFNH5ZYrC2D-6o9YEAajZdQ7cQvPYE1BZu2jAwSLxLaUzYOX0JwzW6ZUsu5Tj1dxn343kAe1TMZ5nydARMQJ94b20hIGW2ibwtqaqCkw8yQz8wQjW',
-        'ROW_rfVKJgAAAACQMhMaQ5QXpCAhk_jChhoWo0KgxyEvuEVSbCvPTxxl3OU0jfV_dLTlJcuRIEhLVNQ',
-        '2026-11-03 13:45:04',
-        'Aktif (Terhubung)'
-      ) ON DUPLICATE KEY UPDATE 
-        id_toko = VALUES(id_toko),
-        logo_toko = VALUES(logo_toko),
-        cipher_toko = VALUES(cipher_toko),
-        token_akses = VALUES(token_akses),
-        token_refresh = VALUES(token_refresh),
-        kadaluarsa_pada = VALUES(kadaluarsa_pada),
-        status_koneksi = VALUES(status_koneksi);
-    `);
+    // 5. Migrasi & Sinkronisasi Seluruh Toko dari Database marketplace ke ruangmarket
+    try {
+      await conn.query(`
+        INSERT INTO toko_marketplace (
+          id, kode_perusahaan, saluran, nama_saluran, nama_toko, id_toko, 
+          logo_toko, cipher_toko, token_akses, token_refresh, kadaluarsa_pada, 
+          status_koneksi, sinkron_stok_otomatis, dibuat_pada, diperbarui_pada
+        )
+        SELECT 
+          CONCAT('tk_', c.code, '_', s.id) AS id,
+          CASE s.tenant_id
+            WHEN 1 THEN 'EMR'
+            WHEN 2 THEN 'RSG'
+            WHEN 3 THEN 'ABC'
+            ELSE 'RSG'
+          END AS kode_perusahaan,
+          c.code AS saluran,
+          c.name AS nama_saluran,
+          s.store_name AS nama_toko,
+          s.marketplace_store_id AS id_toko,
+          COALESCE(s.logo_path, '') AS logo_toko,
+          COALESCE(s.shop_cipher, '') AS cipher_toko,
+          s.access_token AS token_akses,
+          s.refresh_token AS token_refresh,
+          s.token_expires_at AS kadaluarsa_pada,
+          CASE 
+            WHEN s.status = 'connected' THEN 'Aktif (Terhubung)'
+            WHEN s.status = 'expired' THEN 'Kadaluarsa'
+            ELSE s.status
+          END AS status_koneksi,
+          1 AS sinkron_stok_otomatis,
+          COALESCE(s.created_at, NOW()) AS dibuat_pada,
+          COALESCE(s.updated_at, NOW()) AS diperbarui_pada
+        FROM marketplace.stores s
+        JOIN marketplace.channels c ON s.channel_id = c.id
+        ON DUPLICATE KEY UPDATE
+          nama_toko = VALUES(nama_toko),
+          saluran = VALUES(saluran),
+          nama_saluran = VALUES(nama_saluran),
+          logo_toko = VALUES(logo_toko),
+          cipher_toko = VALUES(cipher_toko),
+          token_akses = VALUES(token_akses),
+          token_refresh = VALUES(token_refresh),
+          kadaluarsa_pada = VALUES(kadaluarsa_pada),
+          status_koneksi = VALUES(status_koneksi),
+          diperbarui_pada = VALUES(diperbarui_pada)
+      `);
+      console.log('[MySQL] Berhasil sinkronisasi seluruh toko dari database marketplace ke toko_marketplace!');
+    } catch (storeMigrateErr) {
+      console.warn('[MySQL Store Sync Warning]:', storeMigrateErr.message);
+    }
 
     // 7. Tabel SPK Produksi & Batch (spk_batch)
     await conn.query(`
@@ -338,15 +340,6 @@ export async function initDb() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Tabel Master Pelanggan';
     `);
 
-    // Auto-seed data awal pelanggan jika kosong
-    await conn.query(`
-      INSERT INTO pelanggan_master (kode_perusahaan, kode_pelanggan, nama_pelanggan, alamat, no_hp, status, kategori_pelanggan)
-      VALUES 
-        ('RSG', 'PLG-2026-001', 'Salmah Khairani Nasution', 'Jl. Merdeka No. 45, Medan', '+62 852-1858-3688', 'Aktif', 'Umum'),
-        ('RSG', 'PLG-2026-002', 'Distributor Utama Jakarta (Pelanggan ABC)', 'Kawasan Pergudangan Pluit Blok C No. 12, Jakarta Utara', '+62 812-3456-7890', 'Aktif', 'Dropship'),
-        ('RSG', 'PLG-2026-003', 'Pesantren Al-Hikmah Bandung', 'Jl. Pesantren No. 88, Cibiru, Bandung', '+62 878-9988-1122', 'Aktif', 'Lainnya')
-      ON DUPLICATE KEY UPDATE nama_pelanggan = VALUES(nama_pelanggan);
-    `);
 
     // 9. Tabel Master Tahapan SPK (tahapan_spk_master)
     await conn.query(`
@@ -365,24 +358,6 @@ export async function initDb() {
         INDEX idx_kode_tahapan (kode_tahapan),
         INDEX idx_kode_perusahaan (kode_perusahaan)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Tabel Master Tahapan SPK Produksi';
-    `);
-
-    // Auto-seed data awal tahapan SPK jika kosong
-    await conn.query(`
-      INSERT INTO tahapan_spk_master (kode_perusahaan, kode_tahapan, nama_tahapan, emoji, warna, urutan, status, keterangan)
-      VALUES 
-        ('RSG', 'THP-01', 'Perencanaan', '📋', 'info', 1, 'Aktif', 'Pesanan baru / perencanaan jadwal produksi'),
-        ('RSG', 'THP-02', 'Antrian & Sampling', '⏳', 'primary', 2, 'Aktif', 'Menunggu antrian pengerjaan sampel'),
-        ('RSG', 'THP-03', 'Tahap Sampling', '🧪', 'purple', 3, 'Aktif', 'Pembuatan sampel produk'),
-        ('RSG', 'THP-04', 'Tahap Print Kain', '🖨️', 'info', 4, 'Aktif', 'Proses sublim / cetak motif kain'),
-        ('RSG', 'THP-05', 'Tahap Pemotongan', '✂️', 'warning', 5, 'Aktif', 'Pemotongan pola kain'),
-        ('RSG', 'THP-06', 'Tahap Jahit', '🪡', 'purple', 6, 'Aktif', 'Proses penjahitan potongan kain'),
-        ('RSG', 'THP-07', 'Tahap LKPK', '🧮', 'success', 7, 'Aktif', 'Pengecekan lembar kerja & kelengkapan'),
-        ('RSG', 'THP-08', 'Quality Control', '🔍', 'success', 8, 'Aktif', 'Pemeriksaan standar kualitas produk'),
-        ('RSG', 'THP-09', 'Packing / Finishing', '📦', 'warning', 9, 'Aktif', 'Setrika uap, hangtag & pengemasan'),
-        ('RSG', 'THP-10', 'Selesai (Finished Good)', '✅', 'success', 10, 'Aktif', 'Produk selesai masuk ke gudang jadi'),
-        ('RSG', 'THP-11', 'Batal', '❌', 'danger', 11, 'Aktif', 'SPK dibatalkan')
-      ON DUPLICATE KEY UPDATE nama_tahapan = VALUES(nama_tahapan);
     `);
 
     conn.release();
