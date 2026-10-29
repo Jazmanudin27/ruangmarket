@@ -1779,12 +1779,9 @@ export default function SPKView() {
                           <table style={{ width: '100%', minWidth: '880px', borderCollapse: 'collapse', fontSize: '11px' }}>
                             <thead>
                               <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0', textAlign: 'left' }}>
-                                <th style={{ padding: '6px 8px', fontWeight: '800', color: '#475569', width: '85px' }}>NO SPK</th>
-                                <th style={{ padding: '6px 8px', fontWeight: '800', color: '#475569', width: '100px' }}>SKU</th>
-                                <th style={{ padding: '6px 8px', fontWeight: '800', color: '#475569', width: '260px' }}>NAMA PRODUK (DARI MASTER)</th>
+                                <th style={{ padding: '6px 8px', fontWeight: '800', color: '#475569', minWidth: '280px' }}>PRODUK & SKU</th>
                                 <th style={{ padding: '6px 8px', fontWeight: '800', color: '#475569', width: '110px' }}>KATEGORI</th>
-                                <th style={{ padding: '6px 8px', fontWeight: '800', color: '#475569', width: '70px', textAlign: 'center' }}>SATUAN</th>
-                                <th style={{ padding: '6px 8px', fontWeight: '800', color: '#475569', width: '80px', textAlign: 'center' }}>QTY</th>
+                                <th style={{ padding: '6px 8px', fontWeight: '800', color: '#475569', width: '110px', textAlign: 'center' }}>QTY</th>
                                 <th style={{ padding: '6px 8px', fontWeight: '800', color: '#0369a1', width: '280px' }}>ESTIMASI KAIN (AUTO DARI MASTER)</th>
                                 <th style={{ padding: '6px 8px', fontWeight: '800', color: '#475569', width: '35px', textAlign: 'center' }}>AKSI</th>
                               </tr>
@@ -1807,24 +1804,19 @@ export default function SPKView() {
 
                                 return (
                                   <tr key={pIdx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                                    {/* No SPK */}
-                                    <td style={{ padding: '5px 8px', fontWeight: '800', color: '#0284c7', fontFamily: 'monospace' }}>
-                                      {spk.id_spk}
-                                    </td>
-
-                                    {/* SKU */}
-                                    <td style={{ padding: '5px 8px', fontWeight: '700', color: '#475569', fontFamily: 'monospace' }}>
-                                      {prod.sku || '-'}
-                                    </td>
-
-                                    {/* Nama Produk Dropdown */}
-                                    <td style={{ padding: '5px 8px' }}>
+                                    {/* Produk & SKU (Gabung) */}
+                                    <td style={{ padding: '6px 8px' }}>
                                       <SearchableSelect
                                         value={prod.produk_id}
                                         options={productSelectOptions}
                                         placeholder="Pilih dari Master..."
                                         onChange={(val) => handleSelectProductForSPK(sIdx, pIdx, val)}
                                       />
+                                      {prod.sku && (
+                                        <div style={{ marginTop: '3px', fontSize: '10px', color: '#64748b', fontFamily: 'monospace', fontWeight: '600' }}>
+                                          SKU: <span style={{ color: '#0284c7' }}>{prod.sku}</span>
+                                        </div>
+                                      )}
                                     </td>
 
                                     {/* Kategori */}
@@ -1842,28 +1834,28 @@ export default function SPKView() {
                                       </span>
                                     </td>
 
-                                    {/* Satuan */}
-                                    <td style={{ padding: '5px 8px', textAlign: 'center', fontWeight: '700', color: '#64748b' }}>
-                                      {prod.satuan || 'PCS'}
-                                    </td>
-
-                                    {/* Qty */}
+                                    {/* Qty & Satuan (Gabung) */}
                                     <td style={{ padding: '5px 8px', textAlign: 'center' }}>
-                                      <input
-                                        type="number"
-                                        min="1"
-                                        value={prod.qty}
-                                        onChange={(e) => handleUpdateProductInSPK(sIdx, pIdx, 'qty', Number(e.target.value))}
-                                        style={{
-                                          width: '55px',
-                                          padding: '4px',
-                                          borderRadius: '4px',
-                                          border: '1px solid #cbd5e1',
-                                          fontSize: '11px',
-                                          fontWeight: '800',
-                                          textAlign: 'center'
-                                        }}
-                                      />
+                                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                        <input
+                                          type="number"
+                                          min="1"
+                                          value={prod.qty}
+                                          onChange={(e) => handleUpdateProductInSPK(sIdx, pIdx, 'qty', Number(e.target.value))}
+                                          style={{
+                                            width: '52px',
+                                            padding: '4px',
+                                            borderRadius: '4px',
+                                            border: '1px solid #cbd5e1',
+                                            fontSize: '11px',
+                                            fontWeight: '800',
+                                            textAlign: 'center'
+                                          }}
+                                        />
+                                        <span style={{ fontSize: '10.5px', fontWeight: '700', color: '#64748b' }}>
+                                          {prod.satuan || 'PCS'}
+                                        </span>
+                                      </div>
                                     </td>
 
                                     {/* Estimasi Kain & Keterangan */}
