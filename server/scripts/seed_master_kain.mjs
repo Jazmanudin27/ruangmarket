@@ -933,34 +933,42 @@ PO-ROK-RAMPEL-PNDK-DEWASA-DN-XXL	K-DN
 PO-ROK-RAMPEL-PNDK-DEWASA-DN-XXXL	K-DN
 `;
 
-// Helper definisi deskriptif kain berdasarkan SKU Kain
+// Helper definisi deskriptif kain berdasarkan SKU Kain beserta harga standar per meter
 export function getKainMetadata(skuKain) {
   const meta = {
-    'KB-TH-MERAH': { nama: 'Kain Batik TH Merah', jenis: 'Batik', warna: 'Merah' },
-    'KB-MI-JBR': { nama: 'Kain Batik MI Jabar', jenis: 'Batik', warna: 'Hijau Jabar' },
-    'KB-BR-MERAH': { nama: 'Kain Batik BR Merah', jenis: 'Batik', warna: 'Merah' },
-    'KB-BN-HIJAU': { nama: 'Kain Batik BN Hijau', jenis: 'Batik', warna: 'Hijau' },
-    'KB-BM-MERAH': { nama: 'Kain Batik BM Merah', jenis: 'Batik', warna: 'Merah' },
-    'KB-BB-MERAH': { nama: 'Kain Batik BB Merah', jenis: 'Batik', warna: 'Merah' },
-    'KB-BL-MERAH': { nama: 'Kain Batik BL Merah', jenis: 'Batik', warna: 'Merah' },
-    'KB-BM-BIRU': { nama: 'Kain Batik BM Biru', jenis: 'Batik', warna: 'Biru' },
-    'KB-BR-BIRU': { nama: 'Kain Batik BR Biru', jenis: 'Batik', warna: 'Biru' },
-    'KB-TH-BIRU': { nama: 'Kain Batik TH Biru', jenis: 'Batik', warna: 'Biru' },
-    'KB-BM-DONGKER': { nama: 'Kain Batik BM Dongker', jenis: 'Batik', warna: 'Dongker' },
-    'KB-BR-ABU': { nama: 'Kain Batik BR Abu', jenis: 'Batik', warna: 'Abu-Abu' },
-    'KB-TH-ABU': { nama: 'Kain Batik TH Abu', jenis: 'Batik', warna: 'Abu-Abu' },
-    'K-CLF-PUTIH': { nama: 'Kain Calista Putih', jenis: 'Calista', warna: 'Putih' },
-    'K-DRILL-UON': { nama: 'Kain Drill Union', jenis: 'Drill', warna: 'Standar' },
-    'KB-POR': { nama: 'Kain Batik POR', jenis: 'Batik', warna: 'POR' },
-    'K-GM': { nama: 'Kain Katun GM', jenis: 'Katun GM', warna: 'Putih/Standar' },
-    'K-OXFRD': { nama: 'Kain Oxford', jenis: 'Oxford', warna: 'Putih/Standar' },
-    'K-CLF': { nama: 'Kain Calista', jenis: 'Calista', warna: 'Standar' },
-    'K-DRIL': { nama: 'Kain Drill', jenis: 'Drill', warna: 'Standar' },
-    'K-SW': { nama: 'Kain Semi Wool (SW)', jenis: 'Semi Wool', warna: 'Standar' },
-    'K-CR': { nama: 'Kain CR', jenis: 'CR', warna: 'Standar' },
-    'K-DN': { nama: 'Kain Drill Navy / Denim', jenis: 'Drill / Denim', warna: 'Navy' }
+    'KB-TH-MERAH': { nama: 'Kain Batik TH Merah', jenis: 'Batik', warna: 'Merah', harga: 25000 },
+    'KB-MI-JBR': { nama: 'Kain Batik MI Jabar', jenis: 'Batik', warna: 'Hijau Jabar', harga: 25000 },
+    'KB-BR-MERAH': { nama: 'Kain Batik BR Merah', jenis: 'Batik', warna: 'Merah', harga: 25000 },
+    'KB-BN-HIJAU': { nama: 'Kain Batik BN Hijau', jenis: 'Batik', warna: 'Hijau', harga: 25000 },
+    'KB-BM-MERAH': { nama: 'Kain Batik BM Merah', jenis: 'Batik', warna: 'Merah', harga: 25000 },
+    'KB-BB-MERAH': { nama: 'Kain Batik BB Merah', jenis: 'Batik', warna: 'Merah', harga: 25000 },
+    'KB-BL-MERAH': { nama: 'Kain Batik BL Merah', jenis: 'Batik', warna: 'Merah', harga: 25000 },
+    'KB-BM-BIRU': { nama: 'Kain Batik BM Biru', jenis: 'Batik', warna: 'Biru', harga: 25000 },
+    'KB-BR-BIRU': { nama: 'Kain Batik BR Biru', jenis: 'Batik', warna: 'Biru', harga: 25000 },
+    'KB-TH-BIRU': { nama: 'Kain Batik TH Biru', jenis: 'Batik', warna: 'Biru', harga: 25000 },
+    'KB-BM-DONGKER': { nama: 'Kain Batik BM Dongker', jenis: 'Batik', warna: 'Dongker', harga: 25000 },
+    'KB-BR-ABU': { nama: 'Kain Batik BR Abu', jenis: 'Batik', warna: 'Abu-Abu', harga: 25000 },
+    'KB-TH-ABU': { nama: 'Kain Batik TH Abu', jenis: 'Batik', warna: 'Abu-Abu', harga: 25000 },
+    'K-CLF-PUTIH': { nama: 'Kain Calista Putih', jenis: 'Calista', warna: 'Putih', harga: 22000 },
+    'K-DRILL-UON': { nama: 'Kain Drill Union', jenis: 'Drill', warna: 'Standar', harga: 28000 },
+    'KB-POR': { nama: 'Kain Batik POR', jenis: 'Batik', warna: 'POR', harga: 25000 },
+    'K-GM': { nama: 'Kain Katun GM', jenis: 'Katun GM', warna: 'Putih/Standar', harga: 26000 },
+    'K-OXFRD': { nama: 'Kain Oxford', jenis: 'Oxford', warna: 'Putih/Standar', harga: 24000 },
+    'K-CLF': { nama: 'Kain Calista', jenis: 'Calista', warna: 'Standar', harga: 22000 },
+    'K-DRIL': { nama: 'Kain Drill', jenis: 'Drill', warna: 'Standar', harga: 28000 },
+    'K-SW': { nama: 'Kain Semi Wool (SW)', jenis: 'Semi Wool', warna: 'Standar', harga: 35000 },
+    'K-CR': { nama: 'Kain CR', jenis: 'CR', warna: 'Standar', harga: 22000 },
+    'K-DN': { nama: 'Kain Drill Navy / Denim', jenis: 'Drill / Denim', warna: 'Navy', harga: 28000 },
+    'KB-TEST': { nama: 'Kain Batik Test', jenis: 'Batik', warna: 'Standar', harga: 25000 },
+    'K-DIADORA': { nama: 'Kain Diadora', jenis: 'Diadora', warna: 'Standar', harga: 30000 },
+    'K-PLY': { nama: 'Kain Polymicro', jenis: 'Polymicro', warna: 'Standar', harga: 18000 },
+    'K-BSY': { nama: 'Kain Besway', jenis: 'Besway', warna: 'Standar', harga: 20000 },
+    'K-CTN': { nama: 'Kain Katun', jenis: 'Katun', warna: 'Standar', harga: 28000 },
+    'K-PE': { nama: 'Kain PE', jenis: 'Polyester PE', warna: 'Standar', harga: 22000 },
+    'K-LOTO': { nama: 'Kain Lotto', jenis: 'Lotto', warna: 'Standar', harga: 24000 },
+    'K-TYB': { nama: 'Kain Toyobo', jenis: 'Toyobo', warna: 'Standar', harga: 32000 }
   };
-  return meta[skuKain] || { nama: `Kain ${skuKain}`, jenis: 'Kain Standar', warna: '-' };
+  return meta[skuKain] || { nama: `Kain ${skuKain}`, jenis: 'Kain Standar', warna: '-', harga: 25000 };
 }
 
 export async function runMigration(pool) {
@@ -970,7 +978,7 @@ export async function runMigration(pool) {
       id INT AUTO_INCREMENT PRIMARY KEY,
       kode_perusahaan VARCHAR(32) DEFAULT 'RSG',
       kode_sku_kain VARCHAR(64) NOT NULL UNIQUE,
-      nama_kain VARCHAR(255) NOT NULL,
+      nama_kain VARCHAR(150) NOT NULL,
       jenis_kain VARCHAR(100) NULL,
       warna VARCHAR(100) NULL,
       satuan VARCHAR(32) DEFAULT 'METER',
@@ -1022,12 +1030,13 @@ export async function runMigration(pool) {
     await pool.query(`
       INSERT INTO master_kain (
         kode_perusahaan, kode_sku_kain, nama_kain, jenis_kain, warna, satuan, stok_kain, harga_per_meter
-      ) VALUES (?, ?, ?, ?, ?, 'METER', 0, 0)
+      ) VALUES (?, ?, ?, ?, ?, 'METER', 0, ?)
       ON DUPLICATE KEY UPDATE
         nama_kain = VALUES(nama_kain),
         jenis_kain = VALUES(jenis_kain),
-        warna = VALUES(warna)
-    `, ['RSG', kainSku, info.nama, info.jenis, info.warna]);
+        warna = VALUES(warna),
+        harga_per_meter = VALUES(harga_per_meter)
+    `, ['RSG', kainSku, info.nama, info.jenis, info.warna, info.harga || 25000]);
   }
   console.log('[Migrasi] Berhasil menyimpan semua data master_kain!');
 

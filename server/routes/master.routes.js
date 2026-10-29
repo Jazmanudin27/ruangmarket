@@ -83,7 +83,7 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
       }
 
       // Ambil daftar SKU Kain, HPP & Kategori dari DB untuk tab referensi
-      const [kainRows] = await pool.query('SELECT kode_sku_kain, nama_kain, jenis_kain, warna FROM master_kain ORDER BY id ASC');
+      const [kainRows] = await pool.query('SELECT kode_sku_kain, nama_kain, jenis_kain, warna, harga_per_meter FROM master_kain ORDER BY id ASC');
       const [hppRows] = await pool.query('SELECT id_kategori_hpp, nama_kategori_hpp, total_hpp FROM master_hpp_produk ORDER BY id ASC');
       const [katRows] = await pool.query('SELECT nama_kategori, deskripsi, status FROM master_kategori ORDER BY nama_kategori ASC');
 
@@ -99,15 +99,20 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
       ];
       XLSX.utils.book_append_sheet(wb, ws1, 'Master_Produk');
 
-      // Sheet 2: Referensi SKU Kain
-      const refKain = kainRows.map(k => ({
-        KODE_SKU_KAIN: k.kode_sku_kain,
-        NAMA_KAIN: k.nama_kain,
-        JENIS: k.jenis_kain || '-',
-        WARNA: k.warna || '-'
-      }));
+      // Sheet 2: Referensi SKU Kain (Dengan Harga Per Meter & Per CM)
+      const refKain = kainRows.map(k => {
+        const meter = Number(k.harga_per_meter || 0);
+        return {
+          KODE_SKU_KAIN: k.kode_sku_kain,
+          NAMA_KAIN: k.nama_kain,
+          JENIS: k.jenis_kain || '-',
+          WARNA: k.warna || '-',
+          HARGA_PER_METER: meter,
+          HARGA_PER_CM: Math.round(meter / 100)
+        };
+      });
       const ws2 = XLSX.utils.json_to_sheet(refKain);
-      ws2['!cols'] = [{ wch: 20 }, { wch: 32 }, { wch: 18 }, { wch: 18 }];
+      ws2['!cols'] = [{ wch: 20 }, { wch: 32 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 16 }];
       XLSX.utils.book_append_sheet(wb, ws2, 'Referensi_SKU_Kain');
 
       // Sheet 3: Referensi Kategori HPP

@@ -361,6 +361,8 @@ export default function ProdukView() {
   const [importResult, setImportResult] = useState(null);
   const [importFilterAction, setImportFilterAction] = useState('ALL'); // ALL, INSERT, UPDATE, SKIP, FAIL
   const importFileInputRef = useRef(null);
+  const [showKainRefTable, setShowKainRefTable] = useState(false);
+  const [kainRefSearch, setKainRefSearch] = useState('');
 
   // Helper deteksi SKU Kain di sisi client untuk preview modal
   const clientDetectSkuKain = (sku = '', nama = '') => {
@@ -4520,7 +4522,28 @@ export default function ProdukView() {
                         Perlu file acuan atau daftar SKU Kain terkini?
                       </span>
                     </div>
-                    <div style={{ display: 'flex', gap: '8px' }}>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <button
+                        type="button"
+                        onClick={() => setShowKainRefTable(prev => !prev)}
+                        style={{
+                          height: '26px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          padding: '0 10px',
+                          borderRadius: '5px',
+                          border: showKainRefTable ? '1px solid #0284c7' : '1px solid #059669',
+                          backgroundColor: showKainRefTable ? '#e0f2fe' : '#ffffff',
+                          color: showKainRefTable ? '#0284c7' : '#059669',
+                          fontSize: '11px',
+                          fontWeight: '700',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <Layers size={12} />
+                        <span>{showKainRefTable ? 'Sembunyikan Tabel Kain' : `Tabel Master Kain (${kainOptions.length})`}</span>
+                      </button>
                       <button
                         type="button"
                         onClick={() => handleDownloadTemplate('xlsx')}
@@ -4565,6 +4588,80 @@ export default function ProdukView() {
                       </button>
                     </div>
                   </div>
+
+                  {/* TABEL REFERENSI MASTER KAIN (HARGA PER METER) */}
+                  {showKainRefTable && (
+                    <div style={{
+                      backgroundColor: '#f8fafc',
+                      borderRadius: '8px',
+                      border: '1.5px solid #38bdf8',
+                      padding: '10px 12px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '8px',
+                      boxShadow: '0 2px 4px rgba(2, 132, 199, 0.08)'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <Layers size={15} color="#0284c7" />
+                          <span style={{ fontSize: '12px', fontWeight: '800', color: '#0369a1' }}>
+                            Tabel Referensi Master Kain (Harga Per Meter & Per CM)
+                          </span>
+                        </div>
+                        <input
+                          type="text"
+                          placeholder="Cari SKU / nama kain..."
+                          value={kainRefSearch}
+                          onChange={(e) => setKainRefSearch(e.target.value)}
+                          style={{
+                            height: '24px',
+                            padding: '2px 8px',
+                            fontSize: '11px',
+                            borderRadius: '4px',
+                            border: '1px solid #cbd5e1',
+                            width: '180px'
+                          }}
+                        />
+                      </div>
+
+                      <div style={{ maxHeight: '180px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '6px' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', backgroundColor: '#ffffff' }}>
+                          <thead>
+                            <tr style={{ backgroundColor: '#f1f5f9', color: '#475569', position: 'sticky', top: 0, zIndex: 1 }}>
+                              <th style={{ padding: '4px 8px', textAlign: 'center', width: '30px', borderBottom: '1px solid #cbd5e1' }}>No</th>
+                              <th style={{ padding: '4px 8px', textAlign: 'left', width: '130px', borderBottom: '1px solid #cbd5e1' }}>Kode SKU Kain</th>
+                              <th style={{ padding: '4px 8px', textAlign: 'left', borderBottom: '1px solid #cbd5e1' }}>Nama Kain</th>
+                              <th style={{ padding: '4px 8px', textAlign: 'left', width: '120px', borderBottom: '1px solid #cbd5e1' }}>Jenis / Warna</th>
+                              <th style={{ padding: '4px 8px', textAlign: 'right', width: '120px', borderBottom: '1px solid #cbd5e1' }}>Harga / Meter</th>
+                              <th style={{ padding: '4px 8px', textAlign: 'right', width: '100px', borderBottom: '1px solid #cbd5e1' }}>Harga / CM</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {kainOptions
+                              .filter(k => {
+                                if (!kainRefSearch.trim()) return true;
+                                const q = kainRefSearch.toLowerCase();
+                                return (k.sku || '').toLowerCase().includes(q) || (k.nama_kain || '').toLowerCase().includes(q);
+                              })
+                              .map((k, idx) => (
+                                <tr key={k.sku || idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                  <td style={{ padding: '4px 8px', textAlign: 'center', color: '#94a3b8' }}>{idx + 1}</td>
+                                  <td style={{ padding: '4px 8px', fontFamily: 'monospace', fontWeight: '800', color: '#0284c7' }}>{k.sku}</td>
+                                  <td style={{ padding: '4px 8px', color: '#1e293b', fontWeight: '600' }}>{k.nama_kain}</td>
+                                  <td style={{ padding: '4px 8px', color: '#64748b' }}>{k.jenis_kain || '-'} / {k.warna || '-'}</td>
+                                  <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: '800', color: '#059669' }}>
+                                    Rp {Number(k.harga_per_meter || 0).toLocaleString('id-ID')} / m
+                                  </td>
+                                  <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: '700', color: '#0284c7' }}>
+                                    Rp {Number(k.harga_kain_cm || Math.round((k.harga_per_meter || 0) / 100)).toLocaleString('id-ID')} / cm
+                                  </td>
+                                </tr>
+                              ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Dropzone Upload */}
                   <input
