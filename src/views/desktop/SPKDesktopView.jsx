@@ -36,6 +36,7 @@ import { INITIAL_KARYAWAN_DATA } from "../../data/initialKaryawan";
 import { INITIAL_PRODUK_DATA } from "../../data/initialProduk";
 import { KARYAWAN_STORAGE_KEY } from "./KaryawanDesktopView";
 import { getActiveCompany } from "../../utils/tenant.util";
+import CetakSPKModal from "../../components/CetakSPKModal";
 
 export const SPK_STORAGE_KEY = "ruangmarket_spk_v2"; // version bump for new nested structure
 const PRODUK_STORAGE_KEY = "ruangmarket_produk_gamis_v4";
@@ -393,6 +394,7 @@ export default function SPKView() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [previewDesign, setPreviewDesign] = useState(null); // { url, title }
+  const [printModalData, setPrintModalData] = useState(null); // { batch, spk }
   const [formData, setFormData] = useState({
     kode_produksi: "",
     nama_pelanggan: "",
@@ -1220,6 +1222,27 @@ export default function SPKView() {
                       }}
                       onClick={(e) => e.stopPropagation()}
                     >
+                      {batch.spk_list && batch.spk_list.length > 0 && (
+                        <button
+                          onClick={() => setPrintModalData({ batch, spk: batch.spk_list[0] })}
+                          title="Cetak SPK Pertama"
+                          style={{
+                            width: "26px",
+                            height: "26px",
+                            borderRadius: "5px",
+                            border: "1px solid #0284c7",
+                            backgroundColor: "#f0f9ff",
+                            color: "#0284c7",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            cursor: "pointer",
+                          }}
+                        >
+                          <Printer size={13} />
+                        </button>
+                      )}
+
                       <button
                         onClick={() => handleOpenEdit(batch)}
                         title="Edit Kode Produksi & SPK"
@@ -1491,6 +1514,31 @@ export default function SPKView() {
                               >
                                 Total: {spkTotalQty} PCS
                               </span>
+
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setPrintModalData({ batch, spk });
+                                }}
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "4px",
+                                  padding: "3px 9px",
+                                  borderRadius: "4px",
+                                  border: "1px solid #0284c7",
+                                  backgroundColor: "#0284c7",
+                                  color: "#ffffff",
+                                  fontSize: "11px",
+                                  fontWeight: "700",
+                                  cursor: "pointer",
+                                  boxShadow: "0 1px 2px rgba(0,0,0,0.1)",
+                                }}
+                                title="Cetak Surat Perintah Kerja (SPK)"
+                              >
+                                <Printer size={12} />
+                                <span>Cetak SPK</span>
+                              </button>
                             </div>
                           </div>
 
@@ -3241,6 +3289,14 @@ export default function SPKView() {
           </div>
         </div>
       )}
+      {/* Modal Cetak SPK */}
+      <CetakSPKModal
+        isOpen={Boolean(printModalData)}
+        onClose={() => setPrintModalData(null)}
+        batch={printModalData?.batch}
+        spk={printModalData?.spk}
+        adminName={activeCompany?.name || "RUANG SERAGAM"}
+      />
     </div>
   );
 }
