@@ -22,7 +22,6 @@ import {
   Layers,
   ArrowUpDown,
   Filter,
-  Barcode,
   DollarSign,
   ShieldAlert,
   ChevronDown,
@@ -295,7 +294,6 @@ export default function ProdukView() {
   // Modals state
   const [selectedProduk, setSelectedProduk] = useState(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
-  const [isBarcodeModalOpen, setIsBarcodeModalOpen] = useState(false);
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
 
@@ -398,11 +396,10 @@ export default function ProdukView() {
       const q = search.toLowerCase();
       const matchName = p.nama_produk.toLowerCase().includes(q);
       const matchSku = p.sku.toLowerCase().includes(q);
-      const matchBarcode = p.barcode.toLowerCase().includes(q);
       const matchVarian = (p.varian || '').toLowerCase().includes(q);
       const matchTipe = (p.tipe_set || '').toLowerCase().includes(q);
       const matchOrder = (p.status_order || '').toLowerCase().includes(q);
-      return matchName || matchSku || matchBarcode || matchVarian || matchTipe || matchOrder;
+      return matchName || matchSku || matchVarian || matchTipe || matchOrder;
     }
 
     return true;
@@ -609,8 +606,7 @@ export default function ProdukView() {
     const nextId = produkList.length > 0 ? Math.max(...produkList.map(p => p.id)) + 1 : 1;
     setFormData({
       ...initialForm,
-      sku: `PRD-260${String(nextId).padStart(4, '0')}`,
-      barcode: `899${String(1000 + nextId)}`
+      sku: `PRD-260${String(nextId).padStart(4, '0')}`
     });
     setIsFormModalOpen(true);
   };
@@ -630,11 +626,6 @@ export default function ProdukView() {
   const handleOpenDetail = (item) => {
     setSelectedProduk(item);
     setIsDetailModalOpen(true);
-  };
-
-  const handleOpenBarcode = (item) => {
-    setSelectedProduk(item || null);
-    setIsBarcodeModalOpen(true);
   };
 
   // Helper Bundle / Paket Setel Components
@@ -870,7 +861,7 @@ export default function ProdukView() {
               Data Induk Produk & Varian Stok
             </h1>
             <p style={{ margin: 0, fontSize: '11px', color: 'rgba(255, 255, 255, 0.88)' }}>
-              Kelola data produk, SKU/barcode, varian, kategori, status stok, dan cetak label barcode
+              Kelola data produk, SKU, varian, kategori, status stok, dan estimasi kain
             </p>
           </div>
         </div>
@@ -878,33 +869,6 @@ export default function ProdukView() {
         {/* Action Buttons */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
           
-          <button
-            onClick={() => handleOpenBarcode(null)}
-            style={{
-              height: '30px',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '6px',
-              padding: '0 14px',
-              borderRadius: '6px',
-              border: 'none',
-              backgroundColor: '#10b981',
-              color: '#ffffff',
-              fontSize: '12px',
-              fontWeight: '700',
-              lineHeight: 1,
-              cursor: 'pointer',
-              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.15)',
-              transition: 'all 0.15s ease'
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#059669'}
-            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#10b981'}
-          >
-            <QrCode size={14} />
-            <span>Cetak Barcode</span>
-          </button>
-
           {/* Tombol Deteksi PO */}
           <button
             onClick={() => handleBatchAutoDetectStatusOrder(false)}
@@ -1733,34 +1697,11 @@ export default function ProdukView() {
                         {formatRupiah(item.harga_jual)}
                       </td>
 
-                      {/* 4 ACTION BUTTONS */}
+                      {/* ACTION BUTTONS (Detail, Edit, Hapus) */}
                       <td style={{ padding: '5px 8px', textAlign: 'center', border: '1px solid #cbd5e1' }}>
                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                           
-                          {/* 1. Barcode Button (Green) */}
-                          <button
-                            onClick={() => handleOpenBarcode(item)}
-                            title="Cetak Barcode / Label"
-                            style={{
-                              width: '26px',
-                              height: '26px',
-                              borderRadius: '4px',
-                              border: 'none',
-                              backgroundColor: '#10b981',
-                              color: '#ffffff',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              cursor: 'pointer',
-                              transition: 'opacity 0.15s ease'
-                            }}
-                            onMouseEnter={(e) => e.currentTarget.style.opacity = '0.85'}
-                            onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
-                          >
-                            <QrCode size={13} />
-                          </button>
-
-                          {/* 2. Detail Eye Button (Teal / Cyan) */}
+                          {/* 1. Detail Eye Button (Teal / Cyan) */}
                           <button
                             onClick={() => handleOpenDetail(item)}
                             title="Lihat Detail Produk"
@@ -2049,53 +1990,28 @@ export default function ProdukView() {
                       />
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                      <div>
-                        <label style={{ display: 'block', fontSize: '10.5px', fontWeight: '700', color: '#334155', marginBottom: '3px' }}>
-                          Kode SKU <span style={{ color: '#ef4444' }}>*</span>
-                        </label>
-                        <input
-                          type="text"
-                          required
-                          placeholder="GMS-XXXX"
-                          value={formData.sku}
-                          onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
-                          style={{
-                            width: '100%',
-                            padding: '6px 9px',
-                            borderRadius: '5px',
-                            border: '1px solid #cbd5e1',
-                            fontSize: '11.5px',
-                            fontFamily: 'monospace',
-                            fontWeight: '700',
-                            color: '#0284c7',
-                            backgroundColor: '#f8fafc'
-                          }}
-                        />
-                      </div>
-                      <div>
-                        <label style={{ display: 'block', fontSize: '10.5px', fontWeight: '700', color: '#334155', marginBottom: '3px' }}>
-                          Kode Barcode / EAN <span style={{ color: '#ef4444' }}>*</span>
-                        </label>
-                        <input
-                          type="text"
-                          required
-                          placeholder="899XXXX"
-                          value={formData.barcode}
-                          onChange={(e) => setFormData({ ...formData, barcode: e.target.value })}
-                          style={{
-                            width: '100%',
-                            padding: '6px 9px',
-                            borderRadius: '5px',
-                            border: '1px solid #cbd5e1',
-                            fontSize: '11.5px',
-                            fontFamily: 'monospace',
-                            fontWeight: '700',
-                            color: '#334155',
-                            backgroundColor: '#f8fafc'
-                          }}
-                        />
-                      </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '10.5px', fontWeight: '700', color: '#334155', marginBottom: '3px' }}>
+                        Kode SKU <span style={{ color: '#ef4444' }}>*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="GMS-XXXX"
+                        value={formData.sku}
+                        onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
+                        style={{
+                          width: '100%',
+                          padding: '6px 9px',
+                          borderRadius: '5px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '11.5px',
+                          fontFamily: 'monospace',
+                          fontWeight: '700',
+                          color: '#0284c7',
+                          backgroundColor: '#f8fafc'
+                        }}
+                      />
                     </div>
                   </div>
                 </div>
@@ -2900,31 +2816,6 @@ export default function ProdukView() {
 
               <button
                 type="button"
-                onClick={() => {
-                  setIsDetailModalOpen(false);
-                  handleOpenBarcode(selectedProduk);
-                }}
-                style={{
-                  height: '28px',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '5px',
-                  padding: '0 12px',
-                  borderRadius: '5px',
-                  border: '1px solid #10b981',
-                  backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                  color: '#10b981',
-                  fontSize: '11px',
-                  fontWeight: '700',
-                  cursor: 'pointer'
-                }}
-              >
-                <QrCode size={12} />
-                <span>Cetak Barcode</span>
-              </button>
-
-              <button
-                type="button"
                 onClick={() => setIsDetailModalOpen(false)}
                 style={{
                   width: '28px',
@@ -3022,19 +2913,8 @@ export default function ProdukView() {
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '14px', fontSize: '11px', color: '#64748b', flexWrap: 'wrap' }}>
                   <span>SKU: <b style={{ fontFamily: 'monospace', color: '#0284c7', fontSize: '12px' }}>{selectedProduk.sku || '-'}</b></span>
-                  <span>Barcode: <b style={{ fontFamily: 'monospace', color: '#334155' }}>{selectedProduk.barcode || '-'}</b></span>
                   <span>Varian: <b style={{ color: '#0f172a' }}>{selectedProduk.varian || 'Reguler'}</b></span>
                   <span>Satuan: <b style={{ color: '#0f172a' }}>{selectedProduk.satuan || 'PCS'}</b></span>
-                </div>
-              </div>
-
-              {/* Barcode Strip */}
-              <div style={{ textAlign: 'center', padding: '6px 14px', border: '1px dashed #cbd5e1', borderRadius: '6px', backgroundColor: '#fafbfc' }}>
-                <div style={{ letterSpacing: '4px', fontFamily: 'monospace', fontSize: '16px', fontWeight: '800', color: '#0f172a' }}>
-                  ||||| | |||| ||| |||| ||
-                </div>
-                <div style={{ fontSize: '10px', fontWeight: '700', color: '#64748b' }}>
-                  {selectedProduk.barcode || 'EAN-13'}
                 </div>
               </div>
             </div>
@@ -3271,163 +3151,6 @@ export default function ProdukView() {
                 )}
               </div>
             )}
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================
-          MODAL 3: CETAK BARCODE & KARTU LABEL PRODUK
-          ======================================================== */}
-      {isBarcodeModalOpen && (
-        <div style={{
-          position: 'fixed',
-          inset: 0,
-          backgroundColor: 'rgba(15, 23, 42, 0.65)',
-          backdropFilter: 'blur(3px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000,
-          padding: '16px'
-        }}>
-          <div style={{
-            backgroundColor: '#ffffff',
-            borderRadius: '12px',
-            width: '100%',
-            maxWidth: '650px',
-            maxHeight: '90vh',
-            display: 'flex',
-            flexDirection: 'column',
-            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2)'
-          }}>
-            
-            {/* Header */}
-            <div style={{
-              padding: '14px 20px',
-              borderBottom: '1px solid #e2e8f0',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div style={{ width: '32px', height: '32px', borderRadius: '6px', backgroundColor: '#ecfdf5', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <QrCode size={16} />
-                </div>
-                <div>
-                  <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '800', color: '#0f172a' }}>
-                    Cetak Barcode & Kartu Produk
-                  </h3>
-                  <div style={{ fontSize: '11px', color: '#64748b' }}>
-                    Label harga & barcode siap cetak untuk etalase rak toko
-                  </div>
-                </div>
-              </div>
-              <button 
-                onClick={() => setIsBarcodeModalOpen(false)}
-                style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            {/* Printable Cards Grid */}
-            <div style={{ overflowY: 'auto', padding: '18px 20px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '12px' }}>
-              {(selectedProduk ? [selectedProduk] : produkList).map(item => (
-                <div 
-                  key={item.id}
-                  style={{
-                    border: '2px solid #0f172a',
-                    borderRadius: '6px',
-                    padding: '12px',
-                    backgroundColor: '#ffffff',
-                    position: 'relative'
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid #cbd5e1', paddingBottom: '6px', marginBottom: '6px' }}>
-                    <div>
-                      <div style={{ fontSize: '9px', fontWeight: '800', color: '#0284c7' }}>RUANG MARKET</div>
-                      <div style={{ fontSize: '12px', fontWeight: '800', color: '#0f172a', maxWidth: '170px', lineHeight: 1.2 }}>
-                        {item.nama_produk}
-                      </div>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <span style={{ fontSize: '9px', fontWeight: '700', backgroundColor: '#f1f5f9', padding: '2px 5px', borderRadius: '3px' }}>
-                        {item.varian || 'Reguler Pack'}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <div style={{ fontSize: '9px', color: '#64748b', fontWeight: '700' }}>HARGA KONSUMEN</div>
-                      <div style={{ fontSize: '15px', fontWeight: '900', color: '#059669' }}>
-                        {formatRupiah(item.harga_jual)}
-                      </div>
-                    </div>
-                    <div style={{ textAlign: 'center' }}>
-                      <div style={{ fontFamily: 'monospace', letterSpacing: '2px', fontWeight: '800', fontSize: '14px' }}>
-                        |||||||||||
-                      </div>
-                      <div style={{ fontSize: '9px', fontWeight: '700', color: '#334155' }}>
-                        {item.barcode}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div style={{ marginTop: '6px', paddingTop: '4px', borderTop: '1px dashed #e2e8f0', display: 'flex', justifyContent: 'space-between', fontSize: '9px', color: '#94a3b8' }}>
-                    <span>SKU: {item.sku}</span>
-                    <span>Varian: {item.varian || 'Reguler Pack'}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Footer Actions */}
-            <div style={{ padding: '12px 20px', backgroundColor: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ fontSize: '11px', color: '#64748b' }}>
-                Total <b>{selectedProduk ? 1 : produkList.length}</b> label siap dicetak
-              </div>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button
-                  onClick={() => setIsBarcodeModalOpen(false)}
-                  style={{
-                    padding: '6px 12px',
-                    borderRadius: '6px',
-                    border: '1px solid #cbd5e1',
-                    backgroundColor: '#ffffff',
-                    color: '#64748b',
-                    fontSize: '12px',
-                    fontWeight: '600',
-                    cursor: 'pointer'
-                  }}
-                >
-                  Tutup
-                </button>
-                <button
-                  onClick={() => {
-                    toastSuccess('Mengirim ke printer label...');
-                    window.print();
-                  }}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '5px',
-                    padding: '6px 14px',
-                    borderRadius: '6px',
-                    border: 'none',
-                    backgroundColor: '#059669',
-                    color: '#ffffff',
-                    fontSize: '12px',
-                    fontWeight: '700',
-                    cursor: 'pointer'
-                  }}
-                >
-                  <Printer size={14} />
-                  <span>Cetak ke Printer</span>
-                </button>
-              </div>
-            </div>
-
           </div>
         </div>
       )}
