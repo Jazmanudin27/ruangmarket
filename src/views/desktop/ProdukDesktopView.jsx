@@ -1763,7 +1763,7 @@ export default function ProdukView() {
                               {item.nama_produk}
                             </div>
                             <div style={{ fontSize: '11px', color: '#0284c7', fontWeight: '600' }}>
-                              SKU: {item.sku}
+                              {item.sku}
                             </div>
                           </div>
                         </div>

@@ -621,7 +621,7 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
                           <div style={{ minWidth: 0, flex: 1 }}>
                             <div className="pm-produk-nama">{item.nama_produk}</div>
                             <div className="pm-produk-meta">
-                              <span className="pm-produk-sku">SKU: {item.sku_marketplace}</span>
+                              <span className="pm-produk-sku">{item.sku_marketplace}</span>
                               <span className="pm-produk-dot">•</span>
                               <span className="pm-produk-item">Item ID: <code>{item.item_id}</code></span>
                             </div>
