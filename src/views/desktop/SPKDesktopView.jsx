@@ -37,6 +37,7 @@ import { INITIAL_KARYAWAN_DATA } from "../../data/initialKaryawan";
 import { INITIAL_PRODUK_DATA } from "../../data/initialProduk";
 import { KARYAWAN_STORAGE_KEY } from "./KaryawanDesktopView";
 import { INITIAL_PELANGGAN_DATA } from "./PelangganDesktopView";
+import { INITIAL_TAHAPAN_DATA } from "./TahapanSPKDesktopView";
 import { getActiveCompany } from "../../utils/tenant.util";
 import CetakSPKModal from "../../components/CetakSPKModal";
 
@@ -419,6 +420,35 @@ export default function SPKView() {
     setPelangganOptions(INITIAL_PELANGGAN_DATA);
   };
 
+  const [tahapanOptions, setTahapanOptions] = useState(INITIAL_TAHAPAN_DATA);
+
+  const loadTahapanOptions = async () => {
+    try {
+      const res = await fetch(`/api/marketplace/tahapan-spk?kode_perusahaan=${activeCompany?.code || 'RSG'}`);
+      if (res.ok) {
+        const json = await res.json();
+        if (json && Array.isArray(json.data) && json.data.length > 0) {
+          setTahapanOptions(json.data);
+          try {
+            localStorage.setItem('ruangmarket_tahapan_spk_master', JSON.stringify(json.data));
+          } catch (e) {}
+          return;
+        }
+      }
+    } catch (e) {}
+    try {
+      const saved = localStorage.getItem('ruangmarket_tahapan_spk_master');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setTahapanOptions(parsed);
+          return;
+        }
+      }
+    } catch (e) {}
+    setTahapanOptions(INITIAL_TAHAPAN_DATA);
+  };
+
   const [activeCompany, setActiveCompany] = useState(getActiveCompany);
 
   useEffect(() => {
@@ -433,6 +463,7 @@ export default function SPKView() {
   useEffect(() => {
     loadSpkData();
     loadPelangganOptions();
+    loadTahapanOptions();
   }, [activeCompany]);
 
   const [search, setSearch] = useState("");
@@ -2346,7 +2377,7 @@ export default function SPKView() {
                       marginBottom: "3px",
                     }}
                   >
-                    Status Produksi
+                    Tahapan Saat Ini
                   </label>
                   <select
                     value={formData.status}
@@ -2364,9 +2395,11 @@ export default function SPKView() {
                       backgroundColor: "#ffffff",
                     }}
                   >
-                    <option value="Dalam Proses">Dalam Proses</option>
-                    <option value="Menunggu Bahan">Menunggu Bahan</option>
-                    <option value="Selesai QC">Selesai QC</option>
+                    {tahapanOptions.map((t) => (
+                      <option key={t.id || t.kode_tahapan} value={t.nama_tahapan}>
+                        {t.emoji ? `${t.emoji} ` : ""}{t.nama_tahapan}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -2613,10 +2646,10 @@ export default function SPKView() {
                               marginBottom: "2px",
                             }}
                           >
-                            Status SPK
+                            Tahapan SPK
                           </label>
                           <select
-                            value={spk.status_spk || "Potong Pola"}
+                            value={spk.status_spk || (tahapanOptions[0]?.nama_tahapan || "Perencanaan")}
                             onChange={(e) =>
                               handleUpdateSpkHeader(
                                 sIdx,
@@ -2635,9 +2668,11 @@ export default function SPKView() {
                               color: "#0284c7",
                             }}
                           >
-                            <option value="Potong Pola">Potong Pola</option>
-                            <option value="Proses Jahit">Proses Jahit</option>
-                            <option value="Selesai QC">Selesai QC</option>
+                            {tahapanOptions.map((t) => (
+                              <option key={t.id || t.kode_tahapan} value={t.nama_tahapan}>
+                                {t.emoji ? `${t.emoji} ` : ""}{t.nama_tahapan}
+                              </option>
+                            ))}
                           </select>
                         </div>
 

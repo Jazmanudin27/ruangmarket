@@ -348,8 +348,45 @@ export async function initDb() {
       ON DUPLICATE KEY UPDATE nama_pelanggan = VALUES(nama_pelanggan);
     `);
 
+    // 9. Tabel Master Tahapan SPK (tahapan_spk_master)
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS tahapan_spk_master (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        kode_perusahaan VARCHAR(32) DEFAULT 'RSG',
+        kode_tahapan VARCHAR(64) NOT NULL UNIQUE,
+        nama_tahapan VARCHAR(128) NOT NULL,
+        emoji VARCHAR(16) DEFAULT '📋',
+        warna VARCHAR(32) DEFAULT 'info',
+        urutan INT DEFAULT 0,
+        status VARCHAR(32) DEFAULT 'Aktif',
+        keterangan TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_kode_tahapan (kode_tahapan),
+        INDEX idx_kode_perusahaan (kode_perusahaan)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Tabel Master Tahapan SPK Produksi';
+    `);
+
+    // Auto-seed data awal tahapan SPK jika kosong
+    await conn.query(`
+      INSERT INTO tahapan_spk_master (kode_perusahaan, kode_tahapan, nama_tahapan, emoji, warna, urutan, status, keterangan)
+      VALUES 
+        ('RSG', 'THP-01', 'Perencanaan', '📋', 'info', 1, 'Aktif', 'Pesanan baru / perencanaan jadwal produksi'),
+        ('RSG', 'THP-02', 'Antrian & Sampling', '⏳', 'primary', 2, 'Aktif', 'Menunggu antrian pengerjaan sampel'),
+        ('RSG', 'THP-03', 'Tahap Sampling', '🧪', 'purple', 3, 'Aktif', 'Pembuatan sampel produk'),
+        ('RSG', 'THP-04', 'Tahap Print Kain', '🖨️', 'info', 4, 'Aktif', 'Proses sublim / cetak motif kain'),
+        ('RSG', 'THP-05', 'Tahap Pemotongan', '✂️', 'warning', 5, 'Aktif', 'Pemotongan pola kain'),
+        ('RSG', 'THP-06', 'Tahap Jahit', '🪡', 'purple', 6, 'Aktif', 'Proses penjahitan potongan kain'),
+        ('RSG', 'THP-07', 'Tahap LKPK', '🧮', 'success', 7, 'Aktif', 'Pengecekan lembar kerja & kelengkapan'),
+        ('RSG', 'THP-08', 'Quality Control', '🔍', 'success', 8, 'Aktif', 'Pemeriksaan standar kualitas produk'),
+        ('RSG', 'THP-09', 'Packing / Finishing', '📦', 'warning', 9, 'Aktif', 'Setrika uap, hangtag & pengemasan'),
+        ('RSG', 'THP-10', 'Selesai (Finished Good)', '✅', 'success', 10, 'Aktif', 'Produk selesai masuk ke gudang jadi'),
+        ('RSG', 'THP-11', 'Batal', '❌', 'danger', 11, 'Aktif', 'SPK dibatalkan')
+      ON DUPLICATE KEY UPDATE nama_tahapan = VALUES(nama_tahapan);
+    `);
+
     conn.release();
-    console.log('[MySQL] Tabel Bahasa Indonesia (toko_marketplace, produk_marketplace, produk_master, pesanan_marketplace, spk_batch, pelanggan_master) siap!');
+    console.log('[MySQL] Tabel Bahasa Indonesia (toko_marketplace, produk_marketplace, produk_master, pesanan_marketplace, spk_batch, pelanggan_master, tahapan_spk_master) siap!');
   } catch (err) {
     console.error('[MySQL Init Error]:', err.message);
   }
