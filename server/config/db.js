@@ -204,6 +204,36 @@ export async function initDb() {
       await conn.query(`ALTER TABLE pesanan_marketplace ADD COLUMN net_amount DECIMAL(15,2) DEFAULT 0`);
     } catch (e) {}
 
+    // 4b. Tabel Retur Barang (retur_barang)
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS retur_barang (
+        id VARCHAR(64) PRIMARY KEY,
+        kode_perusahaan VARCHAR(32) DEFAULT 'RSG',
+        id_retur_marketplace VARCHAR(64),
+        no_pesanan VARCHAR(64) NOT NULL,
+        saluran VARCHAR(32) NOT NULL,
+        nama_toko VARCHAR(128),
+        nama_pembeli VARCHAR(128),
+        alasan_retur TEXT,
+        tipe_retur VARCHAR(64) DEFAULT 'RETURN_REFUND',
+        status_retur VARCHAR(64) DEFAULT 'Diajukan',
+        kondisi_barang VARCHAR(64) DEFAULT 'Menunggu Penerimaan',
+        no_resi_retur VARCHAR(64),
+        kurir_retur VARCHAR(64),
+        total_refund DECIMAL(15,2) DEFAULT 0,
+        rincian_item LONGTEXT,
+        sudah_restok TINYINT(1) DEFAULT 0,
+        catatan TEXT,
+        waktu_diajukan DATETIME,
+        waktu_selesai DATETIME,
+        dibuat_pada TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        diperbarui_pada TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_no_pesanan (no_pesanan),
+        INDEX idx_saluran (saluran),
+        INDEX idx_status_retur (status_retur)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Tabel retur barang marketplace dan offline';
+    `);
+
     // 5. Masukkan Akun Toko Shopee Resmi jika belum ada
     await conn.query(`
       INSERT INTO toko_marketplace (

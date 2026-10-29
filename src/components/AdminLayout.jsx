@@ -21,6 +21,7 @@ import {
   ClipboardList,
   Store,
   ShoppingBag,
+  RotateCcw,
   Building,
   Check
 } from 'lucide-react';
@@ -37,6 +38,7 @@ import SPKDesktopView from '../views/desktop/SPKDesktopView';
 import MarketplaceDesktopView from '../views/desktop/MarketplaceDesktopView';
 import ProdukMarketplaceDesktopView from '../views/desktop/ProdukMarketplaceDesktopView';
 import PesananMasukDesktopView from '../views/desktop/PesananMasukDesktopView';
+import ReturBarangDesktopView from '../views/desktop/ReturBarangDesktopView';
 import BlankTemplateDesktopView from '../views/desktop/BlankTemplateDesktopView';
 
 // Mobile Views
@@ -235,6 +237,9 @@ export default function AdminLayout() {
       case 'pesanan_masuk':
       case 'pesanan':
         return <PesananMasukDesktopView onNavigate={changeTab} />;
+      case 'retur_barang':
+      case 'retur':
+        return <ReturBarangDesktopView onNavigate={changeTab} />;
       case 'blank':
         return <BlankTemplateDesktopView />;
       default:
@@ -863,6 +868,48 @@ export default function AdminLayout() {
             >
               <ShoppingBag size={13} color={(activeTab === 'pesanan_masuk' || activeTab === 'pesanan') ? '#ffffff' : '#38bdf8'} style={{ flexShrink: 0 }} />
               <span>Pesanan Masuk</span>
+            </button>
+
+            {/* 3c. Tab Retur Barang Langsung di Top Nav */}
+            <button
+              type="button"
+              onClick={() => changeTab('retur_barang')}
+              style={{
+                height: '24px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '4px',
+                padding: '0 8px',
+                borderRadius: '5px',
+                border: (activeTab === 'retur_barang' || activeTab === 'retur') ? '1px solid #f87171' : '1px solid rgba(255, 255, 255, 0.08)',
+                backgroundColor: (activeTab === 'retur_barang' || activeTab === 'retur') ? '#ef4444' : 'rgba(255, 255, 255, 0.05)',
+                color: (activeTab === 'retur_barang' || activeTab === 'retur') ? '#ffffff' : '#cbd5e1',
+                fontSize: '11px',
+                fontWeight: (activeTab === 'retur_barang' || activeTab === 'retur') ? '800' : '600',
+                lineHeight: 1,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+                whiteSpace: 'nowrap',
+                boxShadow: (activeTab === 'retur_barang' || activeTab === 'retur') ? '0 0 10px rgba(239, 68, 68, 0.5)' : 'none'
+              }}
+              onMouseEnter={(e) => {
+                if (activeTab !== 'retur_barang' && activeTab !== 'retur') {
+                  e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.15)';
+                  e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.3)';
+                  e.currentTarget.style.color = '#ffffff';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (activeTab !== 'retur_barang' && activeTab !== 'retur') {
+                  e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
+                  e.currentTarget.style.color = '#cbd5e1';
+                }
+              }}
+            >
+              <RotateCcw size={13} color={(activeTab === 'retur_barang' || activeTab === 'retur') ? '#ffffff' : '#f87171'} style={{ flexShrink: 0 }} />
+              <span>Retur Barang</span>
             </button>
 
             {/* 4. Marketplace & Toko Online */}

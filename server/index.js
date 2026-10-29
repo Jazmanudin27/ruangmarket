@@ -9,6 +9,7 @@ import { handleStoresRoutes } from './routes/stores.routes.js';
 import { handleProductsRoutes } from './routes/products.routes.js';
 import { handleMasterRoutes } from './routes/master.routes.js';
 import { handleOrdersRoutes } from './routes/orders.routes.js';
+import { handleReturnsRoutes } from './routes/returns.routes.js';
 import { handleWebhookRoutes } from './routes/webhook.routes.js';
 
 import './config/env.js';
@@ -56,6 +57,7 @@ const server = http.createServer(async (req, res) => {
     if (await handleProductsRoutes(req, res, pathname, urlObj, context)) return;
     if (await handleMasterRoutes(req, res, pathname, urlObj, context)) return;
     if (await handleOrdersRoutes(req, res, pathname, urlObj, context)) return;
+    if (await handleReturnsRoutes(req, res, pathname, urlObj, context)) return;
     if (await handleWebhookRoutes(req, res, pathname, urlObj, context)) return;
 
     // 404 Not Found
