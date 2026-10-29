@@ -33,13 +33,22 @@ export async function handleProductsRoutes(req, res, pathname, urlObj, { pool, s
         whereParams.push(q, q, q, q);
       }
 
-      let havingSql = '';
-      if (mapping === 'Belum Dimapping') {
-        havingSql = " HAVING status = 'Belum Dimapping'";
-      } else if (mapping === 'Sudah Dimapping') {
-        havingSql = " HAVING status = 'Sudah di Master'";
+      const tabParam = urlObj.searchParams.get('tab');
+
+      let havingClauses = [];
+      if (mapping === 'Belum Dimapping' || tabParam === 'belum_dimapping') {
+        havingClauses.push("status = 'Belum Dimapping'");
+      } else if (mapping === 'Sudah Dimapping' || tabParam === 'sudah_dimapping') {
+        havingClauses.push("status = 'Sudah di Master'");
       }
 
+      if (tabParam === 'tersedia') {
+        whereClauses.push('CAST(pm.stok_marketplace AS SIGNED) > 0');
+      } else if (tabParam === 'habis') {
+        whereClauses.push('(CAST(pm.stok_marketplace AS SIGNED) <= 0 OR pm.stok_marketplace IS NULL)');
+      }
+
+      const havingSql = havingClauses.length > 0 ? ` HAVING ${havingClauses.join(' AND ')}` : '';
       const whereSql = whereClauses.length > 0 ? ` WHERE ${whereClauses.join(' AND ')}` : '';
 
       // Hitung total jika dipaginasi
@@ -104,6 +113,51 @@ export async function handleProductsRoutes(req, res, pathname, urlObj, { pool, s
         queryParams.push(limit, offset);
       }
 
+      // Hitung tab summary counts keseluruhan marketplace
+      let tabCounts = { semua: 0, belum_dimapping: 0, sudah_dimapping: 0, tersedia: 0, habis: 0 };
+      if (isPaginated) {
+        const baseWhereClauses = [];
+        const baseWhereParams = [];
+        if (kodePerusahaan) {
+          baseWhereClauses.push('(pm.kode_perusahaan IS NULL OR pm.kode_perusahaan = ?)');
+          baseWhereParams.push(kodePerusahaan);
+        }
+        if (channel && channel !== 'Semua') {
+          baseWhereClauses.push('pm.saluran = ?');
+          baseWhereParams.push(channel);
+        }
+        if (search && search.trim()) {
+          const q = `%${search.trim()}%`;
+          baseWhereClauses.push('(pm.nama_produk LIKE ? OR pm.sku_marketplace LIKE ? OR pm.nama_toko LIKE ? OR pm.varian LIKE ?)');
+          baseWhereParams.push(q, q, q, q);
+        }
+        const baseWhereSql = baseWhereClauses.length > 0 ? ` WHERE ${baseWhereClauses.join(' AND ')}` : '';
+        const [[mktCountsRow]] = await pool.query(`
+          SELECT 
+            COUNT(*) as total_semua,
+            SUM(CASE WHEN (m.id IS NOT NULL OR m2.id IS NOT NULL) THEN 1 ELSE 0 END) as total_sudah_dimapping,
+            SUM(CASE WHEN (m.id IS NULL AND m2.id IS NULL) THEN 1 ELSE 0 END) as total_belum_dimapping,
+            SUM(CASE WHEN CAST(pm.stok_marketplace AS SIGNED) > 0 THEN 1 ELSE 0 END) as total_tersedia,
+            SUM(CASE WHEN CAST(pm.stok_marketplace AS SIGNED) <= 0 OR pm.stok_marketplace IS NULL THEN 1 ELSE 0 END) as total_habis
+          FROM produk_marketplace pm
+          LEFT JOIN produk_master m 
+            ON m.kode_sku = pm.sku_marketplace AND m.kode_sku != ''
+          LEFT JOIN produk_master m2 
+            ON m2.kode_sku = CONCAT(IFNULL(pm.kode_perusahaan, 'RSG'), '-', pm.sku_marketplace) AND pm.sku_marketplace != ''
+          ${baseWhereSql}
+        `, baseWhereParams);
+
+        if (mktCountsRow) {
+          tabCounts = {
+            semua: Number(mktCountsRow.total_semua || 0),
+            belum_dimapping: Number(mktCountsRow.total_belum_dimapping || 0),
+            sudah_dimapping: Number(mktCountsRow.total_sudah_dimapping || 0),
+            tersedia: Number(mktCountsRow.total_tersedia || 0),
+            habis: Number(mktCountsRow.total_habis || 0)
+          };
+        }
+      }
+
       const [rows] = await pool.query(sql, queryParams);
       if (isPaginated) {
         sendJson(res, 200, {
@@ -114,7 +168,8 @@ export async function handleProductsRoutes(req, res, pathname, urlObj, { pool, s
             limit,
             total,
             totalPages: Math.ceil(total / limit) || 1
-          }
+          },
+          counts: tabCounts
         });
       } else {
         sendJson(res, 200, { status: 'success', data: rows });

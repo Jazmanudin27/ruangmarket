@@ -98,6 +98,14 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
       .catch(() => {});
   };
 
+  const [serverCounts, setServerCounts] = useState({
+    semua: 0,
+    belum_dimapping: 0,
+    sudah_dimapping: 0,
+    tersedia: 0,
+    habis: 0
+  });
+
   // Muat produk marketplace per halaman (Server-side Pagination)
   const loadMarketplaceProducts = async (page = currentPage, limit = entriesPerPage) => {
     setIsLoading(true);
@@ -109,6 +117,7 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
       if (search.trim()) params.set('search', search.trim());
       if (filterChannel !== 'Semua') params.set('channel', filterChannel);
       if (filterMapping !== 'Semua') params.set('mapping', filterMapping);
+      if (activeFilterTab && activeFilterTab !== 'semua') params.set('tab', activeFilterTab);
 
       const res = await fetch(`/api/marketplace/products?${params.toString()}`);
       if (res.ok) {
@@ -118,6 +127,9 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
           const pagination = json.pagination || { total: json.data.length, totalPages: Math.ceil(json.data.length / limit) || 1 };
           setTotalCount(pagination.total);
           setTotalPages(pagination.totalPages);
+          if (json.counts) {
+            setServerCounts(json.counts);
+          }
         }
       }
     } catch (e) {
@@ -133,7 +145,7 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
 
   useEffect(() => {
     loadMarketplaceProducts(currentPage, entriesPerPage);
-  }, [currentPage, entriesPerPage, search, filterChannel, filterMapping, activeCompany?.code]);
+  }, [currentPage, entriesPerPage, search, filterChannel, filterMapping, activeFilterTab, activeCompany?.code]);
 
   // Helper dinamis: produk dianggap terhubung HANYA jika SKU-nya benar-benar ada di master produk
   const checkIsItemMapped = (item) => {
@@ -149,11 +161,11 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
   const companyItems = mktProdukList;
 
   const tabCounts = {
-    semua: totalCount,
-    belum_dimapping: companyItems.filter(i => !checkIsItemMapped(i)).length,
-    sudah_dimapping: companyItems.filter(i => checkIsItemMapped(i)).length,
-    tersedia: companyItems.filter(i => (Number(i.stok_marketplace) || 0) > 0).length,
-    habis: companyItems.filter(i => (Number(i.stok_marketplace) || 0) <= 0).length
+    semua: serverCounts.semua || totalCount,
+    belum_dimapping: serverCounts.belum_dimapping,
+    sudah_dimapping: serverCounts.sudah_dimapping,
+    tersedia: serverCounts.tersedia,
+    habis: serverCounts.habis
   };
 
   const filteredItems = mktProdukList;

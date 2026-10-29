@@ -341,6 +341,15 @@ export default function ProdukView() {
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
 
+  const [serverCounts, setServerCounts] = useState({
+    semua: 0,
+    tersedia: 0,
+    menipis: 0,
+    habis: 0,
+    po: 0,
+    ready: 0
+  });
+
   // Fetch data produk langsung dari MySQL per halaman (Server-side Pagination)
   const loadMasterProduk = async (page = currentPage, limit = entriesPerPage) => {
     setIsLoading(true);
@@ -354,12 +363,17 @@ export default function ProdukView() {
       if (filterTipeSet !== 'Semua') params.set('tipe_set', filterTipeSet);
       if (filterStatusOrder !== 'Semua') params.set('status_order', filterStatusOrder);
       if (filterStatus !== 'Semua') params.set('status', filterStatus);
+      if (activeFilterTab && activeFilterTab !== 'semua') params.set('tab', activeFilterTab);
 
       const res = await fetch(`/api/marketplace/master?${params.toString()}`);
       if (res.ok) {
         const json = await res.json();
         const rawData = Array.isArray(json) ? json : (json.data || []);
         const pagination = json.pagination || { total: rawData.length, totalPages: Math.ceil(rawData.length / limit) || 1 };
+
+        if (json.counts) {
+          setServerCounts(json.counts);
+        }
 
         const rawMapped = rawData.map(p => {
           const detectedBundle = detectBundleSet(p.nama_produk, p.kode_sku);
@@ -420,7 +434,7 @@ export default function ProdukView() {
 
   useEffect(() => {
     loadMasterProduk(currentPage, entriesPerPage);
-  }, [currentPage, entriesPerPage, search, filterKategori, filterTipeSet, filterStatusOrder, filterStatus, activeCompany?.code]);
+  }, [currentPage, entriesPerPage, search, filterKategori, filterTipeSet, filterStatusOrder, filterStatus, activeFilterTab, activeCompany?.code]);
 
   // Form State
   const initialForm = {
@@ -511,16 +525,13 @@ export default function ProdukView() {
     } catch (e) {}
   }, [produkList]);
 
-  // Summary counts
-  // Filter produk milik perusahaan aktif (Multi-Tenant)
-  const companyProdukList = produkList.filter(p => !p.company_code || p.company_code === activeCompany.code);
-
-  const totalProduk = companyProdukList.length;
-  const totalTersedia = companyProdukList.filter(p => p.stok > p.min_stok).length;
-  const totalMenipis = companyProdukList.filter(p => p.stok > 0 && p.stok <= p.min_stok).length;
-  const totalHabis = companyProdukList.filter(p => p.stok <= 0).length;
-  const totalPO = companyProdukList.filter(p => (p.status_order || 'Ready Stok') === 'PO').length;
-  const totalReady = companyProdukList.filter(p => (p.status_order || 'Ready Stok') !== 'PO').length;
+  // Summary counts dari keseluruhan database (Server-side)
+  const totalProduk = serverCounts.semua;
+  const totalTersedia = serverCounts.tersedia;
+  const totalMenipis = serverCounts.menipis;
+  const totalHabis = serverCounts.habis;
+  const totalPO = serverCounts.po;
+  const totalReady = serverCounts.ready;
 
   // Data yang ditampilkan langsung berasal dari server yang sudah dipaginasi
   const paginatedList = produkList;

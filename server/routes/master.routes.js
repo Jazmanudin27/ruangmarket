@@ -13,6 +13,8 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
       const statusOrder = urlObj.searchParams.get('status_order');
       const status = urlObj.searchParams.get('status');
 
+      const tabParam = urlObj.searchParams.get('tab');
+
       // Jika ada param page atau limit, aktifkan server pagination
       const isPaginated = pageParam !== null || limitParam !== null;
       const page = Math.max(1, parseInt(pageParam, 10) || 1);
@@ -48,14 +50,74 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
         whereParams.push(q, q, q);
       }
 
+      // Filter berdasarkan Tab aktif
+      if (tabParam === 'tersedia') {
+        whereClauses.push('p.stok_fisik > 5');
+      } else if (tabParam === 'menipis') {
+        whereClauses.push('(p.stok_fisik > 0 AND p.stok_fisik <= 5)');
+      } else if (tabParam === 'habis') {
+        whereClauses.push('(p.stok_fisik <= 0 OR p.stok_fisik IS NULL)');
+      } else if (tabParam === 'po') {
+        whereClauses.push("p.status_order = 'PO'");
+      } else if (tabParam === 'ready') {
+        whereClauses.push("(p.status_order != 'PO' OR p.status_order IS NULL)");
+      }
+
       const whereSql = whereClauses.length > 0 ? ` WHERE ${whereClauses.join(' AND ')}` : '';
 
-      // Hitung total data
+      // Hitung total data untuk halaman aktif
       let total = 0;
       if (isPaginated) {
         const countSql = `SELECT COUNT(*) as total FROM produk_master p ${whereSql}`;
         const [[countRow]] = await pool.query(countSql, whereParams);
         total = Number(countRow?.total || 0);
+      }
+
+      // Hitung tab summary counts keseluruhan (Semua, Tersedia, Menipis, Habis, PO, Ready)
+      let tabCounts = { semua: 0, tersedia: 0, menipis: 0, habis: 0, po: 0, ready: 0 };
+      if (isPaginated) {
+        const baseWhereClauses = [];
+        const baseWhereParams = [];
+        if (kodePerusahaan) {
+          baseWhereClauses.push('p.kode_perusahaan = ?');
+          baseWhereParams.push(kodePerusahaan);
+        }
+        if (kategori && kategori !== 'Semua') {
+          baseWhereClauses.push('p.kategori = ?');
+          baseWhereParams.push(kategori);
+        }
+        if (tipeSet && tipeSet !== 'Semua') {
+          baseWhereClauses.push('p.tipe_set = ?');
+          baseWhereParams.push(tipeSet);
+        }
+        if (search && search.trim()) {
+          const q = `%${search.trim()}%`;
+          baseWhereClauses.push('(p.nama_produk LIKE ? OR p.kode_sku LIKE ? OR p.varian LIKE ?)');
+          baseWhereParams.push(q, q, q);
+        }
+        const baseWhereSql = baseWhereClauses.length > 0 ? ` WHERE ${baseWhereClauses.join(' AND ')}` : '';
+        const [[countsRow]] = await pool.query(`
+          SELECT 
+            COUNT(*) as total_semua,
+            SUM(CASE WHEN p.stok_fisik > 5 THEN 1 ELSE 0 END) as total_tersedia,
+            SUM(CASE WHEN p.stok_fisik > 0 AND p.stok_fisik <= 5 THEN 1 ELSE 0 END) as total_menipis,
+            SUM(CASE WHEN p.stok_fisik <= 0 OR p.stok_fisik IS NULL THEN 1 ELSE 0 END) as total_habis,
+            SUM(CASE WHEN p.status_order = 'PO' THEN 1 ELSE 0 END) as total_po,
+            SUM(CASE WHEN p.status_order != 'PO' OR p.status_order IS NULL THEN 1 ELSE 0 END) as total_ready
+          FROM produk_master p
+          ${baseWhereSql}
+        `, baseWhereParams);
+
+        if (countsRow) {
+          tabCounts = {
+            semua: Number(countsRow.total_semua || 0),
+            tersedia: Number(countsRow.total_tersedia || 0),
+            menipis: Number(countsRow.total_menipis || 0),
+            habis: Number(countsRow.total_habis || 0),
+            po: Number(countsRow.total_po || 0),
+            ready: Number(countsRow.total_ready || 0)
+          };
+        }
       }
 
       let sql = `
@@ -100,7 +162,8 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
             limit,
             total,
             totalPages: Math.ceil(total / limit) || 1
-          }
+          },
+          counts: tabCounts
         });
       } else {
         sendJson(res, 200, mapped);
