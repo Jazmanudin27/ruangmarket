@@ -2,7 +2,7 @@ import { sendJson, parseJsonBody } from '../utils/response.js';
 
 export async function handleSPKRoutes(req, res, pathname, urlObj, { pool }) {
   // 1. GET /api/spk - Ambil semua batch SPK dari database MySQL
-  if (pathname === '/api/spk' && req.method === 'GET') {
+  if ((pathname === '/api/spk' || pathname === '/api/marketplace/spk') && req.method === 'GET') {
     try {
       const kodePerusahaan = urlObj.searchParams.get('kode_perusahaan');
       let sql = 'SELECT * FROM spk_batch';
@@ -48,7 +48,7 @@ export async function handleSPKRoutes(req, res, pathname, urlObj, { pool }) {
   }
 
   // 2. POST /api/spk - Simpan / Update batch SPK ke database MySQL
-  if (pathname === '/api/spk' && req.method === 'POST') {
+  if ((pathname === '/api/spk' || pathname === '/api/marketplace/spk') && req.method === 'POST') {
     try {
       const body = await parseJsonBody(req);
       if (!body) {
@@ -134,7 +134,7 @@ export async function handleSPKRoutes(req, res, pathname, urlObj, { pool }) {
   }
 
   // 3. DELETE /api/spk - Hapus satu batch atau kosongkan semua data SPK
-  if (pathname === '/api/spk' && req.method === 'DELETE') {
+  if ((pathname === '/api/spk' || pathname === '/api/marketplace/spk') && req.method === 'DELETE') {
     try {
       const id = urlObj.searchParams.get('id');
       const clearAll = urlObj.searchParams.get('clear');

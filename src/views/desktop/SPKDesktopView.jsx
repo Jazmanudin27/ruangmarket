@@ -343,7 +343,7 @@ export default function SPKView() {
   const loadSpkData = async () => {
     setIsLoadingSpk(true);
     try {
-      const res = await fetch(`/api/spk?kode_perusahaan=${activeCompany?.code || "RSG"}`);
+      const res = await fetch(`/api/marketplace/spk?kode_perusahaan=${activeCompany?.code || "RSG"}`);
       if (res.ok) {
         const json = await res.json();
         if (json && Array.isArray(json.data)) {
@@ -394,7 +394,7 @@ export default function SPKView() {
 
   const loadPelangganOptions = async () => {
     try {
-      const res = await fetch(`/api/pelanggan?kode_perusahaan=${activeCompany?.code || 'RSG'}`);
+      const res = await fetch(`/api/marketplace/pelanggan?kode_perusahaan=${activeCompany?.code || 'RSG'}`);
       if (res.ok) {
         const json = await res.json();
         if (json && Array.isArray(json.data) && json.data.length > 0) {
@@ -910,7 +910,7 @@ export default function SPKView() {
     };
 
     try {
-      const res = await fetch("/api/spk", {
+      const res = await fetch("/api/marketplace/spk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -962,7 +962,7 @@ export default function SPKView() {
     if (!confirmed) return;
 
     try {
-      await fetch(`/api/spk?id=${batch.id}`, { method: "DELETE" });
+      await fetch(`/api/marketplace/spk?id=${batch.id}`, { method: "DELETE" });
     } catch (err) {
       console.warn("Gagal hapus dari database:", err);
     }

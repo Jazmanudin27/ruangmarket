@@ -80,20 +80,20 @@ export default function PelangganDesktopView() {
   const loadPelanggan = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/pelanggan?kode_perusahaan=${activeCompany?.code || 'RSG'}`);
+      const res = await fetch(`/api/marketplace/pelanggan?kode_perusahaan=${activeCompany?.code || 'RSG'}`);
       if (res.ok) {
         const json = await res.json();
         if (json && Array.isArray(json.data)) {
           // Jika di database belum ada data sama sekali, seeded initial 3 data agar langsung bisa dites
           if (json.data.length === 0) {
             for (const initItem of INITIAL_PELANGGAN_DATA) {
-              await fetch('/api/pelanggan', {
+              await fetch('/api/marketplace/pelanggan', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ ...initItem, kode_perusahaan: activeCompany?.code || 'RSG' })
               });
             }
-            const refetch = await fetch(`/api/pelanggan?kode_perusahaan=${activeCompany?.code || 'RSG'}`);
+            const refetch = await fetch(`/api/marketplace/pelanggan?kode_perusahaan=${activeCompany?.code || 'RSG'}`);
             if (refetch.ok) {
               const refetchJson = await refetch.json();
               setPelangganList(refetchJson.data || []);
@@ -178,7 +178,7 @@ export default function PelangganDesktopView() {
     if (!ok) return;
 
     try {
-      await fetch(`/api/pelanggan?id=${item.id}`, { method: 'DELETE' });
+      await fetch(`/api/marketplace/pelanggan?id=${item.id}`, { method: 'DELETE' });
     } catch (e) {
       console.warn('Gagal delete pelanggan dari server:', e);
     }
@@ -201,7 +201,7 @@ export default function PelangganDesktopView() {
     };
 
     try {
-      const res = await fetch('/api/pelanggan', {
+      const res = await fetch('/api/marketplace/pelanggan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)

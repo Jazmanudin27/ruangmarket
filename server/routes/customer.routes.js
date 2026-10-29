@@ -2,7 +2,7 @@ import { sendJson, parseJsonBody } from '../utils/response.js';
 
 export async function handleCustomerRoutes(req, res, pathname, urlObj, { pool }) {
   // 1. GET /api/pelanggan - Ambil seluruh data master pelanggan
-  if (pathname === '/api/pelanggan' && req.method === 'GET') {
+  if ((pathname === '/api/pelanggan' || pathname === '/api/marketplace/pelanggan') && req.method === 'GET') {
     try {
       const kodePerusahaan = urlObj.searchParams.get('kode_perusahaan');
       let sql = 'SELECT * FROM pelanggan_master';
@@ -23,7 +23,7 @@ export async function handleCustomerRoutes(req, res, pathname, urlObj, { pool })
   }
 
   // 2. POST /api/pelanggan - Tambah / Edit master pelanggan
-  if (pathname === '/api/pelanggan' && req.method === 'POST') {
+  if ((pathname === '/api/pelanggan' || pathname === '/api/marketplace/pelanggan') && req.method === 'POST') {
     try {
       const body = await parseJsonBody(req);
       if (!body) {
@@ -46,7 +46,7 @@ export async function handleCustomerRoutes(req, res, pathname, urlObj, { pool })
       const kode = (kode_pelanggan || `CUST-${Date.now().toString().slice(-6)}`).trim();
       const nama = (nama_pelanggan || '').trim();
       const statusPelanggan = status || 'Aktif';
-      const kategori = kategori_pelanggan || 'Reguler';
+      const kategori = kategori_pelanggan || 'Umum';
 
       if (!nama) {
         sendJson(res, 400, { status: 'error', message: 'Nama pelanggan wajib diisi' });
@@ -93,7 +93,7 @@ export async function handleCustomerRoutes(req, res, pathname, urlObj, { pool })
   }
 
   // 3. DELETE /api/pelanggan - Hapus master pelanggan
-  if (pathname === '/api/pelanggan' && req.method === 'DELETE') {
+  if ((pathname === '/api/pelanggan' || pathname === '/api/marketplace/pelanggan') && req.method === 'DELETE') {
     try {
       const id = urlObj.searchParams.get('id');
       if (!id) {
