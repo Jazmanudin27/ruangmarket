@@ -103,6 +103,21 @@ export default function MasterHPPDesktopView() {
     setIsModalOpen(true);
   };
 
+  // Formatter pemisah ribuan (titik) untuk input angka
+  const formatNumberId = (val) => {
+    if (val === null || val === undefined || val === '') return '';
+    const num = Number(val);
+    if (isNaN(num)) return '';
+    return num.toLocaleString('id-ID');
+  };
+
+  const parseNumberId = (val) => {
+    if (val === null || val === undefined || val === '') return 0;
+    const clean = String(val).replace(/\./g, '').replace(/,/g, '.');
+    const num = parseFloat(clean);
+    return isNaN(num) ? 0 : num;
+  };
+
   const handleOpenEdit = (item) => {
     setFormData({
       id_kategori_hpp: item.id_kategori_hpp || '',
@@ -110,8 +125,13 @@ export default function MasterHPPDesktopView() {
       keterangan: item.keterangan || '',
       status: item.status || 'Aktif',
       details: item.details && item.details.length > 0 
-        ? JSON.parse(JSON.stringify(item.details)) 
-        : [{ nama_jasa: 'Jasa Jahit', jumlah: 1, harga: item.total_hpp || 0, total: item.total_hpp || 0 }]
+        ? item.details.map(d => ({
+            nama_jasa: d.nama_jasa || '',
+            jumlah: Number(d.jumlah) || 1,
+            harga: Number(d.harga) || 0,
+            total: Number(d.total) || ((Number(d.jumlah) || 1) * (Number(d.harga) || 0))
+          }))
+        : [{ nama_jasa: 'Jasa Jahit', jumlah: 1, harga: Number(item.total_hpp) || 0, total: Number(item.total_hpp) || 0 }]
     });
     setEditingId(item.id);
     setIsModalOpen(true);
@@ -140,11 +160,20 @@ export default function MasterHPPDesktopView() {
   // Dynamic Row Detail Form Handler
   const handleDetailChange = (index, field, value) => {
     const updated = [...formData.details];
-    updated[index][field] = value;
-    if (field === 'jumlah' || field === 'harga') {
-      const jml = Number(updated[index].jumlah) || 0;
+    if (field === 'jumlah') {
+      const parsed = parseNumberId(value);
+      updated[index].jumlah = value === '' ? '' : parsed;
+      const jml = parsed;
       const hrg = Number(updated[index].harga) || 0;
       updated[index].total = jml * hrg;
+    } else if (field === 'harga') {
+      const parsed = parseNumberId(value);
+      updated[index].harga = value === '' ? '' : parsed;
+      const jml = Number(updated[index].jumlah) || 0;
+      const hrg = parsed;
+      updated[index].total = jml * hrg;
+    } else {
+      updated[index][field] = value;
     }
     setFormData(prev => ({ ...prev, details: updated }));
   };
@@ -719,11 +748,10 @@ export default function MasterHPPDesktopView() {
                         </td>
                         <td style={{ padding: '4px' }}>
                           <input
-                            type="number"
-                            min="0"
-                            step="any"
-                            value={row.jumlah}
+                            type="text"
+                            value={row.jumlah === '' ? '' : formatNumberId(row.jumlah)}
                             onChange={(e) => handleDetailChange(idx, 'jumlah', e.target.value)}
+                            placeholder="1"
                             style={{
                               width: '100%',
                               boxSizing: 'border-box',
@@ -732,16 +760,17 @@ export default function MasterHPPDesktopView() {
                               border: '1px solid #cbd5e1',
                               padding: '0 6px',
                               fontSize: '11px',
-                              textAlign: 'center'
+                              textAlign: 'center',
+                              fontWeight: '600'
                             }}
                           />
                         </td>
                         <td style={{ padding: '4px' }}>
                           <input
-                            type="number"
-                            min="0"
-                            value={row.harga}
+                            type="text"
+                            value={row.harga === '' ? '' : formatNumberId(row.harga)}
                             onChange={(e) => handleDetailChange(idx, 'harga', e.target.value)}
+                            placeholder="0"
                             style={{
                               width: '100%',
                               boxSizing: 'border-box',
@@ -750,7 +779,8 @@ export default function MasterHPPDesktopView() {
                               border: '1px solid #cbd5e1',
                               padding: '0 6px',
                               fontSize: '11px',
-                              textAlign: 'right'
+                              textAlign: 'right',
+                              fontWeight: '600'
                             }}
                           />
                         </td>
