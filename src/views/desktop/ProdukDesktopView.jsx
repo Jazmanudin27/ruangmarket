@@ -343,7 +343,10 @@ export default function ProdukView() {
               harga_jual: Number(p.harga_jual || 0),
               estimasi_kain: p.estimasi_kain || 'Kain Polos',
               panjang_kain_cm: Number(p.panjang_kain_cm) || 200,
-              harga_kain_cm: Number(p.harga_kain_cm || 150)
+              harga_kain_cm: Number(p.harga_kain_cm || 150),
+              id_kategori_hpp: p.id_kategori_hpp || '',
+              nama_kategori_hpp: p.nama_kategori_hpp || '',
+              hpp_kategori: Number(p.hpp_kategori || 0)
             };
           });
 
@@ -442,9 +445,34 @@ export default function ProdukView() {
     estimasi_kain: 'Silk Jetblack Premium',
     panjang_kain_cm: 250,
     harga_kain_cm: 200,
+    id_kategori_hpp: '',
     bundle_items: [] // Komponen pemisah jika produk bertipe Bundle / Setel
   };
   const [formData, setFormData] = useState(initialForm);
+
+  // Daftar opsi Kategori HPP dari master_hpp_produk
+  const [hppOptions, setHppOptions] = useState([]);
+
+  useEffect(() => {
+    async function fetchHppList() {
+      try {
+        const res = await fetch('/api/marketplace/hpp-produk');
+        if (res.ok) {
+          const json = await res.json();
+          if (json && Array.isArray(json.data)) {
+            setHppOptions(json.data.map(h => ({
+              value: h.id_kategori_hpp,
+              label: `${h.nama_kategori_hpp} (HPP: Rp ${Number(h.total_hpp || 0).toLocaleString('id-ID')})`,
+              total_hpp: Number(h.total_hpp || 0)
+            })));
+          }
+        }
+      } catch (e) {
+        console.warn('Gagal memuat HPP options:', e);
+      }
+    }
+    fetchHppList();
+  }, []);
 
   // Dynamic Kategori List from Storage
   const [kategoriOptions, setKategoriOptions] = useState(() => {
@@ -760,6 +788,7 @@ export default function ProdukView() {
 
     setFormData({
       ...item,
+      id_kategori_hpp: item.id_kategori_hpp || '',
       estimasi_kain: item.estimasi_kain || '',
       panjang_kain_cm: item.panjang_kain_cm !== undefined ? item.panjang_kain_cm : 200,
       harga_kain_cm: item.harga_kain_cm !== undefined ? item.harga_kain_cm : 150,
@@ -948,21 +977,31 @@ export default function ProdukView() {
             bundle_items: formData.bundle_items || [],
             estimasi_kain: formData.estimasi_kain || 'Kain Polos',
             panjang_kain_cm: Number(formData.panjang_kain_cm) || 200,
-            harga_kain_cm: Number(formData.harga_kain_cm) || 150
+            harga_kain_cm: Number(formData.harga_kain_cm) || 150,
+            id_kategori_hpp: formData.id_kategori_hpp || null
           })
         });
       } catch (err) {}
-      const updatedList = produkList.map(p => p.id === editingId ? { ...formData, id: editingId } : p);
+      const selectedHpp = hppOptions.find(h => h.value === formData.id_kategori_hpp);
+      const updatedList = produkList.map(p => p.id === editingId ? { 
+        ...formData, 
+        id: editingId,
+        nama_kategori_hpp: selectedHpp ? selectedHpp.label.split(' (HPP:')[0] : '',
+        hpp_kategori: selectedHpp ? selectedHpp.total_hpp : 0
+      } : p);
       setProdukList(updatedList);
       try { localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedList)); } catch (e) {}
       toastSuccess('Data produk berhasil diperbarui');
     } else {
       const newId = produkList.length > 0 ? Math.max(...produkList.map(p => p.id)) + 1 : 1;
+      const selectedHpp = hppOptions.find(h => h.value === formData.id_kategori_hpp);
       const newProduk = {
         ...formData,
         id: newId,
         company_code: activeCompany.code || 'RSG',
-        status_order: formData.status_order || detectStatusOrder(formData.nama_produk, formData.sku)
+        status_order: formData.status_order || detectStatusOrder(formData.nama_produk, formData.sku),
+        nama_kategori_hpp: selectedHpp ? selectedHpp.label.split(' (HPP:')[0] : '',
+        hpp_kategori: selectedHpp ? selectedHpp.total_hpp : 0
       };
 
       try {
@@ -984,7 +1023,8 @@ export default function ProdukView() {
             bundle_items: newProduk.bundle_items || [],
             estimasi_kain: newProduk.estimasi_kain || 'Kain Polos',
             panjang_kain_cm: Number(newProduk.panjang_kain_cm) || 200,
-            harga_kain_cm: Number(newProduk.harga_kain_cm) || 150
+            harga_kain_cm: Number(newProduk.harga_kain_cm) || 150,
+            id_kategori_hpp: newProduk.id_kategori_hpp || null
           })
         });
       } catch (err) {}
@@ -1832,6 +1872,26 @@ export default function ProdukView() {
                             {item.varian || 'Reguler'}
                           </span>
                         </div>
+
+                        {/* Baris 3: Kategori HPP Terhubung */}
+                        {item.id_kategori_hpp ? (
+                          <div style={{ marginTop: '2px', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                            <span style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '3px',
+                              padding: '1px 5px',
+                              borderRadius: '3px',
+                              fontSize: '9.5px',
+                              fontWeight: '700',
+                              backgroundColor: '#ecfdf5',
+                              color: '#047857',
+                              border: '1px solid #a7f3d0'
+                            }} title={`Terhubung ke HPP: ${item.nama_kategori_hpp || item.id_kategori_hpp} (Rp ${Number(item.hpp_kategori || 0).toLocaleString('id-ID')})`}>
+                              <span>HPP: {item.nama_kategori_hpp ? (item.nama_kategori_hpp.length > 25 ? `${item.nama_kategori_hpp.slice(0, 25)}...` : item.nama_kategori_hpp) : item.id_kategori_hpp}</span>
+                            </span>
+                          </div>
+                        ) : null}
                       </td>
 
                       {/* ESTIMASI KAIN (CM & HARGA) */}
@@ -2379,6 +2439,30 @@ export default function ProdukView() {
                           { value: 'PO', label: 'PO (Pre-Order)' }
                         ]}
                       />
+                    </div>
+                    <div style={{ gridColumn: 'span 2' }}>
+                      <SearchableSelect
+                        label="Kategori HPP Produk (dari Master HPP)"
+                        value={formData.id_kategori_hpp}
+                        onChange={(val) => {
+                          const chosen = hppOptions.find(h => h.value === val);
+                          setFormData(prev => ({
+                            ...prev,
+                            id_kategori_hpp: val,
+                            harga_beli: (chosen && chosen.total_hpp > 0) ? chosen.total_hpp : prev.harga_beli
+                          }));
+                        }}
+                        options={[
+                          { value: '', label: '-- Tidak Terhubung HPP --' },
+                          ...hppOptions
+                        ]}
+                        placeholder="Pilih Kategori HPP (misal: Batik SMA, Kemeja SD, dll)..."
+                      />
+                      {formData.id_kategori_hpp && (
+                        <div style={{ fontSize: '10px', color: '#0369a1', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <span>✓ Terhubung ke: <b>{hppOptions.find(h => h.value === formData.id_kategori_hpp)?.label || formData.id_kategori_hpp}</b></span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

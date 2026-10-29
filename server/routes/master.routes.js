@@ -5,13 +5,20 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
   if ((pathname === '/api/produk/master' || pathname === '/api/marketplace/master') && req.method === 'GET') {
     try {
       const kodePerusahaan = urlObj.searchParams.get('kode_perusahaan');
-      let sql = 'SELECT * FROM produk_master';
+      let sql = `
+        SELECT 
+          p.*,
+          h.nama_kategori_hpp,
+          h.total_hpp as hpp_kategori
+        FROM produk_master p
+        LEFT JOIN master_hpp_produk h ON p.id_kategori_hpp = h.id_kategori_hpp
+      `;
       const params = [];
       if (kodePerusahaan) {
-        sql += ' WHERE kode_perusahaan = ?';
+        sql += ' WHERE p.kode_perusahaan = ?';
         params.push(kodePerusahaan);
       }
-      sql += ' ORDER BY id DESC';
+      sql += ' ORDER BY p.id DESC';
       const [rows] = await pool.query(sql, params);
       const mapped = rows.map(r => {
         let parsedBundle = [];
@@ -70,16 +77,17 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
           const estimasiKain = String(item.estimasi_kain || 'Kain Polos').slice(0, 100);
           const panjangKainCm = Number(item.panjang_kain_cm) || 200;
           const hargaKainCm = Number(item.harga_kain_cm) || 150;
+          const idKategoriHpp = item.id_kategori_hpp ? String(item.id_kategori_hpp).slice(0, 64) : null;
 
-          values.push(kodePerusahaan, kodeSku, namaProduk, kategori, satuan, hargaJual, hargaModal, stokFisik, status, statusOrder, fotoProduk, tipeSet, bundleItems, estimasiKain, panjangKainCm, hargaKainCm);
-          return '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
+          values.push(kodePerusahaan, kodeSku, namaProduk, kategori, satuan, hargaJual, hargaModal, stokFisik, status, statusOrder, fotoProduk, tipeSet, bundleItems, estimasiKain, panjangKainCm, hargaKainCm, idKategoriHpp);
+          return '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
         }).join(', ');
 
         const sql = `
           INSERT INTO produk_master (
             kode_perusahaan, kode_sku, nama_produk, kategori, satuan,
             harga_jual, harga_modal, stok_fisik, status, status_order, foto_produk,
-            tipe_set, bundle_items, estimasi_kain, panjang_kain_cm, harga_kain_cm
+            tipe_set, bundle_items, estimasi_kain, panjang_kain_cm, harga_kain_cm, id_kategori_hpp
           ) VALUES ${placeholders}
           ON DUPLICATE KEY UPDATE
             nama_produk = VALUES(nama_produk),
@@ -95,7 +103,8 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
             bundle_items = VALUES(bundle_items),
             estimasi_kain = VALUES(estimasi_kain),
             panjang_kain_cm = VALUES(panjang_kain_cm),
-            harga_kain_cm = VALUES(harga_kain_cm)
+            harga_kain_cm = VALUES(harga_kain_cm),
+            id_kategori_hpp = VALUES(id_kategori_hpp)
         `;
 
         await pool.query(sql, values);
@@ -182,7 +191,8 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
       const allowed = [
         'nama_produk', 'kategori', 'satuan', 'harga_jual', 'harga_modal',
         'stok_fisik', 'status', 'status_order', 'kode_sku', 'kode_perusahaan',
-        'tipe_set', 'bundle_items', 'estimasi_kain', 'panjang_kain_cm', 'harga_kain_cm'
+        'tipe_set', 'bundle_items', 'estimasi_kain', 'panjang_kain_cm', 'harga_kain_cm',
+        'id_kategori_hpp'
       ];
       for (const col of allowed) {
         if (body[col] !== undefined) {
