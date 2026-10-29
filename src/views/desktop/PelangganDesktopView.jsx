@@ -30,7 +30,7 @@ export const INITIAL_PELANGGAN_DATA = [
     alamat: 'Jl. Merdeka No. 45, Medan',
     no_hp: '+62 852-1858-3688',
     status: 'Aktif',
-    kategori_pelanggan: 'Sekolah / Instansi'
+    kategori_pelanggan: 'Umum'
   },
   {
     id: 2,
@@ -40,7 +40,7 @@ export const INITIAL_PELANGGAN_DATA = [
     alamat: 'Kawasan Pergudangan Pluit Blok C No. 12, Jakarta Utara',
     no_hp: '+62 812-3456-7890',
     status: 'Aktif',
-    kategori_pelanggan: 'Distributor'
+    kategori_pelanggan: 'Dropship'
   },
   {
     id: 3,
@@ -50,7 +50,7 @@ export const INITIAL_PELANGGAN_DATA = [
     alamat: 'Jl. Pesantren No. 88, Cibiru, Bandung',
     no_hp: '+62 878-9988-1122',
     status: 'Aktif',
-    kategori_pelanggan: 'Sekolah / Instansi'
+    kategori_pelanggan: 'Lainnya'
   }
 ];
 
@@ -70,7 +70,7 @@ export default function PelangganDesktopView() {
     alamat: '',
     no_hp: '',
     status: 'Aktif',
-    kategori_pelanggan: 'Reguler'
+    kategori_pelanggan: 'Umum'
   };
   const [formData, setFormData] = useState(initialForm);
 
@@ -384,11 +384,9 @@ export default function PelangganDesktopView() {
               }}
             >
               <option value="Semua">Semua Kategori</option>
-              <option value="Sekolah / Instansi">Sekolah / Instansi</option>
-              <option value="Distributor">Distributor</option>
-              <option value="Agen">Agen</option>
-              <option value="Reseller">Reseller</option>
-              <option value="Reguler">Reguler</option>
+              <option value="Dropship">Dropship</option>
+              <option value="Umum">Umum</option>
+              <option value="Lainnya">Lainnya</option>
             </select>
           </div>
 
@@ -487,12 +485,12 @@ export default function PelangganDesktopView() {
                           borderRadius: '4px',
                           fontSize: '10px',
                           fontWeight: '800',
-                          backgroundColor: item.kategori_pelanggan === 'Sekolah / Instansi' ? '#eff6ff' : '#f0fdf4',
-                          color: item.kategori_pelanggan === 'Sekolah / Instansi' ? '#1d4ed8' : '#15803d',
-                          border: `1px solid ${item.kategori_pelanggan === 'Sekolah / Instansi' ? '#bfdbfe' : '#bbf7d0'}`
+                          backgroundColor: item.kategori_pelanggan === 'Dropship' ? '#eff6ff' : (item.kategori_pelanggan === 'Umum' ? '#f0fdf4' : '#f8fafc'),
+                          color: item.kategori_pelanggan === 'Dropship' ? '#1d4ed8' : (item.kategori_pelanggan === 'Umum' ? '#15803d' : '#475569'),
+                          border: `1px solid ${item.kategori_pelanggan === 'Dropship' ? '#bfdbfe' : (item.kategori_pelanggan === 'Umum' ? '#bbf7d0' : '#e2e8f0')}`
                         }}>
                           <Tag size={10} />
-                          <span>{item.kategori_pelanggan || 'Reguler'}</span>
+                          <span>{item.kategori_pelanggan || 'Umum'}</span>
                         </span>
                       </td>
                       <td style={{ padding: '7px 10px', color: '#334155', fontWeight: '600' }}>
@@ -671,11 +669,9 @@ export default function PelangganDesktopView() {
                       backgroundColor: '#ffffff'
                     }}
                   >
-                    <option value="Sekolah / Instansi">Sekolah / Instansi</option>
-                    <option value="Distributor">Distributor</option>
-                    <option value="Agen">Agen</option>
-                    <option value="Reseller">Reseller</option>
-                    <option value="Reguler">Reguler</option>
+                    <option value="Umum">Umum</option>
+                    <option value="Dropship">Dropship</option>
+                    <option value="Lainnya">Lainnya</option>
                   </select>
                 </div>
               </div>
