@@ -2299,7 +2299,7 @@ export default function SPKView() {
                     }}
                     options={pelangganOptions.map((p) => ({
                       value: p.nama_pelanggan,
-                      label: `${p.nama_pelanggan} (${p.kode_pelanggan} - ${p.kategori_pelanggan || "Reguler"})`,
+                      label: p.nama_pelanggan,
                       displayLabel: p.nama_pelanggan,
                       item: p,
                     }))}
