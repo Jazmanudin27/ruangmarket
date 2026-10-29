@@ -128,8 +128,10 @@ function SearchableSelect({ label, value, onChange, options, placeholder = "Pili
   const selectedDisplay = () => {
     const found = options.find(opt => (typeof opt === 'string' ? opt === value : String(opt.value) === String(value)));
     if (!found) return placeholder;
-    if (typeof found === 'string') return found;
-    return found.sku ? `[${found.sku}] ${found.label}` : (found.label || found.value);
+    if (typeof found === 'string') return found.length > 50 ? `${found.slice(0, 50)}...` : found;
+    const rawLabel = found.label || found.value || '';
+    const cleanLabel = rawLabel.length > 45 ? `${rawLabel.slice(0, 45)}...` : rawLabel;
+    return found.sku ? `[${found.sku}] ${cleanLabel}` : cleanLabel;
   };
 
   return (
@@ -265,8 +267,18 @@ function SearchableSelect({ label, value, onChange, options, placeholder = "Pili
                             {optSku}
                           </span>
                         )}
-                        <span style={{ fontSize: '11px', fontWeight: '700', color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {optLabel}
+                        <span 
+                          title={optLabel}
+                          style={{ 
+                            fontSize: '11px', 
+                            fontWeight: '700', 
+                            color: '#0f172a', 
+                            overflow: 'hidden', 
+                            textOverflow: 'ellipsis', 
+                            whiteSpace: 'nowrap' 
+                          }}
+                        >
+                          {optLabel.length > 55 ? `${optLabel.slice(0, 55)}...` : optLabel}
                         </span>
                       </div>
                       {typeof opt === 'object' && opt.panjang_kain_cm !== undefined && (
@@ -2968,9 +2980,15 @@ export default function ProdukView() {
       {isDetailModalOpen && selectedProduk && (
         <div style={{
           position: 'fixed',
-          inset: 0,
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          width: '100vw',
+          height: '100vh',
+          maxHeight: '100vh',
           backgroundColor: '#0f172a',
-          zIndex: 2000,
+          zIndex: 2500,
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden'
@@ -3068,8 +3086,10 @@ export default function ProdukView() {
           {/* Fullscreen Body (Scrollable Dashboard View) */}
           <div style={{
             flex: 1,
-            overflowY: 'auto',
-            padding: '16px 20px 40px 20px',
+            height: 'calc(100vh - 44px)',
+            overflowY: 'scroll',
+            WebkitOverflowScrolling: 'touch',
+            padding: '16px 20px 60px 20px',
             backgroundColor: '#f1f5f9',
             display: 'flex',
             flexDirection: 'column',
