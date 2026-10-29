@@ -46,6 +46,7 @@ import ProdukMarketplaceDesktopView from '../views/desktop/ProdukMarketplaceDesk
 import PesananMasukDesktopView from '../views/desktop/PesananMasukDesktopView';
 import ReturBarangDesktopView from '../views/desktop/ReturBarangDesktopView';
 import BlankTemplateDesktopView from '../views/desktop/BlankTemplateDesktopView';
+import KainDesktopView from '../views/desktop/KainDesktopView';
 
 // Mobile Views
 import MarketplaceMobileView from '../views/mobile/MarketplaceMobileView';
@@ -229,6 +230,9 @@ export default function AdminLayout() {
         return <ProdukDesktopView />;
       case 'kategori':
         return <KategoriDesktopView />;
+      case 'kain':
+      case 'master_kain':
+        return <KainDesktopView />;
       case 'karyawan':
         return <KaryawanDesktopView />;
       case 'pelanggan':
@@ -496,37 +500,37 @@ export default function AdminLayout() {
                   gap: '4px',
                   padding: '0 8px',
                   borderRadius: '5px',
-                  border: (activeTab === 'produk' || activeTab === 'produk_marketplace' || activeTab === 'kategori' || activeTab === 'karyawan' || activeTab === 'pelanggan' || activeTab === 'tahapan_spk' || activeTab === 'hpp_produk' || isDataMasterOpen) ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.08)',
-                  backgroundColor: (activeTab === 'produk' || activeTab === 'produk_marketplace' || activeTab === 'kategori' || activeTab === 'karyawan' || activeTab === 'pelanggan' || activeTab === 'tahapan_spk' || activeTab === 'hpp_produk' || isDataMasterOpen) ? '#0284c7' : 'rgba(255, 255, 255, 0.05)',
-                  color: (activeTab === 'produk' || activeTab === 'produk_marketplace' || activeTab === 'kategori' || activeTab === 'karyawan' || activeTab === 'pelanggan' || activeTab === 'tahapan_spk' || activeTab === 'hpp_produk' || isDataMasterOpen) ? '#ffffff' : '#cbd5e1',
+                  border: (activeTab === 'produk' || activeTab === 'produk_marketplace' || activeTab === 'kategori' || activeTab === 'kain' || activeTab === 'karyawan' || activeTab === 'pelanggan' || activeTab === 'tahapan_spk' || activeTab === 'hpp_produk' || isDataMasterOpen) ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.08)',
+                  backgroundColor: (activeTab === 'produk' || activeTab === 'produk_marketplace' || activeTab === 'kategori' || activeTab === 'kain' || activeTab === 'karyawan' || activeTab === 'pelanggan' || activeTab === 'tahapan_spk' || activeTab === 'hpp_produk' || isDataMasterOpen) ? '#0284c7' : 'rgba(255, 255, 255, 0.05)',
+                  color: (activeTab === 'produk' || activeTab === 'produk_marketplace' || activeTab === 'kategori' || activeTab === 'kain' || activeTab === 'karyawan' || activeTab === 'pelanggan' || activeTab === 'tahapan_spk' || activeTab === 'hpp_produk' || isDataMasterOpen) ? '#ffffff' : '#cbd5e1',
                   fontSize: '11px',
-                  fontWeight: (activeTab === 'produk' || activeTab === 'produk_marketplace' || activeTab === 'kategori' || activeTab === 'karyawan' || activeTab === 'pelanggan' || activeTab === 'tahapan_spk' || activeTab === 'hpp_produk' || isDataMasterOpen) ? '800' : '600',
+                  fontWeight: (activeTab === 'produk' || activeTab === 'produk_marketplace' || activeTab === 'kategori' || activeTab === 'kain' || activeTab === 'karyawan' || activeTab === 'pelanggan' || activeTab === 'tahapan_spk' || activeTab === 'hpp_produk' || isDataMasterOpen) ? '800' : '600',
                   lineHeight: 1,
                   cursor: 'pointer',
                   transition: 'all 0.15s ease',
                   whiteSpace: 'nowrap',
-                  boxShadow: (activeTab === 'produk' || activeTab === 'kategori' || activeTab === 'karyawan' || activeTab === 'pelanggan' || activeTab === 'tahapan_spk' || activeTab === 'hpp_produk' || isDataMasterOpen) ? '0 0 10px rgba(2, 132, 199, 0.5)' : 'none'
+                  boxShadow: (activeTab === 'produk' || activeTab === 'kategori' || activeTab === 'kain' || activeTab === 'karyawan' || activeTab === 'pelanggan' || activeTab === 'tahapan_spk' || activeTab === 'hpp_produk' || isDataMasterOpen) ? '0 0 10px rgba(2, 132, 199, 0.5)' : 'none'
                 }}
                 onMouseEnter={(e) => {
-                  if (activeTab !== 'produk' && activeTab !== 'produk_marketplace' && activeTab !== 'kategori' && activeTab !== 'karyawan' && activeTab !== 'pelanggan' && activeTab !== 'tahapan_spk' && activeTab !== 'hpp_produk' && !isDataMasterOpen) {
+                  if (activeTab !== 'produk' && activeTab !== 'produk_marketplace' && activeTab !== 'kategori' && activeTab !== 'kain' && activeTab !== 'karyawan' && activeTab !== 'pelanggan' && activeTab !== 'tahapan_spk' && activeTab !== 'hpp_produk' && !isDataMasterOpen) {
                     e.currentTarget.style.backgroundColor = 'rgba(56, 189, 248, 0.15)';
                     e.currentTarget.style.borderColor = 'rgba(56, 189, 248, 0.3)';
                     e.currentTarget.style.color = '#ffffff';
                   }
                 }}
                 onMouseLeave={(e) => {
-                  if (activeTab !== 'produk' && activeTab !== 'produk_marketplace' && activeTab !== 'kategori' && activeTab !== 'karyawan' && activeTab !== 'pelanggan' && activeTab !== 'tahapan_spk' && activeTab !== 'hpp_produk' && !isDataMasterOpen) {
+                  if (activeTab !== 'produk' && activeTab !== 'produk_marketplace' && activeTab !== 'kategori' && activeTab !== 'kain' && activeTab !== 'karyawan' && activeTab !== 'pelanggan' && activeTab !== 'tahapan_spk' && activeTab !== 'hpp_produk' && !isDataMasterOpen) {
                     e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
                     e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
                     e.currentTarget.style.color = '#cbd5e1';
                   }
                 }}
               >
-                <Boxes size={13} color={(activeTab === 'produk' || activeTab === 'produk_marketplace' || activeTab === 'kategori' || activeTab === 'karyawan' || activeTab === 'pelanggan' || activeTab === 'tahapan_spk' || activeTab === 'hpp_produk' || isDataMasterOpen) ? '#ffffff' : '#38bdf8'} style={{ flexShrink: 0 }} />
+                <Boxes size={13} color={(activeTab === 'produk' || activeTab === 'produk_marketplace' || activeTab === 'kategori' || activeTab === 'kain' || activeTab === 'karyawan' || activeTab === 'pelanggan' || activeTab === 'tahapan_spk' || activeTab === 'hpp_produk' || isDataMasterOpen) ? '#ffffff' : '#38bdf8'} style={{ flexShrink: 0 }} />
                 <span>Data Master</span>
                 <ChevronDown 
                   size={11} 
-                  color={(activeTab === 'produk' || activeTab === 'produk_marketplace' || activeTab === 'kategori' || activeTab === 'karyawan' || activeTab === 'pelanggan' || activeTab === 'tahapan_spk' || activeTab === 'hpp_produk' || isDataMasterOpen) ? '#ffffff' : '#38bdf8'} 
+                  color={(activeTab === 'produk' || activeTab === 'produk_marketplace' || activeTab === 'kategori' || activeTab === 'kain' || activeTab === 'karyawan' || activeTab === 'pelanggan' || activeTab === 'tahapan_spk' || activeTab === 'hpp_produk' || isDataMasterOpen) ? '#ffffff' : '#38bdf8'} 
                   style={{ 
                     transform: isDataMasterOpen ? 'rotate(180deg)' : 'none', 
                     transition: 'transform 0.15s ease',
@@ -659,6 +663,42 @@ export default function AdminLayout() {
                   >
                     <Tag size={14} color={activeTab === 'kategori' ? '#38bdf8' : '#94a3b8'} style={{ flexShrink: 0 }} />
                     <span style={{ textAlign: 'left', flex: 1 }}>Kategori Produk</span>
+                  </button>
+
+                  {/* Submenu: Data Kain */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      changeTab('kain');
+                      setIsDataMasterOpen(false);
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'flex-start',
+                      gap: '8px',
+                      width: '100%',
+                      padding: '7px 10px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      backgroundColor: activeTab === 'kain' ? 'rgba(2, 132, 199, 0.2)' : 'transparent',
+                      color: activeTab === 'kain' ? '#38bdf8' : '#cbd5e1',
+                      fontSize: '11.5px',
+                      fontWeight: activeTab === 'kain' ? '800' : '600',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'background-color 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (activeTab !== 'kain') e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (activeTab !== 'kain') e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
+                  >
+                    <Layers size={14} color={activeTab === 'kain' ? '#38bdf8' : '#94a3b8'} style={{ flexShrink: 0 }} />
+                    <span style={{ textAlign: 'left', flex: 1 }}>Data Kain</span>
                   </button>
 
                   {/* Submenu 3: Data Karyawan */}
@@ -1470,6 +1510,28 @@ export default function AdminLayout() {
             >
               <Tag size={15} color={activeTab === 'kategori' ? '#ffffff' : '#38bdf8'} />
               <span>Kategori Produk</span>
+            </button>
+
+            {/* 2c. Data Kain (Submenu) */}
+            <button
+              onClick={() => changeTab('kain')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '8px 12px 8px 20px',
+                borderRadius: '6px',
+                border: activeTab === 'kain' ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.08)',
+                backgroundColor: activeTab === 'kain' ? '#0284c7' : 'rgba(255, 255, 255, 0.05)',
+                color: '#ffffff',
+                fontSize: '12px',
+                fontWeight: activeTab === 'kain' ? '800' : '600',
+                cursor: 'pointer',
+                textAlign: 'left'
+              }}
+            >
+              <Layers size={15} color={activeTab === 'kain' ? '#ffffff' : '#38bdf8'} />
+              <span>Data Kain</span>
             </button>
 
             {/* 2c. Data Karyawan (Submenu) */}
