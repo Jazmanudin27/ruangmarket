@@ -2825,182 +2825,452 @@ export default function ProdukView() {
       )}
 
       {/* ========================================================
-          MODAL 2: DETAIL PRODUK (POPUP EYE ICON)
+          MODAL 2: DETAIL PRODUK (FULL SCREEN PREMIUM DASHBOARD)
           ======================================================== */}
       {isDetailModalOpen && selectedProduk && (
         <div style={{
           position: 'fixed',
           inset: 0,
-          backgroundColor: 'rgba(15, 23, 42, 0.65)',
-          backdropFilter: 'blur(3px)',
+          backgroundColor: '#0f172a',
+          zIndex: 2000,
           display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000,
-          padding: '16px'
+          flexDirection: 'column',
+          overflow: 'hidden'
         }}>
+          {/* Header Bar Fullscreen (44px) */}
           <div style={{
-            backgroundColor: '#ffffff',
-            borderRadius: '12px',
-            width: '100%',
-            maxWidth: '520px',
-            overflow: 'hidden',
-            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2)'
+            height: '44px',
+            padding: '0 18px',
+            background: 'linear-gradient(135deg, #090d16 0%, #0f172a 50%, #1e293b 100%)',
+            borderBottom: '1px solid #334155',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            color: '#ffffff',
+            flexShrink: 0
           }}>
-            
-            {/* Header */}
-            <div style={{
-              background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
-              color: '#ffffff',
-              padding: '16px 20px',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'flex-start'
-            }}>
-              <div>
-                <span style={{ fontSize: '10px', fontWeight: '800', backgroundColor: 'rgba(255,255,255,0.2)', padding: '2px 6px', borderRadius: '4px' }}>
-                  {selectedProduk.kategori}
-                </span>
-                <h3 style={{ margin: '6px 0 2px 0', fontSize: '16px', fontWeight: '800' }}>
-                  {selectedProduk.nama_produk}
-                </h3>
-                <div style={{ fontSize: '11px', opacity: 0.85 }}>
-                  SKU: {selectedProduk.sku} • Barcode: {selectedProduk.barcode}
-                </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+              <div style={{
+                width: '26px',
+                height: '26px',
+                borderRadius: '6px',
+                backgroundColor: 'rgba(56, 189, 248, 0.15)',
+                border: '1px solid rgba(56, 189, 248, 0.3)',
+                color: '#38bdf8',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <Eye size={14} />
               </div>
-              <button 
-                onClick={() => setIsDetailModalOpen(false)}
-                style={{ background: 'none', border: 'none', color: '#ffffff', cursor: 'pointer', padding: '4px' }}
-              >
-                <X size={18} />
-              </button>
+              <h3 style={{ margin: 0, fontSize: '13px', fontWeight: '800', color: '#ffffff', letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>
+                Detail Produk & Estimasi Material
+              </h3>
+              <span style={{ fontSize: '11px', color: '#64748b' }}>•</span>
+              <span style={{ fontSize: '11.5px', color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {selectedProduk.nama_produk}
+              </span>
             </div>
 
-            {/* Content Details */}
-            <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                <div style={{ padding: '10px', backgroundColor: '#f8fafc', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-                  <div style={{ fontSize: '10px', color: '#64748b', fontWeight: '700' }}>HARGA JUAL</div>
-                  <div style={{ fontSize: '16px', fontWeight: '800', color: '#059669', marginTop: '2px' }}>
-                    {formatRupiah(selectedProduk.harga_jual)}
-                  </div>
-                </div>
-                <div style={{ padding: '10px', backgroundColor: '#f8fafc', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-                  <div style={{ fontSize: '10px', color: '#64748b', fontWeight: '700' }}>HARGA MODAL (BELI)</div>
-                  <div style={{ fontSize: '16px', fontWeight: '800', color: '#0f172a', marginTop: '2px' }}>
-                    {formatRupiah(selectedProduk.harga_beli)}
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '12px' }}>
-                <div>
-                  <div style={{ color: '#64748b', fontSize: '10px', fontWeight: '700' }}>VARIAN & SATUAN</div>
-                  <div style={{ fontWeight: '700', color: '#0f172a', marginTop: '2px' }}>{selectedProduk.varian || 'Reguler Pack'}</div>
-                  <div style={{ color: '#64748b', fontSize: '11px' }}>
-                    Tipe: <b>{selectedProduk.tipe_set || 'Single'}</b> • Order: <b>{selectedProduk.status_order || 'Ready Stok'}</b> • Satuan: {selectedProduk.satuan}
-                  </div>
-                </div>
-                <div>
-                  <div style={{ color: '#64748b', fontSize: '10px', fontWeight: '700' }}>JUMLAH STOK</div>
-                  <div style={{ fontWeight: '700', color: '#0f172a', marginTop: '2px' }}>
-                    {selectedProduk.stok} {selectedProduk.satuan}
-                  </div>
-                  <div style={{ color: '#64748b', fontSize: '11px' }}>Min. Alert: {selectedProduk.min_stok} {selectedProduk.satuan}</div>
-                </div>
-              </div>
-
-              {/* Estimasi Kain Detail */}
-              <div style={{ padding: '10px 12px', backgroundColor: '#f0f9ff', borderRadius: '6px', border: '1px solid #bae6fd' }}>
-                <div style={{ fontSize: '10px', color: '#0369a1', fontWeight: '800', textTransform: 'uppercase' }}>ESTIMASI BAHAN KAIN</div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
-                  <span style={{ fontSize: '12px', fontWeight: '700', color: '#0f172a' }}>{selectedProduk.estimasi_kain || '-'}</span>
-                  <span style={{ fontSize: '11px', fontWeight: '800', color: '#0284c7' }}>
-                    {selectedProduk.panjang_kain_cm || 0} CM ({((selectedProduk.panjang_kain_cm || 0) / 100).toFixed(1)} Meter)
-                  </span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '3px', fontSize: '11px', color: '#64748b' }}>
-                  <span>Harga Kain: <b>{formatRupiah(selectedProduk.harga_kain_cm || 0)}/CM</b></span>
-                  <span>Est. Biaya Bahan/Pcs: <b style={{ color: '#059669' }}>{formatRupiah((selectedProduk.panjang_kain_cm || 0) * (selectedProduk.harga_kain_cm || 0))}</b></span>
-                </div>
-              </div>
-
-              {/* Rincian Komponen Bundle (Jika ada) */}
-              {Array.isArray(selectedProduk.bundle_items) && selectedProduk.bundle_items.length > 0 && (
-                <div style={{ padding: '10px 12px', backgroundColor: '#f5f3ff', borderRadius: '6px', border: '1px solid #ddd6fe' }}>
-                  <div style={{ fontSize: '10.5px', color: '#6d28d9', fontWeight: '800', textTransform: 'uppercase', marginBottom: '6px' }}>
-                    RINCIAN KOMPONEN BUNDLE ({selectedProduk.bundle_items.length} ITEM)
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                    {selectedProduk.bundle_items.map((bi, i) => (
-                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', padding: '4px 6px', backgroundColor: '#ffffff', borderRadius: '4px', border: '1px solid #ede9fe' }}>
-                        <div>
-                          <b style={{ color: '#4c1d95' }}>#{i+1}. {bi.nama_komponen}</b>
-                          <span style={{ color: '#6b7280', marginLeft: '6px', fontSize: '10px' }}>({bi.kain_nama || 'Kain'} - {bi.panjang_kain_cm || 0}cm @Rp{bi.harga_kain_cm || 0})</span>
-                        </div>
-                        <span style={{ color: '#059669', fontWeight: '700' }}>
-                          Modal: {formatRupiah(bi.harga_modal_item || 0)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Barcode Visual */}
-              <div style={{ textAlign: 'center', padding: '10px', border: '1px dashed #cbd5e1', borderRadius: '6px', backgroundColor: '#fafbfc' }}>
-                <div style={{ letterSpacing: '4px', fontFamily: 'monospace', fontSize: '20px', fontWeight: '800', color: '#0f172a' }}>
-                  ||||| | |||| ||| |||| ||
-                </div>
-                <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', marginTop: '2px' }}>
-                  {selectedProduk.barcode}
-                </div>
-              </div>
-
-            </div>
-
-            {/* Footer */}
-            <div style={{ padding: '12px 20px', backgroundColor: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <button
+                type="button"
+                onClick={() => {
+                  setIsDetailModalOpen(false);
+                  handleOpenEdit(selectedProduk);
+                }}
+                style={{
+                  height: '28px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  padding: '0 12px',
+                  borderRadius: '5px',
+                  border: '1px solid #38bdf8',
+                  backgroundColor: 'rgba(56, 189, 248, 0.1)',
+                  color: '#38bdf8',
+                  fontSize: '11px',
+                  fontWeight: '700',
+                  cursor: 'pointer'
+                }}
+              >
+                <Edit3 size={12} />
+                <span>Edit Produk</span>
+              </button>
+
+              <button
+                type="button"
                 onClick={() => {
                   setIsDetailModalOpen(false);
                   handleOpenBarcode(selectedProduk);
                 }}
                 style={{
+                  height: '28px',
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '5px',
-                  padding: '7px 14px',
-                  borderRadius: '6px',
-                  border: 'none',
-                  backgroundColor: '#059669',
-                  color: '#ffffff',
-                  fontSize: '12px',
+                  padding: '0 12px',
+                  borderRadius: '5px',
+                  border: '1px solid #10b981',
+                  backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                  color: '#10b981',
+                  fontSize: '11px',
                   fontWeight: '700',
                   cursor: 'pointer'
                 }}
               >
-                <QrCode size={14} />
+                <QrCode size={12} />
                 <span>Cetak Barcode</span>
               </button>
+
               <button
+                type="button"
                 onClick={() => setIsDetailModalOpen(false)}
                 style={{
-                  padding: '7px 14px',
-                  borderRadius: '6px',
-                  border: '1px solid #cbd5e1',
-                  backgroundColor: '#ffffff',
-                  color: '#475569',
-                  fontSize: '12px',
-                  fontWeight: '600',
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '5px',
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  color: '#cbd5e1',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                   cursor: 'pointer'
                 }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.2)';
+                  e.currentTarget.style.color = '#ef4444';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)';
+                  e.currentTarget.style.color = '#cbd5e1';
+                }}
               >
-                Tutup
+                <X size={15} />
               </button>
             </div>
+          </div>
 
+          {/* Fullscreen Body (Scrollable Dashboard View) */}
+          <div style={{
+            flex: 1,
+            overflowY: 'auto',
+            padding: '16px 20px 40px 20px',
+            backgroundColor: '#f1f5f9',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '12px'
+          }}>
+            {/* Top Banner: Info Produk & Identitas Utama */}
+            <div style={{
+              backgroundColor: '#ffffff',
+              borderRadius: '8px',
+              border: '1px solid #cbd5e1',
+              padding: '14px 18px',
+              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '12px'
+            }}>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', flexWrap: 'wrap' }}>
+                  <span style={{
+                    fontSize: '10px',
+                    fontWeight: '800',
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    backgroundColor: '#e0f2fe',
+                    color: '#0369a1',
+                    border: '1px solid #bae6fd'
+                  }}>
+                    {selectedProduk.kategori || 'Umum'}
+                  </span>
+
+                  <span style={{
+                    fontSize: '10px',
+                    fontWeight: '800',
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    backgroundColor: (selectedProduk.tipe_set === 'Satu Setel' || selectedProduk.tipe_set === 'Bundle') ? '#f5f3ff' : '#f1f5f9',
+                    color: (selectedProduk.tipe_set === 'Satu Setel' || selectedProduk.tipe_set === 'Bundle') ? '#6d28d9' : '#475569',
+                    border: (selectedProduk.tipe_set === 'Satu Setel' || selectedProduk.tipe_set === 'Bundle') ? '1px solid #ddd6fe' : '1px solid #cbd5e1'
+                  }}>
+                    {(selectedProduk.tipe_set === 'Satu Setel' || selectedProduk.tipe_set === 'Bundle')
+                      ? `Bundle Set (${Array.isArray(selectedProduk.bundle_items) ? selectedProduk.bundle_items.length : 2} Komp)`
+                      : (selectedProduk.tipe_set || 'Single')}
+                  </span>
+
+                  <span style={{
+                    fontSize: '10px',
+                    fontWeight: '800',
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    backgroundColor: selectedProduk.status_order === 'PO' ? '#fff7ed' : '#f0fdf4',
+                    color: selectedProduk.status_order === 'PO' ? '#c2410c' : '#15803d',
+                    border: selectedProduk.status_order === 'PO' ? '1px solid #fed7aa' : '1px solid #bbf7d0'
+                  }}>
+                    {selectedProduk.status_order === 'PO' ? 'Pre-Order (PO)' : 'Ready Stok'}
+                  </span>
+                </div>
+
+                <h1 style={{ margin: '0 0 6px 0', fontSize: '18px', fontWeight: '900', color: '#0f172a', letterSpacing: '-0.02em', lineHeight: 1.3 }}>
+                  {selectedProduk.nama_produk}
+                </h1>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px', fontSize: '11px', color: '#64748b', flexWrap: 'wrap' }}>
+                  <span>SKU: <b style={{ fontFamily: 'monospace', color: '#0284c7', fontSize: '12px' }}>{selectedProduk.sku || '-'}</b></span>
+                  <span>Barcode: <b style={{ fontFamily: 'monospace', color: '#334155' }}>{selectedProduk.barcode || '-'}</b></span>
+                  <span>Varian: <b style={{ color: '#0f172a' }}>{selectedProduk.varian || 'Reguler'}</b></span>
+                  <span>Satuan: <b style={{ color: '#0f172a' }}>{selectedProduk.satuan || 'PCS'}</b></span>
+                </div>
+              </div>
+
+              {/* Barcode Strip */}
+              <div style={{ textAlign: 'center', padding: '6px 14px', border: '1px dashed #cbd5e1', borderRadius: '6px', backgroundColor: '#fafbfc' }}>
+                <div style={{ letterSpacing: '4px', fontFamily: 'monospace', fontSize: '16px', fontWeight: '800', color: '#0f172a' }}>
+                  ||||| | |||| ||| |||| ||
+                </div>
+                <div style={{ fontSize: '10px', fontWeight: '700', color: '#64748b' }}>
+                  {selectedProduk.barcode || 'EAN-13'}
+                </div>
+              </div>
+            </div>
+
+            {/* Grid 4 Kartu Metrik Utama */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '10px' }}>
+              {/* Kartu Harga Jual */}
+              <div style={{
+                backgroundColor: '#ffffff',
+                borderRadius: '8px',
+                border: '1px solid #cbd5e1',
+                padding: '12px 14px',
+                boxShadow: '0 1px 2px rgba(0, 0, 0, 0.04)'
+              }}>
+                <span style={{ fontSize: '10px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.04em' }}>HARGA JUAL KONSUMEN</span>
+                <div style={{ fontSize: '20px', fontWeight: '900', color: '#0284c7', marginTop: '4px', letterSpacing: '-0.02em' }}>
+                  {formatRupiah(selectedProduk.harga_jual)}
+                </div>
+                <span style={{ fontSize: '10px', color: '#94a3b8' }}>Harga tayang marketplace / retail</span>
+              </div>
+
+              {/* Kartu Modal HPP */}
+              <div style={{
+                backgroundColor: '#ffffff',
+                borderRadius: '8px',
+                border: '1px solid #cbd5e1',
+                padding: '12px 14px',
+                boxShadow: '0 1px 2px rgba(0, 0, 0, 0.04)'
+              }}>
+                <span style={{ fontSize: '10px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.04em' }}>HARGA MODAL (HPP)</span>
+                <div style={{ fontSize: '20px', fontWeight: '900', color: '#0f172a', marginTop: '4px', letterSpacing: '-0.02em' }}>
+                  {formatRupiah(selectedProduk.harga_beli)}
+                </div>
+                <span style={{ fontSize: '10px', color: '#059669', fontWeight: '700' }}>
+                  Profit: {formatRupiah((Number(selectedProduk.harga_jual) || 0) - (Number(selectedProduk.harga_beli) || 0))} ({selectedProduk.harga_jual ? Math.round((((Number(selectedProduk.harga_jual) || 0) - (Number(selectedProduk.harga_beli) || 0)) / Number(selectedProduk.harga_jual)) * 100) : 0}%)
+                </span>
+              </div>
+
+              {/* Kartu Stok Fisik */}
+              <div style={{
+                backgroundColor: '#ffffff',
+                borderRadius: '8px',
+                border: '1px solid #cbd5e1',
+                padding: '12px 14px',
+                boxShadow: '0 1px 2px rgba(0, 0, 0, 0.04)'
+              }}>
+                <span style={{ fontSize: '10px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.04em' }}>STOK FISIK GUDANG</span>
+                <div style={{ fontSize: '20px', fontWeight: '900', color: selectedProduk.stok <= (selectedProduk.min_stok || 5) ? '#d97706' : '#059669', marginTop: '4px', letterSpacing: '-0.02em' }}>
+                  {selectedProduk.stok} <span style={{ fontSize: '13px', fontWeight: '700' }}>{selectedProduk.satuan || 'PCS'}</span>
+                </div>
+                <span style={{ fontSize: '10px', color: '#64748b' }}>
+                  Batas Min. Alert: <b>{selectedProduk.min_stok || 5} {selectedProduk.satuan || 'PCS'}</b>
+                </span>
+              </div>
+
+              {/* Kartu Estimasi Bahan Kain Per Pcs */}
+              <div style={{
+                backgroundColor: '#f0f9ff',
+                borderRadius: '8px',
+                border: '1px solid #bae6fd',
+                padding: '12px 14px',
+                boxShadow: '0 1px 2px rgba(2, 132, 199, 0.06)'
+              }}>
+                <span style={{ fontSize: '10px', color: '#0369a1', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.04em' }}>EST. BAHAN KAIN / PCS</span>
+                <div style={{ fontSize: '20px', fontWeight: '900', color: '#0284c7', marginTop: '4px', letterSpacing: '-0.02em' }}>
+                  {selectedProduk.panjang_kain_cm || 0} <span style={{ fontSize: '13px', fontWeight: '700' }}>CM</span>
+                  <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '600', marginLeft: '5px' }}>
+                    ({((Number(selectedProduk.panjang_kain_cm) || 0) / 100).toFixed(1)} Meter)
+                  </span>
+                </div>
+                <span style={{ fontSize: '10px', color: '#0369a1', fontWeight: '700' }}>
+                  Biaya Kain: {formatRupiah((Number(selectedProduk.panjang_kain_cm) || 0) * (Number(selectedProduk.harga_kain_cm) || 0))} (@Rp{selectedProduk.harga_kain_cm || 0}/cm)
+                </span>
+              </div>
+            </div>
+
+            {/* SEKSI SPESIFIKASI BAHAN KAIN DETAIL */}
+            <div style={{
+              backgroundColor: '#ffffff',
+              borderRadius: '8px',
+              border: '1px solid #cbd5e1',
+              padding: '12px 16px',
+              boxShadow: '0 1px 2px rgba(0, 0, 0, 0.04)'
+            }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                marginBottom: '10px',
+                paddingBottom: '5px',
+                borderBottom: '1px solid #f1f5f9'
+              }}>
+                <Layers size={14} color="#0284c7" />
+                <span style={{ fontSize: '11.5px', fontWeight: '800', color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Rincian Material & Spesifikasi Teknis Kain
+                </span>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '10px' }}>
+                <div style={{ padding: '8px 12px', backgroundColor: '#f8fafc', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                  <span style={{ fontSize: '10px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase' }}>Jenis / Nama Kain</span>
+                  <div style={{ fontSize: '13px', fontWeight: '800', color: '#0f172a', marginTop: '3px' }}>
+                    {selectedProduk.estimasi_kain || '-'}
+                  </div>
+                </div>
+
+                <div style={{ padding: '8px 12px', backgroundColor: '#f8fafc', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                  <span style={{ fontSize: '10px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase' }}>Panjang Kain (CM / PCS)</span>
+                  <div style={{ fontSize: '13px', fontWeight: '800', color: '#0284c7', marginTop: '3px' }}>
+                    {selectedProduk.panjang_kain_cm || 0} CM <span style={{ color: '#64748b', fontSize: '11px' }}>({((Number(selectedProduk.panjang_kain_cm) || 0) / 100).toFixed(1)} Meter)</span>
+                  </div>
+                </div>
+
+                <div style={{ padding: '8px 12px', backgroundColor: '#f8fafc', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                  <span style={{ fontSize: '10px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase' }}>Harga Bahan Kain / CM</span>
+                  <div style={{ fontSize: '13px', fontWeight: '800', color: '#059669', marginTop: '3px' }}>
+                    {formatRupiah(selectedProduk.harga_kain_cm || 0)} <span style={{ color: '#64748b', fontSize: '11px' }}>/ CM</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* SEKSI KOMPONEN BUNDLE / PEMISAH ITEM (JIKA PRODUK MERUPAKAN BUNDLE) */}
+            {(selectedProduk.tipe_set === 'Satu Setel' || selectedProduk.tipe_set === 'Bundle' || (Array.isArray(selectedProduk.bundle_items) && selectedProduk.bundle_items.length > 0)) && (
+              <div style={{
+                backgroundColor: '#ffffff',
+                borderRadius: '8px',
+                border: '1.5px solid #8b5cf6',
+                padding: '14px 16px',
+                boxShadow: '0 2px 6px rgba(139, 92, 246, 0.1)'
+              }}>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: '10px',
+                  paddingBottom: '6px',
+                  borderBottom: '1px solid #ede9fe'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Boxes size={16} color="#7c3aed" />
+                    <div>
+                      <h4 style={{ margin: 0, fontSize: '12.5px', fontWeight: '800', color: '#6d28d9', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        Tabel Komponen Pemisah Bundle ({Array.isArray(selectedProduk.bundle_items) ? selectedProduk.bundle_items.length : 0} Item)
+                      </h4>
+                      <span style={{ fontSize: '10.5px', color: '#6b7280' }}>
+                        Rincian item penyusun (Baju, Celana, Rompi, dll) beserta alokasi kain dan modal masing-masing.
+                      </span>
+                    </div>
+                  </div>
+
+                  <span style={{
+                    fontSize: '10.5px',
+                    fontWeight: '800',
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    backgroundColor: '#f5f3ff',
+                    color: '#7c3aed',
+                    border: '1px solid #ddd6fe'
+                  }}>
+                    Produk Bundle Terdaftar
+                  </span>
+                </div>
+
+                {Array.isArray(selectedProduk.bundle_items) && selectedProduk.bundle_items.length > 0 ? (
+                  <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '6px' }}>
+                    <table style={{ width: '100%', minWidth: '680px', borderCollapse: 'collapse', fontSize: '11.5px' }}>
+                      <thead>
+                        <tr style={{ backgroundColor: '#fbfbfe', borderBottom: '1.5px solid #e2e8f0', textAlign: 'left' }}>
+                          <th style={{ padding: '7px 10px', fontWeight: '800', color: '#475569', width: '40px', textAlign: 'center' }}>NO</th>
+                          <th style={{ padding: '7px 10px', fontWeight: '800', color: '#475569' }}>NAMA KOMPONEN</th>
+                          <th style={{ padding: '7px 10px', fontWeight: '800', color: '#475569', width: '140px' }}>JENIS KAIN</th>
+                          <th style={{ padding: '7px 10px', fontWeight: '800', color: '#0284c7', width: '130px', textAlign: 'right' }}>EST. KAIN / PCS</th>
+                          <th style={{ padding: '7px 10px', fontWeight: '800', color: '#475569', width: '110px', textAlign: 'right' }}>HARGA / CM</th>
+                          <th style={{ padding: '7px 10px', fontWeight: '800', color: '#059669', width: '130px', textAlign: 'right' }}>MODAL ITEM</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedProduk.bundle_items.map((bi, i) => (
+                          <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                            <td style={{ padding: '7px 10px', textAlign: 'center', color: '#64748b', fontWeight: '700' }}>
+                              #{i + 1}
+                            </td>
+                            <td style={{ padding: '7px 10px' }}>
+                              <b style={{ color: '#0f172a', fontSize: '12px' }}>{bi.nama_komponen}</b>
+                              {bi.sku && (
+                                <div style={{ fontSize: '10px', color: '#0284c7', fontFamily: 'monospace', fontWeight: '600' }}>
+                                  SKU: {bi.sku}
+                                </div>
+                              )}
+                            </td>
+                            <td style={{ padding: '7px 10px', color: '#334155', fontWeight: '600' }}>
+                              <span style={{ padding: '1px 6px', borderRadius: '4px', backgroundColor: '#f1f5f9', border: '1px solid #e2e8f0' }}>
+                                {bi.kain_nama || 'Kain Polos'}
+                              </span>
+                            </td>
+                            <td style={{ padding: '7px 10px', textAlign: 'right' }}>
+                              <b style={{ color: '#0284c7', fontSize: '12px' }}>{bi.panjang_kain_cm || 0} CM</b>
+                              <div style={{ fontSize: '9.5px', color: '#64748b' }}>
+                                ({((Number(bi.panjang_kain_cm) || 0) / 100).toFixed(1)} Meter)
+                              </div>
+                            </td>
+                            <td style={{ padding: '7px 10px', textAlign: 'right', color: '#475569', fontWeight: '600' }}>
+                              @Rp {Number(bi.harga_kain_cm || 0).toLocaleString('id-ID')}
+                            </td>
+                            <td style={{ padding: '7px 10px', textAlign: 'right' }}>
+                              <b style={{ color: '#059669', fontSize: '12px' }}>{formatRupiah(bi.harga_modal_item || 0)}</b>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr style={{ backgroundColor: '#f5f3ff', borderTop: '2px solid #ddd6fe', fontWeight: '800' }}>
+                          <td colSpan={3} style={{ padding: '8px 10px', textAlign: 'right', color: '#6d28d9', fontSize: '11px' }}>
+                            TOTAL AKUMULASI BUNDLE:
+                          </td>
+                          <td style={{ padding: '8px 10px', textAlign: 'right', color: '#0284c7', fontSize: '12px' }}>
+                            {selectedProduk.bundle_items.reduce((acc, it) => acc + (Number(it.panjang_kain_cm) || 0), 0)} CM
+                          </td>
+                          <td style={{ padding: '8px 10px', textAlign: 'right', color: '#6b7280', fontSize: '10px' }}>
+                            -
+                          </td>
+                          <td style={{ padding: '8px 10px', textAlign: 'right', color: '#059669', fontSize: '12.5px' }}>
+                            {formatRupiah(selectedProduk.bundle_items.reduce((acc, it) => acc + (Number(it.harga_modal_item) || 0), 0))}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                ) : (
+                  <div style={{ padding: '16px', textAlign: 'center', backgroundColor: '#fbfbfe', borderRadius: '6px', border: '1px dashed #cbd5e1', color: '#64748b', fontSize: '11.5px' }}>
+                    Belum ada komponen terdaftar untuk bundle ini. Klik tombol Edit Produk untuk menambahkan komponen baju, celana, dll.
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
