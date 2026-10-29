@@ -310,6 +310,14 @@ function SearchableSelect({ label, value, onChange, options, placeholder = "Pili
 }
 
 export default function ProdukView() {
+  const [activeCompany, setActiveCompany] = useState(getActiveCompany);
+
+  useEffect(() => {
+    const handleCompanyChange = () => setActiveCompany(getActiveCompany());
+    window.addEventListener('company_changed', handleCompanyChange);
+    return () => window.removeEventListener('company_changed', handleCompanyChange);
+  }, []);
+
   const [produkList, setProdukList] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 

@@ -19,10 +19,23 @@ import { getActiveCompany } from '../../utils/tenant.util';
 export const HPP_STORAGE_KEY = 'ruangmarket_master_hpp_produk';
 
 export default function MasterHPPDesktopView() {
+  const [activeCompany, setActiveCompany] = useState(getActiveCompany);
+
+  useEffect(() => {
+    const handleCompanyChange = () => setActiveCompany(getActiveCompany());
+    window.addEventListener('company_changed', handleCompanyChange);
+    return () => window.removeEventListener('company_changed', handleCompanyChange);
+  }, []);
+
   const [hppList, setHppList] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [expandedId, setExpandedId] = useState(null);
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const [entriesPerPage, setEntriesPerPage] = useState(50);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -41,52 +54,38 @@ export default function MasterHPPDesktopView() {
   };
   const [formData, setFormData] = useState(initialForm);
 
-  const activeCompany = getActiveCompany();
-
-  // Load HPP dari API Server
-  const loadHPP = async () => {
+  // Load HPP dari API Server per Halaman (Server-side Pagination)
+  const loadHPP = async (page = currentPage, limit = entriesPerPage) => {
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/marketplace/hpp-produk?kode_perusahaan=${activeCompany?.code || 'RSG'}`);
+      const params = new URLSearchParams();
+      if (activeCompany?.code) params.set('kode_perusahaan', activeCompany.code);
+      params.set('page', page);
+      params.set('limit', limit);
+      if (search.trim()) params.set('search', search.trim());
+
+      const res = await fetch(`/api/marketplace/hpp-produk?${params.toString()}`);
       if (res.ok) {
         const json = await res.json();
-        if (json && Array.isArray(json.data)) {
-          setHppList(json.data);
-          try {
-            localStorage.setItem(HPP_STORAGE_KEY, JSON.stringify(json.data));
-          } catch (e) {}
-          setIsLoading(false);
-          return;
-        }
+        const rawData = Array.isArray(json) ? json : (json.data || []);
+        const pagination = json.pagination || { total: rawData.length, totalPages: Math.ceil(rawData.length / limit) || 1 };
+        setHppList(rawData);
+        setTotalCount(pagination.total);
+        setTotalPages(pagination.totalPages);
+        setIsLoading(false);
+        return;
       }
     } catch (e) {
       console.warn('Gagal load HPP dari server:', e);
     }
-
-    try {
-      const saved = localStorage.getItem(HPP_STORAGE_KEY);
-      if (saved) {
-        setHppList(JSON.parse(saved) || []);
-      }
-    } catch (e) {}
     setIsLoading(false);
   };
 
   useEffect(() => {
-    loadHPP();
-  }, [activeCompany?.code]);
+    loadHPP(currentPage, entriesPerPage);
+  }, [currentPage, entriesPerPage, search, activeCompany?.code]);
 
-  const filteredList = hppList.filter(item => {
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      return (
-        (item.id_kategori_hpp || '').toLowerCase().includes(q) ||
-        (item.nama_kategori_hpp || '').toLowerCase().includes(q) ||
-        (item.keterangan || '').toLowerCase().includes(q)
-      );
-    }
-    return true;
-  });
+  const filteredList = hppList;
 
   const toggleExpand = (id) => {
     setExpandedId(prev => (prev === id ? null : id));
@@ -402,7 +401,7 @@ export default function MasterHPPDesktopView() {
                           )}
                         </td>
                         <td style={{ padding: '7px 10px', textAlign: 'center', fontWeight: '700', color: '#64748b' }}>
-                          {idx + 1}
+                          {(currentPage - 1) * entriesPerPage + idx + 1}
                         </td>
                         <td style={{ padding: '7px 10px', fontFamily: 'monospace', fontWeight: '800', color: '#0284c7' }}>
                           {item.id_kategori_hpp}
@@ -544,6 +543,66 @@ export default function MasterHPPDesktopView() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* PAGING FOOTER */}
+        <div style={{
+          padding: '8px 14px',
+          borderTop: '1px solid #cbd5e1',
+          backgroundColor: '#f8fafc',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '10px',
+          fontSize: '11.5px',
+          color: '#64748b'
+        }}>
+          <div>
+            Menampilkan <strong>{totalCount === 0 ? 0 : (currentPage - 1) * entriesPerPage + 1}</strong> sampai <strong>{Math.min(currentPage * entriesPerPage, totalCount)}</strong> dari <strong>{totalCount}</strong> kategori HPP
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <button
+              type="button"
+              disabled={currentPage <= 1}
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              style={{
+                padding: '4px 12px',
+                borderRadius: '5px',
+                border: '1px solid #cbd5e1',
+                backgroundColor: currentPage <= 1 ? '#f1f5f9' : '#ffffff',
+                color: currentPage <= 1 ? '#94a3b8' : '#334155',
+                cursor: currentPage <= 1 ? 'not-allowed' : 'pointer',
+                fontSize: '11.5px',
+                fontWeight: '700',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              Sebelumnya
+            </button>
+            <span style={{ padding: '0 8px', fontWeight: '800', color: '#0f172a', fontSize: '12px' }}>
+              {currentPage} / {totalPages}
+            </span>
+            <button
+              type="button"
+              disabled={currentPage >= totalPages}
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              style={{
+                padding: '4px 12px',
+                borderRadius: '5px',
+                border: '1px solid #cbd5e1',
+                backgroundColor: currentPage >= totalPages ? '#f1f5f9' : '#ffffff',
+                color: currentPage >= totalPages ? '#94a3b8' : '#334155',
+                cursor: currentPage >= totalPages ? 'not-allowed' : 'pointer',
+                fontSize: '11.5px',
+                fontWeight: '700',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              Selanjutnya
+            </button>
+          </div>
         </div>
       </div>
 

@@ -25,22 +25,62 @@ export async function handleHPPProdukRoutes(req, res, pathname, urlObj, { pool }
         return true;
       }
 
-      // Ambil seluruh list master HPP
-      let sql = 'SELECT * FROM master_hpp_produk';
-      const params = [];
-      if (kodePerusahaan && kodePerusahaan !== 'ALL') {
-        sql += ' WHERE (kode_perusahaan = ? OR kode_perusahaan = "RSG" OR kode_perusahaan IS NULL)';
-        params.push(kodePerusahaan);
-      }
-      sql += ' ORDER BY id DESC';
-      const [rows] = await pool.query(sql, params);
+      const pageParam = urlObj.searchParams.get('page');
+      const limitParam = urlObj.searchParams.get('limit') || urlObj.searchParams.get('entriesPerPage');
+      const search = urlObj.searchParams.get('search');
+      const status = urlObj.searchParams.get('status');
 
-      // Ambil seluruh detail items sekaligus
-      const [allDetails] = await pool.query('SELECT * FROM detail_master_hpp_produk ORDER BY id ASC');
+      const isPaginated = pageParam !== null || limitParam !== null;
+      const page = Math.max(1, parseInt(pageParam, 10) || 1);
+      const limit = Math.max(1, Math.min(200, parseInt(limitParam, 10) || 50));
+      const offset = (page - 1) * limit;
+
+      const whereClauses = [];
+      const whereParams = [];
+
+      if (kodePerusahaan && kodePerusahaan !== 'ALL') {
+        whereClauses.push('(kode_perusahaan = ? OR kode_perusahaan = "RSG" OR kode_perusahaan IS NULL)');
+        whereParams.push(kodePerusahaan);
+      }
+      if (status && status !== 'Semua') {
+        whereClauses.push('status = ?');
+        whereParams.push(status);
+      }
+      if (search && search.trim()) {
+        const q = `%${search.trim()}%`;
+        whereClauses.push('(id_kategori_hpp LIKE ? OR nama_kategori_hpp LIKE ? OR keterangan LIKE ?)');
+        whereParams.push(q, q, q);
+      }
+
+      const whereSql = whereClauses.length > 0 ? ` WHERE ${whereClauses.join(' AND ')}` : '';
+
+      let total = 0;
+      if (isPaginated) {
+        const [[countRow]] = await pool.query(`SELECT COUNT(*) as total FROM master_hpp_produk ${whereSql}`, whereParams);
+        total = Number(countRow?.total || 0);
+      }
+
+      // Ambil list master HPP
+      let sql = `SELECT * FROM master_hpp_produk ${whereSql} ORDER BY id DESC`;
+      let queryParams = [...whereParams];
+      if (isPaginated) {
+        sql += ' LIMIT ? OFFSET ?';
+        queryParams.push(limit, offset);
+      }
+      const [rows] = await pool.query(sql, queryParams);
+
+      // Ambil detail items untuk kategori yang di-load
       const detailsMap = {};
-      for (const d of allDetails) {
-        if (!detailsMap[d.id_kategori_hpp]) detailsMap[d.id_kategori_hpp] = [];
-        detailsMap[d.id_kategori_hpp].push(d);
+      const categoryIds = rows.map(r => r.id_kategori_hpp).filter(Boolean);
+      if (categoryIds.length > 0) {
+        const [details] = await pool.query(
+          `SELECT * FROM detail_master_hpp_produk WHERE id_kategori_hpp IN (${categoryIds.map(() => '?').join(',')}) ORDER BY id ASC`,
+          categoryIds
+        );
+        for (const d of details) {
+          if (!detailsMap[d.id_kategori_hpp]) detailsMap[d.id_kategori_hpp] = [];
+          detailsMap[d.id_kategori_hpp].push(d);
+        }
       }
 
       const combined = rows.map(r => ({
@@ -48,7 +88,20 @@ export async function handleHPPProdukRoutes(req, res, pathname, urlObj, { pool }
         details: detailsMap[r.id_kategori_hpp] || []
       }));
 
-      sendJson(res, 200, { status: 'success', data: combined });
+      if (isPaginated) {
+        sendJson(res, 200, {
+          status: 'success',
+          data: combined,
+          pagination: {
+            page,
+            limit,
+            total,
+            totalPages: Math.ceil(total / limit) || 1
+          }
+        });
+      } else {
+        sendJson(res, 200, { status: 'success', data: combined });
+      }
       return true;
     } catch (err) {
       console.error('[HPP Produk API GET Error]:', err.message);
