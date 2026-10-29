@@ -818,8 +818,8 @@ export default function ReturBarangDesktopView() {
 
                       {/* 2. PRODUK & PESANAN */}
                       <td style={{ padding: '8px 12px', border: '1px solid #cbd5e1' }}>
-                        {/* No Pesanan Link */}
-                        <div style={{ marginBottom: '3px' }}>
+                        {/* No Pesanan & Return SN Link */}
+                        <div style={{ marginBottom: '3px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                           <span
                             onClick={() => setDetailRetur(item)}
                             title="Klik untuk lihat rincian lengkap retur"
@@ -836,6 +836,20 @@ export default function ReturBarangDesktopView() {
                           >
                             {item.no_pesanan}
                           </span>
+                          {item.return_sn && item.return_sn !== item.no_pesanan && (
+                            <span style={{
+                              fontSize: '10px',
+                              fontFamily: 'monospace',
+                              fontWeight: '700',
+                              color: '#64748b',
+                              backgroundColor: '#f1f5f9',
+                              padding: '1px 5px',
+                              borderRadius: '3px',
+                              border: '1px solid #e2e8f0'
+                            }} title={`No. Retur Marketplace: ${item.return_sn}`}>
+                              SN: {item.return_sn}
+                            </span>
+                          )}
                         </div>
 
                         {/* Badges: Retur status & Restock */}
