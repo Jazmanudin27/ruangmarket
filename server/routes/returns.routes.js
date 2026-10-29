@@ -19,22 +19,21 @@ function mapReturnStatus(rawStatus, isRestocked) {
   return 'MENUNGGU';
 }
 
-export async function handleReturnsRoutes(req, res, pathname, urlObj, { pool }) {
-  // 1. GET /api/marketplace/returns - Daftar Retur Barang Khusus Database RuangMarket
+export async function handleReturnsRoutes(req, res, pathname, urlObj, { pool, laravelPool }) {
+  // 1. GET /api/marketplace/returns - Daftar Retur Barang Resmi Database RuangMarket
   if (pathname === '/api/marketplace/returns' && req.method === 'GET') {
     try {
       const statusParam = urlObj.searchParams.get('status');
       const channelParam = urlObj.searchParams.get('channel');
       const q = urlObj.searchParams.get('q');
 
-      // Query data dari database ruangmarket (tabel retur_barang JOIN pesanan_marketplace)
-      // Hanya toko resmi di ruangmarket: Koperasi Sahabat Anak Bangsa (Shopee) & RUANG SERAGAM (TikTok Shop)
+      // Ambil data langsung dari tabel retur_barang di database ruangmarket
       const [rows] = await pool.query(`
         SELECT 
           r.id,
           r.kode_perusahaan,
           r.kode_perusahaan as company_code,
-          r.id_retur_marketplace,
+          r.id_retur_marketplace as return_sn,
           r.no_pesanan,
           r.saluran,
           r.saluran as channel,
@@ -44,19 +43,18 @@ export async function handleReturnsRoutes(req, res, pathname, urlObj, { pool }) 
           r.tipe_retur,
           r.status_retur,
           r.kondisi_barang,
-          COALESCE(NULLIF(r.no_resi_retur, ''), pm.no_resi, '') as no_resi_retur,
-          COALESCE(NULLIF(r.kurir_retur, ''), pm.kurir, 'SPX / J&T Return') as kurir_retur,
-          COALESCE(NULLIF(r.total_refund, 0), pm.total_harga, 0) as total_refund,
-          COALESCE(r.rincian_item, pm.rincian_item, '[]') as rincian_item,
+          COALESCE(r.no_resi_retur, '') as no_resi_retur,
+          COALESCE(r.kurir_retur, 'SPX Express') as kurir_retur,
+          COALESCE(r.total_refund, 0) as total_refund,
+          r.rincian_item,
           r.sudah_restok,
           r.sudah_restok as is_restocked,
           r.catatan,
-          DATE_FORMAT(COALESCE(pm.waktu_pesanan, r.waktu_diajukan, r.dibuat_pada), '%d/%m/%Y %H:%i') as waktuDiajukanFormat,
+          DATE_FORMAT(r.waktu_diajukan, '%d/%m/%Y %H:%i') as waktuDiajukanFormat,
           DATE_FORMAT(r.waktu_selesai, '%d/%m/%Y %H:%i') as waktuSelesaiFormat,
-          COALESCE(pm.waktu_pesanan, r.waktu_diajukan, r.dibuat_pada) as waktu_diajukan
+          r.waktu_diajukan
         FROM retur_barang r
-        LEFT JOIN pesanan_marketplace pm ON pm.no_pesanan = r.no_pesanan
-        ORDER BY r.dibuat_pada DESC
+        ORDER BY r.waktu_diajukan DESC, r.dibuat_pada DESC
       `);
 
       const formatted = rows.map(r => {
@@ -76,8 +74,8 @@ export async function handleReturnsRoutes(req, res, pathname, urlObj, { pool }) 
           status_retur: displayStatus,
           status: displayStatus,
           is_restocked: Boolean(r.sudah_restok),
-          sku: firstItem?.sku || firstItem?.kode_sku || firstItem?.seller_sku || 'SKU-MASTER',
-          nama_produk: firstItem?.nama_produk || 'Produk Marketplace',
+          sku: firstItem?.sku || firstItem?.kode_sku || 'SKU-MASTER',
+          nama_produk: firstItem?.nama_produk || 'Produk Retur',
           varian: firstItem?.varian || '',
           qty: firstItem?.qty || firstItem?.quantity || 1,
           items: validItems
@@ -104,12 +102,13 @@ export async function handleReturnsRoutes(req, res, pathname, urlObj, { pool }) 
         const query = q.toLowerCase();
         filtered = filtered.filter(item => {
           const matchNo = String(item.no_pesanan || '').toLowerCase().includes(query);
+          const matchSn = String(item.return_sn || '').toLowerCase().includes(query);
           const matchBuyer = String(item.nama_pembeli || '').toLowerCase().includes(query);
           const matchShop = String(item.nama_toko || '').toLowerCase().includes(query);
           const matchResi = String(item.no_resi_retur || '').toLowerCase().includes(query);
           const matchSku = String(item.sku || '').toLowerCase().includes(query);
           const matchName = String(item.nama_produk || '').toLowerCase().includes(query);
-          return matchNo || matchBuyer || matchShop || matchResi || matchSku || matchName;
+          return matchNo || matchSn || matchBuyer || matchShop || matchResi || matchSku || matchName;
         });
       }
 
@@ -169,6 +168,27 @@ export async function handleReturnsRoutes(req, res, pathname, urlObj, { pool }) 
         WHERE id = ?
       `, [kondisiBarang, catatan, retur.id]);
 
+      // Jika ada database Laravel, update juga di return_orders
+      if (laravelPool) {
+        try {
+          await laravelPool.query(`
+            UPDATE return_orders 
+            SET 
+              is_restocked = 1,
+              status = 'ACCEPTED',
+              inspection_status = ?,
+              inspection_notes = CONCAT(IFNULL(inspection_notes, ''), '\n', ?),
+              updated_at = CURRENT_TIMESTAMP
+            WHERE return_sn = ? OR id = ?
+          `, [
+            kondisiBarang.includes('Layak') || kondisiBarang.includes('Bagus') ? 'GOOD' : 'DAMAGED',
+            catatan,
+            retur.id_retur_marketplace,
+            retur.id_retur_marketplace
+          ]).catch(() => {});
+        } catch (eLar) {}
+      }
+
       // Jika kondisi layak jual, tambah stok fisik di produk_master
       let restockedItemsCount = 0;
       if (kondisiBarang.includes('Layak') || kondisiBarang.includes('Bagus') || body.do_restock === true) {
@@ -176,15 +196,6 @@ export async function handleReturnsRoutes(req, res, pathname, urlObj, { pool }) 
         try {
           items = retur.rincian_item ? JSON.parse(retur.rincian_item) : [];
         } catch (e) {}
-
-        if ((!items || items.length === 0)) {
-          const [pmRows] = await pool.query('SELECT rincian_item FROM pesanan_marketplace WHERE no_pesanan = ?', [retur.no_pesanan]);
-          if (pmRows.length > 0 && pmRows[0].rincian_item) {
-            try {
-              items = JSON.parse(pmRows[0].rincian_item);
-            } catch (e) {}
-          }
-        }
 
         for (const it of (Array.isArray(items) ? items : [])) {
           const rawSku = String(it.sku || it.kode_sku || '').trim();
@@ -214,13 +225,103 @@ export async function handleReturnsRoutes(req, res, pathname, urlObj, { pool }) 
     }
   }
 
-  // 3. POST /api/marketplace/returns/sync - Sinkronisasi Ulang Data Retur
+  // 3. POST /api/marketplace/returns/sync - Sinkronisasi Ulang Data Retur Fisik Asli dari Toko Aktif
   if (pathname === '/api/marketplace/returns/sync' && req.method === 'POST') {
     try {
-      const [counts] = await pool.query('SELECT COUNT(*) as total FROM retur_barang');
+      let syncedCount = 0;
+      if (laravelPool) {
+        const [stores] = await pool.query('SELECT nama_toko, saluran FROM toko_marketplace');
+        const storeNames = stores.map(s => s.nama_toko);
+
+        if (storeNames.length > 0) {
+          const [realReturns] = await laravelPool.query(`
+            SELECT 
+              ro.id as laravel_return_id,
+              ro.return_sn,
+              ro.return_tracking_number,
+              ro.shipping_provider,
+              ro.reason,
+              ro.status as return_status,
+              ro.refund_amount,
+              ro.is_restocked,
+              ro.inspection_status,
+              ro.created_at,
+              o.order_marketplace_id,
+              o.buyer_name,
+              o.courier,
+              o.tracking_number,
+              s.store_name,
+              c.name as channel_name,
+              ro.order_id
+            FROM return_orders ro
+            JOIN orders o ON o.id = ro.order_id
+            JOIN stores s ON s.id = ro.store_id
+            JOIN channels c ON c.id = s.channel_id
+            WHERE (s.store_name = 'Koperasi Sahabat Anak Bangsa' AND c.name = 'Shopee')
+               OR (s.store_name = 'RUANG SERAGAM' AND c.name = 'TikTok Shop')
+            ORDER BY ro.id DESC
+          `);
+
+          // Bersihkan data retur yang bukan retur fisik asli
+          await pool.query('DELETE FROM retur_barang');
+
+          for (const r of realReturns) {
+            const [items] = await laravelPool.query(`
+              SELECT sku, product_name as nama_produk, quantity as qty, price as harga, total_price as subtotal 
+              FROM order_items 
+              WHERE order_id = ?
+            `, [r.order_id]);
+
+            let displayReason = 'Pengembalian / Komplain Pembeli';
+            const rawReason = String(r.reason || '').toUpperCase();
+            if (rawReason.includes('WRONG_ITEM') || rawReason.includes('WRONG PRODUCT')) displayReason = 'Produk Salah Dikirim';
+            else if (rawReason.includes('ITEM_MISSING')) displayReason = 'Barang Kurang / Hilang';
+            else if (rawReason.includes('DESCRIPTION')) displayReason = 'Tidak Sesuai Deskripsi';
+            else if (rawReason.includes('CHANGE_MIND')) displayReason = 'Berubah Pikiran';
+            else if (rawReason.includes('DAMAGE')) displayReason = 'Barang Rusak / Cacat';
+
+            let displayStatus = 'Menunggu';
+            const s = String(r.return_status || '').toUpperCase();
+            if (s === 'ACCEPTED' || s === 'COMPLETED' || r.is_restocked) displayStatus = 'Selesai (Restok)';
+            else if (s === 'BUYER_SHIPPED_ITEM' || s === 'IN_TRANSIT') displayStatus = 'Dalam Pengiriman';
+            else if (s === 'CANCELLED' || s === 'REJECTED') displayStatus = 'Ditolak';
+
+            const returId = `ret_${r.laravel_return_id}_${r.order_marketplace_id}`;
+            const saluran = String(r.channel_name).toLowerCase().includes('tiktok') ? 'tiktok' : 'shopee';
+
+            await pool.query(`
+              INSERT INTO retur_barang (
+                id, kode_perusahaan, id_retur_marketplace, no_pesanan, saluran,
+                nama_toko, nama_pembeli, alasan_retur, tipe_retur, status_retur,
+                kondisi_barang, no_resi_retur, kurir_retur, total_refund,
+                rincian_item, sudah_restok, catatan, waktu_diajukan
+              ) VALUES (?, 'RSG', ?, ?, ?, ?, ?, ?, 'RETURN_REFUND', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `, [
+              returId,
+              r.return_sn || String(r.laravel_return_id),
+              r.order_marketplace_id,
+              saluran,
+              r.store_name,
+              r.buyer_name,
+              displayReason,
+              displayStatus,
+              r.inspection_status === 'GOOD' ? 'Bagus / Layak Jual' : 'Menunggu Penerimaan',
+              r.return_tracking_number || '',
+              r.shipping_provider || r.courier || 'SPX Express',
+              Number(r.refund_amount) || 0,
+              JSON.stringify(items || []),
+              r.is_restocked ? 1 : 0,
+              `Retur SN: ${r.return_sn || '-'}`,
+              r.created_at ? new Date(r.created_at) : new Date()
+            ]);
+            syncedCount++;
+          }
+        }
+      }
+
       sendJson(res, 200, {
         status: 'success',
-        message: `Sinkronisasi retur selesai! Terdata ${counts[0]?.total || 0} transaksi retur pada toko aktif Anda.`
+        message: `Sinkronisasi retur selesai! Ditemukan ${syncedCount} transaksi retur barang fisik resmi dari toko aktif Anda.`
       });
       return true;
     } catch (err) {
@@ -246,7 +347,7 @@ export async function handleReturnsRoutes(req, res, pathname, urlObj, { pool }) 
           id, kode_perusahaan, no_pesanan, saluran, nama_toko, nama_pembeli,
           alasan_retur, tipe_retur, status_retur, kondisi_barang,
           no_resi_retur, kurir_retur, total_refund, sudah_restok, catatan, waktu_diajukan
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, 'RETURN_REFUND', 'Diajukan', 'Menunggu Penerimaan', ?, ?, ?, 0, ?, CURRENT_TIMESTAMP)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, 'RETURN_REFUND', 'Menunggu', 'Menunggu Penerimaan', ?, ?, ?, 0, ?, CURRENT_TIMESTAMP)
       `, [
         returId,
         body.kode_perusahaan || 'RSG',
