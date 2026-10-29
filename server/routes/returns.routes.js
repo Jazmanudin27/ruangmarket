@@ -11,25 +11,42 @@ export async function handleReturnsRoutes(req, res, pathname, urlObj, { pool }) 
       let sql = `
         SELECT 
           r.*,
-          DATE_FORMAT(COALESCE(r.waktu_diajukan, r.dibuat_pada), '%d/%m/%Y %H:%i') as waktuDiajukanFormat,
+          r.kode_perusahaan as company_code,
+          r.status_retur as status,
+          r.sudah_restok as is_restocked,
+          pm.rincian_item as pm_rincian_item,
+          COALESCE(NULLIF(r.kurir_retur, ''), pm.kurir, 'SPX / J&T Return') as kurir_tampil,
+          COALESCE(NULLIF(r.no_resi_retur, ''), pm.no_resi, '') as no_resi_tampil,
+          DATE_FORMAT(COALESCE(r.waktu_diajukan, pm.waktu_pesanan, r.dibuat_pada), '%d/%m/%Y %H:%i') as waktuDiajukanFormat,
           DATE_FORMAT(r.waktu_selesai, '%d/%m/%Y %H:%i') as waktuSelesaiFormat
         FROM retur_barang r
+        LEFT JOIN pesanan_marketplace pm ON pm.no_pesanan = r.no_pesanan
         WHERE 1=1
       `;
       const params = [];
 
       if (status && status !== 'semua') {
-        sql += ` AND r.status_retur = ?`;
-        params.push(status);
+        if (status === 'menunggu') {
+          sql += ` AND (r.status_retur IN ('Diajukan', 'Menunggu', 'Menunggu Diterima', 'Requested'))`;
+        } else if (status === 'dikirim') {
+          sql += ` AND (r.status_retur IN ('Dalam Pengiriman', 'In Transit', 'Returning'))`;
+        } else if (status === 'cek_fisik') {
+          sql += ` AND (r.status_retur IN ('Barang Diterima', 'Perlu Cek Fisik', 'Received', 'Checking'))`;
+        } else if (status === 'selesai') {
+          sql += ` AND (r.status_retur IN ('Selesai (Restok)', 'Selesai', 'Restocked', 'Completed') OR r.sudah_restok = 1)`;
+        } else {
+          sql += ` AND r.status_retur = ?`;
+          params.push(status);
+        }
       }
       if (channel && channel !== 'semua') {
         sql += ` AND r.saluran = ?`;
         params.push(channel);
       }
       if (q) {
-        sql += ` AND (r.no_pesanan LIKE ? OR r.nama_pembeli LIKE ? OR r.no_resi_retur LIKE ? OR r.alasan_retur LIKE ?)`;
+        sql += ` AND (r.no_pesanan LIKE ? OR r.nama_pembeli LIKE ? OR r.no_resi_retur LIKE ? OR r.alasan_retur LIKE ? OR pm.no_resi LIKE ?)`;
         const wildcard = `%${q}%`;
-        params.push(wildcard, wildcard, wildcard, wildcard);
+        params.push(wildcard, wildcard, wildcard, wildcard, wildcard);
       }
 
       sql += ` ORDER BY r.dibuat_pada DESC`;
@@ -43,9 +60,23 @@ export async function handleReturnsRoutes(req, res, pathname, urlObj, { pool }) 
         } catch (e) {
           items = [];
         }
+        if ((!items || items.length === 0) && r.pm_rincian_item) {
+          try {
+            items = typeof r.pm_rincian_item === 'string' ? JSON.parse(r.pm_rincian_item) : r.pm_rincian_item;
+          } catch (e) {}
+        }
+
+        const validItems = Array.isArray(items) ? items : [];
+        const firstItem = validItems[0] || null;
+
         return {
           ...r,
-          items: Array.isArray(items) ? items : []
+          kurir_retur: r.kurir_tampil,
+          no_resi_retur: r.no_resi_tampil,
+          sku: firstItem?.sku || firstItem?.kode_sku || firstItem?.seller_sku || 'SKU-MASTER',
+          nama_produk: firstItem?.nama_produk || 'Produk Marketplace',
+          qty: firstItem?.qty || firstItem?.quantity || 1,
+          items: validItems
         };
       });
 
@@ -53,12 +84,12 @@ export async function handleReturnsRoutes(req, res, pathname, urlObj, { pool }) 
       const [counts] = await pool.query(`
         SELECT 
           COUNT(*) as total,
-          SUM(CASE WHEN status_retur = 'Diajukan' THEN 1 ELSE 0 END) as diajukan,
-          SUM(CASE WHEN status_retur = 'Dalam Pengiriman' THEN 1 ELSE 0 END) as dalam_pengiriman,
-          SUM(CASE WHEN status_retur = 'Barang Diterima' THEN 1 ELSE 0 END) as diterima,
-          SUM(CASE WHEN status_retur = 'Selesai (Restok)' THEN 1 ELSE 0 END) as selesai,
-          SUM(CASE WHEN status_retur = 'Ditolak' THEN 1 ELSE 0 END) as ditolak,
-          SUM(CASE WHEN kondisi_barang = 'Rusak / Afkir' THEN 1 ELSE 0 END) as barang_rusak
+          SUM(CASE WHEN status_retur IN ('Diajukan', 'Menunggu', 'Menunggu Diterima', 'Requested') THEN 1 ELSE 0 END) as menunggu,
+          SUM(CASE WHEN status_retur IN ('Dalam Pengiriman', 'In Transit', 'Returning') THEN 1 ELSE 0 END) as dalam_pengiriman,
+          SUM(CASE WHEN status_retur IN ('Barang Diterima', 'Perlu Cek Fisik', 'Received', 'Checking') THEN 1 ELSE 0 END) as cek_fisik,
+          SUM(CASE WHEN status_retur IN ('Selesai (Restok)', 'Selesai', 'Restocked', 'Completed') OR sudah_restok = 1 THEN 1 ELSE 0 END) as selesai,
+          SUM(CASE WHEN status_retur IN ('Ditolak', 'Rejected') THEN 1 ELSE 0 END) as ditolak,
+          SUM(CASE WHEN kondisi_barang LIKE '%Rusak%' OR kondisi_barang LIKE '%Afkir%' THEN 1 ELSE 0 END) as barang_rusak
         FROM retur_barang
       `);
 

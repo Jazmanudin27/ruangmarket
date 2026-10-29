@@ -16,7 +16,8 @@ import {
   Layers,
   FileText,
   Eye,
-  Plus
+  Plus,
+  Calendar
 } from 'lucide-react';
 import { toastSuccess, toastError } from '../../utils/alert.util';
 import { getActiveCompany } from '../../utils/tenant.util';
@@ -199,48 +200,48 @@ export default function ReturBarangDesktopView() {
 
   // Filter Company List
   const companyReturns = returns.filter(r => 
-    !r.company_code || r.company_code === activeCompany.code
+    !r.company_code && !r.kode_perusahaan || (r.company_code || r.kode_perusahaan) === activeCompany.code
   );
 
   // Summary Counts
   const totalReturns = companyReturns.length;
-  const countMenunggu = companyReturns.filter(r => {
-    const s = String(r.status || '').toUpperCase();
-    return s === 'REQUESTED' || s === 'MENUNGGU DITERIMA' || s === 'AWAITING_RECEIVE';
+  const countMenunggu = summary.menunggu !== undefined ? Number(summary.menunggu) : companyReturns.filter(r => {
+    const s = String(r.status_retur || r.status || '').toUpperCase();
+    return s === 'DIAJUKAN' || s === 'MENUNGGU' || s === 'MENUNGGU DITERIMA' || s === 'REQUESTED';
   }).length;
-  const countDikirim = companyReturns.filter(r => {
-    const s = String(r.status || '').toUpperCase();
+  const countDikirim = summary.dalam_pengiriman !== undefined ? Number(summary.dalam_pengiriman) : companyReturns.filter(r => {
+    const s = String(r.status_retur || r.status || '').toUpperCase();
     return s === 'IN_TRANSIT' || s === 'DALAM PENGIRIMAN' || s === 'RETURNING';
   }).length;
-  const countPerluCek = companyReturns.filter(r => {
-    const s = String(r.status || '').toUpperCase();
-    return s === 'RECEIVED' || s === 'PERLU CEK FISIK' || s === 'CHECKING';
+  const countPerluCek = summary.cek_fisik !== undefined ? Number(summary.cek_fisik) : companyReturns.filter(r => {
+    const s = String(r.status_retur || r.status || '').toUpperCase();
+    return s === 'RECEIVED' || s === 'PERLU CEK FISIK' || s === 'BARANG DITERIMA' || s === 'CHECKING';
   }).length;
-  const countSelesai = companyReturns.filter(r => {
-    const s = String(r.status || '').toUpperCase();
-    return s === 'COMPLETED' || s === 'SELESAI' || s === 'RESTOCKED' || r.is_restocked;
+  const countSelesai = summary.selesai !== undefined ? Number(summary.selesai) : companyReturns.filter(r => {
+    const s = String(r.status_retur || r.status || '').toUpperCase();
+    return s === 'COMPLETED' || s === 'SELESAI' || s === 'SELESAI (RESTOK)' || s === 'RESTOCKED' || r.is_restocked || r.sudah_restok;
   }).length;
   const countTikTok = companyReturns.filter(r => String(r.saluran || '').toLowerCase() === 'tiktok').length;
   const countShopee = companyReturns.filter(r => String(r.saluran || '').toLowerCase() === 'shopee').length;
 
   // Filtered List
   const filteredReturns = companyReturns.filter(item => {
-    const s = String(item.status || '').toUpperCase();
+    const s = String(item.status_retur || item.status || '').toUpperCase();
     const ch = String(item.saluran || '').toLowerCase();
     const cond = String(item.kondisi_barang || '').toLowerCase();
 
     // 1. Tab Filter
     if (activeFilterTab === 'menunggu') {
-      if (s !== 'REQUESTED' && s !== 'MENUNGGU DITERIMA' && s !== 'AWAITING_RECEIVE') return false;
+      if (s !== 'DIAJUKAN' && s !== 'MENUNGGU' && s !== 'MENUNGGU DITERIMA' && s !== 'REQUESTED') return false;
     }
     if (activeFilterTab === 'dikirim') {
       if (s !== 'IN_TRANSIT' && s !== 'DALAM PENGIRIMAN' && s !== 'RETURNING') return false;
     }
     if (activeFilterTab === 'cek_fisik') {
-      if (s !== 'RECEIVED' && s !== 'PERLU CEK FISIK' && s !== 'CHECKING') return false;
+      if (s !== 'RECEIVED' && s !== 'PERLU CEK FISIK' && s !== 'BARANG DITERIMA' && s !== 'CHECKING') return false;
     }
     if (activeFilterTab === 'selesai') {
-      if (s !== 'COMPLETED' && s !== 'SELESAI' && s !== 'RESTOCKED' && !item.is_restocked) return false;
+      if (s !== 'COMPLETED' && s !== 'SELESAI' && s !== 'SELESAI (RESTOK)' && s !== 'RESTOCKED' && !item.is_restocked && !item.sudah_restok) return false;
     }
     if (activeFilterTab === 'tiktok' && ch !== 'tiktok') return false;
     if (activeFilterTab === 'shopee' && ch !== 'shopee') return false;
@@ -251,18 +252,18 @@ export default function ReturBarangDesktopView() {
     // 3. Dropdown Status
     if (filterStatus !== 'Semua') {
       const target = filterStatus.toUpperCase();
-      if (target === 'MENUNGGU DITERIMA' && s !== 'REQUESTED' && s !== 'MENUNGGU DITERIMA') return false;
+      if (target === 'MENUNGGU' && s !== 'DIAJUKAN' && s !== 'MENUNGGU' && s !== 'MENUNGGU DITERIMA') return false;
       if (target === 'DALAM PENGIRIMAN' && s !== 'IN_TRANSIT' && s !== 'DALAM PENGIRIMAN') return false;
-      if (target === 'PERLU CEK KONDISI' && s !== 'RECEIVED' && s !== 'PERLU CEK FISIK') return false;
-      if (target === 'SELESAI RESTOK' && s !== 'COMPLETED' && s !== 'SELESAI' && !item.is_restocked) return false;
+      if (target === 'PERLU CEK KONDISI' && s !== 'RECEIVED' && s !== 'PERLU CEK FISIK' && s !== 'BARANG DITERIMA') return false;
+      if (target === 'SELESAI RESTOK' && s !== 'COMPLETED' && s !== 'SELESAI' && s !== 'SELESAI (RESTOK)' && !item.is_restocked && !item.sudah_restok) return false;
       if (target === 'DITOLAK' && s !== 'REJECTED' && s !== 'DITOLAK') return false;
     }
 
     // 4. Dropdown Kondisi Fisik
     if (filterCondition !== 'Semua') {
       if (filterCondition === 'Bagus / Layak' && !cond.includes('bagus') && !cond.includes('layak')) return false;
-      if (filterCondition === 'Rusak / Reject' && !cond.includes('rusak') && !cond.includes('reject')) return false;
-      if (filterCondition === 'Belum Dicek' && cond !== '' && cond !== 'belum dicek') return false;
+      if (filterCondition === 'Rusak / Reject' && !cond.includes('rusak') && !cond.includes('reject') && !cond.includes('afkir')) return false;
+      if (filterCondition === 'Belum Dicek' && cond !== '' && cond !== 'belum dicek' && cond !== 'menunggu penerimaan') return false;
     }
 
     // 5. Search Query
@@ -271,11 +272,16 @@ export default function ReturBarangDesktopView() {
       const matchNo = (item.no_pesanan || '').toLowerCase().includes(q);
       const matchBuyer = (item.nama_pembeli || '').toLowerCase().includes(q);
       const matchShop = (item.nama_toko || '').toLowerCase().includes(q);
-      const matchResi = (item.no_resi_retur || '').toLowerCase().includes(q);
+      const matchResi = (item.no_resi_retur || item.no_resi || '').toLowerCase().includes(q);
       const matchAlasan = (item.alasan_retur || '').toLowerCase().includes(q);
       const matchCatatan = (item.catatan || '').toLowerCase().includes(q);
       const matchSku = (item.sku || '').toLowerCase().includes(q);
-      return matchNo || matchBuyer || matchShop || matchResi || matchAlasan || matchCatatan || matchSku;
+      const matchItems = (item.items || []).some(it => 
+        (it.nama_produk || '').toLowerCase().includes(q) ||
+        (it.sku || '').toLowerCase().includes(q) ||
+        (it.varian || '').toLowerCase().includes(q)
+      );
+      return matchNo || matchBuyer || matchShop || matchResi || matchAlasan || matchCatatan || matchSku || matchItems;
     }
 
     return true;
@@ -307,7 +313,7 @@ export default function ReturBarangDesktopView() {
   return (
     <div style={{ width: '100%', maxWidth: '100%', padding: '8px 16px', boxSizing: 'border-box' }}>
       
-      {/* 1. MASTER HEADER CARD (PERSIS DENGAN PESANAN MASUK) */}
+      {/* 1. MASTER HEADER CARD */}
       <div style={{
         background: 'linear-gradient(135deg, #090d16 0%, #0f172a 45%, #1e293b 100%)',
         border: '1px solid rgba(255, 255, 255, 0.1)',
@@ -412,7 +418,7 @@ export default function ReturBarangDesktopView() {
         </div>
       </div>
 
-      {/* 2. FILTER TABS (PERSIS DENGAN PESANAN MASUK) */}
+      {/* 2. FILTER TABS */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px', flexWrap: 'wrap' }}>
         
         {/* Tab Semua Retur */}
@@ -438,7 +444,7 @@ export default function ReturBarangDesktopView() {
           <span>Semua Retur ({totalReturns})</span>
         </button>
 
-        {/* Tab Menunggu Diterima */}
+        {/* Tab Menunggu */}
         <button
           onClick={() => changeTab('menunggu')}
           style={{
@@ -457,7 +463,7 @@ export default function ReturBarangDesktopView() {
           }}
         >
           <Clock size={13} />
-          <span>Menunggu Diterima ({countMenunggu})</span>
+          <span>Menunggu ({countMenunggu})</span>
         </button>
 
         {/* Tab Dalam Pengiriman */}
@@ -571,7 +577,7 @@ export default function ReturBarangDesktopView() {
         </button>
       </div>
 
-      {/* 3. FILTER CONTROLS BAR (PERSIS DENGAN PESANAN MASUK) */}
+      {/* 3. FILTER CONTROLS BAR */}
       <div style={{
         backgroundColor: '#ffffff',
         border: '1px solid #cbd5e1',
@@ -641,7 +647,7 @@ export default function ReturBarangDesktopView() {
           }}
         >
           <option value="Semua">Semua Status</option>
-          <option value="Menunggu Diterima">Menunggu Diterima</option>
+          <option value="Menunggu">Menunggu</option>
           <option value="Dalam Pengiriman">Dalam Pengiriman</option>
           <option value="Perlu Cek Kondisi">Perlu Cek Kondisi</option>
           <option value="Selesai Restok">Selesai Restok</option>
@@ -691,7 +697,7 @@ export default function ReturBarangDesktopView() {
         </select>
       </div>
 
-      {/* 4. DATA TABLE RETUR (STRUKTUR TABEL & BORDER IDENTIK DENGAN PESANAN MASUK) */}
+      {/* 4. DATA TABLE RETUR */}
       <div style={{
         backgroundColor: '#ffffff',
         border: '1px solid #cbd5e1',
@@ -713,11 +719,11 @@ export default function ReturBarangDesktopView() {
                 </th>
                 <th style={{ padding: '8px 12px', border: '1px solid #cbd5e1' }}>PRODUK & PESANAN</th>
                 <th style={{ padding: '8px 12px', width: '170px', border: '1px solid #cbd5e1' }}>TOKO & CHANNEL</th>
-                <th style={{ padding: '8px 12px', width: '200px', border: '1px solid #cbd5e1' }}>ALASAN RETUR</th>
-                <th style={{ padding: '8px 12px', width: '160px', border: '1px solid #cbd5e1' }}>TANGGAL PENGAJUAN</th>
+                <th style={{ padding: '8px 12px', width: '190px', border: '1px solid #cbd5e1' }}>ALASAN RETUR</th>
+                <th style={{ padding: '8px 12px', width: '150px', border: '1px solid #cbd5e1' }}>TANGGAL PENGAJUAN</th>
                 <th style={{ padding: '8px 12px', width: '180px', border: '1px solid #cbd5e1' }}>KURIR & RESI KEMBALI</th>
-                <th style={{ padding: '8px 12px', textAlign: 'center', width: '160px', border: '1px solid #cbd5e1' }}>KONDISI & STATUS</th>
-                <th style={{ padding: '8px 12px', textAlign: 'center', width: '135px', border: '1px solid #cbd5e1' }}>AKSI</th>
+                <th style={{ padding: '8px 12px', textAlign: 'center', width: '145px', border: '1px solid #cbd5e1' }}>KONDISI & STATUS</th>
+                <th style={{ padding: '8px 12px', textAlign: 'center', width: '125px', border: '1px solid #cbd5e1' }}>AKSI</th>
               </tr>
             </thead>
             <tbody>
@@ -736,31 +742,55 @@ export default function ReturBarangDesktopView() {
                   const isTikTok = String(item.saluran || '').toLowerCase() === 'tiktok';
                   const isShopee = String(item.saluran || '').toLowerCase() === 'shopee';
                   const isSelected = selectedIds.includes(item.id);
-                  const isRestocked = Boolean(item.is_restocked);
+                  const isRestocked = Boolean(item.is_restocked || item.sudah_restok);
 
-                  // Status style badges
-                  const s = String(item.status || 'MENUNGGU DITERIMA').toUpperCase();
+                  const items = item.items || [];
+                  const firstItem = items[0] || null;
+                  const extraCount = items.length > 1 ? items.length - 1 : 0;
+                  const productSku = firstItem?.sku || firstItem?.kode_sku || firstItem?.seller_sku || item.sku || 'SKU-MASTER';
+                  const productName = firstItem?.nama_produk || item.nama_produk || '';
+                  const productQty = firstItem?.qty || item.qty || 1;
+
+                  // Status style badges: Menunggu Diterima diganti jadi MENUNGGU
+                  const s = String(item.status_retur || item.status || 'MENUNGGU').toUpperCase();
+                  let displayStatus = 'MENUNGGU';
                   let statusBg = '#fffbeb';
                   let statusColor = '#b45309';
                   let statusBorder = '#fde68a';
 
-                  if (s === 'COMPLETED' || s === 'SELESAI' || s === 'RESTOCKED' || isRestocked) {
+                  if (s === 'COMPLETED' || s === 'SELESAI' || s === 'SELESAI (RESTOK)' || s === 'RESTOCKED' || isRestocked) {
+                    displayStatus = 'SELESAI RESTOK';
                     statusBg = '#f0fdf4';
                     statusColor = '#15803d';
                     statusBorder = '#bbf7d0';
-                  } else if (s === 'IN_TRANSIT' || s === 'DALAM PENGIRIMAN') {
+                  } else if (s === 'IN_TRANSIT' || s === 'DALAM PENGIRIMAN' || s === 'RETURNING') {
+                    displayStatus = 'DALAM PENGIRIMAN';
                     statusBg = '#f5f3ff';
                     statusColor = '#6d28d9';
                     statusBorder = '#ddd6fe';
-                  } else if (s === 'RECEIVED' || s === 'PERLU CEK FISIK') {
+                  } else if (s === 'RECEIVED' || s === 'PERLU CEK FISIK' || s === 'BARANG DITERIMA' || s === 'CHECKING') {
+                    displayStatus = 'PERLU CEK FISIK';
                     statusBg = '#eff6ff';
                     statusColor = '#1d4ed8';
                     statusBorder = '#bfdbfe';
                   } else if (s === 'REJECTED' || s === 'DITOLAK') {
+                    displayStatus = 'DITOLAK';
                     statusBg = '#fef2f2';
                     statusColor = '#b91c1c';
                     statusBorder = '#fecaca';
+                  } else {
+                    displayStatus = 'MENUNGGU';
                   }
+
+                  const waktuTampil = item.waktuDiajukanFormat || (item.waktu_diajukan ? new Date(item.waktu_diajukan).toLocaleDateString('id-ID', {
+                    day: 'numeric',
+                    month: 'short',
+                    year: 'numeric'
+                  }) : (item.dibuat_pada ? new Date(item.dibuat_pada).toLocaleDateString('id-ID', {
+                    day: 'numeric',
+                    month: 'short',
+                    year: 'numeric'
+                  }) : '-'));
 
                   return (
                     <tr
@@ -809,7 +839,7 @@ export default function ReturBarangDesktopView() {
                         </div>
 
                         {/* Badges: Retur status & Restock */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '5px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '5px', flexWrap: 'wrap' }}>
                           <span style={{
                             display: 'inline-flex',
                             alignItems: 'center',
@@ -840,17 +870,60 @@ export default function ReturBarangDesktopView() {
                           }}>
                             Buyer: <b>{item.nama_pembeli || 'Pelanggan'}</b>
                           </span>
+
+                          {item.total_refund > 0 && (
+                            <span style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              padding: '1px 6px',
+                              borderRadius: '4px',
+                              fontSize: '10px',
+                              fontWeight: '800',
+                              backgroundColor: '#f1f5f9',
+                              color: '#0f172a',
+                              border: '1px solid #cbd5e1',
+                              fontFamily: 'monospace'
+                            }}>
+                              Refund: {formatRupiah(item.total_refund)}
+                            </span>
+                          )}
                         </div>
 
                         {/* Product Summary */}
                         <div style={{ fontSize: '11px', color: '#334155', lineHeight: '1.3' }}>
                           <div style={{ fontWeight: '700', color: '#0f172a', fontFamily: 'monospace' }}>
-                            {item.sku || 'SKU-MASTER'} <span style={{ color: '#0284c7', fontWeight: '800', fontFamily: 'sans-serif' }}>x{item.qty || 1}</span>
+                            {productSku} <span style={{ color: '#0284c7', fontWeight: '800', fontFamily: 'sans-serif' }}>x{productQty}</span>
                           </div>
-                          {item.nama_produk && (
-                            <div style={{ color: '#64748b', fontSize: '10.5px', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '280px' }}>
-                              {item.nama_produk}
+                          {productName && (
+                            <div 
+                              style={{ color: '#64748b', fontSize: '10.5px', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '320px' }}
+                              title={productName}
+                            >
+                              {productName}
                             </div>
+                          )}
+                          {extraCount > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setDetailRetur(item)}
+                              style={{
+                                marginTop: '2px',
+                                padding: '1px 6px',
+                                borderRadius: '3px',
+                                backgroundColor: '#f1f5f9',
+                                border: '1px dashed #cbd5e1',
+                                color: '#0284c7',
+                                fontSize: '10px',
+                                fontWeight: '700',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '2px'
+                              }}
+                            >
+                              <span>+{extraCount} SKU lainnya</span>
+                              <ChevronRight size={9} />
+                            </button>
                           )}
                         </div>
                       </td>
@@ -897,7 +970,7 @@ export default function ReturBarangDesktopView() {
                           fontSize: '11px',
                           marginBottom: '3px'
                         }}>
-                          {item.alasan_retur || 'Pengajuan Retur / Komplain'}
+                          {item.alasan_retur || 'Pengembalian / Komplain Marketplace'}
                         </div>
                         {item.catatan && (
                           <div style={{ fontSize: '11px', color: '#64748b', fontStyle: 'italic', lineHeight: '1.3' }}>
@@ -908,18 +981,9 @@ export default function ReturBarangDesktopView() {
 
                       {/* 5. TANGGAL PENGAJUAN */}
                       <td style={{ padding: '8px 12px', border: '1px solid #cbd5e1' }}>
-                        <div style={{ fontSize: '11.5px', fontWeight: '700', color: '#0f172a' }}>
-                          {item.created_at ? new Date(item.created_at).toLocaleDateString('id-ID', {
-                            day: 'numeric',
-                            month: 'short',
-                            year: 'numeric'
-                          }) : '-'}
-                        </div>
-                        <div style={{ fontSize: '10.5px', color: '#64748b', marginTop: '2px' }}>
-                          {item.created_at ? new Date(item.created_at).toLocaleTimeString('id-ID', {
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          }) + ' WIB' : ''}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11.5px', fontWeight: '700', color: '#0f172a' }}>
+                          <Calendar size={12} color="#64748b" />
+                          <span>{waktuTampil}</span>
                         </div>
                       </td>
 
@@ -927,7 +991,7 @@ export default function ReturBarangDesktopView() {
                       <td style={{ padding: '8px 12px', border: '1px solid #cbd5e1' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11.5px', fontWeight: '700', color: '#0f172a' }}>
                           <Truck size={12} color="#64748b" />
-                          <span>{item.kurir_retur || 'J&T / SPX Return'}</span>
+                          <span>{item.kurir_retur || 'SPX / J&T Return'}</span>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', fontFamily: 'monospace', color: '#0f172a', fontWeight: '700', marginTop: '3px' }}>
                           <Package size={11} color="#0284c7" />
@@ -953,7 +1017,7 @@ export default function ReturBarangDesktopView() {
                             letterSpacing: '0.02em',
                             textTransform: 'uppercase'
                           }}>
-                            {s.replace(/_/g, ' ')}
+                            {displayStatus}
                           </span>
                         </div>
 
@@ -1001,7 +1065,7 @@ export default function ReturBarangDesktopView() {
                               }}
                             >
                               <CheckCircle2 size={12} />
-                              <span>Terima & Restok</span>
+                              <span>Terima</span>
                             </button>
                           ) : (
                             <span style={{
@@ -1016,7 +1080,7 @@ export default function ReturBarangDesktopView() {
                               color: '#166534',
                               border: '1px solid #86efac'
                             }}>
-                              <CheckCircle2 size={11} color="#16a34a" /> Restocked
+                              <CheckCircle2 size={11} color="#16a34a" /> Selesai
                             </span>
                           )}
 
@@ -1052,7 +1116,7 @@ export default function ReturBarangDesktopView() {
           </table>
         </div>
 
-        {/* 5. FOOTER & PAGINATION (IDENTIK DENGAN PESANAN MASUK) */}
+        {/* 5. FOOTER & PAGINATION */}
         <div style={{
           padding: '8px 14px',
           backgroundColor: '#f8fafc',
@@ -1142,7 +1206,7 @@ export default function ReturBarangDesktopView() {
         </div>
       </div>
 
-      {/* 6. MODAL TERIMA & RESTOK BARANG (CLEAN LIGHT THEME) */}
+      {/* 6. MODAL TERIMA & RESTOK BARANG */}
       {isRestockModalOpen && restockTarget && (
         <div
           onClick={() => setIsRestockModalOpen(false)}
@@ -1369,7 +1433,7 @@ export default function ReturBarangDesktopView() {
                   color: '#0284c7',
                   border: '1px solid #bae6fd'
                 }}>
-                  {String(detailRetur.status || 'RETUR').toUpperCase()}
+                  {String(detailRetur.status_retur || detailRetur.status || 'RETUR').toUpperCase()}
                 </span>
               </div>
               <button
@@ -1397,8 +1461,8 @@ export default function ReturBarangDesktopView() {
                   <div style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', marginBottom: '6px', textTransform: 'uppercase' }}>
                     Pengiriman Balik
                   </div>
-                  <div>Kurir: <b>{detailRetur.kurir_retur || '-'}</b></div>
-                  <div style={{ marginTop: '3px' }}>No. Resi: <code style={{ color: '#0284c7', fontWeight: '700' }}>{detailRetur.no_resi_retur || 'Belum Ada'}</code></div>
+                  <div>Kurir: <b>{detailRetur.kurir_retur || detailRetur.kurir || '-'}</b></div>
+                  <div style={{ marginTop: '3px' }}>No. Resi: <code style={{ color: '#0284c7', fontWeight: '700' }}>{detailRetur.no_resi_retur || detailRetur.no_resi || 'Belum Ada'}</code></div>
                   <div style={{ marginTop: '3px' }}>Pengembalian Dana: <b>{formatRupiah(detailRetur.total_refund)}</b></div>
                 </div>
               </div>
@@ -1406,17 +1470,25 @@ export default function ReturBarangDesktopView() {
               {/* Produk */}
               <div style={{ border: '1px solid #e2e8f0', borderRadius: '6px', overflow: 'hidden', marginBottom: '14px' }}>
                 <div style={{ backgroundColor: '#f8fafc', padding: '8px 12px', fontWeight: '800', fontSize: '11px', color: '#475569', borderBottom: '1px solid #e2e8f0' }}>
-                  RINCIAN BARANG RETUR
+                  RINCIAN BARANG RETUR ({detailRetur.items?.length || 1} Item)
                 </div>
-                <div style={{ padding: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <div style={{ fontWeight: '800', color: '#0f172a', fontFamily: 'monospace' }}>{detailRetur.sku || 'SKU-MASTER'}</div>
-                    <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '2px' }}>{detailRetur.nama_produk || 'Produk Retur'}</div>
-                  </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: '12px', fontWeight: '800', color: '#0f172a' }}>Qty: {detailRetur.qty || 1}</div>
-                    <div style={{ fontSize: '11px', color: '#059669', fontWeight: '700' }}>{detailRetur.is_restocked ? 'Sudah Di-restok' : 'Belum Di-restok'}</div>
-                  </div>
+                <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {(detailRetur.items && detailRetur.items.length > 0 ? detailRetur.items : [detailRetur]).map((it, idx) => (
+                    <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: idx < (detailRetur.items?.length || 1) - 1 ? '1px dashed #e2e8f0' : 'none', paddingBottom: '6px' }}>
+                      <div>
+                        <div style={{ fontWeight: '800', color: '#0f172a', fontFamily: 'monospace' }}>
+                          {it.sku || it.kode_sku || it.seller_sku || 'SKU-MASTER'}
+                        </div>
+                        <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '2px' }}>
+                          {it.nama_produk || 'Produk Retur'} {it.varian ? `(${it.varian})` : ''}
+                        </div>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: '12px', fontWeight: '800', color: '#0f172a' }}>Qty: {it.qty || 1}</div>
+                        {it.harga > 0 && <div style={{ fontSize: '11px', color: '#64748b' }}>{formatRupiah(it.harga)}</div>}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
 
@@ -1443,7 +1515,7 @@ export default function ReturBarangDesktopView() {
               justifyContent: 'flex-end',
               gap: '8px'
             }}>
-              {!detailRetur.is_restocked && (
+              {!detailRetur.is_restocked && !detailRetur.sudah_restok && (
                 <button
                   type="button"
                   onClick={() => {
@@ -1462,7 +1534,7 @@ export default function ReturBarangDesktopView() {
                     cursor: 'pointer'
                   }}
                 >
-                  Terima & Restok Sekarang
+                  Terima Sekarang
                 </button>
               )}
               <button
