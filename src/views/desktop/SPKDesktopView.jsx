@@ -389,6 +389,25 @@ export default function SPKView() {
     return INITIAL_PRODUK_DATA;
   });
 
+  const [pelangganOptions, setPelangganOptions] = useState([]);
+
+  const loadPelangganOptions = async () => {
+    try {
+      const res = await fetch(`/api/pelanggan?kode_perusahaan=${activeCompany?.code || 'RSG'}`);
+      if (res.ok) {
+        const json = await res.json();
+        if (json && Array.isArray(json.data) && json.data.length > 0) {
+          setPelangganOptions(json.data);
+          return;
+        }
+      }
+    } catch (e) {}
+    try {
+      const saved = localStorage.getItem('ruangmarket_pelanggan_master');
+      if (saved) setPelangganOptions(JSON.parse(saved) || []);
+    } catch (e) {}
+  };
+
   const [activeCompany, setActiveCompany] = useState(getActiveCompany);
 
   useEffect(() => {
@@ -402,6 +421,7 @@ export default function SPKView() {
 
   useEffect(() => {
     loadSpkData();
+    loadPelangganOptions();
   }, [activeCompany]);
 
   const [search, setSearch] = useState("");
@@ -2238,38 +2258,39 @@ export default function SPKView() {
                 </div>
 
                 <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "10.5px",
-                      fontWeight: "700",
-                      color: "#334155",
-                      marginBottom: "3px",
-                    }}
-                  >
-                    Pelanggan <span style={{ color: "#ef4444" }}>*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Contoh: Pelanggan ABC"
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "3px" }}>
+                    <label
+                      style={{
+                        fontSize: "10.5px",
+                        fontWeight: "700",
+                        color: "#334155",
+                      }}
+                    >
+                      Pelanggan (Dari Master Data) <span style={{ color: "#ef4444" }}>*</span>
+                    </label>
+                  </div>
+                  <SearchableSelect
                     value={formData.nama_pelanggan}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        nama_pelanggan: e.target.value,
-                      })
-                    }
-                    style={{
-                      width: "100%",
-                      padding: "6px 9px",
-                      borderRadius: "5px",
-                      border: "1px solid #cbd5e1",
-                      fontSize: "11.5px",
-                      fontWeight: "600",
-                      color: "#0f172a",
-                      backgroundColor: "#ffffff",
+                    onChange={(val, opt) => {
+                      if (opt && opt.item) {
+                        setFormData((prev) => ({
+                          ...prev,
+                          nama_pelanggan: opt.item.nama_pelanggan,
+                          no_telepon: opt.item.no_hp || prev.no_telepon || "",
+                          instansi: opt.item.kategori_pelanggan === "Sekolah / Instansi" ? opt.item.nama_pelanggan : (prev.instansi || ""),
+                          alamat: opt.item.alamat || prev.alamat || ""
+                        }));
+                      } else {
+                        setFormData((prev) => ({ ...prev, nama_pelanggan: val }));
+                      }
                     }}
+                    options={pelangganOptions.map((p) => ({
+                      value: p.nama_pelanggan,
+                      label: `${p.nama_pelanggan} (${p.kode_pelanggan} - ${p.kategori_pelanggan || "Reguler"})`,
+                      displayLabel: p.nama_pelanggan,
+                      item: p,
+                    }))}
+                    placeholder="Pilih pelanggan dari master data..."
                   />
                 </div>
 

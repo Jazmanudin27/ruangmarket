@@ -320,8 +320,26 @@ export async function initDb() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Tabel SPK Produksi & Batch';
     `);
 
+    // 8. Tabel Master Pelanggan (pelanggan_master)
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS pelanggan_master (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        kode_perusahaan VARCHAR(32) DEFAULT 'RSG',
+        kode_pelanggan VARCHAR(64) NOT NULL UNIQUE,
+        nama_pelanggan VARCHAR(255) NOT NULL,
+        alamat TEXT,
+        no_hp VARCHAR(64),
+        status VARCHAR(32) DEFAULT 'Aktif',
+        kategori_pelanggan VARCHAR(64) DEFAULT 'Reguler',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_kode_pelanggan (kode_pelanggan),
+        INDEX idx_kode_perusahaan (kode_perusahaan)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Tabel Master Pelanggan';
+    `);
+
     conn.release();
-    console.log('[MySQL] Tabel Bahasa Indonesia (toko_marketplace, produk_marketplace, produk_master, pesanan_marketplace, spk_batch) siap!');
+    console.log('[MySQL] Tabel Bahasa Indonesia (toko_marketplace, produk_marketplace, produk_master, pesanan_marketplace, spk_batch, pelanggan_master) siap!');
   } catch (err) {
     console.error('[MySQL Init Error]:', err.message);
   }

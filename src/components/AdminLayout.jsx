@@ -34,6 +34,7 @@ import DashboardDesktopView from '../views/desktop/DashboardDesktopView';
 import ProdukDesktopView from '../views/desktop/ProdukDesktopView';
 import KategoriDesktopView from '../views/desktop/KategoriDesktopView';
 import KaryawanDesktopView from '../views/desktop/KaryawanDesktopView';
+import PelangganDesktopView from '../views/desktop/PelangganDesktopView';
 import ProduksiDesktopView from '../views/desktop/ProduksiDesktopView';
 import SPKDesktopView from '../views/desktop/SPKDesktopView';
 import MarketplaceDesktopView from '../views/desktop/MarketplaceDesktopView';
@@ -226,6 +227,8 @@ export default function AdminLayout() {
         return <KategoriDesktopView />;
       case 'karyawan':
         return <KaryawanDesktopView />;
+      case 'pelanggan':
+        return <PelangganDesktopView />;
       case 'produksi':
         return <ProduksiDesktopView />;
       case 'spk':
@@ -684,6 +687,42 @@ export default function AdminLayout() {
                   >
                     <Users size={14} color={activeTab === 'karyawan' ? '#38bdf8' : '#94a3b8'} style={{ flexShrink: 0 }} />
                     <span style={{ textAlign: 'left', flex: 1 }}>Data Karyawan</span>
+                  </button>
+
+                  {/* Submenu 5: Data Pelanggan */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      changeTab('pelanggan');
+                      setIsDataMasterOpen(false);
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'flex-start',
+                      gap: '8px',
+                      width: '100%',
+                      padding: '7px 10px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      backgroundColor: activeTab === 'pelanggan' ? 'rgba(2, 132, 199, 0.2)' : 'transparent',
+                      color: activeTab === 'pelanggan' ? '#38bdf8' : '#cbd5e1',
+                      fontSize: '11.5px',
+                      fontWeight: activeTab === 'pelanggan' ? '800' : '600',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'background-color 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (activeTab !== 'pelanggan') e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (activeTab !== 'pelanggan') e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
+                  >
+                    <UserCheck size={14} color={activeTab === 'pelanggan' ? '#38bdf8' : '#94a3b8'} style={{ flexShrink: 0 }} />
+                    <span style={{ textAlign: 'left', flex: 1 }}>Data Pelanggan</span>
                   </button>
                 </div>
               )}
@@ -1373,6 +1412,28 @@ export default function AdminLayout() {
             >
               <Users size={15} color={activeTab === 'karyawan' ? '#ffffff' : '#38bdf8'} />
               <span>Data Karyawan</span>
+            </button>
+
+            {/* 2d. Data Pelanggan (Submenu) */}
+            <button
+              onClick={() => changeTab('pelanggan')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '8px 12px 8px 20px',
+                borderRadius: '6px',
+                border: activeTab === 'pelanggan' ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.08)',
+                backgroundColor: activeTab === 'pelanggan' ? '#0284c7' : 'rgba(255, 255, 255, 0.05)',
+                color: '#ffffff',
+                fontSize: '12px',
+                fontWeight: activeTab === 'pelanggan' ? '800' : '600',
+                cursor: 'pointer',
+                textAlign: 'left'
+              }}
+            >
+              <UserCheck size={15} color={activeTab === 'pelanggan' ? '#ffffff' : '#38bdf8'} />
+              <span>Data Pelanggan</span>
             </button>
 
             {/* 3. Produksi Section Header */}
