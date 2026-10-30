@@ -120,7 +120,7 @@ export default function PenjualanOfflineView({ onNavigate }) {
 
   const loadMasterProduk = async () => {
     try {
-      const res = await fetch(`/api/master/produk?kode_perusahaan=${activeCompany.code}`);
+      const res = await fetch(`/api/marketplace/master?limit=1000&kode_perusahaan=${activeCompany?.code || 'RSG'}`);
       const json = await res.json();
       setMasterProduk(json.data || []);
     } catch (e) { setMasterProduk([]); }
