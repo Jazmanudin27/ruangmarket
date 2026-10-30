@@ -17,6 +17,7 @@ import { handleTahapanSPKRoutes } from './routes/tahapan-spk.routes.js';
 import { handleHPPProdukRoutes } from './routes/hpp-produk.routes.js';
 import { handleKainRoutes } from './routes/kain.routes.js';
 import { handleOfflineOrdersRoutes } from './routes/offline-orders.routes.js';
+import { handleBankRoutes } from './routes/bank.routes.js';
 
 import './config/env.js';
 
@@ -71,6 +72,7 @@ const server = http.createServer(async (req, res) => {
     if (await handleHPPProdukRoutes(req, res, pathname, urlObj, context)) return;
     if (await handleKainRoutes(req, res, pathname, urlObj, context)) return;
     if (await handleOfflineOrdersRoutes(req, res, pathname, urlObj, context)) return;
+    if (await handleBankRoutes(req, res, pathname, urlObj, context)) return;
 
     // 404 Not Found
     sendJson(res, 404, { error: 'Endpoint tidak ditemukan' });

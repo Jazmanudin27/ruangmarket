@@ -116,6 +116,19 @@ export default function PenjualanOfflineView({ onNavigate }) {
     status: "Aktif",
   });
 
+  // Master Bank (Tambah & Edit)
+  const [bankList, setBankList] = useState([]);
+  const [isBankModalOpen, setIsBankModalOpen] = useState(false);
+  const [isSavingBank, setIsSavingBank] = useState(false);
+  const [bankModalMode, setBankModalMode] = useState("create"); // 'create' | 'edit'
+  const [bankForm, setBankForm] = useState({
+    id: null,
+    nama_bank: "",
+    no_rekening: "",
+    atas_nama: "",
+    status: "Aktif",
+  });
+
   // Master produk for autocomplete
   const [masterProduk, setMasterProduk] = useState([]);
   const [produkSearch, setProdukSearch] = useState("");
@@ -316,11 +329,128 @@ export default function PenjualanOfflineView({ onNavigate }) {
     }
   };
 
+  const loadBank = async () => {
+    try {
+      const res = await fetch(`/api/bank?kode_perusahaan=${activeCompany?.code || "RSG"}`);
+      const json = await res.json();
+      if (json && Array.isArray(json.data) && json.data.length > 0) {
+        setBankList(json.data);
+      } else {
+        setBankList(BANK_OPTIONS.map((b, i) => ({ id: i + 1, nama_bank: b.label, no_rekening: "", atas_nama: "" })));
+      }
+    } catch (e) {
+      setBankList(BANK_OPTIONS.map((b, i) => ({ id: i + 1, nama_bank: b.label, no_rekening: "", atas_nama: "" })));
+    }
+  };
+
+  const handleOpenAddBank = () => {
+    setBankModalMode("create");
+    setBankForm({
+      id: null,
+      nama_bank: "",
+      no_rekening: "",
+      atas_nama: activeCompany?.name || "",
+      status: "Aktif",
+    });
+    setIsBankModalOpen(true);
+  };
+
+  const handleOpenEditBank = () => {
+    const b = bankList.find(
+      (item) => item.nama_bank.toLowerCase() === (form.bank_tujuan || "").toLowerCase(),
+    );
+    if (b) {
+      setBankModalMode("edit");
+      setBankForm({
+        id: b.id,
+        nama_bank: b.nama_bank,
+        no_rekening: b.no_rekening || "",
+        atas_nama: b.atas_nama || "",
+        status: b.status || "Aktif",
+      });
+      setIsBankModalOpen(true);
+    } else if (form.bank_tujuan) {
+      setBankModalMode("create");
+      setBankForm({
+        id: null,
+        nama_bank: form.bank_tujuan,
+        no_rekening: "",
+        atas_nama: "",
+        status: "Aktif",
+      });
+      setIsBankModalOpen(true);
+    } else {
+      toastError("Pilih bank tujuan terlebih dahulu untuk mengedit data!");
+    }
+  };
+
+  const handleSaveBank = async (e) => {
+    if (e) e.preventDefault();
+    if (!bankForm.nama_bank?.trim()) {
+      toastError("Nama bank wajib diisi!");
+      return;
+    }
+
+    setIsSavingBank(true);
+    try {
+      const payload = {
+        ...bankForm,
+        nama_bank: bankForm.nama_bank.trim(),
+        no_rekening: bankForm.no_rekening?.trim() || "",
+        atas_nama: bankForm.atas_nama?.trim() || "",
+        kode_perusahaan: activeCompany?.code || "RSG",
+      };
+
+      const res = await fetch("/api/bank", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json();
+
+      if (res.ok) {
+        toastSuccess(
+          bankModalMode === "edit"
+            ? "Data bank berhasil diperbarui!"
+            : "Bank baru berhasil ditambahkan!",
+        );
+        await loadBank();
+        setForm((prev) => ({
+          ...prev,
+          bank_tujuan: bankForm.nama_bank.trim(),
+        }));
+        setIsBankModalOpen(false);
+      } else {
+        throw new Error(json.message || "Gagal menyimpan data bank");
+      }
+    } catch (err) {
+      // Fallback lokal jika offline
+      setBankList((prev) => {
+        if (bankModalMode === "edit" && bankForm.id) {
+          return prev.map((item) =>
+            item.id === bankForm.id ? { ...bankForm } : item,
+          );
+        } else {
+          return [...prev, { ...bankForm, id: Date.now() }];
+        }
+      });
+      setForm((prev) => ({
+        ...prev,
+        bank_tujuan: bankForm.nama_bank.trim(),
+      }));
+      toastSuccess("Data bank disimpan (lokal)");
+      setIsBankModalOpen(false);
+    } finally {
+      setIsSavingBank(false);
+    }
+  };
+
   useEffect(() => {
     loadOrders();
     loadStores();
     loadMasterProduk();
     loadPelanggan();
+    loadBank();
   }, [filterStatus, filterSaluran]);
 
   // ── Handlers ────────────────────────────────────────────────────────────
@@ -2571,25 +2701,102 @@ export default function PenjualanOfflineView({ onNavigate }) {
 
                     {form.metode_pembayaran === "transfer" ? (
                       <div>
-                        <label
+                        <div
                           style={{
-                            display: "block",
-                            fontSize: "10.5px",
-                            fontWeight: "700",
-                            color: "#0284c7",
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
                             marginBottom: "3px",
+                            flexWrap: "wrap",
+                            gap: "4px",
                           }}
                         >
-                          Transfer ke Bank Mana?{" "}
-                          <span style={{ color: "#ef4444" }}>*</span>
-                        </label>
+                          <label
+                            style={{
+                              fontSize: "10.5px",
+                              fontWeight: "700",
+                              color: "#0284c7",
+                            }}
+                          >
+                            Transfer ke Bank Mana?{" "}
+                            <span style={{ color: "#ef4444" }}>*</span>
+                          </label>
+
+                          <div style={{ display: "flex", gap: "4px" }}>
+                            <button
+                              type="button"
+                              onClick={handleOpenAddBank}
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "2px",
+                                padding: "1px 6px",
+                                borderRadius: "3px",
+                                backgroundColor: "#0284c7",
+                                color: "#ffffff",
+                                border: "none",
+                                fontSize: "9.5px",
+                                fontWeight: "700",
+                                cursor: "pointer",
+                                transition: "background-color 0.15s ease",
+                              }}
+                              onMouseEnter={(e) =>
+                                (e.currentTarget.style.backgroundColor =
+                                  "#0369a1")
+                              }
+                              onMouseLeave={(e) =>
+                                (e.currentTarget.style.backgroundColor =
+                                  "#0284c7")
+                              }
+                              title="Tambah Rekening Bank Baru"
+                            >
+                              <Plus size={10} /> Tambah
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={handleOpenEditBank}
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "2px",
+                                padding: "1px 6px",
+                                borderRadius: "3px",
+                                backgroundColor: form.bank_tujuan
+                                  ? "#f8fafc"
+                                  : "#f1f5f9",
+                                color: form.bank_tujuan ? "#0284c7" : "#94a3b8",
+                                border: `1px solid ${form.bank_tujuan ? "#0284c7" : "#cbd5e1"}`,
+                                fontSize: "9.5px",
+                                fontWeight: "700",
+                                cursor: form.bank_tujuan
+                                  ? "pointer"
+                                  : "not-allowed",
+                                transition: "all 0.15s ease",
+                              }}
+                              title="Edit Rekening Bank Terpilih"
+                            >
+                              <Edit3 size={10} /> Edit
+                            </button>
+                          </div>
+                        </div>
+
                         <SearchableSelect
                           value={form.bank_tujuan}
                           onChange={(val) =>
                             setForm({ ...form, bank_tujuan: val })
                           }
-                          options={BANK_OPTIONS}
-                          placeholder="Pilih Bank..."
+                          options={[
+                            { value: "", label: "-- Pilih Bank Tujuan --" },
+                            ...bankList.map((b) => ({
+                              value: b.nama_bank,
+                              label: `${b.nama_bank}${b.no_rekening ? ` (${b.no_rekening})` : ""}`,
+                              subtitle: b.atas_nama
+                                ? `a.n ${b.atas_nama}`
+                                : undefined,
+                            })),
+                          ]}
+                          placeholder="Pilih atau cari bank tujuan..."
                           size="sm"
                         />
                       </div>
@@ -3758,6 +3965,263 @@ export default function PenjualanOfflineView({ onNavigate }) {
                   <span>
                     {isSavingPelanggan ? "Menyimpan..." : "Simpan ke Database"}
                   </span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: TAMBAH / EDIT MASTER BANK ─────────────────────────────────── */}
+      {isBankModalOpen && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(15, 23, 42, 0.65)",
+            backdropFilter: "blur(3px)",
+            zIndex: 10000,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "16px",
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: "#ffffff",
+              borderRadius: "12px",
+              width: "460px",
+              maxWidth: "95vw",
+              display: "flex",
+              flexDirection: "column",
+              boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+              border: "1px solid #cbd5e1",
+              overflow: "hidden",
+            }}
+          >
+            {/* Header */}
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                padding: "12px 18px",
+                borderBottom: "1px solid #e2e8f0",
+                backgroundColor: "#f8fafc",
+              }}
+            >
+              <div
+                style={{ display: "flex", alignItems: "center", gap: "8px" }}
+              >
+                <div
+                  style={{
+                    width: "32px",
+                    height: "32px",
+                    borderRadius: "7px",
+                    backgroundColor: "#e0f2fe",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#0284c7",
+                  }}
+                >
+                  <CreditCard size={15} />
+                </div>
+                <div>
+                  <h3
+                    style={{
+                      margin: 0,
+                      fontSize: "13.5px",
+                      fontWeight: "800",
+                      color: "#0f172a",
+                    }}
+                  >
+                    {bankModalMode === "edit"
+                      ? "Edit Rekening Bank"
+                      : "Tambah Rekening Bank"}
+                  </h3>
+                  <p style={{ margin: 0, fontSize: "11px", color: "#64748b" }}>
+                    Kelola data bank & nomor rekening tujuan transfer
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsBankModalOpen(false)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  color: "#94a3b8",
+                  padding: "4px",
+                  borderRadius: "4px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = "#0f172a")}
+                onMouseLeave={(e) => (e.currentTarget.style.color = "#94a3b8")}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Form */}
+            <form
+              onSubmit={handleSaveBank}
+              style={{
+                padding: "16px 18px",
+                display: "flex",
+                flexDirection: "column",
+                gap: "11px",
+              }}
+            >
+              <div>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: "11px",
+                    fontWeight: "700",
+                    color: "#334155",
+                    marginBottom: "3px",
+                  }}
+                >
+                  Nama Bank <span style={{ color: "#ef4444" }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={bankForm.nama_bank}
+                  onChange={(e) =>
+                    setBankForm({ ...bankForm, nama_bank: e.target.value })
+                  }
+                  placeholder="Contoh: BCA, Mandiri, BRI, BNI, BSI..."
+                  style={{
+                    width: "100%",
+                    padding: "7px 10px",
+                    borderRadius: "5px",
+                    border: "1px solid #cbd5e1",
+                    fontSize: "12px",
+                    fontWeight: "700",
+                    color: "#0f172a",
+                    boxSizing: "border-box",
+                  }}
+                />
+              </div>
+
+              <div>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: "11px",
+                    fontWeight: "700",
+                    color: "#334155",
+                    marginBottom: "3px",
+                  }}
+                >
+                  Nomor Rekening
+                </label>
+                <input
+                  type="text"
+                  value={bankForm.no_rekening}
+                  onChange={(e) =>
+                    setBankForm({ ...bankForm, no_rekening: e.target.value })
+                  }
+                  placeholder="Contoh: 1234567890"
+                  style={{
+                    width: "100%",
+                    padding: "7px 10px",
+                    borderRadius: "5px",
+                    border: "1px solid #cbd5e1",
+                    fontSize: "12px",
+                    color: "#0f172a",
+                    boxSizing: "border-box",
+                  }}
+                />
+              </div>
+
+              <div>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: "11px",
+                    fontWeight: "700",
+                    color: "#334155",
+                    marginBottom: "3px",
+                  }}
+                >
+                  Atas Nama Pemilik Rekening
+                </label>
+                <input
+                  type="text"
+                  value={bankForm.atas_nama}
+                  onChange={(e) =>
+                    setBankForm({ ...bankForm, atas_nama: e.target.value })
+                  }
+                  placeholder="Contoh: PT Ruang Tech / Pemilik Toko"
+                  style={{
+                    width: "100%",
+                    padding: "7px 10px",
+                    borderRadius: "5px",
+                    border: "1px solid #cbd5e1",
+                    fontSize: "12px",
+                    color: "#0f172a",
+                    boxSizing: "border-box",
+                  }}
+                />
+              </div>
+
+              {/* Footer */}
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  gap: "8px",
+                  marginTop: "6px",
+                  paddingTop: "10px",
+                  borderTop: "1px solid #f1f5f9",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setIsBankModalOpen(false)}
+                  style={{
+                    padding: "6px 14px",
+                    borderRadius: "5px",
+                    border: "1px solid #cbd5e1",
+                    backgroundColor: "#ffffff",
+                    color: "#64748b",
+                    fontSize: "11.5px",
+                    fontWeight: "700",
+                    cursor: "pointer",
+                  }}
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingBank}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "5px",
+                    padding: "6px 16px",
+                    borderRadius: "5px",
+                    border: "none",
+                    backgroundColor: "#0284c7",
+                    color: "#ffffff",
+                    fontSize: "11.5px",
+                    fontWeight: "700",
+                    cursor: isSavingBank ? "not-allowed" : "pointer",
+                    boxShadow: "0 2px 4px rgba(2, 132, 199, 0.35)",
+                  }}
+                >
+                  <Save size={13} />
+                  <span>{isSavingBank ? "Menyimpan..." : "Simpan Bank"}</span>
                 </button>
               </div>
             </form>
