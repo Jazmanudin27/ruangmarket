@@ -1054,9 +1054,7 @@ export default function PenjualanOfflineView({ onNavigate }) {
         deadline:
           existingBatch?.deadline ||
           new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
-        catatan:
-          existingBatch?.catatan ||
-          `Pesanan Offline ${ord.no_pesanan}${ord.catatan ? " — " + ord.catatan : ""}`,
+        catatan: existingBatch?.catatan || "",
         spk_list: initialSpkList,
       });
       setSpkModalOrder(ord);
@@ -1176,21 +1174,6 @@ export default function PenjualanOfflineView({ onNavigate }) {
     });
   };
 
-  const handleRegroupSpkMode = (mode) => {
-    if (!spkModalOrder) return;
-    const suffix =
-      (spkModalOrder.no_pesanan || "").split("-").pop() || "101";
-    const allCurrentItems = (spkForm.spk_list || []).flatMap(
-      (s) => s.produk_items || [],
-    );
-    const sourceItems =
-      allCurrentItems.length > 0 ? allCurrentItems : spkModalOrder.items || [];
-    setSpkForm((prev) => ({
-      ...prev,
-      spk_list: buildGroupedSpkList(sourceItems, suffix, mode),
-    }));
-  };
-
   const handleSaveSpk = async (e) => {
     if (e && e.preventDefault) e.preventDefault();
     if (!spkModalOrder) return;
@@ -1268,12 +1251,7 @@ export default function PenjualanOfflineView({ onNavigate }) {
         nominal: sisa > 0 ? sisa : 0,
         metode_pembayaran: ord.metode_pembayaran || "cash",
         bank_tujuan: ord.bank_tujuan || "",
-        keterangan:
-          tahapKe === 1
-            ? "Pembayaran ke-1 (DP / Cicilan)"
-            : sisa > 0
-              ? `Cicilan ke-${tahapKe}`
-              : "Pelunasan",
+        keterangan: "",
       });
       setPaymentModalOrder(ord);
     } catch (err) {
@@ -8511,7 +8489,7 @@ export default function PenjualanOfflineView({ onNavigate }) {
                       Catatan Produksi / Keterangan Umum
                     </label>
                     <textarea
-                      rows={2}
+                      rows={3}
                       value={spkForm.catatan}
                       onChange={(e) =>
                         setSpkForm({ ...spkForm, catatan: e.target.value })
@@ -8528,172 +8506,6 @@ export default function PenjualanOfflineView({ onNavigate }) {
                         resize: "vertical",
                       }}
                     />
-                  </div>
-                </div>
-
-                {/* CARD 2: MODE PEMBAGIAN SPK OTOMATIS / MANUAL */}
-                <div
-                  style={{
-                    backgroundColor: "#ffffff",
-                    borderRadius: "8px",
-                    border: "1px solid #cbd5e1",
-                    padding: "12px 14px",
-                    boxShadow: "0 1px 2px rgba(0, 0, 0, 0.03)",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "6px",
-                      marginBottom: "8px",
-                      paddingBottom: "5px",
-                      borderBottom: "1px solid #f1f5f9",
-                    }}
-                  >
-                    <Package size={13} color="#0284c7" />
-                    <span
-                      style={{
-                        fontSize: "11px",
-                        fontWeight: "800",
-                        color: "#0f172a",
-                        textTransform: "uppercase",
-                        letterSpacing: "0.04em",
-                      }}
-                    >
-                      2. Mode Pembagian SPK Cepat
-                    </span>
-                  </div>
-
-                  <div
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "6px",
-                      marginBottom: "10px",
-                    }}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => handleRegroupSpkMode("auto")}
-                      style={{
-                        width: "100%",
-                        padding: "7px 10px",
-                        borderRadius: "6px",
-                        border: "1px solid #7c3aed",
-                        backgroundColor: "#f5f3ff",
-                        color: "#6d28d9",
-                        fontSize: "11px",
-                        fontWeight: "800",
-                        cursor: "pointer",
-                        textAlign: "left",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                      }}
-                    >
-                      <span>⚡ Bagi Otomatis per Jenis Produk</span>
-                      <span
-                        style={{
-                          fontSize: "9.5px",
-                          padding: "1px 6px",
-                          borderRadius: "4px",
-                          backgroundColor: "#7c3aed",
-                          color: "#ffffff",
-                        }}
-                      >
-                        Rekomendasi
-                      </span>
-                    </button>
-
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "1fr 1fr",
-                        gap: "6px",
-                      }}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => handleRegroupSpkMode("single")}
-                        style={{
-                          padding: "6px 8px",
-                          borderRadius: "5px",
-                          border: "1px solid #cbd5e1",
-                          backgroundColor: "#f8fafc",
-                          color: "#334155",
-                          fontSize: "10.5px",
-                          fontWeight: "700",
-                          cursor: "pointer",
-                        }}
-                      >
-                        Gabung Semua ke 1 SPK
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleRegroupSpkMode("per_item")}
-                        style={{
-                          padding: "6px 8px",
-                          borderRadius: "5px",
-                          border: "1px solid #cbd5e1",
-                          backgroundColor: "#f8fafc",
-                          color: "#334155",
-                          fontSize: "10.5px",
-                          fontWeight: "700",
-                          cursor: "pointer",
-                        }}
-                      >
-                        Pisah 1 Produk = 1 SPK
-                      </button>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={handleAddSpkBlock}
-                      style={{
-                        width: "100%",
-                        padding: "7px 10px",
-                        borderRadius: "6px",
-                        border: "1px dashed #0284c7",
-                        backgroundColor: "#f0f9ff",
-                        color: "#0369a1",
-                        fontSize: "11px",
-                        fontWeight: "800",
-                        cursor: "pointer",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: "5px",
-                      }}
-                    >
-                      <Plus size={13} />
-                      <span>Tambah SPK Baru dalam Kode Produksi Ini</span>
-                    </button>
-                  </div>
-
-                  <div
-                    style={{
-                      padding: "8px 10px",
-                      borderRadius: "6px",
-                      backgroundColor: "#f8fafc",
-                      border: "1px solid #e2e8f0",
-                      fontSize: "10.5px",
-                      color: "#475569",
-                      lineHeight: 1.45,
-                    }}
-                  >
-                    <strong style={{ color: "#0f172a" }}>
-                      Cara Kerja Multi-SPK:
-                    </strong>
-                    <br />• 1 Nomor Produksi (
-                    <strong>{spkForm.kode_produksi}</strong>) dapat memiliki{" "}
-                    <strong>{(spkForm.spk_list || []).length} SPK</strong>{" "}
-                    sekaligus.
-                    <br />• Contoh: <em>Topi</em> (SPK 1),{" "}
-                    <em>Batik L &amp; XL</em> (SPK 2),{" "}
-                    <em>Celana L &amp; S</em> (SPK 3).
-                    <br />• Anda juga bisa memindahkan produk antar SPK lewat
-                    kolom <strong>Pindah ke SPK</strong> di tabel kanan.
                   </div>
                 </div>
               </div>
@@ -8736,7 +8548,7 @@ export default function PenjualanOfflineView({ onNavigate }) {
                         letterSpacing: "0.04em",
                       }}
                     >
-                      3. Daftar SPK dalam Nomor Produksi Ini (
+                      2. Daftar SPK dalam Nomor Produksi Ini (
                       {(spkForm.spk_list || []).length} SPK)
                     </span>
                   </div>
