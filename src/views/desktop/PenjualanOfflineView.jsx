@@ -654,590 +654,811 @@ export default function PenjualanOfflineView({ onNavigate }) {
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      {/* MODAL: BUAT PESANAN BARU (FULLSCREEN SUPPORT & SEARCHABLE SELECTS)  */}
+      {/* MODAL: BUAT PESANAN OFFLINE (FULL SCREEN COMPACT - MASTER PRODUK)   */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {showForm && (
         <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          backgroundColor: isFullScreen ? '#ffffff' : 'rgba(0,0,0,0.6)',
-          backdropFilter: isFullScreen ? 'none' : 'blur(4px)',
-          zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          padding: isFullScreen ? '0' : '16px',
-          boxSizing: 'border-box'
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: '#0f172a',
+          zIndex: 2000,
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden'
         }}>
+          {/* Modal Header (Dark Slate Fullscreen Compact) */}
           <div style={{
-            backgroundColor: '#fff',
-            borderRadius: isFullScreen ? '0' : '14px',
-            width: isFullScreen ? '100vw' : '820px',
-            maxWidth: '100vw',
-            height: isFullScreen ? '100vh' : 'auto',
-            maxHeight: isFullScreen ? '100vh' : '92vh',
+            height: '42px',
+            padding: '0 16px',
+            background: 'linear-gradient(135deg, #090d16 0%, #0f172a 50%, #1e293b 100%)',
+            borderBottom: '1px solid #334155',
             display: 'flex',
-            flexDirection: 'column',
-            boxShadow: isFullScreen ? 'none' : '0 25px 60px rgba(0,0,0,0.3)',
-            boxSizing: 'border-box',
-            overflow: 'hidden'
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            color: '#ffffff',
+            flexShrink: 0
           }}>
-            {/* Header */}
-            <div style={{
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              padding: isFullScreen ? '14px 24px' : '16px 24px',
-              borderBottom: '1px solid #e2e8f0',
-              background: 'linear-gradient(135deg, #090d16 0%, #0f172a 45%, #1e293b 100%)',
-              color: '#ffffff',
-              flexShrink: 0
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{
-                  width: '32px', height: '32px', borderRadius: '7px',
-                  backgroundColor: 'rgba(37, 211, 102, 0.2)', border: '1px solid rgba(37, 211, 102, 0.4)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#25d366'
-                }}>
-                  <Send size={16} />
-                </div>
-                <div>
-                  <h2 style={{ margin: 0, fontSize: '15px', fontWeight: '800', color: '#ffffff' }}>
-                    Buat Pesanan Offline Baru
-                  </h2>
-                  <p style={{ margin: 0, fontSize: '11px', color: '#94a3b8' }}>
-                    Isi formulir transaksi offline manual, dropship, reseller, atau walk-in
-                  </p>
-                </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{
+                width: '26px',
+                height: '26px',
+                borderRadius: '6px',
+                backgroundColor: 'rgba(56, 189, 248, 0.15)',
+                border: '1px solid rgba(56, 189, 248, 0.3)',
+                color: '#38bdf8',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <Send size={14} />
               </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <button
-                  type="button"
-                  onClick={() => setIsFullScreen(prev => !prev)}
-                  title={isFullScreen ? 'Perkecil Modal' : 'Layar Penuh (Full Screen)'}
-                  style={{
-                    background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)',
-                    cursor: 'pointer', padding: '6px 8px', borderRadius: '6px', color: '#cbd5e1',
-                    display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', fontWeight: '600'
-                  }}
-                >
-                  {isFullScreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
-                  <span>{isFullScreen ? 'Normal' : 'Full Screen'}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowForm(false)}
-                  style={{
-                    background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)',
-                    cursor: 'pointer', padding: '6px 8px', borderRadius: '6px', color: '#f87171'
-                  }}
-                >
-                  <X size={16} />
-                </button>
-              </div>
+              <h3 style={{ margin: 0, fontSize: '13px', fontWeight: '800', color: '#ffffff', letterSpacing: '-0.01em' }}>
+                Buat Pesanan Offline Baru
+              </h3>
+              <span style={{ fontSize: '11px', color: '#64748b' }}>•</span>
+              <span style={{ fontSize: '11px', color: '#94a3b8' }}>
+                Formulir Transaksi Manual WhatsApp, Reseller & Walk-in
+              </span>
             </div>
 
-            {/* Scrollable Form Body */}
+            <button
+              type="button"
+              onClick={() => setShowForm(false)}
+              style={{
+                width: '26px',
+                height: '26px',
+                borderRadius: '5px',
+                background: 'rgba(255, 255, 255, 0.08)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                color: '#cbd5e1',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.2)';
+                e.currentTarget.style.color = '#ef4444';
+                e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.4)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)';
+                e.currentTarget.style.color = '#cbd5e1';
+                e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.12)';
+              }}
+            >
+              <X size={15} />
+            </button>
+          </div>
+
+          {/* Modal Form Body (Fullscreen 2-Column Compact Layout) */}
+          <form
+            onSubmit={(e) => { e.preventDefault(); handleSubmit(false); }}
+            style={{
+              flex: 1,
+              overflowY: 'auto',
+              padding: '12px 16px',
+              backgroundColor: '#f1f5f9',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              boxSizing: 'border-box'
+            }}
+          >
             <div style={{
-              flex: 1, overflowY: 'auto', padding: isFullScreen ? '24px 36px' : '20px 24px',
-              backgroundColor: '#f1f5f9'
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(440px, 1fr))',
+              gap: '10px',
+              alignItems: 'start'
             }}>
-              <div style={{
-                maxWidth: isFullScreen ? '1180px' : '100%',
-                margin: '0 auto',
-                display: 'grid',
-                gridTemplateColumns: isFullScreen ? '1.1fr 1.3fr' : '1fr',
-                gap: '20px',
-                alignItems: 'start'
-              }}>
 
-                {/* ═════════════════════════════════════════════════════════ */}
-                {/* KOLOM KIRI: INFO TRANSAKSI & PEMBELI                    */}
-                {/* ═════════════════════════════════════════════════════════ */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {/* ═════════════════════════════════════════════════════════ */}
+              {/* KOLOM KIRI: INFO TRANSAKSI & PELANGGAN                  */}
+              {/* ═════════════════════════════════════════════════════════ */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
 
-                  {/* KARTU 1: INFO PESANAN & TANGGAL */}
+                {/* 1. INFO TRANSAKSI & JADWAL */}
+                <div style={{
+                  backgroundColor: '#ffffff',
+                  borderRadius: '8px',
+                  border: '1px solid #cbd5e1',
+                  padding: '10px 12px',
+                  boxShadow: '0 1px 2px rgba(0, 0, 0, 0.04)'
+                }}>
                   <div style={{
-                    backgroundColor: '#ffffff', borderRadius: '12px', padding: '18px 20px',
-                    border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)'
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    marginBottom: '8px',
+                    paddingBottom: '5px',
+                    borderBottom: '1px solid #f1f5f9'
                   }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px', borderBottom: '1px solid #f1f5f9', paddingBottom: '10px' }}>
-                      <div style={{ width: '26px', height: '26px', borderRadius: '6px', backgroundColor: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2563eb' }}>
-                        <Calendar size={15} />
-                      </div>
-                      <span style={{ fontSize: '13px', fontWeight: '800', color: '#0f172a' }}>Info Transaksi & Jadwal</span>
-                    </div>
+                    <Calendar size={13} color="#0284c7" />
+                    <span style={{ fontSize: '11px', fontWeight: '800', color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      1. Info Transaksi & Saluran
+                    </span>
+                  </div>
 
-                    {/* Baris Tanggal Pesanan & Saluran */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
-                      <div>
-                        <label style={{ fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '5px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <Clock size={12} color="#0284c7" />
-                          <span>Tanggal Pesanan</span>
-                        </label>
-                        <input
-                          type="date"
-                          value={form.batas_kirim}
-                          onChange={e => setForm({ ...form, batas_kirim: e.target.value })}
-                          style={{
-                            width: '100%', padding: '7px 11px', borderRadius: '7px',
-                            border: '1px solid #cbd5e1', fontSize: '12px', fontWeight: '600', color: '#0f172a',
-                            boxSizing: 'border-box', backgroundColor: '#f8fafc'
-                          }}
-                        />
-                      </div>
-                      <div>
-                        <label style={{ fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '5px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <Send size={12} color="#25d366" />
-                          <span>Saluran Penjualan</span>
-                        </label>
-                        <SearchableSelect
-                          value={form.saluran}
-                          onChange={val => setForm({ ...form, saluran: val })}
-                          options={SALURAN_OPTIONS}
-                          placeholder="Pilih Saluran"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Toko / Instansi Asal */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
                     <div>
-                      <label style={{ fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '5px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <Store size={12} color="#8b5cf6" />
-                        <span>Toko / Instansi Asal</span>
+                      <label style={{ display: 'block', fontSize: '10.5px', fontWeight: '700', color: '#334155', marginBottom: '3px' }}>
+                        Tanggal Pesanan <span style={{ color: '#ef4444' }}>*</span>
+                      </label>
+                      <input
+                        type="date"
+                        value={form.batas_kirim}
+                        onChange={e => setForm({ ...form, batas_kirim: e.target.value })}
+                        style={{
+                          width: '100%',
+                          padding: '6px 9px',
+                          borderRadius: '5px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '11.5px',
+                          fontWeight: '600',
+                          color: '#0f172a',
+                          backgroundColor: '#ffffff',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '10.5px', fontWeight: '700', color: '#334155', marginBottom: '3px' }}>
+                        Saluran Penjualan <span style={{ color: '#ef4444' }}>*</span>
                       </label>
                       <SearchableSelect
-                        value={form.id_toko}
-                        onChange={val => {
-                          const st = stores.find(s => String(s.id) === String(val));
-                          setForm({ ...form, id_toko: val, nama_toko: st ? st.shopName : '' });
-                        }}
-                        options={[
-                          { value: '', label: '-- Pilih Toko / Instansi --' },
-                          ...stores.map(s => ({
-                            value: String(s.id),
-                            label: s.shopName,
-                            subtitle: s.channel ? `Channel: ${s.channel}` : undefined
-                          }))
-                        ]}
-                        placeholder="Pilih Toko"
+                        value={form.saluran}
+                        onChange={val => setForm({ ...form, saluran: val })}
+                        options={SALURAN_OPTIONS}
+                        placeholder="Pilih Saluran"
+                        size="sm"
                       />
                     </div>
                   </div>
 
-                  {/* KARTU 2: DATA PELANGGAN & ALAMAT */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '10.5px', fontWeight: '700', color: '#334155', marginBottom: '3px' }}>
+                      Toko / Instansi Asal
+                    </label>
+                    <SearchableSelect
+                      value={form.id_toko}
+                      onChange={val => {
+                        const st = stores.find(s => String(s.id) === String(val));
+                        setForm({ ...form, id_toko: val, nama_toko: st ? st.shopName : '' });
+                      }}
+                      options={[
+                        { value: '', label: '-- Pilih Toko / Instansi --' },
+                        ...stores.map(s => ({
+                          value: String(s.id),
+                          label: s.shopName,
+                          subtitle: s.channel ? `Channel: ${s.channel}` : undefined
+                        }))
+                      ]}
+                      placeholder="Pilih Toko"
+                      size="sm"
+                    />
+                  </div>
+                </div>
+
+                {/* 2. IDENTITAS PELANGGAN & ALAMAT */}
+                <div style={{
+                  backgroundColor: '#ffffff',
+                  borderRadius: '8px',
+                  border: '1px solid #cbd5e1',
+                  padding: '10px 12px',
+                  boxShadow: '0 1px 2px rgba(0, 0, 0, 0.04)'
+                }}>
                   <div style={{
-                    backgroundColor: '#ffffff', borderRadius: '12px', padding: '18px 20px',
-                    border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)'
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: '8px',
+                    paddingBottom: '5px',
+                    borderBottom: '1px solid #f1f5f9'
                   }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: '1px solid #f1f5f9', paddingBottom: '10px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <div style={{ width: '26px', height: '26px', borderRadius: '6px', backgroundColor: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#16a34a' }}>
-                          <Users size={15} />
-                        </div>
-                        <span style={{ fontSize: '13px', fontWeight: '800', color: '#0f172a' }}>Identitas Pelanggan & Alamat</span>
-                      </div>
-                      <span style={{ fontSize: '10.5px', color: '#16a34a', fontWeight: '700', backgroundColor: '#dcfce7', padding: '2px 8px', borderRadius: '10px' }}>
-                        Auto-Save ke Database
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Users size={13} color="#0284c7" />
+                      <span style={{ fontSize: '11px', fontWeight: '800', color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        2. Identitas Pelanggan & Alamat
                       </span>
                     </div>
+                    <span style={{
+                      fontSize: '10px',
+                      fontWeight: '800',
+                      padding: '1px 8px',
+                      borderRadius: '4px',
+                      backgroundColor: '#f0fdf4',
+                      color: '#16a34a',
+                      border: '1px solid #bbf7d0'
+                    }}>
+                      Auto-Save Database
+                    </span>
+                  </div>
 
-                    {/* Quick Pick dari Database Master Pelanggan */}
-                    {pelangganList.length > 0 && (
-                      <div style={{ marginBottom: '12px', padding: '10px 12px', borderRadius: '8px', backgroundColor: '#f8fafc', border: '1px dashed #cbd5e1' }}>
-                        <label style={{ fontSize: '10.5px', fontWeight: '700', color: '#64748b', marginBottom: '4px', display: 'block' }}>
-                          ⚡ Pilih dari Master Pelanggan yang Sudah Terdaftar (Opsional):
-                        </label>
-                        <SearchableSelect
-                          value={selectedPelangganId}
-                          onChange={val => {
-                            setSelectedPelangganId(val);
-                            const cust = pelangganList.find(p => String(p.id) === String(val));
-                            if (cust) {
-                              setForm(prev => ({
-                                ...prev,
-                                nama_pembeli: cust.nama_pelanggan || cust.nama || '',
-                                no_telepon: cust.no_hp || cust.telepon || '',
-                                alamat_pengiriman: cust.alamat || ''
-                              }));
-                            }
-                          }}
-                          options={[
-                            { value: '', label: '-- Ketik / Pilih Pelanggan Terdaftar --' },
-                            ...pelangganList.map(p => ({
-                              value: String(p.id),
-                              label: `${p.nama_pelanggan || p.nama} (${p.kode_pelanggan || 'CUST'})`,
-                              subtitle: [p.no_hp, p.alamat].filter(Boolean).join(' · ')
-                            }))
-                          ]}
-                          placeholder="Cari pelanggan terdaftar..."
-                          isClearable={true}
-                          size="sm"
-                        />
-                      </div>
-                    )}
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '12px', marginBottom: '12px' }}>
-                      <div>
-                        <label style={{ fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '5px', display: 'block' }}>
-                          Nama Pelanggan <span style={{ color: '#ef4444' }}>*</span>
-                        </label>
-                        <input
-                          value={form.nama_pembeli}
-                          onChange={e => setForm({ ...form, nama_pembeli: e.target.value })}
-                          placeholder="Masukkan nama lengkap pelanggan..."
-                          style={{
-                            width: '100%', padding: '7px 11px', borderRadius: '7px',
-                            border: '1px solid #cbd5e1', fontSize: '12px', boxSizing: 'border-box'
-                          }}
-                        />
-                      </div>
-                      <div>
-                        <label style={{ fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '5px', display: 'block' }}>
-                          No Telepon / WhatsApp
-                        </label>
-                        <input
-                          value={form.no_telepon}
-                          onChange={e => setForm({ ...form, no_telepon: e.target.value })}
-                          placeholder="08xxxxxxxxxx"
-                          style={{
-                            width: '100%', padding: '7px 11px', borderRadius: '7px',
-                            border: '1px solid #cbd5e1', fontSize: '12px', boxSizing: 'border-box'
-                          }}
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label style={{ fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '5px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <MapPin size={12} color="#ef4444" />
-                        <span>Alamat Lengkap Pengiriman</span>
+                  {/* Quick Pick Master Pelanggan */}
+                  {pelangganList.length > 0 && (
+                    <div style={{
+                      marginBottom: '8px',
+                      padding: '7px 9px',
+                      borderRadius: '6px',
+                      backgroundColor: '#f8fafc',
+                      border: '1px dashed #cbd5e1'
+                    }}>
+                      <label style={{ display: 'block', fontSize: '10px', fontWeight: '700', color: '#64748b', marginBottom: '3px' }}>
+                        ⚡ Pilih dari Master Pelanggan Terdaftar (Opsional):
                       </label>
-                      <textarea
-                        value={form.alamat_pengiriman}
-                        onChange={e => setForm({ ...form, alamat_pengiriman: e.target.value })}
-                        placeholder="Tuliskan nama jalan, no rumah, RT/RW, kelurahan, kecamatan, kota/kab, provinsi & kode pos secara lengkap..."
-                        rows={3}
+                      <SearchableSelect
+                        value={selectedPelangganId}
+                        onChange={val => {
+                          setSelectedPelangganId(val);
+                          const cust = pelangganList.find(p => String(p.id) === String(val));
+                          if (cust) {
+                            setForm(prev => ({
+                              ...prev,
+                              nama_pembeli: cust.nama_pelanggan || cust.nama || '',
+                              no_telepon: cust.no_hp || cust.telepon || '',
+                              alamat_pengiriman: cust.alamat || ''
+                            }));
+                          }
+                        }}
+                        options={[
+                          { value: '', label: '-- Ketik / Pilih Pelanggan Terdaftar --' },
+                          ...pelangganList.map(p => ({
+                            value: String(p.id),
+                            label: `${p.nama_pelanggan || p.nama} (${p.kode_pelanggan || 'CUST'})`,
+                            subtitle: [p.no_hp, p.alamat].filter(Boolean).join(' · ')
+                          }))
+                        ]}
+                        placeholder="Cari pelanggan terdaftar..."
+                        isClearable={true}
+                        size="sm"
+                      />
+                    </div>
+                  )}
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '8px', marginBottom: '8px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '10.5px', fontWeight: '700', color: '#334155', marginBottom: '3px' }}>
+                        Nama Pelanggan <span style={{ color: '#ef4444' }}>*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={form.nama_pembeli}
+                        onChange={e => setForm({ ...form, nama_pembeli: e.target.value })}
+                        placeholder="Nama lengkap pelanggan..."
                         style={{
-                          width: '100%', padding: '8px 11px', borderRadius: '7px',
-                          border: '1px solid #cbd5e1', fontSize: '12px', resize: 'vertical',
-                          boxSizing: 'border-box', lineHeight: '1.4'
+                          width: '100%',
+                          padding: '6px 9px',
+                          borderRadius: '5px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '11.5px',
+                          fontWeight: '600',
+                          color: '#0f172a',
+                          backgroundColor: '#ffffff',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '10.5px', fontWeight: '700', color: '#334155', marginBottom: '3px' }}>
+                        No Telepon / WhatsApp
+                      </label>
+                      <input
+                        type="text"
+                        value={form.no_telepon}
+                        onChange={e => setForm({ ...form, no_telepon: e.target.value })}
+                        placeholder="08xxxxxxxxxx"
+                        style={{
+                          width: '100%',
+                          padding: '6px 9px',
+                          borderRadius: '5px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '11.5px',
+                          fontWeight: '600',
+                          color: '#0f172a',
+                          backgroundColor: '#ffffff',
+                          boxSizing: 'border-box'
                         }}
                       />
                     </div>
                   </div>
 
-                  {/* KARTU 3: CATATAN TAMBAHAN */}
-                  <div style={{
-                    backgroundColor: '#ffffff', borderRadius: '12px', padding: '16px 20px',
-                    border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)'
-                  }}>
-                    <label style={{ fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <FileText size={13} color="#64748b" />
-                      <span>Catatan Khusus Pesanan</span>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '10.5px', fontWeight: '700', color: '#334155', marginBottom: '3px' }}>
+                      Alamat Lengkap Pengiriman
                     </label>
                     <textarea
-                      value={form.catatan}
-                      onChange={e => setForm({ ...form, catatan: e.target.value })}
-                      placeholder="Contoh: Titip ke satpam, sertakan kartu ucapan, bordir nama di saku kiri..."
+                      value={form.alamat_pengiriman}
+                      onChange={e => setForm({ ...form, alamat_pengiriman: e.target.value })}
+                      placeholder="Nama jalan, nomor rumah, RT/RW, kelurahan, kecamatan, kota/kab, provinsi & kode pos..."
                       rows={2}
                       style={{
-                        width: '100%', padding: '7px 11px', borderRadius: '7px',
-                        border: '1px solid #cbd5e1', fontSize: '12px', resize: 'vertical',
+                        width: '100%',
+                        padding: '6px 9px',
+                        borderRadius: '5px',
+                        border: '1px solid #cbd5e1',
+                        fontSize: '11.5px',
+                        fontWeight: '500',
+                        color: '#0f172a',
+                        backgroundColor: '#ffffff',
+                        resize: 'vertical',
                         boxSizing: 'border-box'
                       }}
                     />
                   </div>
-
                 </div>
 
-                {/* ═════════════════════════════════════════════════════════ */}
-                {/* KOLOM KANAN: PRODUK & PEMBAYARAN                        */}
-                {/* ═════════════════════════════════════════════════════════ */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-
-                  {/* KARTU 4: PRODUK PESANAN */}
+                {/* 3. CATATAN KHUSUS PESANAN */}
+                <div style={{
+                  backgroundColor: '#ffffff',
+                  borderRadius: '8px',
+                  border: '1px solid #cbd5e1',
+                  padding: '10px 12px',
+                  boxShadow: '0 1px 2px rgba(0, 0, 0, 0.04)'
+                }}>
                   <div style={{
-                    backgroundColor: '#ffffff', borderRadius: '12px', padding: '18px 20px',
-                    border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)'
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    marginBottom: '8px',
+                    paddingBottom: '5px',
+                    borderBottom: '1px solid #f1f5f9'
                   }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: '1px solid #f1f5f9', paddingBottom: '10px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <div style={{ width: '26px', height: '26px', borderRadius: '6px', backgroundColor: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#d97706' }}>
-                          <Package size={15} />
-                        </div>
-                        <span style={{ fontSize: '13px', fontWeight: '800', color: '#0f172a' }}>Daftar Produk Pesanan</span>
-                      </div>
-                      <span style={{ fontSize: '11px', fontWeight: '700', padding: '2px 8px', borderRadius: '12px', backgroundColor: '#f1f5f9', color: '#475569' }}>
-                        {form.items.length} Macam Item
+                    <FileText size={13} color="#0284c7" />
+                    <span style={{ fontSize: '11px', fontWeight: '800', color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      3. Catatan Khusus Pesanan
+                    </span>
+                  </div>
+                  <textarea
+                    value={form.catatan}
+                    onChange={e => setForm({ ...form, catatan: e.target.value })}
+                    placeholder="Contoh: Titip ke satpam, sertakan kartu ucapan, bordir nama di saku kiri..."
+                    rows={2}
+                    style={{
+                      width: '100%',
+                      padding: '6px 9px',
+                      borderRadius: '5px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '11.5px',
+                      fontWeight: '500',
+                      color: '#0f172a',
+                      backgroundColor: '#ffffff',
+                      resize: 'vertical',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+
+              </div>
+
+              {/* ═════════════════════════════════════════════════════════ */}
+              {/* KOLOM KANAN: PRODUK & PEMBAYARAN                        */}
+              {/* ═════════════════════════════════════════════════════════ */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+
+                {/* 4. DAFTAR PRODUK PESANAN */}
+                <div style={{
+                  backgroundColor: '#ffffff',
+                  borderRadius: '8px',
+                  border: '1px solid #cbd5e1',
+                  padding: '10px 12px',
+                  boxShadow: '0 1px 2px rgba(0, 0, 0, 0.04)'
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: '8px',
+                    paddingBottom: '5px',
+                    borderBottom: '1px solid #f1f5f9'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Package size={13} color="#0284c7" />
+                      <span style={{ fontSize: '11px', fontWeight: '800', color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        4. Daftar Produk Pesanan
                       </span>
                     </div>
+                    <span style={{
+                      fontSize: '10px',
+                      fontWeight: '800',
+                      padding: '1px 8px',
+                      borderRadius: '4px',
+                      backgroundColor: '#f0f9ff',
+                      color: '#0284c7',
+                      border: '1px solid #bae6fd'
+                    }}>
+                      {form.items.length} Macam Item
+                    </span>
+                  </div>
 
-                    {/* Autocomplete Input */}
-                    <div style={{ position: 'relative', marginBottom: '12px' }}>
-                      <input
-                        value={produkSearch}
-                        onChange={e => { setProdukSearch(e.target.value); setShowProdukDropdown(true); }}
-                        onFocus={() => produkSearch && setShowProdukDropdown(true)}
-                        placeholder="🔍 Ketik SKU atau nama produk untuk menambahkan..."
-                        style={{
-                          width: '100%', padding: '9px 12px 9px 36px', borderRadius: '8px',
-                          border: '1px solid #38bdf8', fontSize: '12px', boxSizing: 'border-box',
-                          outline: 'none', backgroundColor: '#f0f9ff'
-                        }}
-                      />
-                      <Search size={15} color="#0284c7" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+                  {/* Autocomplete Input */}
+                  <div style={{ position: 'relative', marginBottom: '8px' }}>
+                    <Search size={13} color="#0284c7" style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)' }} />
+                    <input
+                      value={produkSearch}
+                      onChange={e => { setProdukSearch(e.target.value); setShowProdukDropdown(true); }}
+                      onFocus={() => produkSearch && setShowProdukDropdown(true)}
+                      placeholder="Cari SKU atau nama produk untuk menambahkan..."
+                      style={{
+                        width: '100%',
+                        padding: '6px 9px 6px 28px',
+                        borderRadius: '5px',
+                        border: '1px solid #cbd5e1',
+                        fontSize: '11.5px',
+                        fontWeight: '600',
+                        backgroundColor: '#f8fafc',
+                        outline: 'none',
+                        boxSizing: 'border-box'
+                      }}
+                    />
 
-                      {showProdukDropdown && filteredProduk.length > 0 && (
-                        <div style={{
-                          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 1000,
-                          backgroundColor: '#fff', border: '1px solid #cbd5e1', borderRadius: '8px',
-                          boxShadow: '0 12px 30px rgba(0,0,0,0.15)', maxHeight: '240px', overflowY: 'auto',
-                          marginTop: '4px'
-                        }}>
-                          {filteredProduk.map((p, i) => (
-                            <div
-                              key={i}
-                              onClick={() => addItem(p)}
-                              style={{
-                                padding: '9px 14px', cursor: 'pointer', borderBottom: '1px solid #f1f5f9',
-                                fontSize: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center'
-                              }}
-                              onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f0fdf4'}
-                              onMouseLeave={e => e.currentTarget.style.backgroundColor = '#fff'}
-                            >
-                              <div style={{ overflow: 'hidden', paddingRight: '8px' }}>
-                                <div style={{ fontWeight: '700', color: '#0f172a' }}>{p.kode_sku || 'NO-SKU'}</div>
-                                <div style={{ fontSize: '11px', color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                  {p.nama_produk}
-                                </div>
+                    {showProdukDropdown && filteredProduk.length > 0 && (
+                      <div style={{
+                        position: 'absolute',
+                        top: '100%',
+                        left: 0,
+                        right: 0,
+                        zIndex: 3500,
+                        backgroundColor: '#ffffff',
+                        border: '1px solid #cbd5e1',
+                        borderRadius: '6px',
+                        boxShadow: '0 12px 24px -4px rgba(0, 0, 0, 0.22)',
+                        maxHeight: '220px',
+                        overflowY: 'auto',
+                        marginTop: '4px'
+                      }}>
+                        {filteredProduk.map((p, i) => (
+                          <div
+                            key={i}
+                            onClick={() => addItem(p)}
+                            style={{
+                              padding: '7px 10px',
+                              cursor: 'pointer',
+                              borderBottom: '1px solid #f1f5f9',
+                              fontSize: '11.5px',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              transition: 'background-color 0.1s'
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f0f9ff'}
+                            onMouseLeave={e => e.currentTarget.style.backgroundColor = '#ffffff'}
+                          >
+                            <div style={{ overflow: 'hidden', paddingRight: '8px' }}>
+                              <div style={{ fontWeight: '700', color: '#0284c7', fontFamily: 'monospace' }}>
+                                {p.kode_sku || 'NO-SKU'}
                               </div>
-                              <div style={{ fontWeight: '800', color: '#16a34a', flexShrink: 0 }}>
-                                {formatRupiah(p.harga_jual)}
+                              <div style={{ fontSize: '11px', color: '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {p.nama_produk}
                               </div>
                             </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Table Item List */}
-                    {form.items.length === 0 ? (
-                      <div style={{
-                        padding: '24px 16px', textAlign: 'center', borderRadius: '8px',
-                        border: '2px dashed #cbd5e1', backgroundColor: '#f8fafc', color: '#94a3b8'
-                      }}>
-                        <Package size={28} color="#cbd5e1" style={{ margin: '0 auto 6px auto', display: 'block' }} />
-                        <span style={{ fontSize: '12px', fontWeight: '600' }}>Belum ada produk yang ditambahkan</span>
-                        <div style={{ fontSize: '10.5px', marginTop: '2px' }}>Gunakan kotak pencarian di atas untuk memasukkan barang</div>
-                      </div>
-                    ) : (
-                      <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden', marginBottom: '10px' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11.5px' }}>
-                          <thead>
-                            <tr style={{ backgroundColor: '#f8fafc', color: '#475569', fontSize: '10.5px', fontWeight: '800', textTransform: 'uppercase' }}>
-                              <th style={{ padding: '8px 10px', textAlign: 'left', borderBottom: '1px solid #e2e8f0' }}>Produk</th>
-                              <th style={{ padding: '8px 6px', textAlign: 'center', width: '55px', borderBottom: '1px solid #e2e8f0' }}>Qty</th>
-                              <th style={{ padding: '8px 8px', textAlign: 'right', width: '90px', borderBottom: '1px solid #e2e8f0' }}>Harga</th>
-                              <th style={{ padding: '8px 10px', textAlign: 'right', width: '90px', borderBottom: '1px solid #e2e8f0' }}>Subtotal</th>
-                              <th style={{ padding: '8px 6px', textAlign: 'center', width: '36px', borderBottom: '1px solid #e2e8f0' }}></th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {form.items.map((it, idx) => (
-                              <tr key={idx} style={{ borderBottom: idx < form.items.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
-                                <td style={{ padding: '8px 10px' }}>
-                                  <div style={{ fontWeight: '700', color: '#0f172a' }}>{it.sku || '-'}</div>
-                                  <div style={{ fontSize: '10.5px', color: '#64748b' }}>{it.nama_produk}</div>
-                                </td>
-                                <td style={{ padding: '8px 6px', textAlign: 'center' }}>
-                                  <input
-                                    type="number"
-                                    value={it.qty}
-                                    min={1}
-                                    onChange={e => updateItem(idx, 'qty', Number(e.target.value))}
-                                    style={{
-                                      width: '46px', textAlign: 'center', border: '1px solid #cbd5e1',
-                                      borderRadius: '5px', padding: '3px 0', fontSize: '12px', fontWeight: '700'
-                                    }}
-                                  />
-                                </td>
-                                <td style={{ padding: '8px 8px', textAlign: 'right' }}>
-                                  <input
-                                    type="number"
-                                    value={it.harga_satuan}
-                                    onChange={e => updateItem(idx, 'harga_satuan', Number(e.target.value))}
-                                    style={{
-                                      width: '84px', textAlign: 'right', border: '1px solid #cbd5e1',
-                                      borderRadius: '5px', padding: '3px 4px', fontSize: '11.5px', fontWeight: '600'
-                                    }}
-                                  />
-                                </td>
-                                <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: '800', color: '#0f172a' }}>
-                                  {formatRupiah(it.harga_satuan * it.qty)}
-                                </td>
-                                <td style={{ padding: '8px 6px', textAlign: 'center' }}>
-                                  <button
-                                    type="button"
-                                    onClick={() => removeItem(idx)}
-                                    title="Hapus baris"
-                                    style={{
-                                      background: 'none', border: 'none', cursor: 'pointer',
-                                      color: '#ef4444', padding: '4px', borderRadius: '4px'
-                                    }}
-                                  >
-                                    <Trash2 size={13} />
-                                  </button>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                            <div style={{ fontWeight: '800', color: '#16a34a', flexShrink: 0 }}>
+                              {formatRupiah(p.harga_jual)}
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     )}
                   </div>
 
-                  {/* KARTU 5: PEMBAYARAN & RINGKASAN BIAYA */}
-                  <div style={{
-                    backgroundColor: '#ffffff', borderRadius: '12px', padding: '18px 20px',
-                    border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px', borderBottom: '1px solid #f1f5f9', paddingBottom: '10px' }}>
-                      <div style={{ width: '26px', height: '26px', borderRadius: '6px', backgroundColor: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#16a34a' }}>
-                        <CreditCard size={15} />
-                      </div>
-                      <span style={{ fontSize: '13px', fontWeight: '800', color: '#0f172a' }}>Metode & Status Pembayaran</span>
-                    </div>
-
-                    {/* Metode & Status Dropdown */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
-                      <div>
-                        <label style={{ fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '5px', display: 'block' }}>
-                          Metode Bayar
-                        </label>
-                        <SearchableSelect
-                          value={form.metode_pembayaran}
-                          onChange={val => setForm({ ...form, metode_pembayaran: val })}
-                          options={BAYAR_OPTIONS}
-                          placeholder="Metode Bayar"
-                        />
-                      </div>
-                      <div>
-                        <label style={{ fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '5px', display: 'block' }}>
-                          Status Pembayaran
-                        </label>
-                        <SearchableSelect
-                          value={form.status_pembayaran}
-                          onChange={val => setForm({ ...form, status_pembayaran: val })}
-                          options={[
-                            { value: 'belum_bayar', label: 'Belum Bayar', color: '#ef4444' },
-                            { value: 'dp', label: 'DP (Uang Muka)', color: '#f59e0b' },
-                            { value: 'lunas', label: 'Lunas', color: '#10b981' }
-                          ]}
-                          placeholder="Status Bayar"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Diskon & Ongkir (Bila ada) */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
-                      <div>
-                        <label style={{ fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '5px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <Tag size={12} color="#f59e0b" />
-                          <span>Potongan Diskon (Rp)</span>
-                        </label>
-                        <input
-                          type="number"
-                          value={form.diskon}
-                          onChange={e => setForm({ ...form, diskon: Number(e.target.value) })}
-                          placeholder="0"
-                          style={{
-                            width: '100%', padding: '7px 11px', borderRadius: '7px',
-                            border: '1px solid #cbd5e1', fontSize: '12px', boxSizing: 'border-box'
-                          }}
-                        />
-                      </div>
-                      <div>
-                        <label style={{ fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '5px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <Truck size={12} color="#0284c7" />
-                          <span>Ongkos Kirim (Rp)</span>
-                        </label>
-                        <input
-                          type="number"
-                          value={form.ongkir}
-                          onChange={e => setForm({ ...form, ongkir: Number(e.target.value) })}
-                          placeholder="0"
-                          style={{
-                            width: '100%', padding: '7px 11px', borderRadius: '7px',
-                            border: '1px solid #cbd5e1', fontSize: '12px', boxSizing: 'border-box'
-                          }}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Grand Total Highlight Box */}
+                  {/* Table Item List */}
+                  {form.items.length === 0 ? (
                     <div style={{
-                      padding: '14px 18px', borderRadius: '10px',
-                      background: 'linear-gradient(135deg, #090d16 0%, #0f172a 45%, #1e293b 100%)',
-                      color: '#ffffff', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                      boxShadow: '0 4px 14px rgba(0,0,0,0.15)'
+                      padding: '18px 12px',
+                      textAlign: 'center',
+                      borderRadius: '6px',
+                      border: '1px dashed #cbd5e1',
+                      backgroundColor: '#f8fafc',
+                      color: '#94a3b8'
                     }}>
-                      <div>
-                        <div style={{ fontSize: '11px', color: '#94a3b8' }}>
-                          Subtotal {formatRupiah(subtotal)} {Number(form.diskon) > 0 ? ` - Diskon ${formatRupiah(form.diskon)}` : ''} {Number(form.ongkir) > 0 ? ` + Ongkir ${formatRupiah(form.ongkir)}` : ''}
-                        </div>
-                        <div style={{ fontSize: '11px', color: '#38bdf8', fontWeight: '600', marginTop: '2px' }}>
-                          Total Tagihan Pembeli:
-                        </div>
-                      </div>
-                      <div style={{ fontSize: '20px', fontWeight: '900', color: '#4ade80', letterSpacing: '-0.02em' }}>
-                        {formatRupiah(totalHarga)}
-                      </div>
+                      <Package size={22} color="#94a3b8" style={{ margin: '0 auto 4px auto', display: 'block' }} />
+                      <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748b' }}>Belum ada produk yang ditambahkan</span>
+                      <div style={{ fontSize: '10px', marginTop: '2px' }}>Gunakan kotak pencarian di atas untuk memasukkan barang</div>
+                    </div>
+                  ) : (
+                    <div style={{ border: '1px solid #cbd5e1', borderRadius: '6px', overflow: 'hidden' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11.5px' }}>
+                        <thead>
+                          <tr style={{ backgroundColor: '#f8fafc', color: '#334155', fontSize: '10px', fontWeight: '800', textTransform: 'uppercase' }}>
+                            <th style={{ padding: '6px 8px', textAlign: 'left', borderBottom: '1px solid #cbd5e1' }}>PRODUK</th>
+                            <th style={{ padding: '6px 6px', textAlign: 'center', width: '50px', borderBottom: '1px solid #cbd5e1' }}>QTY</th>
+                            <th style={{ padding: '6px 8px', textAlign: 'right', width: '85px', borderBottom: '1px solid #cbd5e1' }}>HARGA</th>
+                            <th style={{ padding: '6px 8px', textAlign: 'right', width: '85px', borderBottom: '1px solid #cbd5e1' }}>SUBTOTAL</th>
+                            <th style={{ padding: '6px 4px', textAlign: 'center', width: '28px', borderBottom: '1px solid #cbd5e1' }}></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {form.items.map((it, idx) => (
+                            <tr key={idx} style={{ borderBottom: idx < form.items.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
+                              <td style={{ padding: '6px 8px' }}>
+                                <div style={{ fontWeight: '700', color: '#0284c7', fontFamily: 'monospace', fontSize: '11px' }}>
+                                  {it.sku || '-'}
+                                </div>
+                                <div style={{ fontSize: '10.5px', color: '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '180px' }}>
+                                  {it.nama_produk}
+                                </div>
+                              </td>
+                              <td style={{ padding: '6px 4px', textAlign: 'center' }}>
+                                <input
+                                  type="number"
+                                  value={it.qty}
+                                  min={1}
+                                  onChange={e => updateItem(idx, 'qty', Number(e.target.value))}
+                                  style={{
+                                    width: '42px',
+                                    textAlign: 'center',
+                                    border: '1px solid #cbd5e1',
+                                    borderRadius: '4px',
+                                    padding: '3px 0',
+                                    fontSize: '11.5px',
+                                    fontWeight: '700',
+                                    color: '#0f172a'
+                                  }}
+                                />
+                              </td>
+                              <td style={{ padding: '6px 6px', textAlign: 'right' }}>
+                                <input
+                                  type="number"
+                                  value={it.harga_satuan}
+                                  onChange={e => updateItem(idx, 'harga_satuan', Number(e.target.value))}
+                                  style={{
+                                    width: '80px',
+                                    textAlign: 'right',
+                                    border: '1px solid #cbd5e1',
+                                    borderRadius: '4px',
+                                    padding: '3px 4px',
+                                    fontSize: '11px',
+                                    fontWeight: '600',
+                                    color: '#0f172a'
+                                  }}
+                                />
+                              </td>
+                              <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: '800', color: '#0f172a' }}>
+                                {formatRupiah(it.harga_satuan * it.qty)}
+                              </td>
+                              <td style={{ padding: '6px 4px', textAlign: 'center' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => removeItem(idx)}
+                                  title="Hapus baris"
+                                  style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    color: '#ef4444',
+                                    padding: '2px',
+                                    borderRadius: '4px',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center'
+                                  }}
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+                {/* 5. METODE & STATUS PEMBAYARAN */}
+                <div style={{
+                  backgroundColor: '#ffffff',
+                  borderRadius: '8px',
+                  border: '1px solid #cbd5e1',
+                  padding: '10px 12px',
+                  boxShadow: '0 1px 2px rgba(0, 0, 0, 0.04)'
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    marginBottom: '8px',
+                    paddingBottom: '5px',
+                    borderBottom: '1px solid #f1f5f9'
+                  }}>
+                    <CreditCard size={13} color="#0284c7" />
+                    <span style={{ fontSize: '11px', fontWeight: '800', color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      5. Metode & Status Pembayaran
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '10.5px', fontWeight: '700', color: '#334155', marginBottom: '3px' }}>
+                        Metode Bayar
+                      </label>
+                      <SearchableSelect
+                        value={form.metode_pembayaran}
+                        onChange={val => setForm({ ...form, metode_pembayaran: val })}
+                        options={BAYAR_OPTIONS}
+                        placeholder="Metode Bayar"
+                        size="sm"
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '10.5px', fontWeight: '700', color: '#334155', marginBottom: '3px' }}>
+                        Status Pembayaran
+                      </label>
+                      <SearchableSelect
+                        value={form.status_pembayaran}
+                        onChange={val => setForm({ ...form, status_pembayaran: val })}
+                        options={[
+                          { value: 'belum_bayar', label: 'Belum Bayar', color: '#ef4444' },
+                          { value: 'dp', label: 'DP (Uang Muka)', color: '#f59e0b' },
+                          { value: 'lunas', label: 'Lunas', color: '#10b981' }
+                        ]}
+                        placeholder="Status Bayar"
+                        size="sm"
+                      />
                     </div>
                   </div>
 
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '10px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '10.5px', fontWeight: '700', color: '#334155', marginBottom: '3px' }}>
+                        Potongan Diskon (Rp)
+                      </label>
+                      <input
+                        type="number"
+                        value={form.diskon}
+                        onChange={e => setForm({ ...form, diskon: Number(e.target.value) })}
+                        placeholder="0"
+                        style={{
+                          width: '100%',
+                          padding: '6px 9px',
+                          borderRadius: '5px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '11.5px',
+                          fontWeight: '600',
+                          color: '#0f172a',
+                          backgroundColor: '#ffffff',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '10.5px', fontWeight: '700', color: '#334155', marginBottom: '3px' }}>
+                        Ongkos Kirim (Rp)
+                      </label>
+                      <input
+                        type="number"
+                        value={form.ongkir}
+                        onChange={e => setForm({ ...form, ongkir: Number(e.target.value) })}
+                        placeholder="0"
+                        style={{
+                          width: '100%',
+                          padding: '6px 9px',
+                          borderRadius: '5px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '11.5px',
+                          fontWeight: '600',
+                          color: '#0f172a',
+                          backgroundColor: '#ffffff',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Grand Total Highlight Box */}
+                  <div style={{
+                    padding: '8px 12px',
+                    borderRadius: '6px',
+                    background: 'linear-gradient(135deg, #090d16 0%, #0f172a 50%, #1e293b 100%)',
+                    border: '1px solid #334155',
+                    color: '#ffffff',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}>
+                    <div>
+                      <div style={{ fontSize: '10.5px', color: '#94a3b8' }}>
+                        Subtotal {formatRupiah(subtotal)} {Number(form.diskon) > 0 ? ` - Diskon ${formatRupiah(form.diskon)}` : ''} {Number(form.ongkir) > 0 ? ` + Ongkir ${formatRupiah(form.ongkir)}` : ''}
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#38bdf8', fontWeight: '700', marginTop: '1px' }}>
+                        Total Tagihan Pelanggan:
+                      </div>
+                    </div>
+                    <div style={{ fontSize: '18px', fontWeight: '900', color: '#4ade80', letterSpacing: '-0.02em' }}>
+                      {formatRupiah(totalHarga)}
+                    </div>
+                  </div>
                 </div>
 
               </div>
+
             </div>
 
-            {/* Footer Buttons */}
+            {/* Bottom Sticky Action Toolbar */}
             <div style={{
-              display: 'flex', gap: '10px', justifyContent: 'flex-end',
-              padding: isFullScreen ? '14px 36px' : '14px 24px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '8px 14px',
               backgroundColor: '#ffffff',
-              borderTop: '1px solid #e2e8f0',
+              borderRadius: '8px',
+              border: '1px solid #cbd5e1',
+              marginTop: '10px',
+              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)',
               flexShrink: 0
             }}>
-              <button
-                type="button"
-                onClick={() => setShowForm(false)}
-                style={{
-                  padding: '9px 20px', borderRadius: '8px', border: '1px solid #cbd5e1',
-                  backgroundColor: '#ffffff', color: '#475569', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer'
-                }}
-              >
-                Batal
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSubmit(true)}
-                style={{
-                  padding: '9px 20px', borderRadius: '8px', border: '1px solid #94a3b8',
-                  backgroundColor: '#f8fafc', color: '#334155', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer'
-                }}
-              >
-                Simpan Draft
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSubmit(false)}
-                style={{
-                  padding: '9px 24px', borderRadius: '8px', border: 'none',
-                  background: 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)',
-                  color: '#ffffff', fontSize: '12.5px', fontWeight: '800', cursor: 'pointer',
-                  boxShadow: '0 2px 10px rgba(22,163,74,0.35)'
-                }}
-              >
-                Konfirmasi Pesanan
-              </button>
+              <div style={{ fontSize: '11px', color: '#64748b' }}>
+                <span style={{ color: '#ef4444', fontWeight: '800' }}>*</span> Pastikan seluruh data pesanan & pelanggan terisi benar sebelum disimpan
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowForm(false)}
+                  style={{
+                    height: '28px',
+                    padding: '0 14px',
+                    borderRadius: '5px',
+                    border: '1px solid #cbd5e1',
+                    backgroundColor: '#ffffff',
+                    color: '#64748b',
+                    fontSize: '11.5px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#ffffff'}
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSubmit(true)}
+                  style={{
+                    height: '28px',
+                    padding: '0 14px',
+                    borderRadius: '5px',
+                    border: '1px solid #94a3b8',
+                    backgroundColor: '#f8fafc',
+                    color: '#334155',
+                    fontSize: '11.5px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}
+                >
+                  Simpan Draft
+                </button>
+                <button
+                  type="submit"
+                  style={{
+                    height: '28px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    padding: '0 16px',
+                    borderRadius: '5px',
+                    border: 'none',
+                    backgroundColor: '#0284c7',
+                    color: '#ffffff',
+                    fontSize: '11.5px',
+                    fontWeight: '800',
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 4px rgba(2, 132, 199, 0.35)',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#0369a1'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#0284c7'}
+                >
+                  <Save size={13} />
+                  <span>Konfirmasi Pesanan</span>
+                </button>
+              </div>
             </div>
-          </div>
+
+          </form>
         </div>
       )}
 
