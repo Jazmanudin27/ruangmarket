@@ -519,35 +519,74 @@ export class ShopeeService {
   }
 
   // 6. Mendapatkan Daftar Order SN Shopee
+  // Shopee API membatasi time_from - time_to maksimal 15 hari per request.
+  // Untuk historical pull, kita bagi menjadi beberapa window 15-hari + paginasi per window.
   async getOrderList(shopId, accessToken, pageSize = 50, days = 14) {
-    const path = '/api/v2/order/get_order_list';
-    const timestamp = Math.floor(Date.now() / 1000);
     const sId = String(shopId);
-    const sign = this.generateSignature(path, timestamp, accessToken, sId);
+    const nowTs = Math.floor(Date.now() / 1000);
+    const WINDOW = 15 * 86400; // maks 15 hari per request (batasan Shopee)
 
-    const timeTo = timestamp;
-    const timeFrom = timestamp - days * 86400; // rentang hari (default 14)
-
-    const query = new URLSearchParams({
-      partner_id: this.partnerId,
-      timestamp,
-      access_token: accessToken,
-      shop_id: sId,
-      sign,
-      time_range_field: 'create_time',
-      time_from: timeFrom,
-      time_to: timeTo,
-      page_size: pageSize
-    });
-
-    const url = `${this.baseUrl}${path}?${query.toString()}`;
-    const res = await this.requestGet(url);
-
-    if (res.error && res.error !== '') {
-      throw new Error(`Shopee Order List Error: ${res.message || res.error}`);
+    // Bagi rentang total menjadi windows 15-hari dari awal → sekarang
+    const windows = [];
+    let winEnd = nowTs;
+    const totalFrom = nowTs - days * 86400;
+    while (winEnd > totalFrom) {
+      const winStart = Math.max(winEnd - WINDOW, totalFrom);
+      windows.push({ from: winStart, to: winEnd });
+      winEnd = winStart;
     }
 
-    return res.response?.order_list || [];
+    const allOrderSns = new Map(); // deduplikasi by order_sn
+
+    for (const win of windows) {
+      let cursor = '';
+      let hasNext = true;
+
+      while (hasNext) {
+        const path = '/api/v2/order/get_order_list';
+        const ts = Math.floor(Date.now() / 1000);
+        const sign = this.generateSignature(path, ts, accessToken, sId);
+
+        const params = {
+          partner_id: this.partnerId,
+          timestamp: ts,
+          access_token: accessToken,
+          shop_id: sId,
+          sign,
+          time_range_field: 'create_time',
+          time_from: win.from,
+          time_to: win.to,
+          page_size: pageSize
+        };
+        if (cursor) params.cursor = cursor;
+
+        const query = new URLSearchParams(params);
+        const url = `${this.baseUrl}${path}?${query.toString()}`;
+        const res = await this.requestGet(url);
+
+        if (res.error && res.error !== '') {
+          console.warn(`[Shopee] getOrderList window error: ${res.message || res.error}`);
+          break;
+        }
+
+        const orders = res.response?.order_list || [];
+        for (const o of orders) {
+          if (o.order_sn) allOrderSns.set(o.order_sn, o);
+        }
+
+        hasNext = res.response?.more === true;
+        cursor = res.response?.next_cursor || '';
+        if (!cursor) hasNext = false;
+
+        // Jeda kecil antar halaman agar tidak rate-limit
+        if (hasNext) await new Promise(r => setTimeout(r, 200));
+      }
+
+      // Jeda antar window
+      await new Promise(r => setTimeout(r, 300));
+    }
+
+    return Array.from(allOrderSns.values());
   }
 
   // 7. Mendapatkan Detail Lengkap Order (Status, Buyer, Total, Items, Escrow, Shipping)
@@ -607,6 +646,7 @@ export class ShopeeService {
   // 8. Sinkronisasi Pesanan Shopee Lengkap dengan Finansial & HPP
   async syncOrders(shopId, accessToken, fallbackShopName = 'Koperasi Sahabat Anak Bangsa', days = 14) {
     const sId = String(shopId);
+    const isHistorical = days > 14; // historical = skip escrow (terlalu lambat untuk ratusan pesanan)
     const orderList = await this.getOrderList(sId, accessToken, 50, days);
     if (!orderList || orderList.length === 0) return [];
 
@@ -616,12 +656,14 @@ export class ShopeeService {
       const batchSns = orderSns.slice(i, i + 50);
       const batchDetails = await this.getOrderDetail(sId, accessToken, batchSns);
       details = details.concat(batchDetails);
+      // Jeda antar batch detail agar tidak rate-limit
+      if (i + 50 < orderSns.length) await new Promise(r => setTimeout(r, 500));
     }
 
-    // Ambil escrow detail untuk tiap pesanan
+    // Ambil escrow detail — skip untuk historical (terlalu lambat untuk ratusan pesanan)
     const orders = [];
     for (const d of details) {
-      const escrow = await this.getEscrowDetail(sId, accessToken, d.order_sn);
+      const escrow = isHistorical ? null : await this.getEscrowDetail(sId, accessToken, d.order_sn);
 
       const items = (d.item_list || []).map(it => {
         const cleanSku = it.model_sku || it.item_sku || `SKU-${it.item_id}`;
