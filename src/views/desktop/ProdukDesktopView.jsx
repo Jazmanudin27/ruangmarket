@@ -489,11 +489,11 @@ export default function ProdukView() {
     return null;
   };
 
-  const handleDownloadTemplate = (format = 'xlsx') => {
+  const handleDownloadTemplate = (type = 'sample') => {
     setIsTemplateMenuOpen(false);
     const link = document.createElement('a');
-    link.href = `/api/marketplace/master/template?format=${format}`;
-    link.setAttribute('download', format === 'csv' ? 'template_master_produk.csv' : 'template_import_master_produk.xlsx');
+    link.href = `/api/marketplace/master/template?format=xlsx&type=${type}`;
+    link.setAttribute('download', type === 'data' ? 'data_master_produk_aplikasi.xlsx' : 'template_contoh_master_produk.xlsx');
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -4506,7 +4506,7 @@ export default function ProdukView() {
 
               {!importResult ? (
                 <>
-                  {/* Download Template Bar */}
+                  {/* Download Template Bar (2 Opsi: Sesuai Aplikasi vs Contoh) */}
                   <div style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -4514,154 +4514,74 @@ export default function ProdukView() {
                     padding: '8px 12px',
                     borderRadius: '8px',
                     backgroundColor: '#ecfdf5',
-                    border: '1px solid #a7f3d0'
+                    border: '1px solid #a7f3d0',
+                    flexWrap: 'wrap',
+                    gap: '8px'
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <HelpCircle size={16} color="#059669" />
-                      <span style={{ fontSize: '11.5px', fontWeight: '600', color: '#065f46' }}>
-                        Perlu file acuan atau daftar SKU Kain terkini?
+                      <span style={{ fontSize: '11.5px', fontWeight: '700', color: '#065f46' }}>
+                        Pilihan File Acuan Excel (.xlsx):
                       </span>
                     </div>
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                      {/* Opsi 1: Unduh Data Produk Aplikasi (Full Data) */}
                       <button
                         type="button"
-                        onClick={() => setShowKainRefTable(prev => !prev)}
+                        onClick={() => handleDownloadTemplate('data')}
+                        title="Unduh seluruh data produk master yang ada di aplikasi saat ini untuk diedit/update masal"
                         style={{
-                          height: '26px',
+                          height: '28px',
                           display: 'inline-flex',
                           alignItems: 'center',
-                          gap: '5px',
-                          padding: '0 10px',
-                          borderRadius: '5px',
-                          border: showKainRefTable ? '1px solid #0284c7' : '1px solid #059669',
-                          backgroundColor: showKainRefTable ? '#e0f2fe' : '#ffffff',
-                          color: showKainRefTable ? '#0284c7' : '#059669',
+                          gap: '6px',
+                          padding: '0 12px',
+                          borderRadius: '6px',
+                          border: '1px solid #059669',
+                          backgroundColor: '#059669',
+                          color: '#ffffff',
                           fontSize: '11px',
-                          fontWeight: '700',
-                          cursor: 'pointer'
+                          fontWeight: '800',
+                          cursor: 'pointer',
+                          boxShadow: '0 1px 3px rgba(5, 150, 105, 0.25)',
+                          transition: 'all 0.15s ease'
                         }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#047857'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#059669'}
                       >
-                        <Layers size={12} />
-                        <span>{showKainRefTable ? 'Sembunyikan Tabel Kain' : `Tabel Master Kain (${kainOptions.length})`}</span>
+                        <FileSpreadsheet size={13} />
+                        <span>Unduh Data Sesuai Aplikasi (.xlsx)</span>
                       </button>
+
+                      {/* Opsi 2: Unduh Template Contoh (Sample) */}
                       <button
                         type="button"
-                        onClick={() => handleDownloadTemplate('xlsx')}
+                        onClick={() => handleDownloadTemplate('sample')}
+                        title="Unduh file format standar dengan beberapa baris contoh untuk input produk baru"
                         style={{
-                          height: '26px',
+                          height: '28px',
                           display: 'inline-flex',
                           alignItems: 'center',
-                          gap: '5px',
-                          padding: '0 10px',
-                          borderRadius: '5px',
+                          gap: '6px',
+                          padding: '0 12px',
+                          borderRadius: '6px',
                           border: '1px solid #059669',
                           backgroundColor: '#ffffff',
                           color: '#059669',
                           fontSize: '11px',
-                          fontWeight: '700',
-                          cursor: 'pointer'
+                          fontWeight: '800',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease'
                         }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f0fdf4'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#ffffff'}
                       >
-                        <Download size={12} />
-                        <span>Unduh Excel (.xlsx)</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDownloadTemplate('csv')}
-                        style={{
-                          height: '26px',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '5px',
-                          padding: '0 10px',
-                          borderRadius: '5px',
-                          border: '1px solid #059669',
-                          backgroundColor: '#ffffff',
-                          color: '#059669',
-                          fontSize: '11px',
-                          fontWeight: '700',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        <Download size={12} />
-                        <span>Unduh CSV</span>
+                        <Download size={13} />
+                        <span>Unduh Template Contoh (.xlsx)</span>
                       </button>
                     </div>
                   </div>
-
-                  {/* TABEL REFERENSI MASTER KAIN (HARGA PER METER) */}
-                  {showKainRefTable && (
-                    <div style={{
-                      backgroundColor: '#f8fafc',
-                      borderRadius: '8px',
-                      border: '1.5px solid #38bdf8',
-                      padding: '10px 12px',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '8px',
-                      boxShadow: '0 2px 4px rgba(2, 132, 199, 0.08)'
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <Layers size={15} color="#0284c7" />
-                          <span style={{ fontSize: '12px', fontWeight: '800', color: '#0369a1' }}>
-                            Tabel Referensi Master Kain (Harga Per Meter & Per CM)
-                          </span>
-                        </div>
-                        <input
-                          type="text"
-                          placeholder="Cari SKU / nama kain..."
-                          value={kainRefSearch}
-                          onChange={(e) => setKainRefSearch(e.target.value)}
-                          style={{
-                            height: '24px',
-                            padding: '2px 8px',
-                            fontSize: '11px',
-                            borderRadius: '4px',
-                            border: '1px solid #cbd5e1',
-                            width: '180px'
-                          }}
-                        />
-                      </div>
-
-                      <div style={{ maxHeight: '180px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '6px' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', backgroundColor: '#ffffff' }}>
-                          <thead>
-                            <tr style={{ backgroundColor: '#f1f5f9', color: '#475569', position: 'sticky', top: 0, zIndex: 1 }}>
-                              <th style={{ padding: '4px 8px', textAlign: 'center', width: '30px', borderBottom: '1px solid #cbd5e1' }}>No</th>
-                              <th style={{ padding: '4px 8px', textAlign: 'left', width: '130px', borderBottom: '1px solid #cbd5e1' }}>Kode SKU Kain</th>
-                              <th style={{ padding: '4px 8px', textAlign: 'left', borderBottom: '1px solid #cbd5e1' }}>Nama Kain</th>
-                              <th style={{ padding: '4px 8px', textAlign: 'left', width: '120px', borderBottom: '1px solid #cbd5e1' }}>Jenis / Warna</th>
-                              <th style={{ padding: '4px 8px', textAlign: 'right', width: '120px', borderBottom: '1px solid #cbd5e1' }}>Harga / Meter</th>
-                              <th style={{ padding: '4px 8px', textAlign: 'right', width: '100px', borderBottom: '1px solid #cbd5e1' }}>Harga / CM</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {kainOptions
-                              .filter(k => {
-                                if (!kainRefSearch.trim()) return true;
-                                const q = kainRefSearch.toLowerCase();
-                                return (k.sku || '').toLowerCase().includes(q) || (k.nama_kain || '').toLowerCase().includes(q);
-                              })
-                              .map((k, idx) => (
-                                <tr key={k.sku || idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                                  <td style={{ padding: '4px 8px', textAlign: 'center', color: '#94a3b8' }}>{idx + 1}</td>
-                                  <td style={{ padding: '4px 8px', fontFamily: 'monospace', fontWeight: '800', color: '#0284c7' }}>{k.sku}</td>
-                                  <td style={{ padding: '4px 8px', color: '#1e293b', fontWeight: '600' }}>{k.nama_kain}</td>
-                                  <td style={{ padding: '4px 8px', color: '#64748b' }}>{k.jenis_kain || '-'} / {k.warna || '-'}</td>
-                                  <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: '800', color: '#059669' }}>
-                                    Rp {Number(k.harga_per_meter || 0).toLocaleString('id-ID')} / m
-                                  </td>
-                                  <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: '700', color: '#0284c7' }}>
-                                    Rp {Number(k.harga_kain_cm || Math.round((k.harga_per_meter || 0) / 100)).toLocaleString('id-ID')} / cm
-                                  </td>
-                                </tr>
-                              ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )}
 
                   {/* Dropzone Upload */}
                   <input

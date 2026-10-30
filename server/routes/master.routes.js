@@ -7,6 +7,7 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
   if ((pathname === '/api/produk/master/template' || pathname === '/api/marketplace/master/template') && req.method === 'GET') {
     try {
       const format = (urlObj.searchParams.get('format') || 'xlsx').toLowerCase();
+      const type = (urlObj.searchParams.get('type') || 'sample').toLowerCase();
       const templateHeaders = [
         'kode_sku',
         'nama_produk',
@@ -71,12 +72,44 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
         }
       ];
 
+      // Jika type === 'data' / 'aplikasi', ambil seluruh data master produk dari DB
+      let exportRows = sampleData;
+      const isFullData = (type === 'data' || type === 'current' || type === 'aplikasi');
+
+      if (isFullData) {
+        const [appProducts] = await pool.query(`
+          SELECT 
+            kode_sku, nama_produk, kategori, satuan, harga_jual, harga_modal,
+            stok_fisik, status, status_order, tipe_set, sku_kain, estimasi_kain, id_kategori_hpp
+          FROM produk_master
+          ORDER BY id ASC
+        `);
+        if (appProducts && appProducts.length > 0) {
+          exportRows = appProducts.map(p => ({
+            kode_sku: p.kode_sku || '',
+            nama_produk: p.nama_produk || '',
+            kategori: p.kategori || 'Pakaian',
+            satuan: p.satuan || 'PCS',
+            harga_jual: Number(p.harga_jual || 0),
+            harga_modal: Number(p.harga_modal || 0),
+            stok_fisik: Number(p.stok_fisik || 0),
+            status: p.status || 'Aktif',
+            status_order: p.status_order || 'Ready Stok',
+            tipe_set: p.tipe_set || 'Single',
+            sku_kain: p.sku_kain || '',
+            estimasi_kain: p.estimasi_kain || '',
+            id_kategori_hpp: p.id_kategori_hpp || ''
+          }));
+        }
+      }
+
       if (format === 'csv') {
-        const ws = XLSX.utils.json_to_sheet(sampleData, { header: templateHeaders });
+        const ws = XLSX.utils.json_to_sheet(exportRows, { header: templateHeaders });
         const csvContent = XLSX.utils.sheet_to_csv(ws);
+        const csvName = isFullData ? 'data_master_produk_aplikasi.csv' : 'template_master_produk.csv';
         res.writeHead(200, {
           'Content-Type': 'text/csv; charset=utf-8',
-          'Content-Disposition': 'attachment; filename="template_master_produk.csv"'
+          'Content-Disposition': `attachment; filename="${csvName}"`
         });
         res.end(csvContent);
         return true;
@@ -90,7 +123,7 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
       const wb = XLSX.utils.book_new();
 
       // Sheet 1: Master_Produk
-      const ws1 = XLSX.utils.json_to_sheet(sampleData, { header: templateHeaders });
+      const ws1 = XLSX.utils.json_to_sheet(exportRows, { header: templateHeaders });
       ws1['!cols'] = [
         { wch: 24 }, { wch: 48 }, { wch: 18 }, { wch: 10 },
         { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 12 },
@@ -151,9 +184,10 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
       XLSX.utils.book_append_sheet(wb, ws5, 'Petunjuk_Pengisian');
 
       const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+      const excelFileName = isFullData ? 'data_master_produk_aplikasi.xlsx' : 'template_contoh_master_produk.xlsx';
       res.writeHead(200, {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition': 'attachment; filename="template_import_master_produk.xlsx"'
+        'Content-Disposition': `attachment; filename="${excelFileName}"`
       });
       res.end(buffer);
       return true;
