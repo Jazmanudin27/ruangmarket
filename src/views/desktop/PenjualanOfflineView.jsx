@@ -28,6 +28,7 @@ import {
   Save,
 } from "lucide-react";
 import SearchableSelect from "../../components/SearchableSelect";
+import RupiahInput from "../../components/RupiahInput";
 import { toastSuccess, toastError } from "../../utils/alert.util";
 import { getActiveCompany } from "../../utils/tenant.util";
 
@@ -2780,26 +2781,23 @@ export default function PenjualanOfflineView({ onNavigate }) {
                                   textAlign: "center",
                                 }}
                               >
-                                <input
-                                  type="number"
+                                <RupiahInput
                                   value={it.qty}
                                   min={1}
-                                  onChange={(e) =>
-                                    updateItem(
-                                      idx,
-                                      "qty",
-                                      Number(e.target.value),
-                                    )
+                                  onChange={(val) =>
+                                    updateItem(idx, "qty", val || 1)
                                   }
+                                  placeholder="1"
                                   style={{
-                                    width: "42px",
+                                    width: "48px",
                                     textAlign: "center",
                                     border: "1px solid #cbd5e1",
                                     borderRadius: "4px",
-                                    padding: "3px 0",
+                                    padding: "3px 2px",
                                     fontSize: "11.5px",
                                     fontWeight: "700",
                                     color: "#0f172a",
+                                    boxSizing: "border-box",
                                   }}
                                 />
                               </td>
@@ -2809,25 +2807,23 @@ export default function PenjualanOfflineView({ onNavigate }) {
                                   textAlign: "right",
                                 }}
                               >
-                                <input
-                                  type="number"
+                                <RupiahInput
                                   value={it.harga_satuan}
-                                  onChange={(e) =>
-                                    updateItem(
-                                      idx,
-                                      "harga_satuan",
-                                      Number(e.target.value),
-                                    )
+                                  onChange={(val) =>
+                                    updateItem(idx, "harga_satuan", val)
                                   }
+                                  placeholder="0"
                                   style={{
-                                    width: "80px",
+                                    width: "88px",
                                     textAlign: "right",
                                     border: "1px solid #cbd5e1",
                                     borderRadius: "4px",
-                                    padding: "3px 4px",
+                                    padding: "3px 5px",
                                     fontSize: "11px",
                                     fontWeight: "600",
                                     color: "#0f172a",
+                                    backgroundColor: "#ffffff",
+                                    boxSizing: "border-box",
                                   }}
                                 />
                               </td>
@@ -3153,13 +3149,12 @@ export default function PenjualanOfflineView({ onNavigate }) {
                           >
                             Nominal DP (Rp)
                           </label>
-                          <input
-                            type="number"
+                          <RupiahInput
                             value={form.nominal_dp}
-                            onChange={(e) =>
+                            onChange={(val) =>
                               setForm({
                                 ...form,
-                                nominal_dp: Number(e.target.value),
+                                nominal_dp: val,
                               })
                             }
                             placeholder="0"
@@ -3194,13 +3189,12 @@ export default function PenjualanOfflineView({ onNavigate }) {
                         >
                           Nominal DP (Rp)
                         </label>
-                        <input
-                          type="number"
+                        <RupiahInput
                           value={form.nominal_dp}
-                          onChange={(e) =>
+                          onChange={(val) =>
                             setForm({
                               ...form,
-                              nominal_dp: Number(e.target.value),
+                              nominal_dp: val,
                             })
                           }
                           placeholder="0"
@@ -3239,11 +3233,10 @@ export default function PenjualanOfflineView({ onNavigate }) {
                       >
                         Potongan Diskon (Rp)
                       </label>
-                      <input
-                        type="number"
+                      <RupiahInput
                         value={form.diskon}
-                        onChange={(e) =>
-                          setForm({ ...form, diskon: Number(e.target.value) })
+                        onChange={(val) =>
+                          setForm({ ...form, diskon: val })
                         }
                         placeholder="0"
                         style={{
@@ -3271,11 +3264,10 @@ export default function PenjualanOfflineView({ onNavigate }) {
                       >
                         Ongkos Kirim (Rp)
                       </label>
-                      <input
-                        type="number"
+                      <RupiahInput
                         value={form.ongkir}
-                        onChange={(e) =>
-                          setForm({ ...form, ongkir: Number(e.target.value) })
+                        onChange={(val) =>
+                          setForm({ ...form, ongkir: val })
                         }
                         placeholder="0"
                         style={{
