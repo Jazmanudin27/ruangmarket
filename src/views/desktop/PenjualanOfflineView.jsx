@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
 import {
   ShoppingBag, Search, Plus, X, Eye, CheckCircle2, Truck, Package,
-  Calendar, Phone, MapPin, User, ChevronDown, Edit3, Trash2, Send
+  Calendar, Phone, MapPin, User, ChevronDown, Edit3, Trash2, Send,
+  Maximize2, Minimize2
 } from 'lucide-react';
+import SearchableSelect from '../../components/SearchableSelect';
 import { toastSuccess, toastError } from '../../utils/alert.util';
 import { getActiveCompany } from '../../utils/tenant.util';
 
@@ -50,6 +51,7 @@ export default function PenjualanOfflineView({ onNavigate }) {
 
   // Modals
   const [showForm, setShowForm] = useState(false);
+  const [isFullScreen, setIsFullScreen] = useState(true);
   const [detailOrder, setDetailOrder] = useState(null);
   const [editStatusId, setEditStatusId] = useState(null);
   const [editResiId, setEditResiId] = useState(null);
@@ -450,12 +452,18 @@ export default function PenjualanOfflineView({ onNavigate }) {
             }}
           />
         </div>
-        <select value={filterSaluran} onChange={e => { setFilterSaluran(e.target.value); setCurrentPage(1); }}
-          style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '12px', cursor: 'pointer' }}
-        >
-          <option value="semua">Semua Saluran</option>
-          {SALURAN_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-        </select>
+        <div style={{ width: '180px' }}>
+          <SearchableSelect
+            value={filterSaluran}
+            onChange={val => { setFilterSaluran(val); setCurrentPage(1); }}
+            options={[
+              { value: 'semua', label: 'Semua Saluran' },
+              ...SALURAN_OPTIONS
+            ]}
+            placeholder="Semua Saluran"
+            size="sm"
+          />
+        </div>
         <button type="button" onClick={() => loadOrders()}
           style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '12px', cursor: 'pointer', fontWeight: '700', backgroundColor: '#f8fafc' }}
         >
@@ -572,14 +580,14 @@ export default function PenjualanOfflineView({ onNavigate }) {
                     {/* STATUS */}
                     <td style={{ padding: '8px 12px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
                       {editStatusId === ord.id ? (
-                        <select value={ord.status_pesanan}
-                          onChange={e => handleUpdateStatus(ord.id, e.target.value)}
-                          onBlur={() => setEditStatusId(null)}
-                          autoFocus
-                          style={{ fontSize: '11px', padding: '3px 6px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
-                        >
-                          {STATUS_LIST.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-                        </select>
+                        <div style={{ width: '130px', margin: '0 auto' }}>
+                          <SearchableSelect
+                            value={ord.status_pesanan}
+                            onChange={val => handleUpdateStatus(ord.id, val)}
+                            options={STATUS_LIST.map(s => ({ value: s.value, label: s.label, color: s.color }))}
+                            size="sm"
+                          />
+                        </div>
                       ) : (
                         <div style={{ cursor: 'pointer' }} onClick={() => setEditStatusId(ord.id)}>
                           {getStatusBadge(ord.status_pesanan)}
@@ -634,56 +642,149 @@ export default function PenjualanOfflineView({ onNavigate }) {
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      {/* MODAL: BUAT PESANAN BARU                                          */}
+      {/* MODAL: BUAT PESANAN BARU (FULLSCREEN SUPPORT & SEARCHABLE SELECTS)  */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {showForm && (
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(3px)',
-          zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px'
+          backgroundColor: isFullScreen ? '#ffffff' : 'rgba(0,0,0,0.6)',
+          backdropFilter: isFullScreen ? 'none' : 'blur(4px)',
+          zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: isFullScreen ? '0' : '16px',
+          boxSizing: 'border-box'
         }}>
           <div style={{
-            backgroundColor: '#fff', borderRadius: '14px', width: '720px', maxWidth: '95vw',
-            maxHeight: '90vh', overflow: 'auto', boxShadow: '0 20px 50px rgba(0,0,0,0.25)', padding: '24px 28px'
+            backgroundColor: '#fff',
+            borderRadius: isFullScreen ? '0' : '14px',
+            width: isFullScreen ? '100vw' : '820px',
+            maxWidth: '100vw',
+            height: isFullScreen ? '100vh' : 'auto',
+            maxHeight: isFullScreen ? '100vh' : '92vh',
+            display: 'flex',
+            flexDirection: 'column',
+            boxShadow: isFullScreen ? 'none' : '0 25px 60px rgba(0,0,0,0.3)',
+            boxSizing: 'border-box',
+            overflow: 'hidden'
           }}>
             {/* Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <div>
-                <h2 style={{ margin: 0, fontSize: '16px', fontWeight: '800', color: '#0f172a' }}>
-                  Buat Pesanan Offline Baru
-                </h2>
-                <p style={{ margin: 0, fontSize: '11.5px', color: '#64748b' }}>Isi data pembeli dan produk yang dipesan</p>
+            <div style={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              padding: isFullScreen ? '14px 24px' : '16px 24px',
+              borderBottom: '1px solid #e2e8f0',
+              background: 'linear-gradient(135deg, #090d16 0%, #0f172a 45%, #1e293b 100%)',
+              color: '#ffffff',
+              flexShrink: 0
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{
+                  width: '32px', height: '32px', borderRadius: '7px',
+                  backgroundColor: 'rgba(37, 211, 102, 0.2)', border: '1px solid rgba(37, 211, 102, 0.4)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#25d366'
+                }}>
+                  <Send size={16} />
+                </div>
+                <div>
+                  <h2 style={{ margin: 0, fontSize: '15px', fontWeight: '800', color: '#ffffff' }}>
+                    Buat Pesanan Offline Baru
+                  </h2>
+                  <p style={{ margin: 0, fontSize: '11px', color: '#94a3b8' }}>
+                    Isi formulir transaksi offline manual, dropship, reseller, atau walk-in
+                  </p>
+                </div>
               </div>
-              <button onClick={() => setShowForm(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', color: '#94a3b8' }}><X size={20} /></button>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsFullScreen(prev => !prev)}
+                  title={isFullScreen ? 'Perkecil Modal' : 'Layar Penuh (Full Screen)'}
+                  style={{
+                    background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)',
+                    cursor: 'pointer', padding: '6px 8px', borderRadius: '6px', color: '#cbd5e1',
+                    display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', fontWeight: '600'
+                  }}
+                >
+                  {isFullScreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+                  <span>{isFullScreen ? 'Normal' : 'Full Screen'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowForm(false)}
+                  style={{
+                    background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)',
+                    cursor: 'pointer', padding: '6px 8px', borderRadius: '6px', color: '#f87171'
+                  }}
+                >
+                  <X size={16} />
+                </button>
+              </div>
             </div>
 
-            {/* ── Saluran & Toko ───────────────────────────────────────── */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '16px' }}>
-              <div>
-                <label style={{ fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '4px', display: 'block' }}>Saluran</label>
-                <select value={form.saluran} onChange={e => setForm({...form, saluran: e.target.value})}
-                  style={{ width: '100%', padding: '8px 10px', borderRadius: '7px', border: '1px solid #e2e8f0', fontSize: '12px' }}>
-                  {SALURAN_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-                </select>
-              </div>
-              <div>
-                <label style={{ fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '4px', display: 'block' }}>Toko / Instansi</label>
-                <select value={form.id_toko} onChange={e => {
-                  const st = stores.find(s => String(s.id) === e.target.value);
-                  setForm({...form, id_toko: e.target.value, nama_toko: st ? st.shopName : ''});
-                }}
-                  style={{ width: '100%', padding: '8px 10px', borderRadius: '7px', border: '1px solid #e2e8f0', fontSize: '12px' }}>
-                  <option value="">-- Pilih Toko --</option>
-                  {stores.map(s => <option key={s.id} value={s.id}>{s.shopName} ({s.channel})</option>)}
-                </select>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '600', color: '#8b5cf6' }}>
-                  <input type="checkbox" checked={form.is_dropship} onChange={e => setForm({...form, is_dropship: e.target.checked})} />
-                  Dropship
-                </label>
-              </div>
-            </div>
+            {/* Scrollable Form Body */}
+            <div style={{
+              flex: 1, overflowY: 'auto', padding: isFullScreen ? '20px 32px' : '18px 24px',
+              backgroundColor: '#f8fafc'
+            }}>
+              <div style={{
+                maxWidth: isFullScreen ? '1100px' : '100%',
+                margin: '0 auto',
+                backgroundColor: '#ffffff',
+                padding: '20px',
+                borderRadius: '10px',
+                border: '1px solid #e2e8f0',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+              }}>
+
+                {/* ── Saluran & Toko ───────────────────────────────────────── */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.5fr 1fr', gap: '14px', marginBottom: '16px' }}>
+                  <div>
+                    <label style={{ fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '5px', display: 'block' }}>
+                      Saluran Penjualan
+                    </label>
+                    <SearchableSelect
+                      value={form.saluran}
+                      onChange={val => setForm({ ...form, saluran: val })}
+                      options={SALURAN_OPTIONS}
+                      placeholder="Pilih Saluran"
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '5px', display: 'block' }}>
+                      Toko / Instansi Asal
+                    </label>
+                    <SearchableSelect
+                      value={form.id_toko}
+                      onChange={val => {
+                        const st = stores.find(s => String(s.id) === String(val));
+                        setForm({ ...form, id_toko: val, nama_toko: st ? st.shopName : '' });
+                      }}
+                      options={[
+                        { value: '', label: '-- Pilih Toko / Instansi --' },
+                        ...stores.map(s => ({
+                          value: String(s.id),
+                          label: s.shopName,
+                          subtitle: s.channel ? `Channel: ${s.channel}` : undefined
+                        }))
+                      ]}
+                      placeholder="Pilih Toko / Instansi"
+                    />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', paddingTop: '18px' }}>
+                    <label style={{
+                      display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer',
+                      fontSize: '12px', fontWeight: '700', color: '#7c3aed',
+                      padding: '8px 12px', borderRadius: '7px', backgroundColor: '#f5f3ff', border: '1px solid #ddd6fe'
+                    }}>
+                      <input
+                        type="checkbox"
+                        checked={form.is_dropship}
+                        onChange={e => setForm({ ...form, is_dropship: e.target.checked })}
+                        style={{ cursor: 'pointer', width: '15px', height: '15px' }}
+                      />
+                      Mode Dropship
+                    </label>
+                  </div>
+                </div>
 
             {/* ── Dropship fields ──────────────────────────────────────── */}
             {form.is_dropship && (
@@ -811,33 +912,39 @@ export default function PenjualanOfflineView({ onNavigate }) {
               </table>
             )}
 
-            {/* ── Keuangan ────────────────────────────────────────────── */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+            {/* ── Keuangan & Pembayaran ───────────────────────────────── */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.3fr 1.3fr', gap: '12px', marginBottom: '16px' }}>
               <div>
                 <label style={{ fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '4px', display: 'block' }}>Diskon</label>
                 <input type="number" value={form.diskon} onChange={e => setForm({...form, diskon: Number(e.target.value)})}
-                  style={{ width: '100%', padding: '8px 10px', borderRadius: '7px', border: '1px solid #e2e8f0', fontSize: '12px' }} />
+                  style={{ width: '100%', padding: '8px 10px', borderRadius: '7px', border: '1px solid #e2e8f0', fontSize: '12px', boxSizing: 'border-box' }} />
               </div>
               <div>
                 <label style={{ fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '4px', display: 'block' }}>Ongkir</label>
                 <input type="number" value={form.ongkir} onChange={e => setForm({...form, ongkir: Number(e.target.value)})}
-                  style={{ width: '100%', padding: '8px 10px', borderRadius: '7px', border: '1px solid #e2e8f0', fontSize: '12px' }} />
+                  style={{ width: '100%', padding: '8px 10px', borderRadius: '7px', border: '1px solid #e2e8f0', fontSize: '12px', boxSizing: 'border-box' }} />
               </div>
               <div>
                 <label style={{ fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '4px', display: 'block' }}>Metode Bayar</label>
-                <select value={form.metode_pembayaran} onChange={e => setForm({...form, metode_pembayaran: e.target.value})}
-                  style={{ width: '100%', padding: '8px 10px', borderRadius: '7px', border: '1px solid #e2e8f0', fontSize: '12px' }}>
-                  {BAYAR_OPTIONS.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
-                </select>
+                <SearchableSelect
+                  value={form.metode_pembayaran}
+                  onChange={val => setForm({ ...form, metode_pembayaran: val })}
+                  options={BAYAR_OPTIONS}
+                  placeholder="Metode Bayar"
+                />
               </div>
               <div>
                 <label style={{ fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '4px', display: 'block' }}>Status Bayar</label>
-                <select value={form.status_pembayaran} onChange={e => setForm({...form, status_pembayaran: e.target.value})}
-                  style={{ width: '100%', padding: '8px 10px', borderRadius: '7px', border: '1px solid #e2e8f0', fontSize: '12px' }}>
-                  <option value="belum_bayar">Belum Bayar</option>
-                  <option value="dp">DP</option>
-                  <option value="lunas">Lunas</option>
-                </select>
+                <SearchableSelect
+                  value={form.status_pembayaran}
+                  onChange={val => setForm({ ...form, status_pembayaran: val })}
+                  options={[
+                    { value: 'belum_bayar', label: 'Belum Bayar', color: '#ef4444' },
+                    { value: 'dp', label: 'DP (Uang Muka)', color: '#f59e0b' },
+                    { value: 'lunas', label: 'Lunas', color: '#10b981' }
+                  ]}
+                  placeholder="Status Bayar"
+                />
               </div>
             </div>
 
@@ -867,7 +974,17 @@ export default function PenjualanOfflineView({ onNavigate }) {
               <div style={{ fontSize: '18px', fontWeight: '800', color: '#059669' }}>{formatRupiah(totalHarga)}</div>
             </div>
 
-            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              </div>
+            </div>
+
+            {/* Footer Buttons */}
+            <div style={{
+              display: 'flex', gap: '10px', justifyContent: 'flex-end',
+              padding: isFullScreen ? '14px 32px' : '14px 24px',
+              backgroundColor: '#ffffff',
+              borderTop: '1px solid #e2e8f0',
+              flexShrink: 0
+            }}>
               <button type="button" onClick={() => setShowForm(false)}
                 style={{ padding: '9px 20px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: '#fff', color: '#64748b', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer' }}>
                 Batal
@@ -877,7 +994,7 @@ export default function PenjualanOfflineView({ onNavigate }) {
                 Simpan Draft
               </button>
               <button type="button" onClick={() => handleSubmit(false)}
-                style={{ padding: '9px 20px', borderRadius: '8px', border: 'none', background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', color: '#fff', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer', boxShadow: '0 2px 8px rgba(37,99,235,0.3)' }}>
+                style={{ padding: '9px 22px', borderRadius: '8px', border: 'none', background: 'linear-gradient(135deg, #16a34a, #15803d)', color: '#fff', fontSize: '12.5px', fontWeight: '800', cursor: 'pointer', boxShadow: '0 2px 8px rgba(22,163,74,0.35)' }}>
                 Konfirmasi Pesanan
               </button>
             </div>
