@@ -1,10 +1,19 @@
 import Swal from 'sweetalert2';
 
+// Ensure container is always on top of all fullscreen modals (z-index > 99999)
+const ensureTopZIndex = () => {
+  const container = Swal.getContainer();
+  if (container) {
+    container.style.zIndex = '99999999';
+  }
+};
+
 // Custom SweetAlert2 configured for Modern Admin theme
 const customSwal = Swal.mixin({
   confirmButtonColor: '#059669',
   cancelButtonColor: '#ef4444',
   buttonsStyling: true,
+  didOpen: ensureTopZIndex,
   customClass: {
     popup: 'swal2-pesantren-popup',
     confirmButton: 'swal2-pesantren-btn',
@@ -21,7 +30,8 @@ export const toastSuccess = (title) => {
     position: 'top-end',
     showConfirmButton: false,
     timer: 2500,
-    timerProgressBar: true
+    timerProgressBar: true,
+    didOpen: ensureTopZIndex
   });
 };
 
@@ -32,8 +42,9 @@ export const toastError = (title) => {
     toast: true,
     position: 'top-end',
     showConfirmButton: false,
-    timer: 3000,
-    timerProgressBar: true
+    timer: 3500,
+    timerProgressBar: true,
+    didOpen: ensureTopZIndex
   });
 };
 

@@ -1652,5 +1652,13 @@ button span {
   transform: translateY(-0.5px); /* Fine-tune optical center for Plus Jakarta Sans font */
 }
 
+/* =========================================
+   SWEETALERT2 GLOBAL TOP-LEVEL Z-INDEX
+   ========================================= */
+.swal2-container {
+  z-index: 99999999 !important;
+}
+
+
 
 

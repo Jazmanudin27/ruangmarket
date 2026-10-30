@@ -29,7 +29,7 @@ import {
 } from "lucide-react";
 import SearchableSelect from "../../components/SearchableSelect";
 import RupiahInput from "../../components/RupiahInput";
-import { toastSuccess, toastError } from "../../utils/alert.util";
+import { toastSuccess, toastError, showWarning } from "../../utils/alert.util";
 import { getActiveCompany } from "../../utils/tenant.util";
 
 function formatRupiah(val) {
@@ -648,18 +648,23 @@ export default function PenjualanOfflineView({ onNavigate }) {
 
   const handleSubmit = async (asDraft = true) => {
     if (!form.batas_kirim) {
-      toastError("Tanggal Pesanan wajib diisi!");
+      showWarning(
+        "Tanggal Pesanan Wajib Diisi",
+        "Silakan pilih tanggal transaksi pesanan terlebih dahulu.",
+      );
       return;
     }
     if (!form.nama_pembeli || !form.nama_pembeli.trim()) {
-      toastError(
-        "Nama Pelanggan wajib diisi! Pilih dari master pelanggan atau klik '+ Tambah Pelanggan'.",
+      showWarning(
+        "Nama Pelanggan Wajib Diisi",
+        "Pilih data pelanggan dari dropdown Master Pelanggan atau klik tombol '+ Tambah Pelanggan'.",
       );
       return;
     }
     if (!form.items || !form.items.length) {
-      toastError(
-        "Daftar Produk Pesanan masih kosong! Tambahkan minimal 1 item produk.",
+      showWarning(
+        "Daftar Produk Masih Kosong",
+        "Tambahkan minimal 1 macam produk ke dalam pesanan melalui kotak pencarian produk.",
       );
       return;
     }
@@ -667,20 +672,27 @@ export default function PenjualanOfflineView({ onNavigate }) {
       (it) => !it.qty || Number(it.qty) <= 0,
     );
     if (invalidQtyItem) {
-      toastError(
+      showWarning(
+        "Jumlah Qty Tidak Valid",
         `Jumlah (Qty) untuk produk "${invalidQtyItem.nama_produk || invalidQtyItem.sku}" harus lebih dari 0!`,
       );
       return;
     }
     if (form.metode_pembayaran === "transfer" && !form.bank_tujuan?.trim()) {
-      toastError("Pilih bank tujuan untuk pembayaran transfer!");
+      showWarning(
+        "Bank Tujuan Belum Dipilih",
+        "Metode pembayaran adalah Transfer. Silakan tentukan Bank Tujuan terlebih dahulu!",
+      );
       return;
     }
     if (
       form.status_pembayaran === "dp" &&
       (!form.nominal_dp || Number(form.nominal_dp) <= 0)
     ) {
-      toastError("Nominal DP wajib diisi lebih dari 0!");
+      showWarning(
+        "Nominal DP Wajib Diisi",
+        "Status pembayaran dipilih DP (Uang Muka). Masukkan nominal DP lebih dari Rp 0!",
+      );
       return;
     }
 
