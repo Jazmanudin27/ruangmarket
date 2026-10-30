@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Package, 
   Boxes, 
@@ -355,6 +355,9 @@ export default function ProdukView() {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isTemplateMenuOpen, setIsTemplateMenuOpen] = useState(false);
   const [importRows, setImportRows] = useState([]);
+  const [importKainRows, setImportKainRows] = useState([]);
+  const [importHppRows, setImportHppRows] = useState([]);
+  const [importKategoriRows, setImportKategoriRows] = useState([]);
   const [importFileName, setImportFileName] = useState('');
   const [isParsingImport, setIsParsingImport] = useState(false);
   const [isSubmittingImport, setIsSubmittingImport] = useState(false);
@@ -547,6 +550,9 @@ export default function ProdukView() {
     setImportFileName(file.name);
     setIsParsingImport(true);
     setImportResult(null);
+    setImportKainRows([]);
+    setImportHppRows([]);
+    setImportKategoriRows([]);
 
     try {
       const buffer = await file.arrayBuffer();
@@ -558,7 +564,86 @@ export default function ProdukView() {
       const worksheet = workbook.Sheets[sheetName];
       const rawJson = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
 
-      if (rawJson.length === 0) {
+      // Multi-sheet parsing: Referensi_SKU_Kain
+      let parsedKain = [];
+      const kainSheetName = workbook.SheetNames.find(s => s.toLowerCase().includes('kain') || s.toLowerCase().includes('sku_kain'));
+      if (kainSheetName) {
+        const kainWs = workbook.Sheets[kainSheetName];
+        const rawKainJson = XLSX.utils.sheet_to_json(kainWs, { defval: '' });
+        parsedKain = rawKainJson.map(rk => {
+          const getK = (keys, def = '') => {
+            for (const k of keys) {
+              if (rk[k] !== undefined && rk[k] !== '') return rk[k];
+            }
+            return def;
+          };
+          const skuKain = getK(['KODE_SKU_KAIN', 'kode_sku_kain', 'sku_kain', 'SKU Kain', 'kode_kain']);
+          const namaKain = getK(['NAMA_KAIN', 'nama_kain', 'nama', 'Nama Kain']);
+          const jenisKain = getK(['JENIS', 'jenis', 'jenis_kain', 'Jenis Kain']);
+          const warna = getK(['WARNA', 'warna', 'Warna']);
+          const meterPrice = Number(getK(['HARGA_PER_METER', 'harga_per_meter', 'harga_meter', 'Harga Per Meter', 'harga'], 0)) || 0;
+          return {
+            kode_sku_kain: String(skuKain).trim(),
+            nama_kain: String(namaKain).trim(),
+            jenis_kain: String(jenisKain).trim(),
+            warna: String(warna).trim(),
+            harga_per_meter: meterPrice
+          };
+        }).filter(k => k.kode_sku_kain);
+        setImportKainRows(parsedKain);
+      }
+
+      // Multi-sheet parsing: Referensi_HPP
+      let parsedHpp = [];
+      const hppSheetName = workbook.SheetNames.find(s => s.toLowerCase().includes('hpp'));
+      if (hppSheetName) {
+        const hppWs = workbook.Sheets[hppSheetName];
+        const rawHppJson = XLSX.utils.sheet_to_json(hppWs, { defval: '' });
+        parsedHpp = rawHppJson.map(rh => {
+          const getH = (keys, def = '') => {
+            for (const k of keys) {
+              if (rh[k] !== undefined && rh[k] !== '') return rh[k];
+            }
+            return def;
+          };
+          const idHpp = getH(['ID_KATEGORI_HPP', 'id_kategori_hpp', 'id_hpp', 'ID HPP', 'kode_hpp']);
+          const namaHpp = getH(['NAMA_KATEGORI', 'nama_kategori_hpp', 'nama_kategori', 'nama', 'Nama Kategori']);
+          const totalHpp = Number(getH(['TOTAL_HPP', 'total_hpp', 'total', 'Total HPP', 'hpp'], 0)) || 0;
+          return {
+            id_kategori_hpp: String(idHpp).trim(),
+            nama_kategori_hpp: String(namaHpp).trim(),
+            total_hpp: totalHpp
+          };
+        }).filter(h => h.id_kategori_hpp || h.nama_kategori_hpp);
+        setImportHppRows(parsedHpp);
+      }
+
+      // Multi-sheet parsing: Referensi_Kategori
+      let parsedKategori = [];
+      const katSheetName = workbook.SheetNames.find(s => s.toLowerCase().includes('kategori') && !s.toLowerCase().includes('hpp'));
+      if (katSheetName) {
+        const katWs = workbook.Sheets[katSheetName];
+        const rawKatJson = XLSX.utils.sheet_to_json(katWs, { defval: '' });
+        parsedKategori = rawKatJson.map(rkt => {
+          const getKt = (keys, def = '') => {
+            for (const k of keys) {
+              if (rkt[k] !== undefined && rkt[k] !== '') return rkt[k];
+            }
+            return def;
+          };
+          const namaKat = getKt(['NAMA_KATEGORI', 'nama_kategori', 'kategori', 'nama', 'Nama Kategori']);
+          const deskripsi = getKt(['DESKRIPSI', 'deskripsi', 'keterangan']);
+          const status = getKt(['STATUS', 'status'], 'Aktif');
+          return {
+            nama_kategori: String(namaKat).trim(),
+            deskripsi: String(deskripsi).trim(),
+            status: String(status).trim()
+          };
+        }).filter(kt => kt.nama_kategori);
+        setImportKategoriRows(parsedKategori);
+      }
+
+      if (rawJson.length === 0 && parsedKain.length === 0 && parsedHpp.length === 0 && parsedKategori.length === 0) {
         toastError('File Excel/CSV kosong atau format baris tidak terdeteksi.');
         setImportRows([]);
         return;
@@ -634,9 +719,14 @@ export default function ProdukView() {
       const autoKCount = parsed.filter(p => p.is_auto_kain).length;
       const autoHCount = parsed.filter(p => p.is_auto_hpp).length;
       const autoInfo = (autoKCount > 0 || autoHCount > 0) ? ` (${autoKCount} SKU Kain & ${autoHCount} HPP terisi otomatis)` : '';
+      const multiInfoParts = [];
+      if (parsedKain.length > 0) multiInfoParts.push(`${parsedKain.length} SKU Kain`);
+      if (parsedHpp.length > 0) multiInfoParts.push(`${parsedHpp.length} HPP`);
+      if (parsedKategori.length > 0) multiInfoParts.push(`${parsedKategori.length} Kategori`);
+      const multiInfo = multiInfoParts.length > 0 ? ` + [${multiInfoParts.join(', ')}]` : '';
 
       setImportRows(parsed);
-      toastSuccess(`Berhasil memuat ${parsed.length} baris data${autoInfo}`);
+      toastSuccess(`Berhasil memuat ${parsed.length} baris produk${multiInfo}${autoInfo}`);
     } catch (err) {
       console.error('Error parse file:', err);
       toastError(`Gagal membaca file: ${err.message}`);
@@ -646,8 +736,8 @@ export default function ProdukView() {
   };
 
   const handleExecuteImport = async () => {
-    if (importRows.length === 0) {
-      toastError('Tidak ada baris produk untuk diimport!');
+    if (importRows.length === 0 && importKainRows.length === 0 && importHppRows.length === 0 && importKategoriRows.length === 0) {
+      toastError('Tidak ada baris data untuk diimport!');
       return;
     }
 
@@ -655,7 +745,10 @@ export default function ProdukView() {
     try {
       const payload = {
         kode_perusahaan: activeCompany?.code || 'RSG',
-        items: importRows
+        items: importRows,
+        kain_items: importKainRows,
+        hpp_items: importHppRows,
+        kategori_items: importKategoriRows
       };
 
       const res = await fetch('/api/marketplace/master/import', {
@@ -674,9 +767,17 @@ export default function ProdukView() {
       const autoRelMsg = (s.kain_auto_terdeteksi || s.hpp_auto_terdeteksi) 
         ? ` (Auto-deteksi: +${s.kain_auto_terdeteksi || 0} Kain, +${s.hpp_auto_terdeteksi || 0} HPP)` 
         : '';
+      const refParts = [];
+      if (s.ref_kain_count > 0) refParts.push(`+${s.ref_kain_count} SKU Kain`);
+      if (s.ref_hpp_count > 0) refParts.push(`+${s.ref_hpp_count} HPP`);
+      if (s.ref_kategori_count > 0) refParts.push(`+${s.ref_kategori_count} Kategori`);
+      const refMsg = refParts.length > 0 ? ` [Sheet Referensi: ${refParts.join(', ')}]` : '';
+
       toastSuccess(
-        `Import selesai! +${s.inserted || 0} Baru, ~${s.updated || 0} Diupdate, =${s.skipped || 0} Skip, !${s.failed || 0} Gagal${newKatMsg}${autoRelMsg}`
+        `Import selesai! +${s.inserted || 0} Baru, ~${s.updated || 0} Diupdate, =${s.skipped || 0} Skip${newKatMsg}${autoRelMsg}${refMsg}`
       );
+      fetchHppList();
+      fetchKainList();
 
       // Sinkronisasi kategori baru ke localStorage & state jika ada penambahan otomatis
       if (Array.isArray(json.new_categories) && json.new_categories.length > 0) {
@@ -841,49 +942,51 @@ export default function ProdukView() {
   // Daftar opsi Kategori HPP dari master_hpp_produk
   const [hppOptions, setHppOptions] = useState([]);
 
+  const fetchHppList = useCallback(async () => {
+    try {
+      const res = await fetch('/api/marketplace/hpp-produk');
+      if (res.ok) {
+        const json = await res.json();
+        if (json && Array.isArray(json.data)) {
+          setHppOptions(json.data.map(h => ({
+            value: h.id_kategori_hpp,
+            label: `${h.nama_kategori_hpp} (HPP: Rp ${Number(h.total_hpp || 0).toLocaleString('id-ID')})`,
+            total_hpp: Number(h.total_hpp || 0)
+          })));
+        }
+      }
+    } catch (e) {
+      console.warn('Gagal memuat HPP options:', e);
+    }
+  }, []);
+
+  const fetchKainList = useCallback(async () => {
+    try {
+      const res = await fetch('/api/kain/master');
+      if (res.ok) {
+        const json = await res.json();
+        if (json && Array.isArray(json.data)) {
+          setKainOptions(json.data.map(k => ({
+            value: k.kode_sku_kain,
+            label: `${k.nama_kain} (${k.kode_sku_kain})${Number(k.harga_per_meter) > 0 ? ` - Rp ${Number(k.harga_per_meter).toLocaleString('id-ID')}/m` : ''}`,
+            sku: k.kode_sku_kain,
+            nama_kain: k.nama_kain,
+            jenis_kain: k.jenis_kain,
+            warna: k.warna,
+            harga_per_meter: Number(k.harga_per_meter) || 0,
+            harga_kain_cm: Math.round((Number(k.harga_per_meter) || 0) / 100)
+          })));
+        }
+      }
+    } catch (e) {
+      console.warn('Gagal memuat Kain options:', e);
+    }
+  }, []);
+
   useEffect(() => {
-    async function fetchHppList() {
-      try {
-        const res = await fetch('/api/marketplace/hpp-produk');
-        if (res.ok) {
-          const json = await res.json();
-          if (json && Array.isArray(json.data)) {
-            setHppOptions(json.data.map(h => ({
-              value: h.id_kategori_hpp,
-              label: `${h.nama_kategori_hpp} (HPP: Rp ${Number(h.total_hpp || 0).toLocaleString('id-ID')})`,
-              total_hpp: Number(h.total_hpp || 0)
-            })));
-          }
-        }
-      } catch (e) {
-        console.warn('Gagal memuat HPP options:', e);
-      }
-    }
-    async function fetchKainList() {
-      try {
-        const res = await fetch('/api/kain/master');
-        if (res.ok) {
-          const json = await res.json();
-          if (json && Array.isArray(json.data)) {
-            setKainOptions(json.data.map(k => ({
-              value: k.kode_sku_kain,
-              label: `${k.nama_kain} (${k.kode_sku_kain})${Number(k.harga_per_meter) > 0 ? ` - Rp ${Number(k.harga_per_meter).toLocaleString('id-ID')}/m` : ''}`,
-              sku: k.kode_sku_kain,
-              nama_kain: k.nama_kain,
-              jenis_kain: k.jenis_kain,
-              warna: k.warna,
-              harga_per_meter: Number(k.harga_per_meter) || 0,
-              harga_kain_cm: Math.round((Number(k.harga_per_meter) || 0) / 100)
-            })));
-          }
-        }
-      } catch (e) {
-        console.warn('Gagal memuat Kain options:', e);
-      }
-    }
     fetchHppList();
     fetchKainList();
-  }, []);
+  }, [fetchHppList, fetchKainList]);
 
   // Dynamic Kategori List from Storage
   const [kategoriOptions, setKategoriOptions] = useState(() => {
@@ -4621,11 +4724,47 @@ export default function ProdukView() {
                   </div>
 
                   {/* Preview Table If File Selected */}
-                  {importRows.length > 0 && (
+                  {(importRows.length > 0 || importKainRows.length > 0 || importHppRows.length > 0 || importKategoriRows.length > 0) && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {/* Multi-Sheet Detection Pill Banner */}
+                      {(importKainRows.length > 0 || importHppRows.length > 0 || importKategoriRows.length > 0) && (
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          padding: '6px 10px',
+                          borderRadius: '6px',
+                          backgroundColor: '#ecfdf5',
+                          border: '1px solid #a7f3d0',
+                          fontSize: '11px',
+                          color: '#065f46',
+                          flexWrap: 'wrap'
+                        }}>
+                          <span style={{ fontWeight: '800' }}>⚡ Multi-Sheet Terdeteksi:</span>
+                          <span style={{ backgroundColor: '#ffffff', padding: '1px 6px', borderRadius: '4px', border: '1px solid #bbf7d0', fontWeight: '700' }}>
+                            📦 Master Produk: {importRows.length} baris
+                          </span>
+                          {importKainRows.length > 0 && (
+                            <span style={{ backgroundColor: '#ffffff', padding: '1px 6px', borderRadius: '4px', border: '1px solid #bbf7d0', fontWeight: '700', color: '#047857' }}>
+                              🧵 Referensi Kain: {importKainRows.length} baris
+                            </span>
+                          )}
+                          {importHppRows.length > 0 && (
+                            <span style={{ backgroundColor: '#ffffff', padding: '1px 6px', borderRadius: '4px', border: '1px solid #bbf7d0', fontWeight: '700', color: '#047857' }}>
+                              💰 Referensi HPP: {importHppRows.length} baris
+                            </span>
+                          )}
+                          {importKategoriRows.length > 0 && (
+                            <span style={{ backgroundColor: '#ffffff', padding: '1px 6px', borderRadius: '4px', border: '1px solid #bbf7d0', fontWeight: '700', color: '#047857' }}>
+                              📁 Referensi Kategori: {importKategoriRows.length} baris
+                            </span>
+                          )}
+                        </div>
+                      )}
+
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <div style={{ fontSize: '12px', fontWeight: '800', color: '#0f172a' }}>
-                          File: <span style={{ color: '#059669' }}>{importFileName}</span> ({importRows.length} baris siap diproses)
+                          File: <span style={{ color: '#059669' }}>{importFileName}</span> ({importRows.length} baris produk siap diproses)
                         </div>
                         <span style={{ fontSize: '11px', color: '#64748b' }}>
                           Menampilkan pratinjau 10 baris pertama
@@ -4926,7 +5065,7 @@ export default function ProdukView() {
                   </button>
                   <button
                     type="button"
-                    disabled={importRows.length === 0 || isSubmittingImport}
+                    disabled={(importRows.length === 0 && importKainRows.length === 0 && importHppRows.length === 0 && importKategoriRows.length === 0) || isSubmittingImport}
                     onClick={handleExecuteImport}
                     style={{
                       height: '32px',
@@ -4936,11 +5075,11 @@ export default function ProdukView() {
                       padding: '0 16px',
                       borderRadius: '6px',
                       border: 'none',
-                      backgroundColor: (importRows.length === 0 || isSubmittingImport) ? '#94a3b8' : '#059669',
+                      backgroundColor: ((importRows.length === 0 && importKainRows.length === 0 && importHppRows.length === 0 && importKategoriRows.length === 0) || isSubmittingImport) ? '#94a3b8' : '#059669',
                       color: '#ffffff',
                       fontSize: '12px',
                       fontWeight: '800',
-                      cursor: (importRows.length === 0 || isSubmittingImport) ? 'not-allowed' : 'pointer',
+                      cursor: ((importRows.length === 0 && importKainRows.length === 0 && importHppRows.length === 0 && importKategoriRows.length === 0) || isSubmittingImport) ? 'not-allowed' : 'pointer',
                       boxShadow: '0 2px 4px rgba(5, 150, 105, 0.25)'
                     }}
                   >

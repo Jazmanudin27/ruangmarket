@@ -204,13 +204,88 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
     try {
       const body = await parseJsonBody(req);
       const items = Array.isArray(body?.items) ? body.items : (Array.isArray(body) ? body : []);
+      const kainItems = Array.isArray(body?.kain_items) ? body.kain_items : [];
+      const hppItems = Array.isArray(body?.hpp_items) ? body.hpp_items : [];
+      const kategoriItems = Array.isArray(body?.kategori_items) ? body.kategori_items : [];
 
-      if (items.length === 0) {
-        sendJson(res, 400, { status: 'error', message: 'Data baris produk tidak ditemukan' });
+      if (items.length === 0 && kainItems.length === 0 && hppItems.length === 0 && kategoriItems.length === 0) {
+        sendJson(res, 400, { status: 'error', message: 'Data baris tidak ditemukan pada file' });
         return true;
       }
 
       const kodePerusahaan = String(body.kode_perusahaan || 'RSG').slice(0, 32);
+
+      // 0. Multi-Sheet Upsert: Referensi_SKU_Kain jika ada
+      let refKainCount = 0;
+      for (const k of kainItems) {
+        const skuKain = String(k.kode_sku_kain || '').trim();
+        if (!skuKain) continue;
+        const namaKain = String(k.nama_kain || `Kain ${skuKain}`).trim();
+        const jenisKain = k.jenis_kain ? String(k.jenis_kain).slice(0, 100) : null;
+        const warna = k.warna ? String(k.warna).slice(0, 100) : null;
+        const hargaPerMeter = Number(k.harga_per_meter) || 0;
+        try {
+          await pool.query(`
+            INSERT INTO master_kain (
+              kode_perusahaan, kode_sku_kain, nama_kain, jenis_kain, warna, satuan, harga_per_meter
+            ) VALUES (?, ?, ?, ?, ?, 'METER', ?)
+            ON DUPLICATE KEY UPDATE
+              nama_kain = VALUES(nama_kain),
+              jenis_kain = COALESCE(VALUES(jenis_kain), jenis_kain),
+              warna = COALESCE(VALUES(warna), warna),
+              harga_per_meter = VALUES(harga_per_meter)
+          `, [kodePerusahaan, skuKain, namaKain, jenisKain, warna, hargaPerMeter]);
+          refKainCount++;
+        } catch (eKain) {
+          console.warn('[Import Ref Kain Error]:', eKain.message);
+        }
+      }
+
+      // 0. Multi-Sheet Upsert: Referensi_HPP jika ada
+      let refHppCount = 0;
+      for (const h of hppItems) {
+        const idHpp = String(h.id_kategori_hpp || '').trim();
+        const namaHpp = String(h.nama_kategori_hpp || '').trim();
+        if (!idHpp && !namaHpp) continue;
+        const finalId = idHpp || `HPP-${Date.now().toString().slice(-6)}`;
+        const finalNama = namaHpp || finalId;
+        const totalHpp = Number(h.total_hpp) || 0;
+        try {
+          await pool.query(`
+            INSERT INTO master_hpp_produk (
+              kode_perusahaan, id_kategori_hpp, nama_kategori_hpp, total_hpp, status
+            ) VALUES (?, ?, ?, ?, 'Aktif')
+            ON DUPLICATE KEY UPDATE
+              nama_kategori_hpp = VALUES(nama_kategori_hpp),
+              total_hpp = VALUES(total_hpp)
+          `, [kodePerusahaan, finalId, finalNama, totalHpp]);
+          refHppCount++;
+        } catch (eHpp) {
+          console.warn('[Import Ref HPP Error]:', eHpp.message);
+        }
+      }
+
+      // 0. Multi-Sheet Upsert: Referensi_Kategori jika ada
+      let refKatCount = 0;
+      for (const kt of kategoriItems) {
+        const namaKat = String(kt.nama_kategori || '').trim();
+        if (!namaKat) continue;
+        const deskripsi = kt.deskripsi ? String(kt.deskripsi).trim() : 'Ditambahkan dari template referensi';
+        const status = kt.status ? String(kt.status).trim() : 'Aktif';
+        try {
+          await pool.query(`
+            INSERT INTO master_kategori (
+              kode_perusahaan, nama_kategori, deskripsi, status
+            ) VALUES (?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE
+              deskripsi = VALUES(deskripsi),
+              status = VALUES(status)
+          `, [kodePerusahaan, namaKat, deskripsi, status]);
+          refKatCount++;
+        } catch (eKat) {
+          console.warn('[Import Ref Kategori Error]:', eKat.message);
+        }
+      }
 
       // Ambil seluruh master produk yang ada untuk perbandingan cepat dalam memori
       const [existingRows] = await pool.query(`
@@ -465,7 +540,10 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
           failed,
           kategori_baru: newCategoriesAdded.length,
           kain_auto_terdeteksi: autoKainCount,
-          hpp_auto_terdeteksi: autoHppCount
+          hpp_auto_terdeteksi: autoHppCount,
+          ref_kain_count: refKainCount,
+          ref_hpp_count: refHppCount,
+          ref_kategori_count: refKatCount
         },
         new_categories: newCategoriesAdded,
         details
