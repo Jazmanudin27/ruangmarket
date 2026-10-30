@@ -17,7 +17,8 @@ import {
   FileText,
   TrendingUp,
   ExternalLink,
-  Filter
+  Filter,
+  Send
 } from 'lucide-react';
 import { toastSuccess, toastError } from '../../utils/alert.util';
 import { getActiveCompany } from '../../utils/tenant.util';
@@ -26,7 +27,7 @@ function formatRupiah(val) {
   return 'Rp ' + Number(val || 0).toLocaleString('id-ID');
 }
 
-export default function PesananMasukDesktopView() {
+export default function PesananMasukDesktopView({ onNavigate }) {
   const [activeCompany, setActiveCompany] = useState(getActiveCompany);
   const [orders, setOrders] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -522,6 +523,34 @@ export default function PesananMasukDesktopView() {
             <Calendar size={13} />
             <span>Tarik Pesanan Historical</span>
           </button>
+
+          {/* Shortcut: Penjualan Offline */}
+          {onNavigate && (
+            <button
+              type="button"
+              onClick={() => onNavigate('penjualan_offline')}
+              style={{
+                padding: '7px 14px',
+                borderRadius: '7px',
+                border: '1px solid rgba(37, 211, 102, 0.5)',
+                backgroundColor: 'rgba(37, 211, 102, 0.12)',
+                color: '#25d366',
+                fontSize: '12px',
+                fontWeight: '700',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                cursor: 'pointer',
+                transition: 'all 0.15s'
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(37, 211, 102, 0.22)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(37, 211, 102, 0.12)'; }}
+              title="Buka modul Penjualan Offline (WhatsApp, Dropship, Reseller, Walk-in)"
+            >
+              <Send size={13} />
+              <span>Penjualan Offline</span>
+            </button>
+          )}
         </div>
       </div>
 

@@ -26,7 +26,8 @@ import {
   Building,
   Check,
   Megaphone,
-  Calculator
+  Calculator,
+  Send
 } from 'lucide-react';
 import { getCompanies, getActiveCompany, setActiveCompanyCode } from '../utils/tenant.util';
 import { useDeviceType } from '../hooks/useDeviceType';
@@ -45,6 +46,7 @@ import MarketplaceDesktopView from '../views/desktop/MarketplaceDesktopView';
 import ProdukMarketplaceDesktopView from '../views/desktop/ProdukMarketplaceDesktopView';
 import PesananMasukDesktopView from '../views/desktop/PesananMasukDesktopView';
 import ReturBarangDesktopView from '../views/desktop/ReturBarangDesktopView';
+import PenjualanOfflineView from '../views/desktop/PenjualanOfflineView';
 import BlankTemplateDesktopView from '../views/desktop/BlankTemplateDesktopView';
 import KainDesktopView from '../views/desktop/KainDesktopView';
 
@@ -264,6 +266,9 @@ export default function AdminLayout() {
       case 'retur_barang':
       case 'retur':
         return <ReturBarangDesktopView onNavigate={changeTab} />;
+      case 'penjualan_offline':
+      case 'offline':
+        return <PenjualanOfflineView onNavigate={changeTab} />;
       case 'blank':
         return <BlankTemplateDesktopView />;
       default:
@@ -1012,37 +1017,37 @@ export default function AdminLayout() {
                   gap: '4px',
                   padding: '0 8px',
                   borderRadius: '5px',
-                  border: (activeTab === 'pesanan_masuk' || activeTab === 'pesanan' || activeTab === 'retur_barang' || activeTab === 'retur' || isMarketingOpen) ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.08)',
-                  backgroundColor: (activeTab === 'pesanan_masuk' || activeTab === 'pesanan' || activeTab === 'retur_barang' || activeTab === 'retur' || isMarketingOpen) ? '#0284c7' : 'rgba(255, 255, 255, 0.05)',
-                  color: (activeTab === 'pesanan_masuk' || activeTab === 'pesanan' || activeTab === 'retur_barang' || activeTab === 'retur' || isMarketingOpen) ? '#ffffff' : '#cbd5e1',
+                  border: (activeTab === 'pesanan_masuk' || activeTab === 'pesanan' || activeTab === 'retur_barang' || activeTab === 'retur' || activeTab === 'penjualan_offline' || activeTab === 'offline' || isMarketingOpen) ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.08)',
+                  backgroundColor: (activeTab === 'pesanan_masuk' || activeTab === 'pesanan' || activeTab === 'retur_barang' || activeTab === 'retur' || activeTab === 'penjualan_offline' || activeTab === 'offline' || isMarketingOpen) ? '#0284c7' : 'rgba(255, 255, 255, 0.05)',
+                  color: (activeTab === 'pesanan_masuk' || activeTab === 'pesanan' || activeTab === 'retur_barang' || activeTab === 'retur' || activeTab === 'penjualan_offline' || activeTab === 'offline' || isMarketingOpen) ? '#ffffff' : '#cbd5e1',
                   fontSize: '11px',
-                  fontWeight: (activeTab === 'pesanan_masuk' || activeTab === 'pesanan' || activeTab === 'retur_barang' || activeTab === 'retur' || isMarketingOpen) ? '800' : '600',
+                  fontWeight: (activeTab === 'pesanan_masuk' || activeTab === 'pesanan' || activeTab === 'retur_barang' || activeTab === 'retur' || activeTab === 'penjualan_offline' || activeTab === 'offline' || isMarketingOpen) ? '800' : '600',
                   lineHeight: 1,
                   cursor: 'pointer',
                   transition: 'all 0.15s ease',
                   whiteSpace: 'nowrap',
-                  boxShadow: (activeTab === 'pesanan_masuk' || activeTab === 'pesanan' || activeTab === 'retur_barang' || activeTab === 'retur' || isMarketingOpen) ? '0 0 10px rgba(2, 132, 199, 0.5)' : 'none'
+                  boxShadow: (activeTab === 'pesanan_masuk' || activeTab === 'pesanan' || activeTab === 'retur_barang' || activeTab === 'retur' || activeTab === 'penjualan_offline' || activeTab === 'offline' || isMarketingOpen) ? '0 0 10px rgba(2, 132, 199, 0.5)' : 'none'
                 }}
                 onMouseEnter={(e) => {
-                  if (activeTab !== 'pesanan_masuk' && activeTab !== 'pesanan' && activeTab !== 'retur_barang' && activeTab !== 'retur' && !isMarketingOpen) {
+                  if (activeTab !== 'pesanan_masuk' && activeTab !== 'pesanan' && activeTab !== 'retur_barang' && activeTab !== 'retur' && activeTab !== 'penjualan_offline' && activeTab !== 'offline' && !isMarketingOpen) {
                     e.currentTarget.style.backgroundColor = 'rgba(56, 189, 248, 0.15)';
                     e.currentTarget.style.borderColor = 'rgba(56, 189, 248, 0.3)';
                     e.currentTarget.style.color = '#ffffff';
                   }
                 }}
                 onMouseLeave={(e) => {
-                  if (activeTab !== 'pesanan_masuk' && activeTab !== 'pesanan' && activeTab !== 'retur_barang' && activeTab !== 'retur' && !isMarketingOpen) {
+                  if (activeTab !== 'pesanan_masuk' && activeTab !== 'pesanan' && activeTab !== 'retur_barang' && activeTab !== 'retur' && activeTab !== 'penjualan_offline' && activeTab !== 'offline' && !isMarketingOpen) {
                     e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
                     e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
                     e.currentTarget.style.color = '#cbd5e1';
                   }
                 }}
               >
-                <Megaphone size={13} color={(activeTab === 'pesanan_masuk' || activeTab === 'pesanan' || activeTab === 'retur_barang' || activeTab === 'retur' || isMarketingOpen) ? '#ffffff' : '#38bdf8'} style={{ flexShrink: 0 }} />
+                <Megaphone size={13} color={(activeTab === 'pesanan_masuk' || activeTab === 'pesanan' || activeTab === 'retur_barang' || activeTab === 'retur' || activeTab === 'penjualan_offline' || activeTab === 'offline' || isMarketingOpen) ? '#ffffff' : '#38bdf8'} style={{ flexShrink: 0 }} />
                 <span>Marketing</span>
                 <ChevronDown 
                   size={11} 
-                  color={(activeTab === 'pesanan_masuk' || activeTab === 'pesanan' || activeTab === 'retur_barang' || activeTab === 'retur' || isMarketingOpen) ? '#ffffff' : '#38bdf8'} 
+                  color={(activeTab === 'pesanan_masuk' || activeTab === 'pesanan' || activeTab === 'retur_barang' || activeTab === 'retur' || activeTab === 'penjualan_offline' || activeTab === 'offline' || isMarketingOpen) ? '#ffffff' : '#38bdf8'} 
                   style={{ 
                     transform: isMarketingOpen ? 'rotate(180deg)' : 'none', 
                     transition: 'transform 0.15s ease',
@@ -1139,6 +1144,42 @@ export default function AdminLayout() {
                   >
                     <RotateCcw size={14} color={(activeTab === 'retur_barang' || activeTab === 'retur') ? '#f87171' : '#94a3b8'} style={{ flexShrink: 0 }} />
                     <span style={{ textAlign: 'left', flex: 1 }}>Retur Masuk</span>
+                  </button>
+
+                  {/* Submenu 3: Penjualan Offline */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      changeTab('penjualan_offline');
+                      setIsMarketingOpen(false);
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'flex-start',
+                      gap: '8px',
+                      width: '100%',
+                      padding: '7px 10px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      backgroundColor: (activeTab === 'penjualan_offline' || activeTab === 'offline') ? 'rgba(37, 211, 102, 0.2)' : 'transparent',
+                      color: (activeTab === 'penjualan_offline' || activeTab === 'offline') ? '#25d366' : '#cbd5e1',
+                      fontSize: '11.5px',
+                      fontWeight: (activeTab === 'penjualan_offline' || activeTab === 'offline') ? '800' : '600',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'background-color 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (activeTab !== 'penjualan_offline' && activeTab !== 'offline') e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (activeTab !== 'penjualan_offline' && activeTab !== 'offline') e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
+                  >
+                    <Send size={14} color={(activeTab === 'penjualan_offline' || activeTab === 'offline') ? '#25d366' : '#94a3b8'} style={{ flexShrink: 0 }} />
+                    <span style={{ textAlign: 'left', flex: 1 }}>Penjualan Offline</span>
                   </button>
                 </div>
               )}
@@ -1727,6 +1768,26 @@ export default function AdminLayout() {
             >
               <RotateCcw size={15} color={(activeTab === 'retur_barang' || activeTab === 'retur') ? '#ffffff' : '#f87171'} />
               <span>Retur Masuk</span>
+            </button>
+            <button
+              onClick={() => changeTab('penjualan_offline')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '8px 12px 8px 20px',
+                borderRadius: '6px',
+                border: (activeTab === 'penjualan_offline' || activeTab === 'offline') ? '1px solid #25d366' : '1px solid rgba(255, 255, 255, 0.08)',
+                backgroundColor: (activeTab === 'penjualan_offline' || activeTab === 'offline') ? '#16a34a' : 'rgba(255, 255, 255, 0.05)',
+                color: '#ffffff',
+                fontSize: '12px',
+                fontWeight: (activeTab === 'penjualan_offline' || activeTab === 'offline') ? '800' : '600',
+                cursor: 'pointer',
+                textAlign: 'left'
+              }}
+            >
+              <Send size={15} color={(activeTab === 'penjualan_offline' || activeTab === 'offline') ? '#ffffff' : '#25d366'} />
+              <span>Penjualan Offline</span>
             </button>
 
             {/* 4. Marketplace Section Mobile */}
