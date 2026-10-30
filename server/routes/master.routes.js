@@ -642,6 +642,7 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
       const status = urlObj.searchParams.get('status');
 
       const tabParam = urlObj.searchParams.get('tab');
+      const sortParam = urlObj.searchParams.get('sort');
       const isPaginated = pageParam !== null || limitParam !== null;
       const page = Math.max(1, parseInt(pageParam, 10) || 1);
       const limit = Math.max(1, Math.min(5000, parseInt(limitParam, 10) || 50));
@@ -776,7 +777,7 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
         LEFT JOIN master_kain k ON p.sku_kain = k.kode_sku_kain
         LEFT JOIN master_hpp_produk h ON p.id_kategori_hpp = h.id_kategori_hpp
         ${whereSql}
-        ORDER BY p.id DESC
+        ${sortParam === 'nama_produk' || sortParam === 'nama' || sortParam === 'asc' ? 'ORDER BY p.nama_produk ASC, p.kode_sku ASC' : 'ORDER BY p.id DESC'}
       `;
 
       let queryParams = [...whereParams];
