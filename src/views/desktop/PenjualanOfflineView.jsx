@@ -1513,8 +1513,20 @@ export default function PenjualanOfflineView({ onNavigate }) {
     setScanOrderInput("");
     setScanSkuInput("");
 
-    if (orderOrId) {
-      const id = typeof orderOrId === "object" ? orderOrId.id : orderOrId;
+    const targetCandidate =
+      orderOrId ||
+      orders.find(
+        (o) =>
+          o.status_pesanan !== "dibatalkan" && o.status_pesanan !== "selesai",
+      ) ||
+      orders[0] ||
+      null;
+
+    if (targetCandidate) {
+      const id =
+        typeof targetCandidate === "object"
+          ? targetCandidate.id
+          : targetCandidate;
       try {
         setIsLookingUpScan(true);
         const res = await fetch(`/api/offline/orders/${id}`);
@@ -1523,7 +1535,7 @@ export default function PenjualanOfflineView({ onNavigate }) {
           applyActiveScanOrderData(json.data);
           setScanFeedback({
             type: "success",
-            text: `Pesanan ${json.data.no_pesanan} (${json.data.nama_pelanggan}) siap diverifikasi & dikemas.`,
+            text: `Pesanan ${json.data.no_pesanan} (${json.data.nama_pembeli || json.data.nama_pelanggan || "-"}) siap diverifikasi & dikemas.`,
           });
         }
       } catch (err) {
@@ -1903,10 +1915,10 @@ export default function PenjualanOfflineView({ onNavigate }) {
             <div class="grid2">
               <div>
                 <div style="font-size:9px;font-weight:800;color:#64748b;text-transform:uppercase;">PENERIMA:</div>
-                <div style="font-size:12.5px;font-weight:900;margin-top:2px;">${ordData.nama_pelanggan || "-"}</div>
-                <div style="font-size:11px;font-weight:700;margin-top:1px;">Telp: ${ordData.telepon_pelanggan || "-"}</div>
+                <div style="font-size:12.5px;font-weight:900;margin-top:2px;">${ordData.nama_pembeli || ordData.nama_pelanggan || "-"}</div>
+                <div style="font-size:11px;font-weight:700;margin-top:1px;">Telp: ${ordData.no_telepon || ordData.telepon_pelanggan || "-"}</div>
                 <div style="font-size:10.5px;margin-top:3px;line-height:1.35;">${ordData.alamat_pengiriman || "-"}</div>
-                <div style="font-size:10px;color:#334155;margin-top:1px;">${[ordData.kecamatan, ordData.kota_kabupaten, ordData.provinsi, ordData.kode_pos].filter(Boolean).join(", ")}</div>
+                <div style="font-size:10px;color:#334155;margin-top:1px;">${[ordData.kota, ordData.provinsi, ordData.kode_pos].filter(Boolean).join(", ")}</div>
               </div>
               <div style="border-left:1px solid #cbd5e1;padding-left:8px;">
                 <div style="font-size:9px;font-weight:800;color:#64748b;text-transform:uppercase;">PENGIRIM ${ordData.is_dropship ? "(DROPSHIP)" : ""}:</div>
@@ -9923,8 +9935,8 @@ export default function PenjualanOfflineView({ onNavigate }) {
                         opacity: 0.85,
                       }}
                     >
-                      Tahap 1: Scan No. Pesanan / Resi ➔ Tahap 2: Scan Barcode
-                      SKU Produk ➔ Tahap 3: Selesai Kemas & Cetak Label
+                      Scan Barcode SKU Produk ➔ Verifikasi Qty ➔ Selesai Kemas &
+                      Cetak Label
                     </div>
                   </div>
                 </div>
@@ -9976,7 +9988,7 @@ export default function PenjualanOfflineView({ onNavigate }) {
                 </div>
               </div>
 
-              {/* MAIN 2-COLUMN WORKSPACE */}
+              {/* MAIN FULL-WIDTH WORKSPACE */}
               <div
                 style={{
                   padding: "12px 18px",
@@ -10054,530 +10066,200 @@ export default function PenjualanOfflineView({ onNavigate }) {
                   </div>
                 )}
 
+                {/* ── VERIFIKASI & SCAN BARCODE SKU PRODUK (PACKING CHECKER FULL WIDTH) ── */}
                 <div
                   style={{
-                    display: "grid",
-                    gridTemplateColumns: "370px 1fr",
-                    gap: "12px",
-                    alignItems: "start",
+                    backgroundColor: "#ffffff",
+                    border: "1px solid #cbd5e1",
+                    borderRadius: "8px",
+                    padding: "14px 16px",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
                   }}
                 >
-                  {/* ── KOLOM KIRI: SCAN BARCODE NO. PESANAN / ANTREAN KEMASAN ── */}
-                  <div
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "10px",
-                    }}
-                  >
-                    {/* Card 1: Input Scan Barcode No. Pesanan / Resi */}
+                  {!activeScanOrder ? (
                     <div
                       style={{
-                        backgroundColor: "#ffffff",
-                        border: "1.5px solid #cbd5e1",
-                        borderRadius: "8px",
-                        padding: "12px 14px",
-                        boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
+                        padding: "60px 20px",
+                        textAlign: "center",
+                        color: "#64748b",
                       }}
                     >
+                      <QrCode
+                        size={44}
+                        color="#94a3b8"
+                        style={{ margin: "0 auto 10px" }}
+                      />
                       <div
                         style={{
-                          fontSize: "11px",
+                          fontSize: "14px",
                           fontWeight: "800",
-                          color: "#0f172a",
-                          textTransform: "uppercase",
-                          letterSpacing: "0.04em",
-                          marginBottom: "8px",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "6px",
+                          color: "#334155",
                         }}
                       >
-                        <QrCode size={13} color="#059669" />
-                        <span>1. Scan Barcode Pesanan / No. Resi</span>
-                      </div>
-
-                      <form
-                        onSubmit={(e) => handleScanOrderLookup(e)}
-                        style={{ display: "flex", gap: "6px" }}
-                      >
-                        <input
-                          type="text"
-                          autoFocus={!activeScanOrder}
-                          value={scanOrderInput}
-                          onChange={(e) => setScanOrderInput(e.target.value)}
-                          placeholder="Scan No. Pesanan / Resi / SPK lalu Enter..."
-                          style={{
-                            flex: 1,
-                            padding: "7px 10px",
-                            borderRadius: "6px",
-                            border: "2px solid #059669",
-                            backgroundColor: "#f0fdf4",
-                            fontSize: "12px",
-                            fontWeight: "700",
-                            color: "#0f172a",
-                            outline: "none",
-                          }}
-                        />
-                        <button
-                          type="submit"
-                          disabled={isLookingUpScan}
-                          style={{
-                            padding: "0 12px",
-                            borderRadius: "6px",
-                            border: "none",
-                            backgroundColor: "#059669",
-                            color: "#ffffff",
-                            fontSize: "11.5px",
-                            fontWeight: "800",
-                            cursor: "pointer",
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: "4px",
-                          }}
-                        >
-                          <Search size={13} />
-                          <span>{isLookingUpScan ? "..." : "Cari"}</span>
-                        </button>
-                      </form>
-                      <div
-                        style={{
-                          fontSize: "10px",
-                          color: "#64748b",
-                          marginTop: "5px",
-                        }}
-                      >
-                        Arahkan scanner barcode ke Label Pesanan / SPK atau klik
-                        daftar antrean di bawah.
+                        Belum Ada Pesanan yang Dipilih
                       </div>
                     </div>
-
-                    {/* Card 2: Daftar Antrean Pesanan Siap Kemas */}
-                    <div
-                      style={{
-                        backgroundColor: "#ffffff",
-                        border: "1px solid #cbd5e1",
-                        borderRadius: "8px",
-                        padding: "12px 14px",
-                        boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
-                      }}
-                    >
+                  ) : (
+                    <>
+                      {/* Header Info Pesanan Aktif + Progress Bar */}
                       <div
                         style={{
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "space-between",
-                          marginBottom: "8px",
+                          flexWrap: "wrap",
+                          gap: "10px",
+                          paddingBottom: "10px",
+                          borderBottom: "1px solid #e2e8f0",
+                          marginBottom: "12px",
                         }}
                       >
-                        <div
-                          style={{
-                            fontSize: "11px",
-                            fontWeight: "800",
-                            color: "#334155",
-                            textTransform: "uppercase",
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "6px",
-                          }}
-                        >
-                          <Package size={13} color="#0284c7" />
-                          <span>
-                            Antrean Pesanan Offline ({packingQueue.length})
-                          </span>
-                        </div>
-                      </div>
-
-                      <div
-                        style={{
-                          maxHeight: "310px",
-                          overflowY: "auto",
-                          display: "flex",
-                          flexDirection: "column",
-                          gap: "6px",
-                        }}
-                      >
-                        {packingQueue.length === 0 ? (
+                        <div>
                           <div
-                            style={{
-                              padding: "18px 10px",
-                              textAlign: "center",
-                              color: "#94a3b8",
-                              fontSize: "11.5px",
-                            }}
-                          >
-                            Tidak ada antrean pesanan aktif.
-                          </div>
-                        ) : (
-                          packingQueue.map((ord) => {
-                            const isSelected =
-                              activeScanOrder && activeScanOrder.id === ord.id;
-                            const isPacked =
-                              ord.status_kemas === "sudah_dikemas";
-                            return (
-                              <div
-                                key={ord.id}
-                                onClick={() => handleOpenScanKemasan(ord.id)}
-                                style={{
-                                  padding: "8px 10px",
-                                  borderRadius: "6px",
-                                  border: isSelected
-                                    ? "2px solid #0284c7"
-                                    : "1px solid #e2e8f0",
-                                  backgroundColor: isSelected
-                                    ? "#f0f9ff"
-                                    : isPacked
-                                      ? "#f0fdf4"
-                                      : "#ffffff",
-                                  cursor: "pointer",
-                                  transition: "all 0.12s ease",
-                                }}
-                              >
-                                <div
-                                  style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "space-between",
-                                    gap: "6px",
-                                  }}
-                                >
-                                  <span
-                                    style={{
-                                      fontSize: "11.5px",
-                                      fontWeight: "800",
-                                      color: "#0284c7",
-                                      fontFamily: "monospace",
-                                    }}
-                                  >
-                                    {ord.no_pesanan}
-                                  </span>
-                                  <span
-                                    style={{
-                                      fontSize: "9.5px",
-                                      fontWeight: "800",
-                                      padding: "1px 6px",
-                                      borderRadius: "4px",
-                                      backgroundColor: isPacked
-                                        ? "#dcfce7"
-                                        : ord.status_kemas === "sedang_dikemas"
-                                          ? "#fef3c7"
-                                          : "#f1f5f9",
-                                      color: isPacked
-                                        ? "#15803d"
-                                        : ord.status_kemas === "sedang_dikemas"
-                                          ? "#b45309"
-                                          : "#475569",
-                                    }}
-                                  >
-                                    {isPacked
-                                      ? "✓ Sudah Dikemas"
-                                      : ord.status_kemas === "sedang_dikemas"
-                                        ? "⏳ Sedang Dikemas"
-                                        : "Belum Dikemas"}
-                                  </span>
-                                </div>
-                                <div
-                                  style={{
-                                    fontSize: "11.5px",
-                                    fontWeight: "700",
-                                    color: "#1e293b",
-                                    marginTop: "2px",
-                                  }}
-                                >
-                                  {ord.nama_pelanggan}
-                                </div>
-                                <div
-                                  style={{
-                                    fontSize: "10px",
-                                    color: "#64748b",
-                                    marginTop: "2px",
-                                    display: "flex",
-                                    justifyContent: "space-between",
-                                  }}
-                                >
-                                  <span>
-                                    {ord.nama_toko || "-"} • {ord.kurir || "-"}
-                                  </span>
-                                  <span style={{ fontWeight: "700" }}>
-                                    {ord.jumlah_jenis_produk ||
-                                      (ord.items || []).length}{" "}
-                                    SKU ({ord.total_qty_produk || 0} Pcs)
-                                  </span>
-                                </div>
-                              </div>
-                            );
-                          })
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Card 3: Riwayat Scan Kemasan Sesi Ini */}
-                    {scanHistory.length > 0 && (
-                      <div
-                        style={{
-                          backgroundColor: "#ffffff",
-                          border: "1px solid #cbd5e1",
-                          borderRadius: "8px",
-                          padding: "10px 14px",
-                        }}
-                      >
-                        <div
-                          style={{
-                            fontSize: "10.5px",
-                            fontWeight: "800",
-                            color: "#059669",
-                            textTransform: "uppercase",
-                            marginBottom: "6px",
-                          }}
-                        >
-                          ✓ Riwayat Selesai Kemas Sesi Ini ({scanHistory.length}
-                          )
-                        </div>
-                        <div
-                          style={{
-                            maxHeight: "130px",
-                            overflowY: "auto",
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: "4px",
-                          }}
-                        >
-                          {scanHistory.map((h) => (
-                            <div
-                              key={`${h.id}-${h.waktu}`}
-                              onClick={() => handleOpenScanKemasan(h.id)}
-                              style={{
-                                fontSize: "10.5px",
-                                padding: "5px 8px",
-                                borderRadius: "5px",
-                                backgroundColor: "#f0fdf4",
-                                border: "1px solid #bbf7d0",
-                                display: "flex",
-                                justifyContent: "space-between",
-                                cursor: "pointer",
-                              }}
-                            >
-                              <div>
-                                <b style={{ color: "#15803d" }}>
-                                  {h.no_pesanan}
-                                </b>{" "}
-                                — {h.nama_pelanggan}
-                              </div>
-                              <span
-                                style={{
-                                  color: "#047857",
-                                  fontWeight: "700",
-                                }}
-                              >
-                                {h.total_packed}/{h.total_ordered} pcs ({h.waktu}
-                                )
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* ── KOLOM KANAN: VERIFIKASI & SCAN BARCODE SKU PRODUK (PACKING CHECKER) ── */}
-                  <div
-                    style={{
-                      backgroundColor: "#ffffff",
-                      border: "1px solid #cbd5e1",
-                      borderRadius: "8px",
-                      padding: "14px 16px",
-                      boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
-                    }}
-                  >
-                    {!activeScanOrder ? (
-                      <div
-                        style={{
-                          padding: "60px 20px",
-                          textAlign: "center",
-                          color: "#64748b",
-                        }}
-                      >
-                        <QrCode
-                          size={44}
-                          color="#94a3b8"
-                          style={{ margin: "0 auto 10px" }}
-                        />
-                        <div
-                          style={{
-                            fontSize: "14px",
-                            fontWeight: "800",
-                            color: "#334155",
-                          }}
-                        >
-                          Belum Ada Pesanan yang Dipilih / Di-Scan
-                        </div>
-                        <div
-                          style={{
-                            fontSize: "12px",
-                            marginTop: "4px",
-                            maxWidth: "460px",
-                            marginInline: "auto",
-                          }}
-                        >
-                          Silakan scan barcode Nomor Pesanan / Nomor Resi pada
-                          kolom kiri, atau klik salah satu pesanan dari daftar
-                          antrean untuk mulai memverifikasi kemasan produk.
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        {/* Header Info Pesanan Aktif + Progress Bar */}
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            flexWrap: "wrap",
-                            gap: "10px",
-                            paddingBottom: "10px",
-                            borderBottom: "1px solid #e2e8f0",
-                            marginBottom: "12px",
-                          }}
-                        >
-                          <div>
-                            <div
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "8px",
-                              }}
-                            >
-                              <span
-                                style={{
-                                  fontSize: "15px",
-                                  fontWeight: "900",
-                                  color: "#0f172a",
-                                  fontFamily: "monospace",
-                                }}
-                              >
-                                {activeScanOrder.no_pesanan}
-                              </span>
-                              {getStatusBadge(activeScanOrder.status_pesanan)}
-                              {activeScanOrder.no_spk && (
-                                <span
-                                  style={{
-                                    fontSize: "10.5px",
-                                    fontWeight: "800",
-                                    backgroundColor: "#ede9fe",
-                                    color: "#6d28d9",
-                                    padding: "2px 8px",
-                                    borderRadius: "999px",
-                                  }}
-                                >
-                                  SPK: {activeScanOrder.no_spk}
-                                </span>
-                              )}
-                            </div>
-                            <div
-                              style={{
-                                fontSize: "12px",
-                                color: "#334155",
-                                marginTop: "3px",
-                              }}
-                            >
-                              Pelanggan:{" "}
-                              <b>{activeScanOrder.nama_pelanggan}</b> (
-                              {activeScanOrder.telepon_pelanggan || "-"}) •
-                              Toko: <b>{activeScanOrder.nama_toko || "-"}</b>
-                            </div>
-                          </div>
-
-                          {/* Indikator Progress Kemasan */}
-                          <div
-                            style={{
-                              minWidth: "230px",
-                              backgroundColor: isAllComplete
-                                ? "#f0fdf4"
-                                : "#f8fafc",
-                              border: `1.5px solid ${
-                                isAllComplete ? "#22c55e" : "#cbd5e1"
-                              }`,
-                              borderRadius: "8px",
-                              padding: "7px 12px",
-                            }}
-                          >
-                            <div
-                              style={{
-                                display: "flex",
-                                justifyContent: "space-between",
-                                fontSize: "11px",
-                                fontWeight: "800",
-                                color: isAllComplete ? "#15803d" : "#334155",
-                                marginBottom: "4px",
-                              }}
-                            >
-                              <span>PROGRES SCAN ITEM</span>
-                              <span>
-                                {totalScannedPcs} / {totalOrderedPcs} Pcs (
-                                {progressPct}%)
-                              </span>
-                            </div>
-                            <div
-                              style={{
-                                height: "7px",
-                                borderRadius: "999px",
-                                backgroundColor: "#e2e8f0",
-                                overflow: "hidden",
-                              }}
-                            >
-                              <div
-                                style={{
-                                  width: `${progressPct}%`,
-                                  height: "100%",
-                                  backgroundColor: isAllComplete
-                                    ? "#16a34a"
-                                    : "#0284c7",
-                                  transition: "width 0.2s ease",
-                                }}
-                              />
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Bar Scan Barcode SKU Produk + Tombol Cepat */}
-                        <div
-                          style={{
-                            backgroundColor: "#f8fafc",
-                            border: "1.5px solid #93c5fd",
-                            borderRadius: "8px",
-                            padding: "10px 12px",
-                            marginBottom: "12px",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            gap: "10px",
-                            flexWrap: "wrap",
-                          }}
-                        >
-                          <form
-                            onSubmit={handleScanSkuSubmit}
                             style={{
                               display: "flex",
                               alignItems: "center",
                               gap: "8px",
-                              flex: 1,
-                              minWidth: "280px",
+                            }}
+                          >
+                            <span
+                              style={{
+                                fontSize: "15px",
+                                fontWeight: "900",
+                                color: "#0f172a",
+                                fontFamily: "monospace",
+                              }}
+                            >
+                              {activeScanOrder.no_pesanan}
+                            </span>
+                            {getStatusBadge(activeScanOrder.status_pesanan)}
+                            {activeScanOrder.no_spk && (
+                              <span
+                                style={{
+                                  fontSize: "10.5px",
+                                  fontWeight: "800",
+                                  backgroundColor: "#ede9fe",
+                                  color: "#6d28d9",
+                                  padding: "2px 8px",
+                                  borderRadius: "999px",
+                                }}
+                              >
+                                SPK: {activeScanOrder.no_spk}
+                              </span>
+                            )}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: "12px",
+                              color: "#334155",
+                              marginTop: "3px",
+                            }}
+                          >
+                            Pelanggan:{" "}
+                            <b>
+                              {activeScanOrder.nama_pembeli ||
+                                activeScanOrder.nama_pelanggan ||
+                                "-"}
+                            </b>{" "}
+                            (
+                            {activeScanOrder.no_telepon ||
+                              activeScanOrder.telepon_pelanggan ||
+                              "-"}
+                            ) • Toko: <b>{activeScanOrder.nama_toko || "-"}</b>
+                          </div>
+                        </div>
+
+                        {/* Indikator Progress Kemasan */}
+                        <div
+                          style={{
+                            minWidth: "230px",
+                            backgroundColor: isAllComplete
+                              ? "#f0fdf4"
+                              : "#f8fafc",
+                            border: `1.5px solid ${
+                              isAllComplete ? "#22c55e" : "#cbd5e1"
+                            }`,
+                            borderRadius: "8px",
+                            padding: "7px 12px",
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              fontSize: "11px",
+                              fontWeight: "800",
+                              color: isAllComplete ? "#15803d" : "#334155",
+                              marginBottom: "4px",
+                            }}
+                          >
+                            <span>PROGRES SCAN ITEM</span>
+                            <span>
+                              {totalScannedPcs} / {totalOrderedPcs} Pcs (
+                              {progressPct}%)
+                            </span>
+                          </div>
+                          <div
+                            style={{
+                              height: "7px",
+                              borderRadius: "999px",
+                              backgroundColor: "#e2e8f0",
+                              overflow: "hidden",
                             }}
                           >
                             <div
                               style={{
-                                fontSize: "11px",
-                                fontWeight: "800",
-                                color: "#1e3a8a",
-                                whiteSpace: "nowrap",
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "5px",
+                                width: `${progressPct}%`,
+                                height: "100%",
+                                backgroundColor: isAllComplete
+                                  ? "#16a34a"
+                                  : "#0284c7",
+                                transition: "width 0.2s ease",
                               }}
-                            >
-                              <QrCode size={14} color="#2563eb" />
-                              <span>2. SCAN SKU PRODUK:</span>
-                            </div>
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Bar Scan Barcode SKU Produk + Tombol Cepat */}
+                      <div
+                        style={{
+                          backgroundColor: "#f8fafc",
+                          border: "1.5px solid #93c5fd",
+                          borderRadius: "8px",
+                          padding: "10px 12px",
+                          marginBottom: "12px",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: "10px",
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <form
+                          onSubmit={handleScanSkuSubmit}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "8px",
+                            flex: 1,
+                            minWidth: "280px",
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontSize: "11px",
+                              fontWeight: "800",
+                              color: "#1e3a8a",
+                              whiteSpace: "nowrap",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "5px",
+                            }}
+                          >
+                            <QrCode size={14} color="#2563eb" />
+                            <span>SCAN SKU PRODUK:</span>
+                          </div>
                             <input
                               type="text"
                               autoFocus
@@ -10939,132 +10621,6 @@ export default function PenjualanOfflineView({ onNavigate }) {
                           </table>
                         </div>
 
-                        {/* Form Ekspedisi, Resi, PIC Kemas & Catatan Kemas */}
-                        <div
-                          style={{
-                            display: "grid",
-                            gridTemplateColumns: "1fr 1fr 1fr 1.3fr",
-                            gap: "10px",
-                            padding: "10px 12px",
-                            backgroundColor: "#f8fafc",
-                            border: "1px solid #e2e8f0",
-                            borderRadius: "7px",
-                            marginBottom: "14px",
-                          }}
-                        >
-                          <div>
-                            <label
-                              style={{
-                                display: "block",
-                                fontSize: "10.5px",
-                                fontWeight: "700",
-                                color: "#475569",
-                                marginBottom: "3px",
-                              }}
-                            >
-                              Kurir / Ekspedisi
-                            </label>
-                            <input
-                              type="text"
-                              value={scanKurir}
-                              onChange={(e) => setScanKurir(e.target.value)}
-                              placeholder="JNE / J&T / Cargo / Pickup"
-                              style={{
-                                width: "100%",
-                                padding: "5px 8px",
-                                borderRadius: "5px",
-                                border: "1px solid #cbd5e1",
-                                fontSize: "11.5px",
-                                fontWeight: "600",
-                                boxSizing: "border-box",
-                              }}
-                            />
-                          </div>
-                          <div>
-                            <label
-                              style={{
-                                display: "block",
-                                fontSize: "10.5px",
-                                fontWeight: "700",
-                                color: "#475569",
-                                marginBottom: "3px",
-                              }}
-                            >
-                              Nomor Resi Pengiriman
-                            </label>
-                            <input
-                              type="text"
-                              value={scanResi}
-                              onChange={(e) => setScanResi(e.target.value)}
-                              placeholder="Scan / ketik nomor resi..."
-                              style={{
-                                width: "100%",
-                                padding: "5px 8px",
-                                borderRadius: "5px",
-                                border: "1px solid #cbd5e1",
-                                fontSize: "11.5px",
-                                fontWeight: "700",
-                                fontFamily: "monospace",
-                                boxSizing: "border-box",
-                              }}
-                            />
-                          </div>
-                          <div>
-                            <label
-                              style={{
-                                display: "block",
-                                fontSize: "10.5px",
-                                fontWeight: "700",
-                                color: "#475569",
-                                marginBottom: "3px",
-                              }}
-                            >
-                              Petugas Kemas (Checker)
-                            </label>
-                            <input
-                              type="text"
-                              value={scanPic}
-                              onChange={(e) => setScanPic(e.target.value)}
-                              placeholder="Nama petugas packing..."
-                              style={{
-                                width: "100%",
-                                padding: "5px 8px",
-                                borderRadius: "5px",
-                                border: "1px solid #cbd5e1",
-                                fontSize: "11.5px",
-                                boxSizing: "border-box",
-                              }}
-                            />
-                          </div>
-                          <div>
-                            <label
-                              style={{
-                                display: "block",
-                                fontSize: "10.5px",
-                                fontWeight: "700",
-                                color: "#475569",
-                                marginBottom: "3px",
-                              }}
-                            >
-                              Catatan Kemasan (Jml Karung / Koli)
-                            </label>
-                            <input
-                              type="text"
-                              value={scanCatatan}
-                              onChange={(e) => setScanCatatan(e.target.value)}
-                              placeholder="Opsional: 2 Koli / Plastik Lakban..."
-                              style={{
-                                width: "100%",
-                                padding: "5px 8px",
-                                borderRadius: "5px",
-                                border: "1px solid #cbd5e1",
-                                fontSize: "11.5px",
-                                boxSizing: "border-box",
-                              }}
-                            />
-                          </div>
-                        </div>
-
                         {/* Tombol Aksi Selesaikan Kemasan */}
                         <div
                           style={{
@@ -11182,7 +10738,6 @@ export default function PenjualanOfflineView({ onNavigate }) {
                       </>
                     )}
                   </div>
-                </div>
               </div>
             </div>
           );
