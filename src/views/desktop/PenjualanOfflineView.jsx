@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   ShoppingBag,
   Search,
@@ -79,6 +79,116 @@ const BANK_OPTIONS = [
   { value: "Lainnya", label: "Bank Lainnya" },
 ];
 
+const SIZE_WEIGHTS = {
+  // Numeric sizes (0 - 30)
+  "0": 0, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5,
+  "6": 6, "7": 7, "8": 8, "9": 9, "10": 10,
+  "11": 11, "12": 12, "13": 13, "14": 14, "15": 15,
+  "16": 16, "17": 17, "18": 18, "19": 19, "20": 20,
+  // Standard letter sizes
+  "4XS": 90, "XXXXS": 90,
+  "3XS": 95, "XXXS": 95,
+  "2XS": 100, "XXS": 100,
+  "XS": 105,
+  "S": 110,
+  "M": 115,
+  "L": 120,
+  "XL": 125,
+  "2XL": 130, "XXL": 130,
+  "3XL": 135, "XXXL": 135,
+  "4XL": 140, "XXXXL": 140,
+  "5XL": 145, "XXXXXL": 145,
+  "6XL": 150,
+  "7XL": 155,
+  "8XL": 160,
+  "ALL SIZE": 200, "ALLSIZE": 200, "JUMBO": 210,
+};
+
+function parseItemForSort(item) {
+  const sku = (item.kode_sku || item.sku || "").trim();
+  const name = (item.nama_produk || item.nama || "").trim();
+
+  // 1. Ekstrak dari akhiran SKU (contoh: BB-TH-BIRU-LPK-L -> L)
+  const skuParts = sku.split(/[-_\s]+/);
+  if (skuParts.length > 1) {
+    const lastSku = skuParts[skuParts.length - 1].toUpperCase();
+    if (SIZE_WEIGHTS[lastSku] !== undefined) {
+      return {
+        base: skuParts.slice(0, -1).join("-").toLowerCase(),
+        weight: SIZE_WEIGHTS[lastSku],
+        rawName: name.toLowerCase(),
+        rawSku: sku.toLowerCase(),
+      };
+    }
+  }
+
+  // 2. Ekstrak dari akhiran Nama Produk
+  const nameParts = name.split(/[-_\s]+/);
+  if (nameParts.length > 1) {
+    const lastName = nameParts[nameParts.length - 1].toUpperCase();
+    if (SIZE_WEIGHTS[lastName] !== undefined) {
+      return {
+        base: nameParts.slice(0, -1).join(" ").toLowerCase(),
+        weight: SIZE_WEIGHTS[lastName],
+        rawName: name.toLowerCase(),
+        rawSku: sku.toLowerCase(),
+      };
+    }
+  }
+
+  return {
+    base: (name || sku).toLowerCase(),
+    weight: 999,
+    rawName: name.toLowerCase(),
+    rawSku: sku.toLowerCase(),
+  };
+}
+
+function compareProducts(a, b) {
+  const pA = parseItemForSort(a);
+  const pB = parseItemForSort(b);
+
+  // Jika nama/sku dasar sama dan keduanya punya ukuran dikenali, urutkan berdasarkan size
+  if (pA.base === pB.base && pA.weight !== 999 && pB.weight !== 999) {
+    return pA.weight - pB.weight;
+  }
+
+  // Urutkan secara alfabetik natural
+  const baseCompare = pA.base.localeCompare(pB.base, "id", {
+    numeric: true,
+    sensitivity: "base",
+  });
+  if (baseCompare !== 0) return baseCompare;
+
+  return pA.rawSku.localeCompare(pB.rawSku, "id", {
+    numeric: true,
+    sensitivity: "base",
+  });
+}
+
+function isSingleProduct(p) {
+  const sku = (p.kode_sku || p.sku || "").toUpperCase();
+  const tipe = (p.tipe_set || "").toLowerCase();
+  const nama = (p.nama_produk || p.nama || "").toLowerCase();
+
+  // Jika eksplisit tipe_set === 'single'
+  if (tipe === "single") return true;
+
+  // Jika diawali SET- atau ada kata bundle/setel
+  if (
+    sku.startsWith("SET-") ||
+    sku.startsWith("SET_") ||
+    tipe.includes("set") ||
+    tipe.includes("bundle") ||
+    nama.startsWith("satu setel") ||
+    nama.includes("setelan")
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
 export default function PenjualanOfflineView({ onNavigate }) {
   const [activeCompany] = useState(getActiveCompany);
   const [orders, setOrders] = useState([]);
@@ -133,6 +243,7 @@ export default function PenjualanOfflineView({ onNavigate }) {
   const [masterProduk, setMasterProduk] = useState([]);
   const [produkSearch, setProdukSearch] = useState("");
   const [showProdukDropdown, setShowProdukDropdown] = useState(false);
+  const [filterSingleOnly, setFilterSingleOnly] = useState(true);
 
   // Form state
   const [form, setForm] = useState({
@@ -194,10 +305,13 @@ export default function PenjualanOfflineView({ onNavigate }) {
   const loadMasterProduk = async () => {
     try {
       const res = await fetch(
-        `/api/marketplace/master?limit=5000&kode_perusahaan=${activeCompany?.code || "RSG"}`,
+        `/api/marketplace/master?limit=5000&sort=nama_produk&kode_perusahaan=${activeCompany?.code || "RSG"}`,
       );
       const json = await res.json();
-      setMasterProduk(json.data || []);
+      const list = Array.isArray(json.data)
+        ? [...json.data].sort(compareProducts)
+        : [];
+      setMasterProduk(list);
     } catch (e) {
       setMasterProduk([]);
     }
@@ -699,18 +813,30 @@ export default function PenjualanOfflineView({ onNavigate }) {
     );
   };
 
-  // Product search filtered list
-  const filteredProduk = produkSearch.trim()
-    ? masterProduk
-        .filter((p) => {
-          const s = produkSearch.toLowerCase();
-          return (
-            (p.nama_produk || "").toLowerCase().includes(s) ||
-            (p.kode_sku || "").toLowerCase().includes(s)
-          );
-        })
-        .slice(0, 10)
-    : [];
+  // Product search filtered list (sorted & single filter)
+  const filteredProduk = useMemo(() => {
+    if (!masterProduk.length) return [];
+
+    let pool = masterProduk;
+    if (filterSingleOnly) {
+      pool = pool.filter(isSingleProduct);
+    }
+
+    if (!produkSearch.trim()) {
+      return [...pool].sort(compareProducts).slice(0, 30);
+    }
+
+    const s = produkSearch.toLowerCase();
+    return pool
+      .filter((p) => {
+        return (
+          (p.nama_produk || "").toLowerCase().includes(s) ||
+          (p.kode_sku || "").toLowerCase().includes(s)
+        );
+      })
+      .sort(compareProducts)
+      .slice(0, 40);
+  }, [masterProduk, produkSearch, filterSingleOnly]);
 
   // ═══════════════════════════════════════════════════════════════════════
   // RENDER
@@ -2231,6 +2357,8 @@ export default function PenjualanOfflineView({ onNavigate }) {
                       marginBottom: "8px",
                       paddingBottom: "5px",
                       borderBottom: "1px solid #f1f5f9",
+                      flexWrap: "wrap",
+                      gap: "6px",
                     }}
                   >
                     <div
@@ -2253,19 +2381,64 @@ export default function PenjualanOfflineView({ onNavigate }) {
                         4. Daftar Produk Pesanan
                       </span>
                     </div>
-                    <span
+
+                    <div
                       style={{
-                        fontSize: "10px",
-                        fontWeight: "800",
-                        padding: "1px 8px",
-                        borderRadius: "4px",
-                        backgroundColor: "#f0f9ff",
-                        color: "#0284c7",
-                        border: "1px solid #bae6fd",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
                       }}
                     >
-                      {form.items.length} Macam Item
-                    </span>
+                      <label
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "5px",
+                          fontSize: "10.5px",
+                          fontWeight: "700",
+                          color: filterSingleOnly ? "#0369a1" : "#64748b",
+                          cursor: "pointer",
+                          backgroundColor: filterSingleOnly
+                            ? "#e0f2fe"
+                            : "#f1f5f9",
+                          padding: "2px 8px",
+                          borderRadius: "4px",
+                          border: `1px solid ${filterSingleOnly ? "#7dd3fc" : "#cbd5e1"}`,
+                          userSelect: "none",
+                          transition: "all 0.15s ease",
+                        }}
+                        title="Aktifkan untuk hanya memunculkan produk Single (Bundle/Set disembunyikan)"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={filterSingleOnly}
+                          onChange={(e) =>
+                            setFilterSingleOnly(e.target.checked)
+                          }
+                          style={{
+                            cursor: "pointer",
+                            margin: 0,
+                            width: "12px",
+                            height: "12px",
+                          }}
+                        />
+                        <span>Hanya Single</span>
+                      </label>
+
+                      <span
+                        style={{
+                          fontSize: "10px",
+                          fontWeight: "800",
+                          padding: "1px 8px",
+                          borderRadius: "4px",
+                          backgroundColor: "#f0f9ff",
+                          color: "#0284c7",
+                          border: "1px solid #bae6fd",
+                        }}
+                      >
+                        {form.items.length} Macam Item
+                      </span>
+                    </div>
                   </div>
 
                   {/* Autocomplete Input */}
@@ -2286,13 +2459,15 @@ export default function PenjualanOfflineView({ onNavigate }) {
                         setProdukSearch(e.target.value);
                         setShowProdukDropdown(true);
                       }}
-                      onFocus={() =>
-                        produkSearch && setShowProdukDropdown(true)
+                      onFocus={() => setShowProdukDropdown(true)}
+                      placeholder={
+                        filterSingleOnly
+                          ? "Cari SKU / nama produk Single (contoh: BB-TH-BIRU)..."
+                          : "Cari SKU / nama produk (Semua: Single & Bundle)..."
                       }
-                      placeholder="Cari SKU atau nama produk untuk menambahkan..."
                       style={{
                         width: "100%",
-                        padding: "6px 9px 6px 28px",
+                        padding: "6px 28px 6px 28px",
                         borderRadius: "5px",
                         border: "1px solid #cbd5e1",
                         fontSize: "11.5px",
@@ -2302,6 +2477,32 @@ export default function PenjualanOfflineView({ onNavigate }) {
                         boxSizing: "border-box",
                       }}
                     />
+                    {produkSearch && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setProdukSearch("");
+                          setShowProdukDropdown(false);
+                        }}
+                        style={{
+                          position: "absolute",
+                          right: "8px",
+                          top: "50%",
+                          transform: "translateY(-50%)",
+                          background: "none",
+                          border: "none",
+                          cursor: "pointer",
+                          color: "#94a3b8",
+                          padding: "2px",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                        title="Hapus pencarian"
+                      >
+                        <X size={12} />
+                      </button>
+                    )}
 
                     {showProdukDropdown && filteredProduk.length > 0 && (
                       <div
@@ -2351,12 +2552,37 @@ export default function PenjualanOfflineView({ onNavigate }) {
                             >
                               <div
                                 style={{
-                                  fontWeight: "700",
-                                  color: "#0284c7",
-                                  fontFamily: "monospace",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: "6px",
                                 }}
                               >
-                                {p.kode_sku || "NO-SKU"}
+                                <span
+                                  style={{
+                                    fontWeight: "700",
+                                    color: "#0284c7",
+                                    fontFamily: "monospace",
+                                  }}
+                                >
+                                  {p.kode_sku || "NO-SKU"}
+                                </span>
+                                <span
+                                  style={{
+                                    fontSize: "9px",
+                                    fontWeight: "700",
+                                    padding: "1px 5px",
+                                    borderRadius: "3px",
+                                    backgroundColor: isSingleProduct(p)
+                                      ? "#f0fdf4"
+                                      : "#f5f3ff",
+                                    color: isSingleProduct(p)
+                                      ? "#16a34a"
+                                      : "#7c3aed",
+                                    border: `1px solid ${isSingleProduct(p) ? "#bbf7d0" : "#ddd6fe"}`,
+                                  }}
+                                >
+                                  {isSingleProduct(p) ? "Single" : "Bundle"}
+                                </span>
                               </div>
                               <div
                                 style={{

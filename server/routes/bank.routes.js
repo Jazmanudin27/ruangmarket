@@ -1,13 +1,6 @@
 import { sendJson, parseJsonBody } from '../utils/response.js';
 
-const INITIAL_BANKS = [
-  { nama_bank: 'BCA', no_rekening: '', atas_nama: 'Perusahaan' },
-  { nama_bank: 'Bank Mandiri', no_rekening: '', atas_nama: 'Perusahaan' },
-  { nama_bank: 'BRI', no_rekening: '', atas_nama: 'Perusahaan' },
-  { nama_bank: 'BNI', no_rekening: '', atas_nama: 'Perusahaan' },
-  { nama_bank: 'BSI (Bank Syariah Indonesia)', no_rekening: '', atas_nama: 'Perusahaan' },
-  { nama_bank: 'Bank Jago', no_rekening: '', atas_nama: 'Perusahaan' },
-];
+const INITIAL_BANKS = [];
 
 async function ensureBankTable(pool) {
   await pool.query(`
