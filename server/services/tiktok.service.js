@@ -233,7 +233,11 @@ export class TiktokService {
       queryObj.page_token = pageToken;
     }
 
-    const bodyObj = {};
+    const nowTs = Math.floor(Date.now() / 1000);
+    const bodyObj = {
+      create_time_ge: nowTs - 14 * 86400, // 14 hari terakhir
+      create_time_lt: nowTs
+    };
     const bodyJson = JSON.stringify(bodyObj);
     const sign = this.generateSignature(path, queryObj, bodyJson);
     queryObj.sign = sign;

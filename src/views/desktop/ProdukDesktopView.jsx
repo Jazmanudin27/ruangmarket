@@ -771,7 +771,11 @@ export default function ProdukView() {
             nama_kain: p.nama_kain || '',
             jenis_kain: p.jenis_kain || '',
             warna_kain: p.warna_kain || '',
-            estimasi_kain: Number(p.estimasi_kain || p.panjang_kain_cm) || 200,
+            estimasi_kain: (() => {
+              const raw = p.estimasi_kain ?? p.panjang_kain_cm;
+              const num = parseFloat(String(raw ?? '').replace(/[^0-9.]/g, ''));
+              return !isNaN(num) ? Math.round(num) : 200;
+            })(),
             harga_kain_cm: Number(p.harga_kain_cm || 150),
             id_kategori_hpp: p.id_kategori_hpp || '',
             nama_kategori_hpp: p.nama_kategori_hpp || '',
@@ -1178,7 +1182,7 @@ export default function ProdukView() {
       id_kategori_hpp: item.id_kategori_hpp || '',
       sku_kain: item.sku_kain || '',
       nama_kain: item.nama_kain || '',
-      estimasi_kain: Number(item.estimasi_kain || item.panjang_kain_cm) || 200,
+      estimasi_kain: (() => { const r = item.estimasi_kain ?? item.panjang_kain_cm; const n = parseFloat(String(r ?? '').replace(/[^0-9.]/g, '')); return !isNaN(n) ? Math.round(n) : 200; })(),
       harga_kain_cm: item.harga_kain_cm !== undefined ? item.harga_kain_cm : 150,
       bundle_items: bundleItems
     });
@@ -1222,7 +1226,7 @@ export default function ProdukView() {
       sku: pRef.sku || '',
       qty: 1,
       kain_nama: pRef.nama_kain || pRef.sku_kain || 'Kain',
-      estimasi_kain: Number(pRef.estimasi_kain || pRef.panjang_kain_cm || 120),
+      estimasi_kain: (() => { const r = pRef.estimasi_kain ?? pRef.panjang_kain_cm; const n = parseFloat(String(r ?? '').replace(/[^0-9.]/g, '')); return !isNaN(n) ? Math.round(n) : 120; })(),
       harga_kain_cm: Number(pRef.harga_kain_cm || 150),
       harga_modal_item: Number(pRef.harga_beli || 35000)
     };
