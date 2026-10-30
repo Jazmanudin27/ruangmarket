@@ -9,11 +9,10 @@ import {
   Save, 
   RotateCw,
   Tag,
-  Package,
-  CheckCircle,
-  HelpCircle,
   DollarSign,
-  Boxes
+  Boxes,
+  HelpCircle,
+  FileSpreadsheet
 } from 'lucide-react';
 import { showConfirm, toastSuccess, toastError } from '../../utils/alert.util';
 import { getActiveCompany } from '../../utils/tenant.util';
@@ -180,7 +179,6 @@ export default function KainDesktopView() {
     }
   };
 
-  // Metrik ringkasan
   const totalKain = kainList.length;
   const avgPrice = totalKain > 0
     ? Math.round(kainList.reduce((acc, k) => acc + (Number(k.harga_per_meter) || 0), 0) / totalKain)
@@ -188,352 +186,384 @@ export default function KainDesktopView() {
   const totalRelasiProduk = kainList.reduce((acc, k) => acc + (Number(k.total_produk_terkait) || 0), 0);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', padding: '16px', backgroundColor: '#f1f5f9', minHeight: 'calc(100vh - 50px)' }}>
+    <div style={{ width: '100%', maxWidth: '100%', padding: '8px 16px', boxSizing: 'border-box' }}>
       
-      {/* HEADER SECTION */}
+      {/* MASTER CONTAINER CARD */}
       <div style={{
         backgroundColor: '#ffffff',
-        borderRadius: '10px',
-        padding: '14px 18px',
         border: '1px solid #cbd5e1',
-        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        flexWrap: 'wrap',
-        gap: '12px'
+        borderRadius: '10px',
+        padding: '12px 14px',
+        boxShadow: '0 2px 8px rgba(15, 23, 42, 0.05)',
+        boxSizing: 'border-box'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        
+        {/* HEADER SECTION (GRADIENT BLUE IDENTIK DENGAN DATA MASTER LAIN) */}
+        <div style={{
+          background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 50%, #075985 100%)',
+          borderRadius: '8px',
+          padding: '10px 16px',
+          color: '#ffffff',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '8px',
+          marginBottom: '8px',
+          boxShadow: '0 2px 6px rgba(2, 132, 199, 0.22)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{
+              width: '36px',
+              height: '36px',
+              borderRadius: '8px',
+              backgroundColor: 'rgba(255, 255, 255, 0.2)',
+              color: '#ffffff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+              backdropFilter: 'blur(4px)'
+            }}>
+              <Layers size={20} />
+            </div>
+            <div>
+              <h1 style={{ margin: 0, fontSize: '15px', fontWeight: '800', color: '#ffffff', letterSpacing: '-0.01em', lineHeight: 1.2 }}>
+                Master Data Kain & Bahan Baku
+              </h1>
+              <p style={{ margin: 0, fontSize: '11px', color: 'rgba(255, 255, 255, 0.88)' }}>
+                Kelola daftar SKU Kain, penetapan harga per meter, satuan, stok bahan, dan relasi otomatis ke SPK
+              </p>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={loadKain}
+              disabled={isLoading}
+              style={{
+                height: '30px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '5px',
+                padding: '0 12px',
+                borderRadius: '6px',
+                border: '1px solid rgba(255, 255, 255, 0.25)',
+                backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                color: '#ffffff',
+                fontSize: '11.5px',
+                fontWeight: '700',
+                cursor: isLoading ? 'not-allowed' : 'pointer',
+                transition: 'all 0.15s ease'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.25)'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.15)'}
+            >
+              <RotateCw size={12} className={isLoading ? 'animate-spin' : ''} />
+              <span>Refresh</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleOpenAdd}
+              style={{
+                height: '30px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                padding: '0 14px',
+                borderRadius: '6px',
+                border: 'none',
+                backgroundColor: '#ffffff',
+                color: '#0284c7',
+                fontSize: '12px',
+                fontWeight: '800',
+                lineHeight: 1,
+                cursor: 'pointer',
+                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.15)',
+                transition: 'all 0.15s ease'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f0f9ff'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#ffffff'}
+            >
+              <Plus size={14} />
+              <span>Tambah Kain</span>
+            </button>
+          </div>
+        </div>
+
+        {/* INFO STATISTIK SUMMARY BANNER */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+          gap: '8px',
+          marginBottom: '8px'
+        }}>
           <div style={{
-            width: '38px',
-            height: '38px',
-            borderRadius: '8px',
-            backgroundColor: '#0284c7',
+            backgroundColor: '#f8fafc',
+            border: '1px solid #e2e8f0',
+            borderRadius: '6px',
+            padding: '6px 12px',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
-            color: '#ffffff'
+            justifyContent: 'space-between'
           }}>
-            <Layers size={22} />
+            <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748b' }}>Total SKU Kain:</span>
+            <span style={{ fontSize: '12.5px', fontWeight: '900', color: '#0f172a' }}>{totalKain} Jenis</span>
           </div>
-          <div>
-            <h2 style={{ margin: 0, fontSize: '17px', fontWeight: '800', color: '#0f172a' }}>
-              Master Data Kain & Bahan Baku
-            </h2>
-            <p style={{ margin: 0, fontSize: '11.5px', color: '#64748b' }}>
-              Kelola daftar SKU Kain, penetapan harga per meter, stok bahan, dan relasi otomatis ke SPK Konveksi
-            </p>
+
+          <div style={{
+            backgroundColor: '#ecfdf5',
+            border: '1px solid #a7f3d0',
+            borderRadius: '6px',
+            padding: '6px 12px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between'
+          }}>
+            <span style={{ fontSize: '11px', fontWeight: '700', color: '#065f46' }}>Rata-rata Harga / Meter:</span>
+            <span style={{ fontSize: '12.5px', fontWeight: '900', color: '#059669' }}>Rp {avgPrice.toLocaleString('id-ID')} / m</span>
+          </div>
+
+          <div style={{
+            backgroundColor: '#eff6ff',
+            border: '1px solid #bfdbfe',
+            borderRadius: '6px',
+            padding: '6px 12px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between'
+          }}>
+            <span style={{ fontSize: '11px', fontWeight: '700', color: '#1e40af' }}>Produk Terhubung Kain:</span>
+            <span style={{ fontSize: '12.5px', fontWeight: '900', color: '#1d4ed8' }}>{totalRelasiProduk.toLocaleString('id-ID')} Produk</span>
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <button
-            type="button"
-            onClick={loadKain}
-            disabled={isLoading}
-            style={{
-              height: '32px',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '0 12px',
-              borderRadius: '6px',
-              border: '1px solid #cbd5e1',
-              backgroundColor: '#ffffff',
-              color: '#334155',
-              fontSize: '11.5px',
-              fontWeight: '700',
-              cursor: isLoading ? 'not-allowed' : 'pointer'
-            }}
-          >
-            <RotateCw size={13} className={isLoading ? 'animate-spin' : ''} />
-            <span>Refresh</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={handleOpenAdd}
-            style={{
-              height: '32px',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '0 14px',
-              borderRadius: '6px',
-              border: 'none',
-              backgroundColor: '#059669',
-              color: '#ffffff',
-              fontSize: '11.5px',
-              fontWeight: '800',
-              cursor: 'pointer',
-              boxShadow: '0 2px 4px rgba(5, 150, 105, 0.25)'
-            }}
-          >
-            <Plus size={15} />
-            <span>Tambah Kain Baru</span>
-          </button>
-        </div>
-      </div>
-
-      {/* METRIC CARDS */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
+        {/* TOOLBAR SEARCH & FILTER JENIS */}
         <div style={{
-          backgroundColor: '#ffffff',
-          borderRadius: '8px',
-          padding: '12px 14px',
-          border: '1px solid #e2e8f0',
           display: 'flex',
           alignItems: 'center',
-          gap: '12px'
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '8px',
+          marginBottom: '8px'
         }}>
-          <div style={{ width: '36px', height: '36px', borderRadius: '8px', backgroundColor: '#e0f2fe', color: '#0284c7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Layers size={18} />
-          </div>
-          <div>
-            <div style={{ fontSize: '10.5px', fontWeight: '700', color: '#64748b' }}>TOTAL SKU KAIN</div>
-            <div style={{ fontSize: '18px', fontWeight: '900', color: '#0f172a' }}>{totalKain} Jenis</div>
-          </div>
-        </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: '260px' }}>
+            <div style={{ position: 'relative', width: '320px', maxWidth: '100%' }}>
+              <Search size={13} color="#64748b" style={{ position: 'absolute', left: '10px', top: '8px' }} />
+              <input
+                type="text"
+                placeholder="Cari SKU Kain, Nama, Jenis, Warna..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '5px 10px 5px 30px',
+                  borderRadius: '6px',
+                  border: '1px solid #cbd5e1',
+                  fontSize: '11.5px',
+                  backgroundColor: '#f8fafc',
+                  color: '#0f172a'
+                }}
+              />
+            </div>
 
-        <div style={{
-          backgroundColor: '#ffffff',
-          borderRadius: '8px',
-          padding: '12px 14px',
-          border: '1px solid #e2e8f0',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '12px'
-        }}>
-          <div style={{ width: '36px', height: '36px', borderRadius: '8px', backgroundColor: '#ecfdf5', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <DollarSign size={18} />
-          </div>
-          <div>
-            <div style={{ fontSize: '10.5px', fontWeight: '700', color: '#64748b' }}>RATA-RATA HARGA / METER</div>
-            <div style={{ fontSize: '18px', fontWeight: '900', color: '#059669' }}>Rp {avgPrice.toLocaleString('id-ID')}</div>
-          </div>
-        </div>
-
-        <div style={{
-          backgroundColor: '#ffffff',
-          borderRadius: '8px',
-          padding: '12px 14px',
-          border: '1px solid #e2e8f0',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '12px'
-        }}>
-          <div style={{ width: '36px', height: '36px', borderRadius: '8px', backgroundColor: '#f5f3ff', color: '#7c3aed', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Boxes size={18} />
-          </div>
-          <div>
-            <div style={{ fontSize: '10.5px', fontWeight: '700', color: '#64748b' }}>PRODUK TERHUBUNG KAIN</div>
-            <div style={{ fontSize: '18px', fontWeight: '900', color: '#7c3aed' }}>{totalRelasiProduk.toLocaleString('id-ID')} Produk</div>
-          </div>
-        </div>
-      </div>
-
-      {/* FILTER & TOOLBAR */}
-      <div style={{
-        backgroundColor: '#ffffff',
-        borderRadius: '8px',
-        padding: '10px 14px',
-        border: '1px solid #cbd5e1',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        flexWrap: 'wrap',
-        gap: '10px'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: '240px' }}>
-          <div style={{ position: 'relative', width: '100%', maxWidth: '340px' }}>
-            <Search size={14} style={{ position: 'absolute', left: '10px', top: '9px', color: '#94a3b8' }} />
-            <input
-              type="text"
-              placeholder="Cari SKU Kain, Nama, Jenis, atau Warna..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+            <select
+              value={filterJenis}
+              onChange={(e) => setFilterJenis(e.target.value)}
               style={{
-                width: '100%',
-                height: '32px',
-                padding: '0 10px 0 32px',
+                height: '28px',
+                padding: '0 8px',
                 borderRadius: '6px',
                 border: '1px solid #cbd5e1',
                 fontSize: '11.5px',
-                color: '#0f172a'
+                color: '#334155',
+                backgroundColor: '#ffffff',
+                fontWeight: '600'
               }}
-            />
+            >
+              {jenisOptions.map(j => (
+                <option key={j} value={j}>{j === 'Semua' ? 'Semua Jenis Kain' : j}</option>
+              ))}
+            </select>
           </div>
 
-          <select
-            value={filterJenis}
-            onChange={(e) => setFilterJenis(e.target.value)}
-            style={{
-              height: '32px',
-              padding: '0 10px',
-              borderRadius: '6px',
-              border: '1px solid #cbd5e1',
-              fontSize: '11.5px',
-              color: '#334155',
-              backgroundColor: '#ffffff',
-              fontWeight: '600'
-            }}
-          >
-            {jenisOptions.map(j => (
-              <option key={j} value={j}>{j === 'Semua' ? 'Semua Jenis Kain' : j}</option>
-            ))}
-          </select>
+          <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '600' }}>
+            Menampilkan <b>{filteredKain.length}</b> dari <b>{kainList.length}</b> kain
+          </div>
         </div>
 
-        <div style={{ fontSize: '11.5px', color: '#64748b' }}>
-          Menampilkan <strong>{filteredKain.length}</strong> dari <strong>{kainList.length}</strong> kain
-        </div>
-      </div>
-
-      {/* TABEL DATA KAIN */}
-      <div style={{
-        backgroundColor: '#ffffff',
-        borderRadius: '8px',
-        border: '1px solid #cbd5e1',
-        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
-        overflow: 'hidden'
-      }}>
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
-            <thead>
-              <tr style={{ backgroundColor: '#0f172a', color: '#ffffff' }}>
-                <th style={{ padding: '8px 10px', textAlign: 'center', width: '35px', borderRight: '1px solid #1e293b' }}>No</th>
-                <th style={{ padding: '8px 10px', textAlign: 'left', width: '150px', borderRight: '1px solid #1e293b' }}>Kode SKU Kain</th>
-                <th style={{ padding: '8px 10px', textAlign: 'left', minWidth: '180px', borderRight: '1px solid #1e293b' }}>Nama Kain</th>
-                <th style={{ padding: '8px 10px', textAlign: 'left', width: '130px', borderRight: '1px solid #1e293b' }}>Jenis Kain</th>
-                <th style={{ padding: '8px 10px', textAlign: 'left', width: '120px', borderRight: '1px solid #1e293b' }}>Warna</th>
-                <th style={{ padding: '8px 10px', textAlign: 'center', width: '80px', borderRight: '1px solid #1e293b' }}>Satuan</th>
-                <th style={{ padding: '8px 10px', textAlign: 'right', width: '130px', borderRight: '1px solid #1e293b' }}>Harga / Meter</th>
-                <th style={{ padding: '8px 10px', textAlign: 'right', width: '110px', borderRight: '1px solid #1e293b' }}>Harga / CM</th>
-                <th style={{ padding: '8px 10px', textAlign: 'center', width: '110px', borderRight: '1px solid #1e293b' }}>Produk Terkait</th>
-                <th style={{ padding: '8px 10px', textAlign: 'left', minWidth: '140px', borderRight: '1px solid #1e293b' }}>Keterangan</th>
-                <th style={{ padding: '8px 10px', textAlign: 'center', width: '90px' }}>Aksi</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredKain.length === 0 ? (
-                <tr>
-                  <td colSpan="11" style={{ padding: '24px', textAlign: 'center', color: '#94a3b8' }}>
-                    {isLoading ? 'Sedang memuat data kain...' : 'Tidak ada data kain yang cocok.'}
-                  </td>
+        {/* DATA TABLE (IDENTIK DENGAN KATEGORI & PRODUK MASTER) */}
+        <div style={{
+          border: '1px solid #cbd5e1',
+          borderRadius: '8px',
+          overflow: 'hidden',
+          backgroundColor: '#ffffff'
+        }}>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11.5px', textAlign: 'left' }}>
+              <thead>
+                <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #cbd5e1' }}>
+                  <th style={{ padding: '8px 10px', fontWeight: '800', color: '#334155', width: '45px', textAlign: 'center', borderRight: '1px solid #e2e8f0' }}>NO</th>
+                  <th style={{ padding: '8px 10px', fontWeight: '800', color: '#334155', width: '140px', borderRight: '1px solid #e2e8f0' }}>KODE SKU KAIN</th>
+                  <th style={{ padding: '8px 10px', fontWeight: '800', color: '#334155', minWidth: '180px', borderRight: '1px solid #e2e8f0' }}>NAMA KAIN</th>
+                  <th style={{ padding: '8px 10px', fontWeight: '800', color: '#334155', width: '130px', borderRight: '1px solid #e2e8f0' }}>JENIS KAIN</th>
+                  <th style={{ padding: '8px 10px', fontWeight: '800', color: '#334155', width: '110px', borderRight: '1px solid #e2e8f0' }}>WARNA</th>
+                  <th style={{ padding: '8px 10px', fontWeight: '800', color: '#334155', width: '70px', textAlign: 'center', borderRight: '1px solid #e2e8f0' }}>SATUAN</th>
+                  <th style={{ padding: '8px 10px', fontWeight: '800', color: '#334155', width: '130px', textAlign: 'right', borderRight: '1px solid #e2e8f0' }}>HARGA / METER</th>
+                  <th style={{ padding: '8px 10px', fontWeight: '800', color: '#334155', width: '110px', textAlign: 'right', borderRight: '1px solid #e2e8f0' }}>HARGA / CM</th>
+                  <th style={{ padding: '8px 10px', fontWeight: '800', color: '#334155', width: '110px', textAlign: 'center', borderRight: '1px solid #e2e8f0' }}>TERHUBUNG</th>
+                  <th style={{ padding: '8px 10px', fontWeight: '800', color: '#334155', minWidth: '130px', borderRight: '1px solid #e2e8f0' }}>KETERANGAN</th>
+                  <th style={{ padding: '8px 10px', fontWeight: '800', color: '#334155', width: '80px', textAlign: 'center' }}>AKSI</th>
                 </tr>
-              ) : (
-                filteredKain.map((item, idx) => {
-                  const meterPrice = Number(item.harga_per_meter || 0);
-                  const cmPrice = Math.round(meterPrice / 100);
+              </thead>
+              <tbody>
+                {filteredKain.length === 0 ? (
+                  <tr>
+                    <td colSpan="11" style={{ padding: '24px', textAlign: 'center', color: '#94a3b8' }}>
+                      {isLoading ? 'Sedang memuat data kain...' : 'Tidak ada data kain yang cocok.'}
+                    </td>
+                  </tr>
+                ) : (
+                  filteredKain.map((item, idx) => {
+                    const meterPrice = Number(item.harga_per_meter || 0);
+                    const cmPrice = Math.round(meterPrice / 100);
 
-                  return (
-                    <tr 
-                      key={item.id || idx}
-                      style={{
-                        borderBottom: '1px solid #e2e8f0',
-                        backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f8fafc'
-                      }}
-                    >
-                      <td style={{ padding: '7px 10px', textAlign: 'center', color: '#94a3b8', fontWeight: '600', borderRight: '1px solid #e2e8f0' }}>
-                        {idx + 1}
-                      </td>
-                      <td style={{ padding: '7px 10px', borderRight: '1px solid #e2e8f0' }}>
-                        <span style={{
-                          fontFamily: 'monospace',
-                          fontWeight: '800',
-                          fontSize: '11.5px',
-                          color: '#0284c7',
-                          backgroundColor: '#f0f9ff',
-                          padding: '2px 6px',
-                          borderRadius: '4px',
-                          border: '1px solid #bae6fd'
-                        }}>
-                          {item.kode_sku_kain}
-                        </span>
-                      </td>
-                      <td style={{ padding: '7px 10px', fontWeight: '700', color: '#0f172a', borderRight: '1px solid #e2e8f0' }}>
-                        {item.nama_kain}
-                      </td>
-                      <td style={{ padding: '7px 10px', color: '#475569', borderRight: '1px solid #e2e8f0' }}>
-                        {item.jenis_kain || '-'}
-                      </td>
-                      <td style={{ padding: '7px 10px', color: '#475569', borderRight: '1px solid #e2e8f0' }}>
-                        {item.warna || '-'}
-                      </td>
-                      <td style={{ padding: '7px 10px', textAlign: 'center', color: '#64748b', fontWeight: '700', borderRight: '1px solid #e2e8f0' }}>
-                        {item.satuan || 'METER'}
-                      </td>
-                      <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: '900', color: '#059669', fontSize: '12.5px', borderRight: '1px solid #e2e8f0' }}>
-                        Rp {meterPrice.toLocaleString('id-ID')} / m
-                      </td>
-                      <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: '800', color: '#0284c7', borderRight: '1px solid #e2e8f0' }}>
-                        Rp {cmPrice.toLocaleString('id-ID')} / cm
-                      </td>
-                      <td style={{ padding: '7px 10px', textAlign: 'center', borderRight: '1px solid #e2e8f0' }}>
-                        <span style={{
-                          fontSize: '10.5px',
-                          fontWeight: '800',
-                          padding: '2px 7px',
-                          borderRadius: '12px',
-                          backgroundColor: Number(item.total_produk_terkait || 0) > 0 ? '#f5f3ff' : '#f1f5f9',
-                          color: Number(item.total_produk_terkait || 0) > 0 ? '#7c3aed' : '#94a3b8',
-                          border: Number(item.total_produk_terkait || 0) > 0 ? '1px solid #ddd6fe' : '1px solid #e2e8f0'
-                        }}>
-                          {Number(item.total_produk_terkait || 0).toLocaleString('id-ID')} Produk
-                        </span>
-                      </td>
-                      <td style={{ padding: '7px 10px', color: '#64748b', fontSize: '11px', borderRight: '1px solid #e2e8f0' }}>
-                        {item.keterangan || '-'}
-                      </td>
-                      <td style={{ padding: '7px 10px', textAlign: 'center' }}>
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                          <button
-                            type="button"
-                            onClick={() => handleOpenEdit(item)}
-                            title="Edit Master Kain"
-                            style={{
-                              width: '26px',
-                              height: '26px',
-                              borderRadius: '4px',
-                              border: 'none',
-                              backgroundColor: '#0284c7',
-                              color: '#ffffff',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              cursor: 'pointer'
-                            }}
-                          >
-                            <Edit3 size={12} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(item)}
-                            title="Hapus Master Kain"
-                            style={{
-                              width: '26px',
-                              height: '26px',
-                              borderRadius: '4px',
-                              border: 'none',
-                              backgroundColor: '#ef4444',
-                              color: '#ffffff',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              cursor: 'pointer'
-                            }}
-                          >
-                            <Trash2 size={12} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+                    return (
+                      <tr 
+                        key={item.id || idx}
+                        style={{
+                          borderBottom: '1px solid #e2e8f0',
+                          backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f8fafc'
+                        }}
+                      >
+                        <td style={{ padding: '7px 10px', textAlign: 'center', color: '#64748b', fontWeight: '600', borderRight: '1px solid #e2e8f0' }}>
+                          {idx + 1}
+                        </td>
+                        <td style={{ padding: '7px 10px', borderRight: '1px solid #e2e8f0' }}>
+                          <span style={{
+                            fontFamily: 'monospace',
+                            fontWeight: '800',
+                            fontSize: '11px',
+                            color: '#0284c7',
+                            backgroundColor: '#f0f9ff',
+                            padding: '2px 6px',
+                            borderRadius: '4px',
+                            border: '1px solid #bae6fd'
+                          }}>
+                            {item.kode_sku_kain}
+                          </span>
+                        </td>
+                        <td style={{ padding: '7px 10px', fontWeight: '700', color: '#0f172a', borderRight: '1px solid #e2e8f0' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                            <Layers size={13} color="#0284c7" />
+                            <span>{item.nama_kain}</span>
+                          </div>
+                        </td>
+                        <td style={{ padding: '7px 10px', color: '#475569', borderRight: '1px solid #e2e8f0' }}>
+                          {item.jenis_kain || '-'}
+                        </td>
+                        <td style={{ padding: '7px 10px', color: '#475569', borderRight: '1px solid #e2e8f0' }}>
+                          {item.warna || '-'}
+                        </td>
+                        <td style={{ padding: '7px 10px', textAlign: 'center', color: '#64748b', fontWeight: '700', borderRight: '1px solid #e2e8f0' }}>
+                          {item.satuan || 'METER'}
+                        </td>
+                        <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: '900', color: '#059669', fontSize: '12px', borderRight: '1px solid #e2e8f0' }}>
+                          Rp {meterPrice.toLocaleString('id-ID')} / m
+                        </td>
+                        <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: '800', color: '#0284c7', borderRight: '1px solid #e2e8f0' }}>
+                          Rp {cmPrice.toLocaleString('id-ID')} / cm
+                        </td>
+                        <td style={{ padding: '7px 10px', textAlign: 'center', borderRight: '1px solid #e2e8f0' }}>
+                          <span style={{
+                            fontSize: '10px',
+                            fontWeight: '800',
+                            padding: '2px 7px',
+                            borderRadius: '9999px',
+                            backgroundColor: Number(item.total_produk_terkait || 0) > 0 ? '#f5f3ff' : '#f1f5f9',
+                            color: Number(item.total_produk_terkait || 0) > 0 ? '#7c3aed' : '#94a3b8',
+                            border: Number(item.total_produk_terkait || 0) > 0 ? '1px solid #ddd6fe' : '1px solid #e2e8f0'
+                          }}>
+                            {Number(item.total_produk_terkait || 0).toLocaleString('id-ID')} Produk
+                          </span>
+                        </td>
+                        <td style={{ padding: '7px 10px', color: '#64748b', fontSize: '11px', borderRight: '1px solid #e2e8f0' }}>
+                          {item.keterangan || '-'}
+                        </td>
+                        <td style={{ padding: '7px 10px', textAlign: 'center' }}>
+                          <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEdit(item)}
+                              title="Edit Master Kain"
+                              style={{
+                                width: '24px',
+                                height: '24px',
+                                borderRadius: '4px',
+                                border: '1px solid #0284c7',
+                                backgroundColor: '#f0f9ff',
+                                color: '#0284c7',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              <Edit3 size={12} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDelete(item)}
+                              title="Hapus Master Kain"
+                              style={{
+                                width: '24px',
+                                height: '24px',
+                                borderRadius: '4px',
+                                border: '1px solid #ef4444',
+                                backgroundColor: '#fef2f2',
+                                color: '#ef4444',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* FOOTER PAGING BAR IDENTIK DENGAN MASTER PRODUK */}
+          <div style={{
+            padding: '8px 14px',
+            borderTop: '1px solid #cbd5e1',
+            backgroundColor: '#f8fafc',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            fontSize: '11.5px',
+            color: '#64748b'
+          }}>
+            <div>
+              Menampilkan <strong>{filteredKain.length}</strong> master kain
+            </div>
+            <div style={{ fontSize: '11px', color: '#94a3b8' }}>
+              ERP RuangMarket • Master Kain & Bahan Baku
+            </div>
+          </div>
         </div>
+
       </div>
 
       {/* MODAL TAMBAH / EDIT KAIN */}
@@ -541,7 +571,7 @@ export default function KainDesktopView() {
         <div style={{
           position: 'fixed',
           inset: 0,
-          backgroundColor: 'rgba(15, 23, 42, 0.6)',
+          backgroundColor: 'rgba(15, 23, 42, 0.65)',
           backdropFilter: 'blur(3px)',
           zIndex: 3000,
           display: 'flex',
@@ -553,7 +583,7 @@ export default function KainDesktopView() {
             backgroundColor: '#ffffff',
             borderRadius: '10px',
             width: '100%',
-            maxWidth: '520px',
+            maxWidth: '500px',
             boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2)',
             overflow: 'hidden',
             border: '1px solid #cbd5e1'
@@ -568,7 +598,7 @@ export default function KainDesktopView() {
               justifyContent: 'space-between'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Layers size={18} />
+                <Layers size={17} />
                 <h3 style={{ margin: 0, fontSize: '14px', fontWeight: '800' }}>
                   {editingId ? 'Edit Data Master Kain' : 'Tambah Master Kain Baru'}
                 </h3>
@@ -582,10 +612,12 @@ export default function KainDesktopView() {
                   color: '#ffffff',
                   cursor: 'pointer',
                   padding: '4px',
-                  display: 'flex'
+                  display: 'flex',
+                  borderRadius: '4px',
+                  backgroundColor: 'rgba(255, 255, 255, 0.15)'
                 }}
               >
-                <X size={18} />
+                <X size={16} />
               </button>
             </div>
 
@@ -593,7 +625,7 @@ export default function KainDesktopView() {
             <form onSubmit={handleSubmit} style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
               
               <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: '800', color: '#334155', marginBottom: '4px' }}>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: '800', color: '#334155', marginBottom: '3px' }}>
                   Kode SKU Kain <span style={{ color: '#ef4444' }}>*</span>
                 </label>
                 <input
@@ -617,7 +649,7 @@ export default function KainDesktopView() {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: '800', color: '#334155', marginBottom: '4px' }}>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: '800', color: '#334155', marginBottom: '3px' }}>
                   Nama Kain <span style={{ color: '#ef4444' }}>*</span>
                 </label>
                 <input
@@ -640,12 +672,12 @@ export default function KainDesktopView() {
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#334155', marginBottom: '4px' }}>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#334155', marginBottom: '3px' }}>
                     Jenis Kain
                   </label>
                   <input
                     type="text"
-                    placeholder="Contoh: Batik / Drill / Calista"
+                    placeholder="Batik / Drill / Calista"
                     value={formData.jenis_kain}
                     onChange={(e) => setFormData({ ...formData, jenis_kain: e.target.value })}
                     style={{
@@ -653,19 +685,19 @@ export default function KainDesktopView() {
                       padding: '7px 10px',
                       borderRadius: '6px',
                       border: '1px solid #cbd5e1',
-                      fontSize: '12px',
+                      fontSize: '11.5px',
                       color: '#0f172a'
                     }}
                   />
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#334155', marginBottom: '4px' }}>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#334155', marginBottom: '3px' }}>
                     Warna Kain
                   </label>
                   <input
                     type="text"
-                    placeholder="Contoh: Merah, Putih, Navy"
+                    placeholder="Merah / Putih / Navy"
                     value={formData.warna}
                     onChange={(e) => setFormData({ ...formData, warna: e.target.value })}
                     style={{
@@ -673,7 +705,7 @@ export default function KainDesktopView() {
                       padding: '7px 10px',
                       borderRadius: '6px',
                       border: '1px solid #cbd5e1',
-                      fontSize: '12px',
+                      fontSize: '11.5px',
                       color: '#0f172a'
                     }}
                   />
@@ -716,7 +748,7 @@ export default function KainDesktopView() {
                   />
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '6px', fontSize: '10.5px' }}>
-                  <span style={{ color: '#047857' }}>Kalkulasi Otomatis Per CM:</span>
+                  <span style={{ color: '#047857' }}>Kalkulasi Otomatis ke Produk Master:</span>
                   <span style={{ fontWeight: '800', color: '#0284c7' }}>
                     @Rp {Math.round((Number(formData.harga_per_meter) || 0) / 100).toLocaleString('id-ID')} / CM
                   </span>
@@ -724,12 +756,12 @@ export default function KainDesktopView() {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#334155', marginBottom: '4px' }}>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#334155', marginBottom: '3px' }}>
                   Keterangan Tambahan
                 </label>
                 <textarea
                   rows="2"
-                  placeholder="Catatan pemasok, spesifikasi gramasi, dll..."
+                  placeholder="Catatan spesifikasi bahan atau gramasi..."
                   value={formData.keterangan}
                   onChange={(e) => setFormData({ ...formData, keterangan: e.target.value })}
                   style={{
@@ -745,12 +777,12 @@ export default function KainDesktopView() {
               </div>
 
               {/* Modal Buttons */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px', marginTop: '8px', paddingTop: '10px', borderTop: '1px solid #e2e8f0' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px', marginTop: '6px', paddingTop: '10px', borderTop: '1px solid #e2e8f0' }}>
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
                   style={{
-                    padding: '7px 14px',
+                    padding: '6px 14px',
                     borderRadius: '6px',
                     border: '1px solid #cbd5e1',
                     backgroundColor: '#ffffff',
@@ -765,7 +797,7 @@ export default function KainDesktopView() {
                 <button
                   type="submit"
                   style={{
-                    padding: '7px 16px',
+                    padding: '6px 16px',
                     borderRadius: '6px',
                     border: 'none',
                     backgroundColor: '#0284c7',
