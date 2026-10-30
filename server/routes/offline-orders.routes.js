@@ -172,6 +172,29 @@ export async function handleOfflineOrdersRoutes(req, res, pathname, urlObj, { po
       const subtotal = items.reduce((s, it) => s + (Number(it.harga_satuan) * Number(it.qty) - Number(it.diskon_item || 0)), 0);
       const total_harga = Math.max(0, subtotal - Number(diskon) + Number(ongkir));
 
+      // ── Simpan / Update otomatis ke tabel Master Pelanggan (pelanggan_master) ──
+      try {
+        const randCust = Math.random().toString(36).slice(2, 6).toUpperCase();
+        const generatedCustCode = `CUST-${Date.now().toString().slice(-6)}-${randCust}`;
+        await pool.query(`
+          INSERT INTO pelanggan_master (
+            kode_perusahaan, kode_pelanggan, nama_pelanggan, alamat, no_hp, status, kategori_pelanggan
+          ) VALUES (?, ?, ?, ?, ?, 'Aktif', ?)
+          ON DUPLICATE KEY UPDATE
+            alamat = IF(VALUES(alamat) != '', VALUES(alamat), alamat),
+            no_hp = IF(VALUES(no_hp) != '', VALUES(no_hp), no_hp)
+        `, [
+          kode_perusahaan,
+          generatedCustCode,
+          nama_pembeli.trim(),
+          alamat_pengiriman ? alamat_pengiriman.trim() : '',
+          no_telepon ? no_telepon.trim() : '',
+          saluran === 'reseller' ? 'Reseller' : saluran === 'dropship' ? 'Dropship' : 'Offline'
+        ]);
+      } catch (custErr) {
+        console.warn('[Sync to pelanggan_master warning]:', custErr.message);
+      }
+
       await pool.query(`
         INSERT INTO pesanan_offline (
           id, kode_perusahaan, no_pesanan, saluran, id_toko, nama_toko,

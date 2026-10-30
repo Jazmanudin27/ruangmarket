@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   ShoppingBag, Search, Plus, X, Eye, CheckCircle2, Truck, Package,
   Calendar, Phone, MapPin, User, ChevronDown, Edit3, Trash2, Send,
-  Maximize2, Minimize2, CreditCard, DollarSign, Store, Clock, Tag, FileText
+  Maximize2, Minimize2, CreditCard, DollarSign, Store, Clock, Tag, FileText, Users
 } from 'lucide-react';
 import SearchableSelect from '../../components/SearchableSelect';
 import { toastSuccess, toastError } from '../../utils/alert.util';
@@ -58,8 +58,10 @@ export default function PenjualanOfflineView({ onNavigate }) {
   const [editResiId, setEditResiId] = useState(null);
   const [resiInput, setResiInput] = useState('');
 
-  // Stores
+  // Stores & Pelanggan
   const [stores, setStores] = useState([]);
+  const [pelangganList, setPelangganList] = useState([]);
+  const [selectedPelangganId, setSelectedPelangganId] = useState('');
 
   // Master produk for autocomplete
   const [masterProduk, setMasterProduk] = useState([]);
@@ -126,7 +128,15 @@ export default function PenjualanOfflineView({ onNavigate }) {
     } catch (e) { setMasterProduk([]); }
   };
 
-  useEffect(() => { loadOrders(); loadStores(); loadMasterProduk(); }, [filterStatus, filterSaluran]);
+  const loadPelanggan = async () => {
+    try {
+      const res = await fetch(`/api/pelanggan?kode_perusahaan=${activeCompany?.code || 'RSG'}`);
+      const json = await res.json();
+      setPelangganList(json.data || []);
+    } catch (e) { setPelangganList([]); }
+  };
+
+  useEffect(() => { loadOrders(); loadStores(); loadMasterProduk(); loadPelanggan(); }, [filterStatus, filterSaluran]);
 
   // ── Handlers ────────────────────────────────────────────────────────────
   const resetForm = () => {
@@ -139,6 +149,7 @@ export default function PenjualanOfflineView({ onNavigate }) {
       metode_pembayaran: 'transfer', status_pembayaran: 'belum_bayar', nominal_dp: 0,
       catatan: '', items: []
     });
+    setSelectedPelangganId('');
     setProdukSearch('');
   };
 
@@ -482,7 +493,7 @@ export default function PenjualanOfflineView({ onNavigate }) {
             <thead>
               <tr style={{ backgroundColor: '#f8fafc', fontSize: '10.5px', fontWeight: '800', textTransform: 'uppercase', color: '#64748b' }}>
                 <th style={{ padding: '8px 12px', border: '1px solid #e2e8f0' }}>NO PESANAN</th>
-                <th style={{ padding: '8px 12px', border: '1px solid #e2e8f0' }}>PEMBELI & SALURAN</th>
+                <th style={{ padding: '8px 12px', border: '1px solid #e2e8f0' }}>PELANGGAN & SALURAN</th>
                 <th style={{ padding: '8px 12px', border: '1px solid #e2e8f0' }}>TOKO</th>
                 <th style={{ padding: '8px 12px', border: '1px solid #e2e8f0' }}>PRODUK</th>
                 <th style={{ padding: '8px 12px', border: '1px solid #e2e8f0', textAlign: 'right' }}>TOTAL</th>
@@ -784,104 +795,92 @@ export default function PenjualanOfflineView({ onNavigate }) {
                       </div>
                     </div>
 
-                    {/* Toko & Dropship Toggle */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '12px', alignItems: 'end' }}>
-                      <div>
-                        <label style={{ fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '5px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <Store size={12} color="#8b5cf6" />
-                          <span>Toko / Instansi Asal</span>
-                        </label>
-                        <SearchableSelect
-                          value={form.id_toko}
-                          onChange={val => {
-                            const st = stores.find(s => String(s.id) === String(val));
-                            setForm({ ...form, id_toko: val, nama_toko: st ? st.shopName : '' });
-                          }}
-                          options={[
-                            { value: '', label: '-- Pilih Toko / Instansi --' },
-                            ...stores.map(s => ({
-                              value: String(s.id),
-                              label: s.shopName,
-                              subtitle: s.channel ? `Channel: ${s.channel}` : undefined
-                            }))
-                          ]}
-                          placeholder="Pilih Toko"
-                        />
-                      </div>
-                      <div>
-                        <label style={{
-                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px', cursor: 'pointer',
-                          fontSize: '11.5px', fontWeight: '700', color: form.is_dropship ? '#6d28d9' : '#64748b',
-                          padding: '7px 10px', borderRadius: '7px',
-                          backgroundColor: form.is_dropship ? '#ede9fe' : '#f8fafc',
-                          border: form.is_dropship ? '1px solid #c4b5fd' : '1px solid #cbd5e1',
-                          height: '36px', boxSizing: 'border-box', transition: 'all 0.15s'
-                        }}>
-                          <input
-                            type="checkbox"
-                            checked={form.is_dropship}
-                            onChange={e => setForm({ ...form, is_dropship: e.target.checked })}
-                            style={{ cursor: 'pointer', width: '15px', height: '15px' }}
-                          />
-                          <span>Mode Dropship</span>
-                        </label>
-                      </div>
+                    {/* Toko / Instansi Asal */}
+                    <div>
+                      <label style={{ fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '5px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <Store size={12} color="#8b5cf6" />
+                        <span>Toko / Instansi Asal</span>
+                      </label>
+                      <SearchableSelect
+                        value={form.id_toko}
+                        onChange={val => {
+                          const st = stores.find(s => String(s.id) === String(val));
+                          setForm({ ...form, id_toko: val, nama_toko: st ? st.shopName : '' });
+                        }}
+                        options={[
+                          { value: '', label: '-- Pilih Toko / Instansi --' },
+                          ...stores.map(s => ({
+                            value: String(s.id),
+                            label: s.shopName,
+                            subtitle: s.channel ? `Channel: ${s.channel}` : undefined
+                          }))
+                        ]}
+                        placeholder="Pilih Toko"
+                      />
                     </div>
-
-                    {/* Dropship Subform */}
-                    {form.is_dropship && (
-                      <div style={{
-                        marginTop: '12px', padding: '12px 14px', borderRadius: '8px',
-                        backgroundColor: '#faf5ff', border: '1px solid #e9d5ff',
-                        display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px'
-                      }}>
-                        <div>
-                          <label style={{ fontSize: '10.5px', fontWeight: '700', color: '#7e22ce', marginBottom: '4px', display: 'block' }}>
-                            Nama Toko / Pengirim Label
-                          </label>
-                          <input
-                            value={form.nama_pengirim_ds}
-                            onChange={e => setForm({ ...form, nama_pengirim_ds: e.target.value })}
-                            placeholder="Misal: Ruang Dropship"
-                            style={{ width: '100%', padding: '6px 10px', borderRadius: '6px', border: '1px solid #d8b4fe', fontSize: '12px', boxSizing: 'border-box' }}
-                          />
-                        </div>
-                        <div>
-                          <label style={{ fontSize: '10.5px', fontWeight: '700', color: '#7e22ce', marginBottom: '4px', display: 'block' }}>
-                            No HP Pengirim
-                          </label>
-                          <input
-                            value={form.no_telp_pengirim_ds}
-                            onChange={e => setForm({ ...form, no_telp_pengirim_ds: e.target.value })}
-                            placeholder="08xxxxxxxxxx"
-                            style={{ width: '100%', padding: '6px 10px', borderRadius: '6px', border: '1px solid #d8b4fe', fontSize: '12px', boxSizing: 'border-box' }}
-                          />
-                        </div>
-                      </div>
-                    )}
                   </div>
 
-                  {/* KARTU 2: DATA PEMBELI & ALAMAT */}
+                  {/* KARTU 2: DATA PELANGGAN & ALAMAT */}
                   <div style={{
                     backgroundColor: '#ffffff', borderRadius: '12px', padding: '18px 20px',
                     border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)'
                   }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px', borderBottom: '1px solid #f1f5f9', paddingBottom: '10px' }}>
-                      <div style={{ width: '26px', height: '26px', borderRadius: '6px', backgroundColor: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#16a34a' }}>
-                        <User size={15} />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: '1px solid #f1f5f9', paddingBottom: '10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ width: '26px', height: '26px', borderRadius: '6px', backgroundColor: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#16a34a' }}>
+                          <Users size={15} />
+                        </div>
+                        <span style={{ fontSize: '13px', fontWeight: '800', color: '#0f172a' }}>Identitas Pelanggan & Alamat</span>
                       </div>
-                      <span style={{ fontSize: '13px', fontWeight: '800', color: '#0f172a' }}>Identitas Pembeli & Alamat</span>
+                      <span style={{ fontSize: '10.5px', color: '#16a34a', fontWeight: '700', backgroundColor: '#dcfce7', padding: '2px 8px', borderRadius: '10px' }}>
+                        Auto-Save ke Database
+                      </span>
                     </div>
+
+                    {/* Quick Pick dari Database Master Pelanggan */}
+                    {pelangganList.length > 0 && (
+                      <div style={{ marginBottom: '12px', padding: '10px 12px', borderRadius: '8px', backgroundColor: '#f8fafc', border: '1px dashed #cbd5e1' }}>
+                        <label style={{ fontSize: '10.5px', fontWeight: '700', color: '#64748b', marginBottom: '4px', display: 'block' }}>
+                          ⚡ Pilih dari Master Pelanggan yang Sudah Terdaftar (Opsional):
+                        </label>
+                        <SearchableSelect
+                          value={selectedPelangganId}
+                          onChange={val => {
+                            setSelectedPelangganId(val);
+                            const cust = pelangganList.find(p => String(p.id) === String(val));
+                            if (cust) {
+                              setForm(prev => ({
+                                ...prev,
+                                nama_pembeli: cust.nama_pelanggan || cust.nama || '',
+                                no_telepon: cust.no_hp || cust.telepon || '',
+                                alamat_pengiriman: cust.alamat || ''
+                              }));
+                            }
+                          }}
+                          options={[
+                            { value: '', label: '-- Ketik / Pilih Pelanggan Terdaftar --' },
+                            ...pelangganList.map(p => ({
+                              value: String(p.id),
+                              label: `${p.nama_pelanggan || p.nama} (${p.kode_pelanggan || 'CUST'})`,
+                              subtitle: [p.no_hp, p.alamat].filter(Boolean).join(' · ')
+                            }))
+                          ]}
+                          placeholder="Cari pelanggan terdaftar..."
+                          isClearable={true}
+                          size="sm"
+                        />
+                      </div>
+                    )}
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '12px', marginBottom: '12px' }}>
                       <div>
                         <label style={{ fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '5px', display: 'block' }}>
-                          Nama Pembeli <span style={{ color: '#ef4444' }}>*</span>
+                          Nama Pelanggan <span style={{ color: '#ef4444' }}>*</span>
                         </label>
                         <input
                           value={form.nama_pembeli}
                           onChange={e => setForm({ ...form, nama_pembeli: e.target.value })}
-                          placeholder="Masukkan nama lengkap pembeli..."
+                          placeholder="Masukkan nama lengkap pelanggan..."
                           style={{
                             width: '100%', padding: '7px 11px', borderRadius: '7px',
                             border: '1px solid #cbd5e1', fontSize: '12px', boxSizing: 'border-box'
