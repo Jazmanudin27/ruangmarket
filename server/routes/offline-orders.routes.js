@@ -47,7 +47,8 @@ async function ensureTables(pool) {
       diskon              DECIMAL(15,2) NOT NULL DEFAULT 0,
       ongkir              DECIMAL(15,2) NOT NULL DEFAULT 0,
       total_harga         DECIMAL(15,2) NOT NULL DEFAULT 0,
-      metode_pembayaran   VARCHAR(30)   DEFAULT 'transfer',
+      metode_pembayaran   VARCHAR(30)   DEFAULT 'cash',
+      bank_tujuan         VARCHAR(100)  DEFAULT NULL,
       status_pembayaran   VARCHAR(20)   DEFAULT 'belum_bayar',
       nominal_dp          DECIMAL(15,2) DEFAULT 0,
       tanggal_bayar       DATETIME      DEFAULT NULL,
@@ -64,6 +65,10 @@ async function ensureTables(pool) {
       INDEX idx_dibuat (dibuat_pada)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `);
+
+  try {
+    await pool.query('ALTER TABLE pesanan_offline ADD COLUMN bank_tujuan VARCHAR(100) DEFAULT NULL AFTER metode_pembayaran');
+  } catch (e) {}
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS pesanan_offline_item (
@@ -152,7 +157,7 @@ export async function handleOfflineOrdersRoutes(req, res, pathname, urlObj, { po
         is_dropship = false, nama_pengirim_ds = '', no_telp_pengirim_ds = '',
         kurir = '', jenis_layanan = '', batas_kirim = null,
         diskon = 0, ongkir = 0,
-        metode_pembayaran = 'transfer', status_pembayaran = 'belum_bayar', nominal_dp = 0, tanggal_bayar = null,
+        metode_pembayaran = 'cash', bank_tujuan = null, status_pembayaran = 'belum_bayar', nominal_dp = 0, tanggal_bayar = null,
         catatan = '', dibuat_oleh = '',
         items = [],
         status_pesanan = 'draft'
@@ -202,16 +207,16 @@ export async function handleOfflineOrdersRoutes(req, res, pathname, urlObj, { po
           is_dropship, nama_pengirim_ds, no_telp_pengirim_ds,
           kurir, jenis_layanan, batas_kirim,
           subtotal, diskon, ongkir, total_harga,
-          metode_pembayaran, status_pembayaran, nominal_dp, tanggal_bayar,
+          metode_pembayaran, bank_tujuan, status_pembayaran, nominal_dp, tanggal_bayar,
           status_pesanan, catatan, dibuat_oleh
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, [
         id, kode_perusahaan, no_pesanan, saluran, id_toko || null, nama_toko || null,
         nama_pembeli, no_telepon, alamat_pengiriman, kota, provinsi, kode_pos,
         is_dropship ? 1 : 0, nama_pengirim_ds, no_telp_pengirim_ds,
         kurir, jenis_layanan, batas_kirim || null,
         subtotal, Number(diskon), Number(ongkir), total_harga,
-        metode_pembayaran, status_pembayaran, Number(nominal_dp), tanggal_bayar || null,
+        metode_pembayaran, bank_tujuan || null, status_pembayaran, Number(nominal_dp), tanggal_bayar || null,
         status_pesanan, catatan, dibuat_oleh
       ]);
 

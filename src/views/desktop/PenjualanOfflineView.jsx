@@ -61,11 +61,22 @@ const STATUS_LIST = [
 ];
 
 const BAYAR_OPTIONS = [
-  { value: "transfer", label: "Transfer Bank" },
-  { value: "cod", label: "COD" },
-  { value: "tunai", label: "Tunai" },
-  { value: "qris", label: "QRIS" },
-  { value: "lainnya", label: "Lainnya" },
+  { value: "cash", label: "Cash" },
+  { value: "transfer", label: "Transfer" },
+];
+
+const BANK_OPTIONS = [
+  { value: "BCA", label: "BCA" },
+  { value: "Mandiri", label: "Bank Mandiri" },
+  { value: "BRI", label: "BRI" },
+  { value: "BNI", label: "BNI" },
+  { value: "BSI", label: "BSI (Bank Syariah Indonesia)" },
+  { value: "CIMB", label: "CIMB Niaga" },
+  { value: "Permata", label: "Bank Permata" },
+  { value: "Danamon", label: "Bank Danamon" },
+  { value: "Jago", label: "Bank Jago" },
+  { value: "SeaBank", label: "SeaBank" },
+  { value: "Lainnya", label: "Bank Lainnya" },
 ];
 
 export default function PenjualanOfflineView({ onNavigate }) {
@@ -129,7 +140,8 @@ export default function PenjualanOfflineView({ onNavigate }) {
     batas_kirim: new Date().toISOString().slice(0, 10),
     diskon: 0,
     ongkir: 0,
-    metode_pembayaran: "transfer",
+    metode_pembayaran: "cash",
+    bank_tujuan: "",
     status_pembayaran: "belum_bayar",
     nominal_dp: 0,
     catatan: "",
@@ -331,7 +343,8 @@ export default function PenjualanOfflineView({ onNavigate }) {
       batas_kirim: new Date().toISOString().slice(0, 10),
       diskon: 0,
       ongkir: 0,
-      metode_pembayaran: "transfer",
+      metode_pembayaran: "cash",
+      bank_tujuan: "",
       status_pembayaran: "belum_bayar",
       nominal_dp: 0,
       catatan: "",
@@ -395,6 +408,10 @@ export default function PenjualanOfflineView({ onNavigate }) {
     }
     if (!form.items.length) {
       toastError("Tambah minimal 1 item produk");
+      return;
+    }
+    if (form.metode_pembayaran === "transfer" && !form.bank_tujuan?.trim()) {
+      toastError("Pilih bank tujuan untuk pembayaran transfer");
       return;
     }
 
@@ -1104,6 +1121,10 @@ export default function PenjualanOfflineView({ onNavigate }) {
                           fontWeight: "400",
                         }}
                       >
+                        <span style={{ fontWeight: "600", color: ord.metode_pembayaran === "transfer" ? "#0284c7" : "#0f766e" }}>
+                          {ord.metode_pembayaran === "transfer" ? (ord.bank_tujuan ? `Transfer (${ord.bank_tujuan})` : "Transfer") : "Cash"}
+                        </span>
+                        {" · "}
                         {ord.status_pembayaran === "lunas"
                           ? "✓ Lunas"
                           : ord.status_pembayaran === "dp"
@@ -2510,7 +2531,10 @@ export default function PenjualanOfflineView({ onNavigate }) {
                   <div
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "1fr 1fr",
+                      gridTemplateColumns:
+                        form.metode_pembayaran === "transfer"
+                          ? "1fr 1.2fr"
+                          : "1fr 1fr",
                       gap: "8px",
                       marginBottom: "8px",
                     }}
@@ -2529,49 +2553,214 @@ export default function PenjualanOfflineView({ onNavigate }) {
                       </label>
                       <SearchableSelect
                         value={form.metode_pembayaran}
-                        onChange={(val) =>
-                          setForm({ ...form, metode_pembayaran: val })
-                        }
+                        onChange={(val) => {
+                          setForm({
+                            ...form,
+                            metode_pembayaran: val,
+                            bank_tujuan:
+                              val === "transfer"
+                                ? form.bank_tujuan || "BCA"
+                                : "",
+                          });
+                        }}
                         options={BAYAR_OPTIONS}
                         placeholder="Metode Bayar"
                         size="sm"
                       />
                     </div>
-                    <div>
-                      <label
-                        style={{
-                          display: "block",
-                          fontSize: "10.5px",
-                          fontWeight: "700",
-                          color: "#334155",
-                          marginBottom: "3px",
-                        }}
-                      >
-                        Status Pembayaran
-                      </label>
-                      <SearchableSelect
-                        value={form.status_pembayaran}
-                        onChange={(val) =>
-                          setForm({ ...form, status_pembayaran: val })
-                        }
-                        options={[
-                          {
-                            value: "belum_bayar",
-                            label: "Belum Bayar",
-                            color: "#ef4444",
-                          },
-                          {
-                            value: "dp",
-                            label: "DP (Uang Muka)",
-                            color: "#f59e0b",
-                          },
-                          { value: "lunas", label: "Lunas", color: "#10b981" },
-                        ]}
-                        placeholder="Status Bayar"
-                        size="sm"
-                      />
-                    </div>
+
+                    {form.metode_pembayaran === "transfer" ? (
+                      <div>
+                        <label
+                          style={{
+                            display: "block",
+                            fontSize: "10.5px",
+                            fontWeight: "700",
+                            color: "#0284c7",
+                            marginBottom: "3px",
+                          }}
+                        >
+                          Transfer ke Bank Mana?{" "}
+                          <span style={{ color: "#ef4444" }}>*</span>
+                        </label>
+                        <SearchableSelect
+                          value={form.bank_tujuan}
+                          onChange={(val) =>
+                            setForm({ ...form, bank_tujuan: val })
+                          }
+                          options={BANK_OPTIONS}
+                          placeholder="Pilih Bank..."
+                          size="sm"
+                        />
+                      </div>
+                    ) : (
+                      <div>
+                        <label
+                          style={{
+                            display: "block",
+                            fontSize: "10.5px",
+                            fontWeight: "700",
+                            color: "#334155",
+                            marginBottom: "3px",
+                          }}
+                        >
+                          Status Pembayaran
+                        </label>
+                        <SearchableSelect
+                          value={form.status_pembayaran}
+                          onChange={(val) =>
+                            setForm({ ...form, status_pembayaran: val })
+                          }
+                          options={[
+                            {
+                              value: "belum_bayar",
+                              label: "Belum Bayar",
+                              color: "#ef4444",
+                            },
+                            {
+                              value: "dp",
+                              label: "DP (Uang Muka)",
+                              color: "#f59e0b",
+                            },
+                            {
+                              value: "lunas",
+                              label: "Lunas",
+                              color: "#10b981",
+                            },
+                          ]}
+                          placeholder="Status Bayar"
+                          size="sm"
+                        />
+                      </div>
+                    )}
                   </div>
+
+                  {form.metode_pembayaran === "transfer" && (
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns:
+                          form.status_pembayaran === "dp" ? "1fr 1fr" : "1fr",
+                        gap: "8px",
+                        marginBottom: "8px",
+                      }}
+                    >
+                      <div>
+                        <label
+                          style={{
+                            display: "block",
+                            fontSize: "10.5px",
+                            fontWeight: "700",
+                            color: "#334155",
+                            marginBottom: "3px",
+                          }}
+                        >
+                          Status Pembayaran
+                        </label>
+                        <SearchableSelect
+                          value={form.status_pembayaran}
+                          onChange={(val) =>
+                            setForm({ ...form, status_pembayaran: val })
+                          }
+                          options={[
+                            {
+                              value: "belum_bayar",
+                              label: "Belum Bayar",
+                              color: "#ef4444",
+                            },
+                            {
+                              value: "dp",
+                              label: "DP (Uang Muka)",
+                              color: "#f59e0b",
+                            },
+                            {
+                              value: "lunas",
+                              label: "Lunas",
+                              color: "#10b981",
+                            },
+                          ]}
+                          placeholder="Status Bayar"
+                          size="sm"
+                        />
+                      </div>
+                      {form.status_pembayaran === "dp" && (
+                        <div>
+                          <label
+                            style={{
+                              display: "block",
+                              fontSize: "10.5px",
+                              fontWeight: "700",
+                              color: "#d97706",
+                              marginBottom: "3px",
+                            }}
+                          >
+                            Nominal DP (Rp)
+                          </label>
+                          <input
+                            type="number"
+                            value={form.nominal_dp}
+                            onChange={(e) =>
+                              setForm({
+                                ...form,
+                                nominal_dp: Number(e.target.value),
+                              })
+                            }
+                            placeholder="0"
+                            style={{
+                              width: "100%",
+                              padding: "6px 9px",
+                              borderRadius: "5px",
+                              border: "1px solid #f59e0b",
+                              fontSize: "11.5px",
+                              fontWeight: "600",
+                              color: "#0f172a",
+                              backgroundColor: "#fffbeb",
+                              boxSizing: "border-box",
+                            }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {form.metode_pembayaran === "cash" &&
+                    form.status_pembayaran === "dp" && (
+                      <div style={{ marginBottom: "8px" }}>
+                        <label
+                          style={{
+                            display: "block",
+                            fontSize: "10.5px",
+                            fontWeight: "700",
+                            color: "#d97706",
+                            marginBottom: "3px",
+                          }}
+                        >
+                          Nominal DP (Rp)
+                        </label>
+                        <input
+                          type="number"
+                          value={form.nominal_dp}
+                          onChange={(e) =>
+                            setForm({
+                              ...form,
+                              nominal_dp: Number(e.target.value),
+                            })
+                          }
+                          placeholder="0"
+                          style={{
+                            width: "100%",
+                            padding: "6px 9px",
+                            borderRadius: "5px",
+                            border: "1px solid #f59e0b",
+                            fontSize: "11.5px",
+                            fontWeight: "600",
+                            color: "#0f172a",
+                            backgroundColor: "#fffbeb",
+                            boxSizing: "border-box",
+                          }}
+                        />
+                      </div>
+                    )}
 
                   <div
                     style={{
@@ -2967,7 +3156,8 @@ export default function PenjualanOfflineView({ onNavigate }) {
                   💰{" "}
                   {BAYAR_OPTIONS.find(
                     (b) => b.value === detailOrder.metode_pembayaran,
-                  )?.label || detailOrder.metode_pembayaran}{" "}
+                  )?.label || (detailOrder.metode_pembayaran === "transfer" ? "Transfer" : "Cash")}
+                  {detailOrder.bank_tujuan ? ` (Bank ${detailOrder.bank_tujuan})` : ""}{" "}
                   —{" "}
                   {detailOrder.status_pembayaran === "lunas"
                     ? "✅ Lunas"
