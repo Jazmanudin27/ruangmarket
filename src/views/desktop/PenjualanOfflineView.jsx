@@ -169,7 +169,7 @@ export default function PenjualanOfflineView({ onNavigate }) {
   const loadMasterProduk = async () => {
     try {
       const res = await fetch(
-        `/api/marketplace/master?limit=1000&kode_perusahaan=${activeCompany?.code || "RSG"}`,
+        `/api/marketplace/master?limit=5000&kode_perusahaan=${activeCompany?.code || "RSG"}`,
       );
       const json = await res.json();
       setMasterProduk(json.data || []);
@@ -1525,16 +1525,15 @@ export default function PenjualanOfflineView({ onNavigate }) {
                         letterSpacing: "0.04em",
                       }}
                     >
-                      1. Info Transaksi & Saluran
+                      1. Info Transaksi & Toko
                     </span>
                   </div>
 
                   <div
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "1fr 1fr",
+                      gridTemplateColumns: "1fr 1.2fr",
                       gap: "8px",
-                      marginBottom: "8px",
                     }}
                   >
                     <div>
@@ -1569,6 +1568,7 @@ export default function PenjualanOfflineView({ onNavigate }) {
                         }}
                       />
                     </div>
+
                     <div>
                       <label
                         style={{
@@ -1579,56 +1579,38 @@ export default function PenjualanOfflineView({ onNavigate }) {
                           marginBottom: "3px",
                         }}
                       >
-                        Saluran Penjualan{" "}
-                        <span style={{ color: "#ef4444" }}>*</span>
+                        Toko / Instansi Asal
                       </label>
                       <SearchableSelect
-                        value={form.saluran}
-                        onChange={(val) => setForm({ ...form, saluran: val })}
-                        options={SALURAN_OPTIONS}
-                        placeholder="Pilih Saluran"
+                        value={form.id_toko}
+                        onChange={(val) => {
+                          const st = stores.find(
+                            (s) => String(s.id) === String(val),
+                          );
+                          setForm({
+                            ...form,
+                            id_toko: val,
+                            nama_toko: st ? st.shopName : "",
+                            saluran:
+                              st && st.channel
+                                ? st.channel.toLowerCase()
+                                : form.saluran || "walk_in",
+                          });
+                        }}
+                        options={[
+                          { value: "", label: "-- Pilih Toko / Instansi --" },
+                          ...stores.map((s) => ({
+                            value: String(s.id),
+                            label: s.shopName,
+                            subtitle: s.channel
+                              ? `Channel: ${s.channel}`
+                              : undefined,
+                          })),
+                        ]}
+                        placeholder="Pilih Toko"
                         size="sm"
                       />
                     </div>
-                  </div>
-
-                  <div>
-                    <label
-                      style={{
-                        display: "block",
-                        fontSize: "10.5px",
-                        fontWeight: "700",
-                        color: "#334155",
-                        marginBottom: "3px",
-                      }}
-                    >
-                      Toko / Instansi Asal
-                    </label>
-                    <SearchableSelect
-                      value={form.id_toko}
-                      onChange={(val) => {
-                        const st = stores.find(
-                          (s) => String(s.id) === String(val),
-                        );
-                        setForm({
-                          ...form,
-                          id_toko: val,
-                          nama_toko: st ? st.shopName : "",
-                        });
-                      }}
-                      options={[
-                        { value: "", label: "-- Pilih Toko / Instansi --" },
-                        ...stores.map((s) => ({
-                          value: String(s.id),
-                          label: s.shopName,
-                          subtitle: s.channel
-                            ? `Channel: ${s.channel}`
-                            : undefined,
-                        })),
-                      ]}
-                      placeholder="Pilih Toko"
-                      size="sm"
-                    />
                   </div>
                 </div>
 

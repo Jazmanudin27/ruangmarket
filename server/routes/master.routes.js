@@ -644,7 +644,7 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
       const tabParam = urlObj.searchParams.get('tab');
       const isPaginated = pageParam !== null || limitParam !== null;
       const page = Math.max(1, parseInt(pageParam, 10) || 1);
-      const limit = Math.max(1, Math.min(200, parseInt(limitParam, 10) || 50));
+      const limit = Math.max(1, Math.min(5000, parseInt(limitParam, 10) || 50));
       const offset = (page - 1) * limit;
 
       const whereClauses = [];
