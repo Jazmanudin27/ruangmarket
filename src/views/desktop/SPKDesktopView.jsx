@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   ClipboardList,
   Plus,
@@ -154,7 +154,7 @@ function SearchableSelect({
         onClick={() => setIsOpen((prev) => !prev)}
         style={{
           width: "100%",
-          padding: "6px 9px",
+          padding: "4px 8px",
           borderRadius: "5px",
           border: isOpen ? "1px solid #0284c7" : "1px solid #cbd5e1",
           fontSize: "11px",
@@ -555,7 +555,12 @@ export default function SPKView() {
   }, [activeCompany]);
 
   const [search, setSearch] = useState("");
-  const [filterStatus, setFilterStatus] = useState("Semua");
+  const [filterStatus, setFilterStatus] = useState("semua");
+  const [filterPenjahit, setFilterPenjahit] = useState("Semua");
+  const [filterTahapan, setFilterTahapan] = useState("Semua");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [entriesPerPage, setEntriesPerPage] = useState(25);
+  const [detailSpk, setDetailSpk] = useState(null);
   const [expandedBatch, setExpandedBatch] = useState({ 1: true });
   const [activeTabSpkIdx, setActiveTabSpkIdx] = useState(0);
 
@@ -775,7 +780,7 @@ export default function SPKView() {
   };
 
   // Open Edit Batch Modal
-  const handleOpenEdit = (batch) => {
+  const handleOpenEdit = (batch, initialSpkIdx = 0) => {
     loadPelangganOptions();
     loadTahapanOptions();
     loadProdukList();
@@ -791,7 +796,7 @@ export default function SPKView() {
         ? JSON.parse(JSON.stringify(batch.spk_list))
         : [],
     });
-    setActiveTabSpkIdx(0);
+    setActiveTabSpkIdx(initialSpkIdx || 0);
     setIsModalOpen(true);
   };
 
@@ -1108,24 +1113,303 @@ export default function SPKView() {
     (b) => !b.company_code || b.company_code === activeCompany.code,
   );
 
-  const filteredBatch = companyBatches.filter((b) => {
-    const q = search.toLowerCase();
-    const matchHeader =
-      (b.kode_produksi || "").toLowerCase().includes(q) ||
-      (b.nama_pelanggan || "").toLowerCase().includes(q);
-    const matchSpk = (b.spk_list || []).some(
-      (s) =>
-        (s.id_spk || "").toLowerCase().includes(q) ||
-        (s.nama_spk || "").toLowerCase().includes(q) ||
-        (s.penjahit || "").toLowerCase().includes(q) ||
-        (s.produk_items || []).some(
+  // Normalisasi status SPK ke kategori tab
+  const getNormalizedStatus = (st = "") => {
+    const s = String(st || "").toLowerCase();
+    if (s.includes("rencana") || s.includes("draft") || s.includes("thp-01"))
+      return "perencanaan";
+    if (
+      s.includes("antri") ||
+      s.includes("samp") ||
+      s.includes("thp-02") ||
+      s.includes("thp-03")
+    )
+      return "sampling";
+    if (s.includes("print") || s.includes("sublim") || s.includes("thp-04"))
+      return "print_kain";
+    if (
+      s.includes("potong") ||
+      s.includes("pola") ||
+      s.includes("cutting") ||
+      s.includes("thp-05")
+    )
+      return "potong";
+    if (s.includes("jahit") || s.includes("sewing") || s.includes("thp-06"))
+      return "jahit";
+    if (
+      s.includes("lkpk") ||
+      s.includes("qc") ||
+      s.includes("pack") ||
+      s.includes("finish") ||
+      s.includes("thp-07") ||
+      s.includes("thp-08") ||
+      s.includes("thp-09")
+    )
+      return "finishing";
+    if (
+      s.includes("selesai") ||
+      s.includes("finish good") ||
+      s.includes("thp-10")
+    )
+      return "selesai";
+    if (s.includes("batal") || s.includes("cancel") || s.includes("thp-11"))
+      return "batal";
+    return "perencanaan";
+  };
+
+  const getStatusBadgeStyle = (statusStr) => {
+    const norm = getNormalizedStatus(statusStr);
+    switch (norm) {
+      case "perencanaan":
+        return { bg: "#f1f5f9", color: "#475569", border: "#cbd5e1" };
+      case "sampling":
+        return { bg: "#f5f3ff", color: "#7c3aed", border: "#ddd6fe" };
+      case "print_kain":
+        return { bg: "#eff6ff", color: "#2563eb", border: "#bfdbfe" };
+      case "potong":
+        return { bg: "#fef3c7", color: "#d97706", border: "#fde68a" };
+      case "jahit":
+        return { bg: "#e0f2fe", color: "#0284c7", border: "#bae6fd" };
+      case "finishing":
+        return { bg: "#ecfeff", color: "#0891b2", border: "#a5f3fc" };
+      case "selesai":
+        return { bg: "#dcfce7", color: "#166534", border: "#bbf7d0" };
+      case "batal":
+        return { bg: "#fee2e2", color: "#b91c1c", border: "#fecaca" };
+      default:
+        return { bg: "#f8fafc", color: "#334155", border: "#e2e8f0" };
+    }
+  };
+
+  // Flatten batch produksi menjadi baris SPK individu (gaya Penjualan Offline)
+  const allSpkRows = useMemo(() => {
+    const rows = [];
+    companyBatches.forEach((batch) => {
+      const list = batch.spk_list || [];
+      if (list.length === 0) {
+        rows.push({
+          id_spk: `SPK-${batch.kode_produksi?.replace(/[^a-zA-Z0-9]/g, "") || "01"}`,
+          nama_spk: "SPK Produksi",
+          penjahit: "-",
+          status_spk: batch.status || "Perencanaan",
+          design_img: null,
+          produk_items: [],
+          batch_id: batch.id,
+          batch_obj: batch,
+          kode_produksi: batch.kode_produksi,
+          nama_pelanggan: batch.nama_pelanggan,
+          tgl_pesan: batch.tgl_pesan,
+          deadline: batch.deadline,
+          company_code: batch.company_code,
+          spk_index: 0,
+        });
+      } else {
+        list.forEach((spk, sIdx) => {
+          rows.push({
+            ...spk,
+            batch_id: batch.id,
+            batch_obj: batch,
+            kode_produksi: batch.kode_produksi,
+            nama_pelanggan: batch.nama_pelanggan,
+            tgl_pesan: batch.tgl_pesan,
+            deadline: batch.deadline,
+            company_code: batch.company_code,
+            spk_index: sIdx,
+          });
+        });
+      }
+    });
+    return rows;
+  }, [companyBatches]);
+
+  const countByTahapan = (val) => {
+    if (val === "semua") return allSpkRows.length;
+    return allSpkRows.filter(
+      (r) => getNormalizedStatus(r.status_spk || r.batch_obj?.status) === val,
+    ).length;
+  };
+
+  const SPK_TABS_CONFIG = [
+    {
+      value: "semua",
+      label: `Semua SPK (${allSpkRows.length})`,
+      icon: Layers,
+      activeBorder: "#0284c7",
+      inactiveBorder: "#bfdbfe",
+      activeBg: "#0284c7",
+      inactiveBg: "#eff6ff",
+      inactiveColor: "#1d4ed8",
+      shadow: "rgba(2, 132, 199, 0.25)",
+    },
+    {
+      value: "perencanaan",
+      label: `Perencanaan (${countByTahapan("perencanaan")})`,
+      icon: Clock,
+      activeBorder: "#475569",
+      inactiveBorder: "#cbd5e1",
+      activeBg: "#475569",
+      inactiveBg: "#f8fafc",
+      inactiveColor: "#334155",
+      shadow: "rgba(71, 85, 105, 0.25)",
+    },
+    {
+      value: "potong",
+      label: `Potong Pola (${countByTahapan("potong")})`,
+      icon: Scissors,
+      activeBorder: "#d97706",
+      inactiveBorder: "#fde68a",
+      activeBg: "#d97706",
+      inactiveBg: "#fffbeb",
+      inactiveColor: "#b45309",
+      shadow: "rgba(217, 119, 6, 0.25)",
+    },
+    {
+      value: "jahit",
+      label: `Jahit (${countByTahapan("jahit")})`,
+      icon: Layers,
+      activeBorder: "#0284c7",
+      inactiveBorder: "#bae6fd",
+      activeBg: "#0284c7",
+      inactiveBg: "#f0f9ff",
+      inactiveColor: "#0369a1",
+      shadow: "rgba(2, 132, 199, 0.25)",
+    },
+    {
+      value: "finishing",
+      label: `Finishing / QC (${countByTahapan("finishing")})`,
+      icon: Package,
+      activeBorder: "#0891b2",
+      inactiveBorder: "#a5f3fc",
+      activeBg: "#0891b2",
+      inactiveBg: "#ecfeff",
+      inactiveColor: "#0e7490",
+      shadow: "rgba(8, 145, 178, 0.25)",
+    },
+    {
+      value: "selesai",
+      label: `Selesai (${countByTahapan("selesai")})`,
+      icon: CheckCircle,
+      activeBorder: "#059669",
+      inactiveBorder: "#a7f3d0",
+      activeBg: "#059669",
+      inactiveBg: "#ecfdf5",
+      inactiveColor: "#047857",
+      shadow: "rgba(5, 150, 105, 0.25)",
+    },
+  ];
+
+  const penjahitFilterOptions = useMemo(() => {
+    const set = new Set();
+    allSpkRows.forEach((r) => {
+      if (r.penjahit && r.penjahit !== "-") set.add(r.penjahit);
+    });
+    karyawanOptions.forEach((k) => {
+      if (k.nama) set.add(k.nama);
+    });
+    return Array.from(set);
+  }, [allSpkRows, karyawanOptions]);
+
+  const tahapanFilterOptions = useMemo(() => {
+    const set = new Set();
+    allSpkRows.forEach((r) => {
+      if (r.status_spk) set.add(r.status_spk);
+    });
+    tahapanOptions.forEach((t) => {
+      if (t.nama_tahapan) set.add(t.nama_tahapan);
+    });
+    return Array.from(set);
+  }, [allSpkRows, tahapanOptions]);
+
+  const filteredSpkRows = useMemo(() => {
+    return allSpkRows.filter((spk) => {
+      if (filterStatus !== "semua") {
+        const norm = getNormalizedStatus(
+          spk.status_spk || spk.batch_obj?.status,
+        );
+        if (norm !== filterStatus) return false;
+      }
+      if (filterPenjahit !== "Semua") {
+        if ((spk.penjahit || "") !== filterPenjahit) return false;
+      }
+      if (filterTahapan !== "Semua") {
+        if ((spk.status_spk || "") !== filterTahapan) return false;
+      }
+      if (search.trim()) {
+        const q = search.trim().toLowerCase();
+        const matchId = (spk.id_spk || "").toLowerCase().includes(q);
+        const matchNama = (spk.nama_spk || "").toLowerCase().includes(q);
+        const matchBatch = (spk.kode_produksi || "").toLowerCase().includes(q);
+        const matchPelanggan = (spk.nama_pelanggan || "")
+          .toLowerCase()
+          .includes(q);
+        const matchPenjahit = (spk.penjahit || "").toLowerCase().includes(q);
+        const matchProduk = (spk.produk_items || []).some(
           (p) =>
             (p.nama_produk || "").toLowerCase().includes(q) ||
-            (p.sku || "").toLowerCase().includes(q),
-        ),
+            (p.sku || "").toLowerCase().includes(q) ||
+            (p.kain_nama || "").toLowerCase().includes(q),
+        );
+        if (
+          !matchId &&
+          !matchNama &&
+          !matchBatch &&
+          !matchPelanggan &&
+          !matchPenjahit &&
+          !matchProduk
+        ) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [allSpkRows, filterStatus, filterPenjahit, filterTahapan, search]);
+
+  const totalPages = Math.ceil(filteredSpkRows.length / entriesPerPage);
+  const paginatedSpkRows = useMemo(() => {
+    const start = (currentPage - 1) * entriesPerPage;
+    return filteredSpkRows.slice(start, start + entriesPerPage);
+  }, [filteredSpkRows, currentPage, entriesPerPage]);
+
+  const handleDeleteSpkItem = async (spkRow) => {
+    const ok = await showConfirm(
+      "Hapus SPK",
+      `Apakah Anda yakin ingin menghapus SPK ${spkRow.id_spk} (${spkRow.nama_spk})?`,
+      "Ya, Hapus",
     );
-    return matchHeader || matchSpk;
-  });
+    if (!ok) return;
+
+    const targetBatch = batchList.find((b) => b.id === spkRow.batch_id);
+    if (!targetBatch) return;
+
+    if (!targetBatch.spk_list || targetBatch.spk_list.length <= 1) {
+      await handleDeleteBatch(targetBatch);
+    } else {
+      const updatedSpkList = targetBatch.spk_list.filter(
+        (_, idx) => idx !== spkRow.spk_index,
+      );
+      const updatedBatch = { ...targetBatch, spk_list: updatedSpkList };
+
+      setBatchList((prev) =>
+        prev.map((b) => (b.id === targetBatch.id ? updatedBatch : b)),
+      );
+      try {
+        const saved = batchList.map((b) =>
+          b.id === targetBatch.id ? updatedBatch : b,
+        );
+        localStorage.setItem(SPK_STORAGE_KEY, JSON.stringify(saved));
+      } catch (e) {}
+
+      try {
+        await fetch("/api/marketplace/spk", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(updatedBatch),
+        });
+      } catch (e) {}
+
+      toastSuccess(`SPK ${spkRow.id_spk} berhasil dihapus`);
+    }
+  };
 
   return (
     <div
@@ -1147,1071 +1431,1385 @@ export default function SPKView() {
           boxSizing: "border-box",
         }}
       >
-        {/* HEADER SECTION (BLUE GRADIENT) */}
+        {/* HEADER TITLE & ACTION BUTTONS (BERWARNA BLUE GRADIENT - MATCHING PENJUALAN OFFLINE) */}
         <div
           style={{
-            background:
-              "linear-gradient(135deg, #0284c7 0%, #0369a1 50%, #075985 100%)",
+            background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
             borderRadius: "8px",
-            padding: "10px 14px",
+            padding: "10px 16px",
             color: "#ffffff",
             display: "flex",
-            alignItems: "center",
             justifyContent: "space-between",
+            alignItems: "center",
             flexWrap: "wrap",
             gap: "8px",
-            marginBottom: "10px",
-            boxShadow: "0 2px 4px rgba(2, 132, 199, 0.25)",
+            marginBottom: "6px",
+            boxShadow: "0 2px 6px rgba(2, 132, 199, 0.22)",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
             <div
               style={{
-                width: "28px",
-                height: "28px",
-                borderRadius: "6px",
-                backgroundColor: "rgba(255, 255, 255, 0.15)",
+                width: "36px",
+                height: "36px",
+                borderRadius: "8px",
+                backgroundColor: "rgba(255, 255, 255, 0.2)",
+                color: "#ffffff",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                color: "#ffffff",
+                flexShrink: 0,
+                backdropFilter: "blur(4px)",
               }}
             >
-              <ClipboardList size={16} />
+              <ClipboardList size={20} />
             </div>
             <div>
-              <h1
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <h1
+                  style={{
+                    margin: 0,
+                    fontSize: "15px",
+                    fontWeight: "800",
+                    color: "#ffffff",
+                    letterSpacing: "-0.01em",
+                    lineHeight: 1.2,
+                  }}
+                >
+                  Surat Perintah Kerja (SPK) Produksi
+                </h1>
+                <span
+                  style={{
+                    fontSize: "10px",
+                    fontWeight: "800",
+                    padding: "1.5px 7px",
+                    borderRadius: "4px",
+                    backgroundColor: "rgba(255, 255, 255, 0.2)",
+                    color: "#ffffff",
+                    border: "1px solid rgba(255, 255, 255, 0.35)",
+                  }}
+                >
+                  {activeCompany?.code || "RSG"}
+                </span>
+              </div>
+              <p
                 style={{
                   margin: 0,
-                  fontSize: "14px",
-                  fontWeight: "800",
-                  letterSpacing: "-0.01em",
-                  lineHeight: 1.2,
+                  fontSize: "11px",
+                  color: "rgba(255, 255, 255, 0.88)",
                 }}
               >
-                Surat Perintah Kerja (SPK) Produksi
-              </h1>
-              <div
-                style={{
-                  fontSize: "10.5px",
-                  color: "#e0f2fe",
-                  marginTop: "1px",
-                }}
-              >
-                Hirarki: 1 No Produksi ➔ Memiliki Beberapa SPK ➔ Setiap SPK
-                Memiliki Beberapa Produk
-              </div>
+                Kelola SPK potong, jahit, bordir & sablon, pantau tahapan produksi, dan cetak lembar kerja SPK.
+              </p>
             </div>
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-            <button
-              onClick={loadSpkData}
-              title="Muat ulang data dari database"
-              style={{
-                height: "28px",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "5px",
-                padding: "0 10px",
-                borderRadius: "5px",
-                border: "1px solid rgba(255, 255, 255, 0.4)",
-                backgroundColor: "rgba(255, 255, 255, 0.15)",
-                color: "#ffffff",
-                fontSize: "11px",
-                fontWeight: "700",
-                cursor: "pointer",
-              }}
-            >
-              <RefreshCw size={12} className={isLoadingSpk ? "animate-spin" : ""} />
-              <span>Muat Ulang</span>
-            </button>
-
-            <button
-              onClick={handleOpenAdd}
-              style={{
-                height: "28px",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "5px",
-                padding: "0 12px",
-                borderRadius: "5px",
-                border: "none",
-                backgroundColor: "#ffffff",
-                color: "#0284c7",
-                fontSize: "11.5px",
-                fontWeight: "800",
-                cursor: "pointer",
-                boxShadow: "0 1px 2px rgba(0, 0, 0, 0.15)",
-              }}
-            >
-              <Plus size={13} />
-              <span>Buat No Produksi Baru</span>
-            </button>
-          </div>
-        </div>
-
-        {/* SEARCH FILTER BAR */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-            padding: "8px 10px",
-            backgroundColor: "#f8fafc",
-            borderRadius: "6px",
-            border: "1px solid #e2e8f0",
-            marginBottom: "10px",
-            flexWrap: "wrap",
-          }}
-        >
+          {/* Action Buttons */}
           <div
             style={{
               display: "flex",
               alignItems: "center",
-              gap: "6px",
-              backgroundColor: "#ffffff",
-              border: "1px solid #cbd5e1",
-              borderRadius: "5px",
-              padding: "4px 8px",
-              flex: "1 1 250px",
+              gap: "8px",
+              flexWrap: "wrap",
             }}
           >
-            <Search size={13} color="#94a3b8" />
+            <button
+              type="button"
+              onClick={() => {
+                window.location.hash = "#tahapan_spk";
+              }}
+              style={{
+                height: "30px",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "6px",
+                padding: "0 13px",
+                borderRadius: "6px",
+                border: "1px solid rgba(255, 255, 255, 0.35)",
+                backgroundColor: "#0f172a",
+                color: "#ffffff",
+                fontSize: "12px",
+                fontWeight: "800",
+                lineHeight: 1,
+                cursor: "pointer",
+                boxShadow: "0 2px 4px rgba(0, 0, 0, 0.2)",
+                transition: "all 0.15s ease",
+              }}
+            >
+              <Layers size={13} />
+              <span>Tahapan SPK</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleOpenAdd}
+              style={{
+                height: "30px",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "6px",
+                padding: "0 14px",
+                borderRadius: "6px",
+                border: "none",
+                backgroundColor: "#ffffff",
+                color: "#0284c7",
+                fontSize: "12px",
+                fontWeight: "800",
+                lineHeight: 1,
+                cursor: "pointer",
+                boxShadow: "0 2px 4px rgba(0, 0, 0, 0.15)",
+                transition: "all 0.15s ease",
+              }}
+            >
+              <Plus size={14} />
+              <span>Buat SPK Baru</span>
+            </button>
+          </div>
+        </div>
+
+        {/* FILTER TABS (BERWARNA COLOR-CODED SEPERTI PENJUALAN OFFLINE) */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+            marginBottom: "6px",
+            flexWrap: "wrap",
+          }}
+        >
+          {SPK_TABS_CONFIG.map((tab) => {
+            const IconComp = tab.icon;
+            const isActive = filterStatus === tab.value;
+            return (
+              <button
+                key={tab.value}
+                type="button"
+                onClick={() => {
+                  setFilterStatus(tab.value);
+                  setCurrentPage(1);
+                }}
+                style={{
+                  height: "28px",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "6px",
+                  padding: "0 12px",
+                  borderRadius: "6px",
+                  border: isActive
+                    ? `1px solid ${tab.activeBorder}`
+                    : `1px solid ${tab.inactiveBorder}`,
+                  backgroundColor: isActive ? tab.activeBg : tab.inactiveBg,
+                  color: isActive ? "#ffffff" : tab.inactiveColor,
+                  fontSize: "12px",
+                  fontWeight: "700",
+                  lineHeight: 1,
+                  cursor: "pointer",
+                  transition: "all 0.15s ease",
+                  boxShadow: isActive ? `0 1px 4px ${tab.shadow}` : "none",
+                }}
+              >
+                <IconComp size={13} />
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* FILTER CONTROLS BAR (SEPERTI PENJUALAN OFFLINE) */}
+        <div
+          style={{
+            backgroundColor: "#ffffff",
+            border: "1px solid #cbd5e1",
+            borderRadius: "8px",
+            padding: "8px 12px",
+            marginBottom: "6px",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            flexWrap: "wrap",
+            boxShadow: "0 1px 3px rgba(15, 23, 42, 0.04)",
+          }}
+        >
+          {/* Search input with icon */}
+          <div style={{ flex: 1, minWidth: "220px", position: "relative" }}>
+            <Search
+              size={14}
+              color="#94a3b8"
+              style={{
+                position: "absolute",
+                left: "10px",
+                top: "50%",
+                transform: "translateY(-50%)",
+              }}
+            />
             <input
               type="text"
-              placeholder="Cari no produksi, no spk, penjahit, nama produk..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setCurrentPage(1);
+              }}
+              placeholder="Cari no SPK, no produksi, pelanggan, penjahit, produk..."
               style={{
-                border: "none",
-                outline: "none",
-                fontSize: "11px",
                 width: "100%",
-                color: "#0f172a",
+                padding: "6px 10px 6px 32px",
+                borderRadius: "6px",
+                border: "1px solid #cbd5e1",
+                fontSize: "12px",
+                outline: "none",
+                backgroundColor: "#f8fafc",
+                transition: "all 0.15s ease",
+              }}
+              onFocus={(e) => {
+                e.target.style.borderColor = "#0284c7";
+                e.target.style.backgroundColor = "#ffffff";
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = "#cbd5e1";
+                e.target.style.backgroundColor = "#f8fafc";
               }}
             />
           </div>
 
-          <div
+          {/* Select Penjahit */}
+          <select
+            value={filterPenjahit}
+            onChange={(e) => {
+              setFilterPenjahit(e.target.value);
+              setCurrentPage(1);
+            }}
             style={{
-              fontSize: "11px",
-              fontWeight: "700",
-              color: "#64748b",
-              marginLeft: "auto",
+              padding: "6px 10px",
+              borderRadius: "6px",
+              border: "1px solid #cbd5e1",
+              fontSize: "12px",
+              color: "#334155",
+              backgroundColor: "#ffffff",
+              cursor: "pointer",
+              minWidth: "135px",
             }}
           >
-            Total {filteredBatch.length} Batch Produksi
-          </div>
+            <option value="Semua">Semua Penjahit</option>
+            {penjahitFilterOptions.map((pj, idx) => (
+              <option key={idx} value={pj}>
+                {pj}
+              </option>
+            ))}
+          </select>
+
+          {/* Select Tahapan SPK */}
+          <select
+            value={filterTahapan}
+            onChange={(e) => {
+              setFilterTahapan(e.target.value);
+              setCurrentPage(1);
+            }}
+            style={{
+              padding: "6px 10px",
+              borderRadius: "6px",
+              border: "1px solid #cbd5e1",
+              fontSize: "12px",
+              color: "#334155",
+              backgroundColor: "#ffffff",
+              cursor: "pointer",
+              minWidth: "130px",
+            }}
+          >
+            <option value="Semua">Semua Tahapan</option>
+            {tahapanFilterOptions.map((th, idx) => (
+              <option key={idx} value={th}>
+                {th}
+              </option>
+            ))}
+          </select>
+
+          {/* Select Baris Per Halaman (Paging) */}
+          <select
+            value={entriesPerPage}
+            onChange={(e) => {
+              setEntriesPerPage(Number(e.target.value));
+              setCurrentPage(1);
+            }}
+            style={{
+              padding: "6px 10px",
+              borderRadius: "6px",
+              border: "1px solid #cbd5e1",
+              fontSize: "12px",
+              color: "#334155",
+              backgroundColor: "#ffffff",
+              cursor: "pointer",
+              minWidth: "105px",
+            }}
+          >
+            <option value={10}>10 Baris</option>
+            <option value={25}>25 Baris</option>
+            <option value={50}>50 Baris</option>
+            <option value={100}>100 Baris</option>
+          </select>
+
+          {/* Refresh Button */}
+          <button
+            type="button"
+            onClick={loadSpkData}
+            style={{
+              padding: "6px 12px",
+              borderRadius: "6px",
+              border: "1px solid #cbd5e1",
+              fontSize: "12px",
+              color: "#334155",
+              cursor: "pointer",
+              fontWeight: "700",
+              backgroundColor: "#f8fafc",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "5px",
+              transition: "all 0.15s ease",
+            }}
+            onMouseEnter={(e) =>
+              (e.currentTarget.style.backgroundColor = "#f1f5f9")
+            }
+            onMouseLeave={(e) =>
+              (e.currentTarget.style.backgroundColor = "#f8fafc")
+            }
+          >
+            <RefreshCw
+              size={13}
+              color="#0284c7"
+              className={isLoadingSpk ? "animate-spin" : ""}
+            />
+            <span>Refresh</span>
+          </button>
         </div>
 
-        {/* LIST OF BATCH PRODUKSI */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-          {filteredBatch.map((batch) => {
-            const isExp = expandedBatch[batch.id];
-            const spkList = batch.spk_list || [];
-
-            // Calculate totals across all SPK and all Produk
-            let totalProdukCount = 0;
-            let totalQtyTarget = 0;
-            spkList.forEach((s) => {
-              (s.produk_items || []).forEach((p) => {
-                totalProdukCount += 1;
-                totalQtyTarget += Number(p.qty || 0);
-              });
-            });
-
-            return (
-              <div
-                key={batch.id}
-                style={{
-                  border: "1px solid #cbd5e1",
-                  borderRadius: "8px",
-                  backgroundColor: "#ffffff",
-                  boxShadow: "0 1px 3px rgba(0, 0, 0, 0.05)",
-                  overflow: "hidden",
-                }}
-              >
-                {/* 1. LEVEL 1: NO PRODUKSI CARD HEADER */}
-                <div
-                  onClick={() => toggleBatch(batch.id)}
+        {/* DATA TABLE (MATCHING PENJUALAN OFFLINE) */}
+        <div
+          style={{
+            backgroundColor: "#ffffff",
+            border: "1px solid #cbd5e1",
+            borderRadius: "8px",
+            overflow: "hidden",
+            boxShadow: "0 2px 6px rgba(15, 23, 42, 0.05)",
+          }}
+        >
+          <div style={{ overflowX: "auto" }}>
+            <table
+              className="table-bordered-hover"
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                textAlign: "left",
+                fontSize: "12px",
+                border: "1px solid #cbd5e1",
+              }}
+            >
+              <thead>
+                <tr
                   style={{
-                    padding: "8px 12px",
                     backgroundColor: "#f8fafc",
-                    borderBottom: isExp ? "1px solid #cbd5e1" : "none",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    cursor: "pointer",
-                    userSelect: "none",
+                    color: "#475569",
+                    fontSize: "11px",
+                    fontWeight: "800",
+                    letterSpacing: "0.04em",
+                    textTransform: "uppercase",
                   }}
                 >
-                  <div
+                  <th
                     style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
+                      padding: "5px 8px",
+                      textAlign: "center",
+                      width: "45px",
+                      border: "1px solid #cbd5e1",
                     }}
                   >
-                    <div
+                    NO
+                  </th>
+                  <th
+                    style={{ padding: "5px 8px", border: "1px solid #cbd5e1" }}
+                  >
+                    NO SPK & PRODUKSI
+                  </th>
+                  <th
+                    style={{ padding: "5px 8px", border: "1px solid #cbd5e1" }}
+                  >
+                    PELANGGAN & DEADLINE
+                  </th>
+                  <th
+                    style={{ padding: "5px 8px", border: "1px solid #cbd5e1" }}
+                  >
+                    PENJAHIT / MAKLOON
+                  </th>
+                  <th
+                    style={{ padding: "5px 8px", border: "1px solid #cbd5e1" }}
+                  >
+                    RINCIAN PRODUK & KAIN
+                  </th>
+                  <th
+                    style={{
+                      padding: "5px 8px",
+                      border: "1px solid #cbd5e1",
+                      textAlign: "center",
+                      width: "95px",
+                    }}
+                  >
+                    TOTAL QTY
+                  </th>
+                  <th
+                    style={{
+                      padding: "5px 8px",
+                      border: "1px solid #cbd5e1",
+                      textAlign: "center",
+                      width: "135px",
+                    }}
+                  >
+                    STATUS / TAHAPAN
+                  </th>
+                  <th
+                    style={{
+                      padding: "5px 8px",
+                      border: "1px solid #cbd5e1",
+                      textAlign: "center",
+                      width: "135px",
+                    }}
+                  >
+                    AKSI
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {isLoadingSpk ? (
+                  <tr>
+                    <td
+                      colSpan="8"
                       style={{
-                        width: "20px",
-                        height: "20px",
-                        borderRadius: "4px",
-                        backgroundColor: "#e0f2fe",
-                        color: "#0284c7",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
+                        padding: "48px 16px",
+                        textAlign: "center",
+                        backgroundColor: "#fbfcfe",
+                        border: "1px solid #cbd5e1",
                       }}
                     >
-                      {isExp ? (
-                        <ChevronDown size={14} />
-                      ) : (
-                        <ChevronRight size={14} />
-                      )}
-                    </div>
-
-                    <div>
                       <div
                         style={{
                           display: "flex",
-                          alignItems: "center",
-                          gap: "8px",
-                        }}
-                      >
-                        <span
-                          style={{
-                            fontSize: "12px",
-                            fontWeight: "800",
-                            color: "#0284c7",
-                            fontFamily: "monospace",
-                          }}
-                        >
-                          {batch.kode_produksi}
-                        </span>
-                        <span
-                          style={{
-                            fontSize: "10px",
-                            fontWeight: "800",
-                            padding: "1px 7px",
-                            borderRadius: "4px",
-                            backgroundColor: "#e0f2fe",
-                            color: "#0369a1",
-                          }}
-                        >
-                          {spkList.length} SPK Terkait
-                        </span>
-                        <span
-                          style={{
-                            fontSize: "10px",
-                            fontWeight: "800",
-                            padding: "1px 7px",
-                            borderRadius: "4px",
-                            backgroundColor: "#f1f5f9",
-                            color: "#475569",
-                          }}
-                        >
-                          {totalProdukCount} Total Produk ({totalQtyTarget} PCS)
-                        </span>
-                      </div>
-                      <div
-                        style={{
-                          fontSize: "12px",
-                          fontWeight: "800",
-                          color: "#0f172a",
-                          marginTop: "2px",
-                        }}
-                      >
-                        Pelanggan: {batch.nama_pelanggan}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Actions & Dates */}
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "14px",
-                    }}
-                  >
-                    <div style={{ textAlign: "right" }}>
-                      <div style={{ fontSize: "10.5px", color: "#64748b" }}>
-                        Tgl Pesan:{" "}
-                        <b style={{ color: "#0f172a" }}>
-                          {batch.tgl_pesan || "-"}
-                        </b>
-                      </div>
-                      <div style={{ fontSize: "10.5px", color: "#64748b" }}>
-                        Deadline:{" "}
-                        <b style={{ color: "#0284c7" }}>
-                          {batch.deadline || "-"}
-                        </b>
-                      </div>
-                    </div>
-
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "4px",
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {batch.spk_list && batch.spk_list.length > 0 && (
-                        <button
-                          onClick={() => setPrintModalData({ batch, spk: batch.spk_list[0] })}
-                          title="Cetak SPK Pertama"
-                          style={{
-                            width: "26px",
-                            height: "26px",
-                            borderRadius: "5px",
-                            border: "1px solid #0284c7",
-                            backgroundColor: "#f0f9ff",
-                            color: "#0284c7",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            cursor: "pointer",
-                          }}
-                        >
-                          <Printer size={13} />
-                        </button>
-                      )}
-
-                      <button
-                        onClick={() => handleOpenEdit(batch)}
-                        title="Edit Kode Produksi & SPK"
-                        style={{
-                          width: "26px",
-                          height: "26px",
-                          borderRadius: "5px",
-                          border: "1px solid #38bdf8",
-                          backgroundColor: "#f0f9ff",
-                          color: "#0284c7",
-                          display: "flex",
+                          flexDirection: "column",
                           alignItems: "center",
                           justifyContent: "center",
-                          cursor: "pointer",
+                          gap: "10px",
                         }}
                       >
-                        <Edit3 size={13} />
-                      </button>
-
-                      <button
-                        onClick={() => handleDeleteBatch(batch)}
-                        title="Hapus Kode Produksi & SPK"
-                        style={{
-                          width: "26px",
-                          height: "26px",
-                          borderRadius: "5px",
-                          border: "1px solid #ef4444",
-                          backgroundColor: "#fef2f2",
-                          color: "#ef4444",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          cursor: "pointer",
-                        }}
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 2. LEVEL 2 & 3: SPK CARDS & PRODUK TABLES */}
-                {isExp && (
-                  <div
-                    style={{
-                      padding: "10px 14px",
-                      backgroundColor: "#f1f5f9",
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "10px",
-                    }}
-                  >
-                    {spkList.map((spk, sIdx) => {
-                      const produkItems = spk.produk_items || [];
-                      const spkTotalQty = produkItems.reduce(
-                        (acc, p) => acc + Number(p.qty || 0),
-                        0,
-                      );
-
-                      return (
+                        <RefreshCw
+                          size={24}
+                          color="#0284c7"
+                          className="animate-spin"
+                        />
                         <div
-                          key={sIdx}
                           style={{
-                            border: "1px solid #cbd5e1",
-                            borderRadius: "7px",
-                            backgroundColor: "#ffffff",
-                            boxShadow: "0 1px 2px rgba(0, 0, 0, 0.04)",
-                            overflow: "hidden",
+                            fontSize: "13px",
+                            fontWeight: "800",
+                            color: "#0f172a",
                           }}
                         >
-                          {/* SPK Header Strip with Design Thumbnail */}
+                          Menarik Data SPK Produksi...
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                ) : paginatedSpkRows.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan="8"
+                      style={{
+                        padding: "36px 16px",
+                        textAlign: "center",
+                        color: "#64748b",
+                        border: "1px solid #cbd5e1",
+                      }}
+                    >
+                      <Package
+                        size={32}
+                        color="#cbd5e1"
+                        style={{ marginBottom: "6px" }}
+                      />
+                      <div style={{ fontWeight: "700", fontSize: "13px" }}>
+                        Tidak ada SPK yang ditemukan
+                      </div>
+                      <div style={{ fontSize: "11px", marginTop: "2px" }}>
+                        Coba ubah kata kunci pencarian atau filter tahapan
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  paginatedSpkRows.map((spk, idx) => {
+                    const rowNumber =
+                      (currentPage - 1) * entriesPerPage + idx + 1;
+                    const items = spk.produk_items || [];
+                    const spkTotalQty = items.reduce(
+                      (acc, p) => acc + Number(p.qty || 0),
+                      0,
+                    );
+                    const badgeStyle = getStatusBadgeStyle(
+                      spk.status_spk || spk.batch_obj?.status,
+                    );
+
+                    const firstKainItem = items.find(
+                      (p) => Number(p.panjang_kain_cm) > 0 || p.kain_nama,
+                    );
+
+                    return (
+                      <tr
+                        key={`${spk.batch_id}-${spk.id_spk}-${idx}`}
+                        style={{
+                          backgroundColor:
+                            idx % 2 === 0 ? "#ffffff" : "#fbfcfe",
+                          transition: "background-color 0.15s ease",
+                        }}
+                      >
+                        {/* 1. NO */}
+                        <td
+                          style={{
+                            padding: "6px 8px",
+                            textAlign: "center",
+                            fontWeight: "700",
+                            color: "#64748b",
+                            border: "1px solid #cbd5e1",
+                            verticalAlign: "middle",
+                          }}
+                        >
+                          {rowNumber}
+                        </td>
+
+                        {/* 2. NO SPK & PRODUKSI */}
+                        <td
+                          style={{
+                            padding: "6px 8px",
+                            border: "1px solid #cbd5e1",
+                            verticalAlign: "middle",
+                          }}
+                        >
                           <div
                             style={{
-                              padding: "6px 12px",
-                              backgroundColor: "#f8fafc",
-                              borderBottom: "1px solid #e2e8f0",
                               display: "flex",
                               alignItems: "center",
-                              justifyContent: "space-between",
-                              flexWrap: "wrap",
-                              gap: "8px",
+                              gap: "6px",
                             }}
                           >
-                            <div
+                            <span
                               style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "8px",
+                                fontFamily: "monospace",
+                                fontWeight: "800",
+                                color: "#0284c7",
+                                fontSize: "12px",
                               }}
                             >
+                              {spk.id_spk}
+                            </span>
+                            {spk.design_img && (
                               <span
+                                title="Memiliki file design SPK"
                                 style={{
-                                  padding: "2px 8px",
-                                  borderRadius: "4px",
-                                  backgroundColor: "#0284c7",
-                                  color: "#ffffff",
-                                  fontSize: "11px",
-                                  fontWeight: "800",
-                                  fontFamily: "monospace",
+                                  fontSize: "9px",
+                                  backgroundColor: "#e0f2fe",
+                                  color: "#0369a1",
+                                  padding: "1px 4px",
+                                  borderRadius: "3px",
+                                  fontWeight: "700",
                                 }}
                               >
-                                {spk.id_spk}
+                                DESIGN
                               </span>
+                            )}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: "11px",
+                              fontWeight: "700",
+                              color: "#1e293b",
+                              marginTop: "1px",
+                            }}
+                          >
+                            {spk.nama_spk || "SPK Produksi"}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: "9.5px",
+                              color: "#6b21a8",
+                              fontFamily: "monospace",
+                              fontWeight: "700",
+                              backgroundColor: "#faf5ff",
+                              border: "1px solid #f3e8ff",
+                              borderRadius: "3px",
+                              display: "inline-block",
+                              padding: "0 4px",
+                              marginTop: "2px",
+                            }}
+                          >
+                            {spk.kode_produksi}
+                          </div>
+                        </td>
 
-                              {/* Design Image Thumbnail on SPK Header (Per SPK) */}
-                              {spk.design_img ? (
-                                <div
-                                  style={{
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                    gap: "5px",
-                                  }}
-                                >
-                                  <div
-                                    onClick={() =>
-                                      setPreviewDesign({
-                                        url: spk.design_img,
-                                        title: `Design SPK: ${spk.id_spk} - ${spk.nama_spk}`,
-                                      })
-                                    }
-                                    title="Klik untuk memperbesar gambar design SPK"
-                                    style={{
-                                      width: "28px",
-                                      height: "28px",
-                                      borderRadius: "4px",
-                                      border: "1px solid #38bdf8",
-                                      overflow: "hidden",
-                                      cursor: "pointer",
-                                      display: "inline-flex",
-                                      alignItems: "center",
-                                      justifyContent: "center",
-                                      backgroundColor: "#f0f9ff",
-                                    }}
-                                  >
-                                    <img
-                                      src={spk.design_img}
-                                      alt="Design SPK"
-                                      style={{
-                                        width: "100%",
-                                        height: "100%",
-                                        objectFit: "cover",
-                                      }}
-                                    />
-                                  </div>
-                                  <label
-                                    title="Ganti gambar design SPK ini"
-                                    style={{
-                                      padding: "2px 6px",
-                                      borderRadius: "4px",
-                                      border: "1px solid #bae6fd",
-                                      backgroundColor: "#f0f9ff",
-                                      color: "#0284c7",
-                                      fontSize: "10px",
-                                      fontWeight: "700",
-                                      cursor: "pointer",
-                                      display: "inline-flex",
-                                      alignItems: "center",
-                                      gap: "3px",
-                                    }}
-                                  >
-                                    <Upload size={10} />
-                                    <span>Ganti</span>
-                                    <input
-                                      type="file"
-                                      accept="image/*"
-                                      style={{ display: "none" }}
-                                      onChange={(e) => {
-                                        const file = e.target.files?.[0];
-                                        if (file)
-                                          handleDirectUploadDesignSpk(
-                                            batch.id,
-                                            sIdx,
-                                            file,
-                                          );
-                                      }}
-                                    />
-                                  </label>
-                                </div>
-                              ) : (
-                                <label
-                                  title="Upload file design untuk SPK ini (JPG, PNG)"
-                                  style={{
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                    gap: "3px",
-                                    padding: "2px 7px",
-                                    borderRadius: "4px",
-                                    border: "1px dashed #38bdf8",
-                                    backgroundColor: "#f0f9ff",
-                                    color: "#0284c7",
-                                    fontSize: "10px",
-                                    fontWeight: "700",
-                                    cursor: "pointer",
-                                  }}
-                                >
-                                  <Upload size={10} />
-                                  <span>+ Upload Design SPK</span>
-                                  <input
-                                    type="file"
-                                    accept="image/*"
-                                    style={{ display: "none" }}
-                                    onChange={(e) => {
-                                      const file = e.target.files?.[0];
-                                      if (file)
-                                        handleDirectUploadDesignSpk(
-                                          batch.id,
-                                          sIdx,
-                                          file,
-                                        );
-                                    }}
-                                  />
-                                </label>
-                              )}
-
-                              <span
-                                style={{
-                                  fontSize: "11.5px",
-                                  fontWeight: "800",
-                                  color: "#0f172a",
-                                }}
-                              >
-                                {spk.nama_spk}
-                              </span>
+                        {/* 3. PELANGGAN & DEADLINE */}
+                        <td
+                          style={{
+                            padding: "6px 8px",
+                            border: "1px solid #cbd5e1",
+                            verticalAlign: "middle",
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontWeight: "700",
+                              color: "#0f172a",
+                              fontSize: "12px",
+                            }}
+                          >
+                            {spk.nama_pelanggan || "-"}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: "10.5px",
+                              color: "#64748b",
+                              marginTop: "2px",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "4px",
+                            }}
+                          >
+                            <Calendar size={11} color="#0284c7" />
+                            <span>
+                              Deadline:{" "}
+                              <b style={{ color: "#0284c7" }}>
+                                {spk.deadline || "-"}
+                              </b>
+                            </span>
+                          </div>
+                          {spk.tgl_pesan && (
+                            <div
+                              style={{
+                                fontSize: "9.5px",
+                                color: "#94a3b8",
+                                marginTop: "1px",
+                              }}
+                            >
+                              Tgl Pesan: {spk.tgl_pesan}
                             </div>
+                          )}
+                        </td>
 
-                            <div
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "12px",
-                              }}
-                            >
+                        {/* 4. PENJAHIT / MAKLOON */}
+                        <td
+                          style={{
+                            padding: "6px 8px",
+                            border: "1px solid #cbd5e1",
+                            verticalAlign: "middle",
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "4px",
+                              padding: "2px 6px",
+                              borderRadius: "4px",
+                              backgroundColor: "#f8fafc",
+                              border: "1px solid #e2e8f0",
+                              fontSize: "11px",
+                              fontWeight: "700",
+                              color: "#334155",
+                            }}
+                          >
+                            <User size={11} color="#64748b" />
+                            <span>{spk.penjahit || "Belum Ditentukan"}</span>
+                          </div>
+                        </td>
+
+                        {/* 5. RINCIAN PRODUK & KAIN */}
+                        <td
+                          style={{
+                            padding: "6px 8px",
+                            border: "1px solid #cbd5e1",
+                            verticalAlign: "middle",
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontSize: "11px",
+                              fontWeight: "700",
+                              color: "#0f172a",
+                              marginBottom: "2px",
+                            }}
+                          >
+                            {items.length} SKU Produk ({spkTotalQty} Pcs)
+                          </div>
+                          <div
+                            style={{
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: "2px",
+                              maxHeight: "65px",
+                              overflowY: "auto",
+                            }}
+                          >
+                            {items.slice(0, 3).map((it, iIdx) => (
                               <div
+                                key={iIdx}
                                 style={{
+                                  fontSize: "10px",
+                                  color: "#475569",
                                   display: "flex",
                                   alignItems: "center",
                                   gap: "4px",
-                                  fontSize: "11px",
-                                  color: "#334155",
                                 }}
                               >
-                                <User size={12} color="#0284c7" />
-                                <span>
-                                  Penjahit:{" "}
-                                  <b style={{ color: "#0f172a" }}>
-                                    {spk.penjahit || "-"}
-                                  </b>
+                                <span style={{ color: "#94a3b8" }}>•</span>
+                                <span
+                                  style={{
+                                    maxWidth: "200px",
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    whiteSpace: "nowrap",
+                                  }}
+                                  title={it.nama_produk}
+                                >
+                                  {it.nama_produk}
                                 </span>
+                                <b style={{ color: "#0284c7" }}>({it.qty})</b>
                               </div>
-                              <span
+                            ))}
+                            {items.length > 3 && (
+                              <div
                                 style={{
-                                  fontSize: "10px",
-                                  fontWeight: "800",
-                                  padding: "2px 8px",
-                                  borderRadius: "4px",
-                                  backgroundColor: "#eff6ff",
+                                  fontSize: "9.5px",
                                   color: "#0284c7",
-                                  border: "1px solid #bfdbfe",
-                                }}
-                              >
-                                {spk.status_spk || "Proses"}
-                              </span>
-                              <span
-                                style={{
-                                  fontSize: "11px",
-                                  fontWeight: "800",
-                                  color: "#0f172a",
-                                }}
-                              >
-                                Total: {spkTotalQty} PCS
-                              </span>
-
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setPrintModalData({ batch, spk });
-                                }}
-                                style={{
-                                  display: "inline-flex",
-                                  alignItems: "center",
-                                  gap: "4px",
-                                  padding: "3px 9px",
-                                  borderRadius: "4px",
-                                  border: "1px solid #0284c7",
-                                  backgroundColor: "#0284c7",
-                                  color: "#ffffff",
-                                  fontSize: "11px",
                                   fontWeight: "700",
-                                  cursor: "pointer",
-                                  boxShadow: "0 1px 2px rgba(0,0,0,0.1)",
                                 }}
-                                title="Cetak Surat Perintah Kerja (SPK)"
                               >
-                                <Printer size={12} />
-                                <span>Cetak SPK</span>
-                              </button>
-                            </div>
+                                +{items.length - 3} produk lainnya...
+                              </div>
+                            )}
                           </div>
-
-                          {/* Table of Products Inside This SPK (Matching Excel Columns) */}
-                          <div style={{ overflowX: "auto" }}>
-                            <table
+                          {firstKainItem && (
+                            <div
                               style={{
-                                width: "100%",
-                                minWidth: "820px",
-                                borderCollapse: "collapse",
-                                fontSize: "11px",
+                                marginTop: "3px",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "3px",
+                                fontSize: "9px",
+                                padding: "1px 5px",
+                                borderRadius: "3px",
+                                backgroundColor: "#f0fdf4",
+                                color: "#166534",
+                                border: "1px solid #bbf7d0",
                               }}
                             >
-                              <thead>
-                                <tr
-                                  style={{
-                                    backgroundColor: "#ffffff",
-                                    borderBottom: "1px solid #cbd5e1",
-                                    textAlign: "left",
-                                  }}
-                                >
-                                  <th
-                                    style={{
-                                      padding: "6px 10px",
-                                      fontWeight: "800",
-                                      color: "#475569",
-                                      width: "30px",
-                                      textAlign: "center",
-                                    }}
-                                  >
-                                    NO
-                                  </th>
-                                  <th
-                                    style={{
-                                      padding: "6px 10px",
-                                      fontWeight: "800",
-                                      color: "#475569",
-                                      width: "90px",
-                                    }}
-                                  >
-                                    NO SPK
-                                  </th>
-                                  <th
-                                    style={{
-                                      padding: "6px 10px",
-                                      fontWeight: "800",
-                                      color: "#475569",
-                                      width: "100px",
-                                    }}
-                                  >
-                                    SKU
-                                  </th>
-                                  <th
-                                    style={{
-                                      padding: "6px 10px",
-                                      fontWeight: "800",
-                                      color: "#475569",
-                                    }}
-                                  >
-                                    NAMA PRODUK
-                                  </th>
-                                  <th
-                                    style={{
-                                      padding: "6px 10px",
-                                      fontWeight: "800",
-                                      color: "#475569",
-                                      width: "120px",
-                                    }}
-                                  >
-                                    KATEGORI
-                                  </th>
-                                  <th
-                                    style={{
-                                      padding: "6px 10px",
-                                      fontWeight: "800",
-                                      color: "#475569",
-                                      width: "70px",
-                                      textAlign: "center",
-                                    }}
-                                  >
-                                    SATUAN
-                                  </th>
-                                  <th
-                                    style={{
-                                      padding: "6px 10px",
-                                      fontWeight: "800",
-                                      color: "#475569",
-                                      width: "80px",
-                                      textAlign: "center",
-                                    }}
-                                  >
-                                    QTY
-                                  </th>
-                                  <th
-                                    style={{
-                                      padding: "6px 10px",
-                                      fontWeight: "800",
-                                      color: "#0369a1",
-                                      width: "260px",
-                                    }}
-                                  >
-                                    ESTIMASI KAIN (CM & BIAYA)
-                                  </th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {produkItems.map((prod, pIdx) => (
-                                  <tr
-                                    key={pIdx}
-                                    style={{
-                                      borderBottom: "1px solid #f1f5f9",
-                                      backgroundColor:
-                                        pIdx % 2 === 0 ? "#ffffff" : "#fafafa",
-                                    }}
-                                  >
-                                    <td
-                                      style={{
-                                        padding: "5px 10px",
-                                        textAlign: "center",
-                                        color: "#64748b",
-                                        fontWeight: "600",
-                                      }}
-                                    >
-                                      {pIdx + 1}
-                                    </td>
-                                    <td
-                                      style={{
-                                        padding: "5px 10px",
-                                        fontWeight: "800",
-                                        color: "#0284c7",
-                                        fontFamily: "monospace",
-                                      }}
-                                    >
-                                      {prod.no_spk || spk.id_spk}
-                                    </td>
-                                    <td
-                                      style={{
-                                        padding: "5px 10px",
-                                        fontWeight: "700",
-                                        color: "#475569",
-                                        fontFamily: "monospace",
-                                      }}
-                                    >
-                                      {prod.sku || "-"}
-                                    </td>
-                                    <td
-                                      style={{
-                                        padding: "5px 10px",
-                                        fontWeight: "700",
-                                        color: "#0f172a",
-                                      }}
-                                    >
-                                      {prod.nama_produk}
-                                    </td>
-                                    <td
-                                      style={{
-                                        padding: "5px 10px",
-                                        color: "#475569",
-                                      }}
-                                    >
-                                      <span
-                                        style={{
-                                          padding: "1px 6px",
-                                          borderRadius: "4px",
-                                          backgroundColor: "#f1f5f9",
-                                          fontSize: "10px",
-                                        }}
-                                      >
-                                        {prod.kategori || "Umum"}
-                                      </span>
-                                    </td>
-                                    <td
-                                      style={{
-                                        padding: "5px 10px",
-                                        textAlign: "center",
-                                        color: "#64748b",
-                                        fontWeight: "700",
-                                      }}
-                                    >
-                                      {prod.satuan || "PCS"}
-                                    </td>
-                                    <td
-                                      style={{
-                                        padding: "5px 10px",
-                                        textAlign: "center",
-                                        fontWeight: "800",
-                                        color: "#0f172a",
-                                      }}
-                                    >
-                                      {prod.qty}
-                                    </td>
-                                    <td
-                                      style={{
-                                        padding: "6px 10px",
-                                        verticalAlign: "middle",
-                                      }}
-                                    >
-                                      {prod.panjang_kain_cm ? (
-                                        <div
-                                          style={{
-                                            display: "flex",
-                                            flexDirection: "column",
-                                            gap: "4px",
-                                            padding: "6px 9px",
-                                            borderRadius: "7px",
-                                            background:
-                                              "linear-gradient(135deg, #f8fafc 0%, #f0fdf4 100%)",
-                                            border: "1px solid #bbf7d0",
-                                            boxShadow:
-                                              "0 1px 3px rgba(16, 185, 129, 0.08)",
-                                            minWidth: "245px",
-                                          }}
-                                        >
-                                          {/* Baris 1: Header Badge Kain & CM per Pcs */}
-                                          <div
-                                            style={{
-                                              display: "flex",
-                                              alignItems: "center",
-                                              justifyContent: "space-between",
-                                              gap: "6px",
-                                            }}
-                                          >
-                                            <div
-                                              style={{
-                                                display: "flex",
-                                                alignItems: "center",
-                                                gap: "4px",
-                                              }}
-                                            >
-                                              <Scissors
-                                                size={11}
-                                                color="#0284c7"
-                                              />
-                                              <span
-                                                style={{
-                                                  fontSize: "11px",
-                                                  fontWeight: "800",
-                                                  color: "#0f172a",
-                                                }}
-                                              >
-                                                {prod.kain_nama || "Kain"}
-                                              </span>
-                                            </div>
-                                            <span
-                                              style={{
-                                                fontSize: "9.5px",
-                                                fontWeight: "700",
-                                                padding: "1px 6px",
-                                                borderRadius: "4px",
-                                                backgroundColor: "#ffffff",
-                                                color: "#475569",
-                                                border: "1px solid #e2e8f0",
-                                                letterSpacing: "0.02em",
-                                              }}
-                                            >
-                                              {prod.panjang_kain_cm} CM / pcs
-                                            </span>
-                                          </div>
+                              <Scissors size={9} color="#16a34a" />
+                              <span>{firstKainItem.kain_nama || "Kain"}</span>
+                              <span>•</span>
+                              <span>
+                                {(
+                                  (Number(firstKainItem.panjang_kain_cm) || 0) *
+                                  (Number(firstKainItem.qty) || 1)
+                                ).toLocaleString("id-ID")}{" "}
+                                cm
+                              </span>
+                            </div>
+                          )}
+                        </td>
 
-                                          {/* Baris 2: Dual Metric Box (Total Panjang vs Total Biaya) */}
-                                          <div
-                                            style={{
-                                              display: "grid",
-                                              gridTemplateColumns: "1fr 1fr",
-                                              gap: "5px",
-                                            }}
-                                          >
-                                            {/* Box 1: Total Panjang CM & Meter */}
-                                            <div
-                                              style={{
-                                                padding: "4px 6px",
-                                                borderRadius: "5px",
-                                                backgroundColor: "#eff6ff",
-                                                border: "1px solid #bfdbfe",
-                                                display: "flex",
-                                                flexDirection: "column",
-                                              }}
-                                            >
-                                              <span
-                                                style={{
-                                                  fontSize: "8.5px",
-                                                  fontWeight: "800",
-                                                  color: "#1e40af",
-                                                  textTransform: "uppercase",
-                                                  letterSpacing: "0.03em",
-                                                }}
-                                              >
-                                                Total Panjang
-                                              </span>
-                                              <div
-                                                style={{
-                                                  display: "flex",
-                                                  alignItems: "baseline",
-                                                  gap: "2px",
-                                                  marginTop: "1px",
-                                                }}
-                                              >
-                                                <b
-                                                  style={{
-                                                    fontSize: "12px",
-                                                    fontWeight: "800",
-                                                    color: "#0284c7",
-                                                    fontFamily: "monospace",
-                                                  }}
-                                                >
-                                                  {(
-                                                    (Number(
-                                                      prod.panjang_kain_cm,
-                                                    ) || 0) *
-                                                    (Number(prod.qty) || 1)
-                                                  ).toLocaleString("id-ID")}
-                                                </b>
-                                                <span
-                                                  style={{
-                                                    fontSize: "9px",
-                                                    fontWeight: "800",
-                                                    color: "#0369a1",
-                                                  }}
-                                                >
-                                                  CM
-                                                </span>
-                                              </div>
-                                              <span
-                                                style={{
-                                                  fontSize: "9px",
-                                                  color: "#64748b",
-                                                  fontWeight: "600",
-                                                }}
-                                              >
-                                                ≈{" "}
-                                                {(
-                                                  ((Number(
-                                                    prod.panjang_kain_cm,
-                                                  ) || 0) *
-                                                    (Number(prod.qty) || 1)) /
-                                                  100
-                                                ).toFixed(1)}{" "}
-                                                Meter
-                                              </span>
-                                            </div>
+                        {/* 6. TOTAL QTY */}
+                        <td
+                          style={{
+                            padding: "6px 8px",
+                            border: "1px solid #cbd5e1",
+                            textAlign: "center",
+                            verticalAlign: "middle",
+                          }}
+                        >
+                          <span
+                            style={{
+                              display: "inline-block",
+                              padding: "2px 8px",
+                              borderRadius: "4px",
+                              backgroundColor: "#f1f5f9",
+                              border: "1px solid #cbd5e1",
+                              fontSize: "11px",
+                              fontWeight: "800",
+                              color: "#0f172a",
+                            }}
+                          >
+                            {spkTotalQty} PCS
+                          </span>
+                        </td>
 
-                                            {/* Box 2: Total Biaya Kain */}
-                                            <div
-                                              style={{
-                                                padding: "4px 6px",
-                                                borderRadius: "5px",
-                                                backgroundColor: "#ecfdf5",
-                                                border: "1px solid #a7f3d0",
-                                                display: "flex",
-                                                flexDirection: "column",
-                                              }}
-                                            >
-                                              <span
-                                                style={{
-                                                  fontSize: "8.5px",
-                                                  fontWeight: "800",
-                                                  color: "#065f46",
-                                                  textTransform: "uppercase",
-                                                  letterSpacing: "0.03em",
-                                                }}
-                                              >
-                                                Total Biaya
-                                              </span>
-                                              <div
-                                                style={{
-                                                  display: "flex",
-                                                  alignItems: "baseline",
-                                                  gap: "2px",
-                                                  marginTop: "1px",
-                                                }}
-                                              >
-                                                <b
-                                                  style={{
-                                                    fontSize: "12px",
-                                                    fontWeight: "800",
-                                                    color: "#059669",
-                                                  }}
-                                                >
-                                                  Rp{" "}
-                                                  {(
-                                                    (Number(
-                                                      prod.panjang_kain_cm,
-                                                    ) || 0) *
-                                                    (Number(prod.qty) || 1) *
-                                                    (Number(
-                                                      prod.harga_kain_cm,
-                                                    ) || 0)
-                                                  ).toLocaleString("id-ID")}
-                                                </b>
-                                              </div>
-                                              <span
-                                                style={{
-                                                  fontSize: "9px",
-                                                  color: "#64748b",
-                                                }}
-                                              >
-                                                @Rp{" "}
-                                                {Number(
-                                                  prod.harga_kain_cm || 0,
-                                                ).toLocaleString("id-ID")}
-                                                /CM
-                                              </span>
-                                            </div>
-                                          </div>
-                                        </div>
-                                      ) : (
-                                        <div
-                                          style={{
-                                            padding: "4px 8px",
-                                            borderRadius: "5px",
-                                            backgroundColor: "#f8fafc",
-                                            border: "1px solid #e2e8f0",
-                                            color: "#64748b",
-                                            fontSize: "11px",
-                                            fontWeight: "600",
-                                          }}
-                                        >
-                                          {prod.estimasi_kain || "-"}
-                                        </div>
-                                      )}
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
+                        {/* 7. STATUS / TAHAPAN */}
+                        <td
+                          style={{
+                            padding: "6px 8px",
+                            border: "1px solid #cbd5e1",
+                            textAlign: "center",
+                            verticalAlign: "middle",
+                          }}
+                        >
+                          <span
+                            style={{
+                              display: "inline-block",
+                              padding: "2px 8px",
+                              borderRadius: "4px",
+                              fontSize: "10.5px",
+                              fontWeight: "800",
+                              textTransform: "uppercase",
+                              letterSpacing: "0.02em",
+                              backgroundColor: badgeStyle.bg,
+                              color: badgeStyle.color,
+                              border: `1px solid ${badgeStyle.border}`,
+                            }}
+                          >
+                            {spk.status_spk || spk.batch_obj?.status || "Proses"}
+                          </span>
+                        </td>
+
+                        {/* 8. AKSI (STYLE PENJUALAN OFFLINE) */}
+                        <td
+                          style={{
+                            padding: "6px 8px",
+                            border: "1px solid #cbd5e1",
+                            textAlign: "center",
+                            verticalAlign: "middle",
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "4px",
+                            }}
+                          >
+                            {/* Detail Button */}
+                            <button
+                              type="button"
+                              onClick={() => setDetailSpk(spk)}
+                              title="Lihat Detail SPK"
+                              style={{
+                                width: "26px",
+                                height: "26px",
+                                borderRadius: "4px",
+                                border: "1px solid #38bdf8",
+                                backgroundColor: "#0284c7",
+                                color: "#ffffff",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                cursor: "pointer",
+                                transition: "all 0.15s ease",
+                              }}
+                            >
+                              <Eye size={12} />
+                            </button>
+
+                            {/* Print Button */}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setPrintModalData({
+                                  batch: spk.batch_obj,
+                                  spk: spk,
+                                })
+                              }
+                              title="Cetak SPK"
+                              style={{
+                                width: "26px",
+                                height: "26px",
+                                borderRadius: "4px",
+                                border: "1px solid #818cf8",
+                                backgroundColor: "#6366f1",
+                                color: "#ffffff",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                cursor: "pointer",
+                                transition: "all 0.15s ease",
+                              }}
+                            >
+                              <Printer size={12} />
+                            </button>
+
+                            {/* Edit Button */}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleOpenEdit(spk.batch_obj, spk.spk_index)
+                              }
+                              title="Edit SPK & Produksi"
+                              style={{
+                                width: "26px",
+                                height: "26px",
+                                borderRadius: "4px",
+                                border: "1px solid #38bdf8",
+                                backgroundColor: "#f0f9ff",
+                                color: "#0284c7",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                cursor: "pointer",
+                                transition: "all 0.15s ease",
+                              }}
+                            >
+                              <Edit3 size={12} />
+                            </button>
+
+                            {/* Delete Button */}
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteSpkItem(spk)}
+                              title="Hapus SPK"
+                              style={{
+                                width: "26px",
+                                height: "26px",
+                                borderRadius: "4px",
+                                border: "1px solid #fca5a5",
+                                backgroundColor: "#ef4444",
+                                color: "#ffffff",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                cursor: "pointer",
+                                transition: "all 0.15s ease",
+                              }}
+                            >
+                              <Trash2 size={12} />
+                            </button>
                           </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
-              </div>
-            );
-          })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* TABLE FOOTER / PAGINATION (MATCHING PENJUALAN OFFLINE) */}
+          <div
+            style={{
+              padding: "8px 14px",
+              backgroundColor: "#f8fafc",
+              borderTop: "1px solid #cbd5e1",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              fontSize: "11px",
+              color: "#64748b",
+              flexWrap: "wrap",
+              gap: "8px",
+            }}
+          >
+            <div>
+              Menampilkan{" "}
+              <b style={{ color: "#0f172a" }}>
+                {filteredSpkRows.length === 0
+                  ? 0
+                  : (currentPage - 1) * entriesPerPage + 1}
+              </b>{" "}
+              sampai{" "}
+              <b style={{ color: "#0f172a" }}>
+                {Math.min(currentPage * entriesPerPage, filteredSpkRows.length)}
+              </b>{" "}
+              dari{" "}
+              <b style={{ color: "#0f172a" }}>{filteredSpkRows.length}</b> SPK
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <button
+                type="button"
+                disabled={currentPage <= 1}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                style={{
+                  padding: "4px 10px",
+                  borderRadius: "5px",
+                  border: "1px solid #cbd5e1",
+                  backgroundColor: currentPage <= 1 ? "#f1f5f9" : "#ffffff",
+                  color: currentPage <= 1 ? "#94a3b8" : "#334155",
+                  fontWeight: "700",
+                  fontSize: "11px",
+                  cursor: currentPage <= 1 ? "not-allowed" : "pointer",
+                }}
+              >
+                Sebelumnya
+              </button>
+
+              <span
+                style={{
+                  padding: "3px 8px",
+                  fontWeight: "800",
+                  color: "#0f172a",
+                }}
+              >
+                {currentPage} / {totalPages || 1}
+              </span>
+
+              <button
+                type="button"
+                disabled={currentPage >= totalPages}
+                onClick={() =>
+                  setCurrentPage((p) => Math.min(totalPages, p + 1))
+                }
+                style={{
+                  padding: "4px 10px",
+                  borderRadius: "5px",
+                  border: "1px solid #cbd5e1",
+                  backgroundColor:
+                    currentPage >= totalPages ? "#f1f5f9" : "#ffffff",
+                  color: currentPage >= totalPages ? "#94a3b8" : "#334155",
+                  fontWeight: "700",
+                  fontSize: "11px",
+                  cursor: currentPage >= totalPages ? "not-allowed" : "pointer",
+                }}
+              >
+                Selanjutnya
+              </button>
+            </div>
+          </div>
         </div>
       </div>
+
+      {/* DETAIL SPK MODAL (MATCHING PENJUALAN OFFLINE DETAIL MODAL) */}
+      {detailSpk && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(15, 23, 42, 0.65)",
+            zIndex: 2100,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "16px",
+          }}
+          onClick={() => setDetailSpk(null)}
+        >
+          <div
+            style={{
+              backgroundColor: "#ffffff",
+              borderRadius: "10px",
+              width: "100%",
+              maxWidth: "780px",
+              maxHeight: "90vh",
+              overflow: "hidden",
+              display: "flex",
+              flexDirection: "column",
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div
+              style={{
+                padding: "12px 16px",
+                background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
+                color: "#ffffff",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <ClipboardList size={18} />
+                <span style={{ fontSize: "14px", fontWeight: "800" }}>
+                  Detail SPK: {detailSpk.id_spk} — {detailSpk.nama_spk}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDetailSpk(null)}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: "#ffffff",
+                  cursor: "pointer",
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div
+              style={{
+                padding: "16px",
+                overflowY: "auto",
+                display: "flex",
+                flexDirection: "column",
+                gap: "12px",
+              }}
+            >
+              {/* Summary Cards Grid */}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+                  gap: "8px",
+                }}
+              >
+                <div
+                  style={{
+                    padding: "8px 10px",
+                    borderRadius: "6px",
+                    backgroundColor: "#f8fafc",
+                    border: "1px solid #e2e8f0",
+                  }}
+                >
+                  <div style={{ fontSize: "10px", color: "#64748b", fontWeight: "700" }}>
+                    NO PRODUKSI
+                  </div>
+                  <div style={{ fontSize: "12px", fontWeight: "800", color: "#0284c7", fontFamily: "monospace" }}>
+                    {detailSpk.kode_produksi}
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    padding: "8px 10px",
+                    borderRadius: "6px",
+                    backgroundColor: "#f8fafc",
+                    border: "1px solid #e2e8f0",
+                  }}
+                >
+                  <div style={{ fontSize: "10px", color: "#64748b", fontWeight: "700" }}>
+                    PELANGGAN
+                  </div>
+                  <div style={{ fontSize: "12px", fontWeight: "800", color: "#0f172a" }}>
+                    {detailSpk.nama_pelanggan || "-"}
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    padding: "8px 10px",
+                    borderRadius: "6px",
+                    backgroundColor: "#f8fafc",
+                    border: "1px solid #e2e8f0",
+                  }}
+                >
+                  <div style={{ fontSize: "10px", color: "#64748b", fontWeight: "700" }}>
+                    PENJAHIT / MAKLOON
+                  </div>
+                  <div style={{ fontSize: "12px", fontWeight: "800", color: "#0f172a" }}>
+                    {detailSpk.penjahit || "-"}
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    padding: "8px 10px",
+                    borderRadius: "6px",
+                    backgroundColor: "#f8fafc",
+                    border: "1px solid #e2e8f0",
+                  }}
+                >
+                  <div style={{ fontSize: "10px", color: "#64748b", fontWeight: "700" }}>
+                    DEADLINE & STATUS
+                  </div>
+                  <div style={{ fontSize: "12px", fontWeight: "800", color: "#0284c7" }}>
+                    {detailSpk.deadline || "-"} •{" "}
+                    <span style={{ color: "#166534" }}>
+                      {detailSpk.status_spk || "Proses"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Design Image Preview */}
+              {detailSpk.design_img && (
+                <div
+                  style={{
+                    padding: "10px",
+                    borderRadius: "6px",
+                    border: "1px solid #e2e8f0",
+                    backgroundColor: "#f8fafc",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "12px",
+                  }}
+                >
+                  <img
+                    src={detailSpk.design_img}
+                    alt="Design SPK"
+                    style={{
+                      width: "80px",
+                      height: "80px",
+                      objectFit: "cover",
+                      borderRadius: "6px",
+                      border: "1px solid #cbd5e1",
+                    }}
+                  />
+                  <div>
+                    <div style={{ fontSize: "12px", fontWeight: "800", color: "#0f172a" }}>
+                      File Design SPK
+                    </div>
+                    <div style={{ fontSize: "10.5px", color: "#64748b", marginTop: "2px" }}>
+                      Foto / instruksi pola dan mockup pengerjaan
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Products Table */}
+              <div>
+                <div
+                  style={{
+                    fontSize: "12px",
+                    fontWeight: "800",
+                    color: "#0f172a",
+                    marginBottom: "6px",
+                  }}
+                >
+                  Daftar Produk ({detailSpk.produk_items?.length || 0} Macam):
+                </div>
+                <div
+                  style={{
+                    border: "1px solid #cbd5e1",
+                    borderRadius: "6px",
+                    overflow: "hidden",
+                  }}
+                >
+                  <table
+                    style={{
+                      width: "100%",
+                      borderCollapse: "collapse",
+                      fontSize: "11px",
+                    }}
+                  >
+                    <thead>
+                      <tr style={{ backgroundColor: "#f8fafc", borderBottom: "1px solid #cbd5e1", textAlign: "left" }}>
+                        <th style={{ padding: "6px 8px", width: "35px", textAlign: "center" }}>NO</th>
+                        <th style={{ padding: "6px 8px" }}>SKU & NAMA PRODUK</th>
+                        <th style={{ padding: "6px 8px", textAlign: "center", width: "80px" }}>QTY</th>
+                        <th style={{ padding: "6px 8px" }}>ESTIMASI KAIN</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(detailSpk.produk_items || []).map((p, pIdx) => (
+                        <tr key={pIdx} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                          <td style={{ padding: "5px 8px", textAlign: "center", color: "#64748b" }}>
+                            {pIdx + 1}
+                          </td>
+                          <td style={{ padding: "5px 8px" }}>
+                            <div style={{ fontWeight: "700", color: "#0f172a" }}>
+                              {p.nama_produk}
+                            </div>
+                            {p.sku && (
+                              <span style={{ fontSize: "9.5px", fontFamily: "monospace", color: "#0284c7" }}>
+                                {p.sku}
+                              </span>
+                            )}
+                          </td>
+                          <td style={{ padding: "5px 8px", textAlign: "center", fontWeight: "800" }}>
+                            {p.qty} {p.satuan || "PCS"}
+                          </td>
+                          <td style={{ padding: "5px 8px" }}>
+                            {Number(p.panjang_kain_cm) > 0 ? (
+                              <span style={{ fontSize: "10px", color: "#166534" }}>
+                                ✂️ {p.kain_nama || "Kain"} ({p.panjang_kain_cm} cm/pcs) • Butuh:{" "}
+                                {((Number(p.panjang_kain_cm) || 0) * (Number(p.qty) || 1)).toLocaleString("id-ID")} cm
+                              </span>
+                            ) : (
+                              "-"
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div
+              style={{
+                padding: "10px 16px",
+                borderTop: "1px solid #e2e8f0",
+                backgroundColor: "#f8fafc",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "flex-end",
+                gap: "8px",
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  setPrintModalData({
+                    batch: detailSpk.batch_obj,
+                    spk: detailSpk,
+                  });
+                }}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "5px",
+                  padding: "5px 12px",
+                  borderRadius: "5px",
+                  border: "1px solid #818cf8",
+                  backgroundColor: "#6366f1",
+                  color: "#ffffff",
+                  fontSize: "11.5px",
+                  fontWeight: "700",
+                  cursor: "pointer",
+                }}
+              >
+                <Printer size={13} />
+                <span>Cetak SPK</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const b = detailSpk.batch_obj;
+                  const idx = detailSpk.spk_index;
+                  setDetailSpk(null);
+                  handleOpenEdit(b, idx);
+                }}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "5px",
+                  padding: "5px 12px",
+                  borderRadius: "5px",
+                  border: "1px solid #38bdf8",
+                  backgroundColor: "#0284c7",
+                  color: "#ffffff",
+                  fontSize: "11.5px",
+                  fontWeight: "700",
+                  cursor: "pointer",
+                }}
+              >
+                <Edit3 size={13} />
+                <span>Edit SPK</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setDetailSpk(null)}
+                style={{
+                  padding: "5px 12px",
+                  borderRadius: "5px",
+                  border: "1px solid #cbd5e1",
+                  backgroundColor: "#ffffff",
+                  color: "#475569",
+                  fontSize: "11.5px",
+                  fontWeight: "700",
+                  cursor: "pointer",
+                }}
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ========================================================
           MODAL FULL SCREEN COMPACT: HIRARKI 1 NO PRODUKSI -> MULTI SPK -> MULTI PRODUK
@@ -2959,13 +3557,11 @@ export default function SPKView() {
                             border: "1px solid #e2e8f0",
                             borderRadius: "5px",
                             overflowX: "auto",
-                            minHeight: "240px",
                           }}
                         >
                           <table
                             style={{
                               width: "100%",
-                              minWidth: "880px",
                               borderCollapse: "collapse",
                               fontSize: "11px",
                             }}
@@ -3101,19 +3697,19 @@ export default function SPKView() {
                                     {/* 1. NO */}
                                     <td
                                       style={{
-                                        padding: "8px 6px",
+                                        padding: "4px 6px",
                                         textAlign: "center",
                                         fontWeight: "700",
                                         fontSize: "11px",
                                         color: "#64748b",
-                                        verticalAlign: "top",
+                                        verticalAlign: "middle",
                                       }}
                                     >
                                       {pIdx + 1}
                                     </td>
 
                                     {/* 2. NAMA PRODUK, SKU & ESTIMASI KAIN */}
-                                    <td style={{ padding: "8px 8px", verticalAlign: "top" }}>
+                                    <td style={{ padding: "4px 6px", verticalAlign: "middle" }}>
                                       <SearchableSelect
                                         value={prod.produk_id}
                                         fallbackLabel={prod.nama_produk}
@@ -3131,20 +3727,25 @@ export default function SPKView() {
                                       />
                                       <div
                                         style={{
-                                          marginTop: "4px",
+                                          marginTop: "3px",
                                           display: "flex",
                                           alignItems: "center",
-                                          gap: "8px",
+                                          gap: "5px",
                                           flexWrap: "wrap",
+                                          fontSize: "10px",
                                         }}
                                       >
                                         {prod.sku && (
                                           <span
                                             style={{
-                                              fontSize: "10px",
-                                              color: "#64748b",
+                                              fontSize: "9.5px",
+                                              color: "#475569",
                                               fontFamily: "monospace",
-                                              fontWeight: "600",
+                                              fontWeight: "700",
+                                              backgroundColor: "#f1f5f9",
+                                              padding: "1px 5px",
+                                              borderRadius: "3px",
+                                              border: "1px solid #e2e8f0",
                                             }}
                                           >
                                             SKU:{" "}
@@ -3157,192 +3758,91 @@ export default function SPKView() {
                                           <span
                                             style={{
                                               display: "inline-block",
-                                              padding: "1px 6px",
-                                              borderRadius: "4px",
+                                              padding: "1px 5px",
+                                              borderRadius: "3px",
                                               backgroundColor: "#e0f2fe",
                                               color: "#0369a1",
-                                              fontSize: "9.5px",
+                                              fontSize: "9px",
                                               fontWeight: "700",
+                                              border: "1px solid #bae6fd",
                                             }}
                                           >
                                             {prod.kategori || "Umum"}
                                           </span>
                                         )}
-                                      </div>
 
-                                      {/* Info Estimasi Kain di bawah Produk */}
-                                      {(Number(prod.panjang_kain_cm) > 0 || prod.kain_nama) && (
-                                        <div
-                                          style={{
-                                            marginTop: "6px",
-                                            display: "flex",
-                                            flexDirection: "column",
-                                            gap: "4px",
-                                            padding: "5px 8px",
-                                            borderRadius: "6px",
-                                            background:
-                                              "linear-gradient(135deg, #f0fdf4 0%, #f0f9ff 100%)",
-                                            border: "1px solid #bae6fd",
-                                          }}
-                                        >
-                                          {/* Micro Dashboard Row */}
-                                          <div
+                                        {/* Estimasi Kain Gabungan Ringkas */}
+                                        {(Number(prod.panjang_kain_cm) > 0 || prod.kain_nama) && (
+                                          <span
                                             style={{
-                                              display: "flex",
+                                              display: "inline-flex",
                                               alignItems: "center",
-                                              justifyContent: "space-between",
                                               gap: "4px",
+                                              padding: "1px 6px",
+                                              borderRadius: "3px",
+                                              backgroundColor: "#f0fdf4",
+                                              color: "#166534",
+                                              fontSize: "9px",
+                                              fontWeight: "600",
+                                              border: "1px solid #bbf7d0",
                                             }}
                                           >
-                                            <div
-                                              style={{
-                                                display: "flex",
-                                                alignItems: "center",
-                                                gap: "4px",
-                                              }}
-                                            >
-                                              <Scissors
-                                                size={11}
-                                                color="#0284c7"
-                                              />
-                                              <b
-                                                style={{
-                                                  fontSize: "11px",
-                                                  color: "#0f172a",
-                                                }}
-                                              >
-                                                {prod.kain_nama || "Kain"}
-                                              </b>
-                                            </div>
-                                            <span
-                                              style={{
-                                                fontSize: "9.5px",
-                                                fontWeight: "800",
-                                                padding: "1px 6px",
-                                                borderRadius: "3px",
-                                                backgroundColor: "#ffffff",
-                                                color: "#0284c7",
-                                                border: "1px solid #bfdbfe",
-                                              }}
-                                            >
-                                              {prod.panjang_kain_cm || 0} CM / pcs
+                                            <Scissors size={9} color="#16a34a" />
+                                            <b style={{ color: "#15803d" }}>
+                                              {prod.kain_nama || "Kain"}
+                                            </b>
+                                            <span style={{ color: "#16a34a" }}>
+                                              ({prod.panjang_kain_cm || 0} cm/pcs)
                                             </span>
-                                          </div>
-
-                                          {/* Metrics Strip */}
-                                          <div
-                                            style={{
-                                              display: "flex",
-                                              alignItems: "center",
-                                              justifyContent: "space-between",
-                                              backgroundColor: "#ffffff",
-                                              padding: "3px 8px",
-                                              borderRadius: "4px",
-                                              border: "1px solid #e2e8f0",
-                                              fontSize: "10.5px",
-                                            }}
-                                          >
-                                            <div>
-                                              <span
-                                                style={{
-                                                  color: "#64748b",
-                                                  fontSize: "8.5px",
-                                                  display: "block",
-                                                  fontWeight: "800",
-                                                  textTransform: "uppercase",
-                                                }}
-                                              >
-                                                TOTAL KEBUTUHAN
-                                              </span>
-                                              <b
-                                                style={{
-                                                  color: "#0284c7",
-                                                  fontFamily: "monospace",
-                                                  fontSize: "11.5px",
-                                                }}
-                                              >
+                                            <span style={{ color: "#86efac" }}>•</span>
+                                            <span>
+                                              Butuh:{" "}
+                                              <b style={{ fontFamily: "monospace", color: "#166534" }}>
                                                 {(
-                                                  (Number(
-                                                    prod.panjang_kain_cm,
-                                                  ) || 0) *
+                                                  (Number(prod.panjang_kain_cm) || 0) *
                                                   (Number(prod.qty) || 1)
                                                 ).toLocaleString("id-ID")}{" "}
-                                                CM
-                                              </b>
-                                              <span
-                                                style={{
-                                                  color: "#64748b",
-                                                  fontSize: "9px",
-                                                  marginLeft: "3px",
-                                                  fontWeight: "600",
-                                                }}
-                                              >
-                                                (
-                                                {(
-                                                  ((Number(
-                                                    prod.panjang_kain_cm,
-                                                  ) || 0) *
-                                                    (Number(prod.qty) || 1)) /
-                                                  100
-                                                ).toFixed(1)}
-                                                M)
-                                              </span>
-                                            </div>
+                                                cm
+                                              </b>{" "}
+                                              (
+                                              {(
+                                                ((Number(prod.panjang_kain_cm) || 0) *
+                                                  (Number(prod.qty) || 1)) /
+                                                100
+                                              ).toFixed(1)}
+                                              m)
+                                            </span>
+                                            {Number(prod.harga_kain_cm) > 0 && (
+                                              <>
+                                                <span style={{ color: "#86efac" }}>•</span>
+                                                <span>
+                                                  Est. Biaya:{" "}
+                                                  <b style={{ color: "#15803d" }}>
+                                                    Rp{" "}
+                                                    {(
+                                                      (Number(prod.panjang_kain_cm) || 0) *
+                                                      (Number(prod.qty) || 1) *
+                                                      (Number(prod.harga_kain_cm) || 0)
+                                                    ).toLocaleString("id-ID")}
+                                                  </b>{" "}
+                                                  <span style={{ color: "#16a34a", fontSize: "8.5px" }}>
+                                                    (@Rp {Number(prod.harga_kain_cm || 0).toLocaleString("id-ID")}/cm)
+                                                  </span>
+                                                </span>
+                                              </>
+                                            )}
+                                          </span>
+                                        )}
 
-                                            <div style={{ textAlign: "right" }}>
-                                              <span
-                                                style={{
-                                                  color: "#065f46",
-                                                  fontSize: "8.5px",
-                                                  display: "block",
-                                                  fontWeight: "800",
-                                                  textTransform: "uppercase",
-                                                }}
-                                              >
-                                                EST. BIAYA KAIN
-                                              </span>
-                                              <b
-                                                style={{
-                                                  color: "#059669",
-                                                  fontSize: "11.5px",
-                                                }}
-                                              >
-                                                Rp{" "}
-                                                {(
-                                                  (Number(
-                                                    prod.panjang_kain_cm,
-                                                  ) || 0) *
-                                                  (Number(prod.qty) || 1) *
-                                                  (Number(
-                                                    prod.harga_kain_cm,
-                                                  ) || 0)
-                                                ).toLocaleString("id-ID")}
-                                              </b>
-                                              <span
-                                                style={{
-                                                  color: "#94a3b8",
-                                                  fontSize: "8.5px",
-                                                  display: "block",
-                                                }}
-                                              >
-                                                @Rp{" "}
-                                                {Number(
-                                                  prod.harga_kain_cm || 0,
-                                                ).toLocaleString("id-ID")}
-                                                /CM
-                                              </span>
-                                            </div>
-                                          </div>
-                                        </div>
-                                      )}
+                                      </div>
                                     </td>
 
                                     {/* 3. QTY */}
                                     <td
                                       style={{
-                                        padding: "8px 6px",
+                                        padding: "4px 6px",
                                         textAlign: "center",
-                                        verticalAlign: "top",
+                                        verticalAlign: "middle",
                                       }}
                                     >
                                       <div
@@ -3365,8 +3865,8 @@ export default function SPKView() {
                                             )
                                           }
                                           style={{
-                                            width: "52px",
-                                            padding: "4px",
+                                            width: "48px",
+                                            padding: "3px 4px",
                                             borderRadius: "4px",
                                             border: "1px solid #cbd5e1",
                                             fontSize: "11px",
@@ -3389,9 +3889,9 @@ export default function SPKView() {
                                     {/* 4. AKSI */}
                                     <td
                                       style={{
-                                        padding: "8px 6px",
+                                        padding: "4px 6px",
                                         textAlign: "center",
-                                        verticalAlign: "top",
+                                        verticalAlign: "middle",
                                       }}
                                     >
                                       <button
