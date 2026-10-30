@@ -199,7 +199,28 @@ export async function handleOfflineOrdersRoutes(req, res, pathname, urlObj, { po
         }
       }
 
-      sendJson(res, 200, { status: 'success', data: { ...order, items, pembayaran_list } });
+      let existing_spk_batch = null;
+      if (order.no_spk) {
+        try {
+          const [[spkRow]] = await pool.query(
+            'SELECT * FROM spk_batch WHERE kode_produksi = ? LIMIT 1',
+            [order.no_spk]
+          );
+          if (spkRow) {
+            let parsedSpkList = [];
+            try {
+              parsedSpkList = typeof spkRow.spk_list === 'string'
+                ? JSON.parse(spkRow.spk_list)
+                : (spkRow.spk_list || []);
+            } catch (e) {
+              parsedSpkList = [];
+            }
+            existing_spk_batch = { ...spkRow, spk_list: parsedSpkList };
+          }
+        } catch (e) {}
+      }
+
+      sendJson(res, 200, { status: 'success', data: { ...order, items, pembayaran_list, existing_spk_batch } });
       return true;
     } catch (err) {
       sendJson(res, 500, { status: 'error', message: err.message });
@@ -440,18 +461,14 @@ export async function handleOfflineOrdersRoutes(req, res, pathname, urlObj, { po
       } catch (e) {}
 
       const kodeProduksi = (body.kode_produksi || order.no_spk || generateKodeProduksi()).trim();
-      const idSpk = (body.id_spk || `SPK-${order.no_pesanan.split('-').pop() || '101'}`).trim();
-      const namaSpk = (body.nama_spk || `SPK ${order.nama_pembeli}`).trim();
-      const penjahit = (body.penjahit || 'Penjahit Workshop').trim();
-      const statusSpk = (body.status_spk || 'Potong Pola').trim();
       const tglPesan = body.tgl_pesan || new Date().toISOString().slice(0, 10);
       const deadline = body.deadline || (order.batas_kirim ? new Date(order.batas_kirim).toISOString().slice(0, 10) : new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10));
+      const statusProduksi = body.status || 'Dalam Proses';
       const catatan = body.catatan !== undefined
         ? body.catatan
         : `Pesanan Offline ${order.no_pesanan}${order.catatan ? ' — ' + order.catatan : ''}`;
 
-      const customItems = Array.isArray(body.items) && body.items.length > 0 ? body.items : orderItems;
-      const produkItems = customItems.map((it, idx) => {
+      const enrichProductItem = (it, idSpk, idx) => {
         const skuKey = String(it.sku || '').trim().toLowerCase();
         const nameKey = String(it.nama_produk || '').trim().toLowerCase();
         const m = masterMap.get(skuKey) || masterMap.get(nameKey) || {};
@@ -461,9 +478,9 @@ export async function handleOfflineOrdersRoutes(req, res, pathname, urlObj, { po
         const hargaCm = Number(it.harga_kain_cm || m.harga_kain_cm || 150);
 
         return {
-          id: `item-${Date.now()}-${idx + 1}`,
+          id: it.id || `item-${Date.now()}-${idx + 1}`,
           no_spk: idSpk,
-          produk_id: m.id || idx + 1,
+          produk_id: it.produk_id || m.id || idx + 1,
           sku: it.sku || m.kode_sku || '',
           nama_produk: it.nama_produk || m.nama_produk || 'Produk',
           kategori: it.kategori || m.kategori || 'Umum',
@@ -474,17 +491,43 @@ export async function handleOfflineOrdersRoutes(req, res, pathname, urlObj, { po
           harga_kain_cm: hargaCm,
           estimasi_kain: it.estimasi_kain || buildEstimasiKainText(kainNama, cmPerPcs, hargaCm, qty)
         };
-      });
+      };
 
-      const spkList = [
-        {
-          id_spk: idSpk,
-          nama_spk: namaSpk,
-          penjahit,
-          status_spk: statusSpk,
-          produk_items: produkItems
-        }
-      ];
+      let spkList = [];
+      if (Array.isArray(body.spk_list) && body.spk_list.length > 0) {
+        spkList = body.spk_list
+          .filter(s => Array.isArray(s.produk_items) && s.produk_items.length > 0)
+          .map((s, sIdx) => {
+            const spkId = (s.id_spk || `SPK-${sIdx + 1}`).trim();
+            return {
+              id_spk: spkId,
+              nama_spk: (s.nama_spk || `SPK ${sIdx + 1}`).trim(),
+              penjahit: (s.penjahit || 'Penjahit Workshop').trim(),
+              status_spk: (s.status_spk || 'Potong Pola').trim(),
+              design_img: s.design_img || null,
+              produk_items: (s.produk_items || []).map((it, pIdx) =>
+                enrichProductItem(it, spkId, pIdx)
+              )
+            };
+          });
+      }
+
+      if (spkList.length === 0) {
+        const idSpk = (body.id_spk || `SPK-${order.no_pesanan.split('-').pop() || '101'}`).trim();
+        const namaSpk = (body.nama_spk || `SPK ${order.nama_pembeli}`).trim();
+        const penjahit = (body.penjahit || 'Penjahit Workshop').trim();
+        const statusSpk = (body.status_spk || 'Potong Pola').trim();
+        const customItems = Array.isArray(body.items) && body.items.length > 0 ? body.items : orderItems;
+        spkList = [
+          {
+            id_spk: idSpk,
+            nama_spk: namaSpk,
+            penjahit,
+            status_spk: statusSpk,
+            produk_items: customItems.map((it, idx) => enrichProductItem(it, idSpk, idx))
+          }
+        ];
+      }
 
       // Cek apakah kode_produksi sudah ada di spk_batch
       const [existingSpkRows] = await pool.query(
@@ -503,7 +546,7 @@ export async function handleOfflineOrdersRoutes(req, res, pathname, urlObj, { po
             instansi = ?,
             tgl_pesan = ?,
             deadline = ?,
-            status = 'Dalam Proses',
+            status = ?,
             catatan = ?,
             spk_list = ?
            WHERE id = ?`,
@@ -514,6 +557,7 @@ export async function handleOfflineOrdersRoutes(req, res, pathname, urlObj, { po
             order.nama_toko || 'Offline',
             tglPesan,
             deadline,
+            statusProduksi,
             catatan,
             JSON.stringify(spkList),
             spkBatchId
@@ -524,7 +568,7 @@ export async function handleOfflineOrdersRoutes(req, res, pathname, urlObj, { po
           `INSERT INTO spk_batch (
             kode_perusahaan, kode_produksi, nama_pelanggan, no_telepon, instansi,
             tgl_pesan, deadline, status, catatan, spk_list
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, 'Dalam Proses', ?, ?)`,
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             order.kode_perusahaan || 'RSG',
             kodeProduksi,
@@ -533,6 +577,7 @@ export async function handleOfflineOrdersRoutes(req, res, pathname, urlObj, { po
             order.nama_toko || 'Offline',
             tglPesan,
             deadline,
+            statusProduksi,
             catatan,
             JSON.stringify(spkList)
           ]

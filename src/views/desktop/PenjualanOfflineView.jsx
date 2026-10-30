@@ -223,19 +223,15 @@ export default function PenjualanOfflineView({ onNavigate }) {
     keterangan: "",
   });
 
-  // Modal Input ke SPK Produksi
+  // Modal Input ke SPK Produksi (1 Kode Produksi -> Multi SPK -> Multi Produk)
   const [spkModalOrder, setSpkModalOrder] = useState(null);
   const [isSavingSpk, setIsSavingSpk] = useState(false);
   const [spkForm, setSpkForm] = useState({
     kode_produksi: "",
-    id_spk: "",
-    nama_spk: "",
-    penjahit: "Penjahit Workshop",
-    status_spk: "Potong Pola",
     tgl_pesan: new Date().toISOString().slice(0, 10),
     deadline: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
     catatan: "",
-    items: [],
+    spk_list: [],
   });
 
   // Stores & Pelanggan
@@ -884,7 +880,129 @@ export default function PenjualanOfflineView({ onNavigate }) {
     }
   };
 
-  // ── Input ke SPK Produksi Handlers ──────────────────────────────────────
+  // ── Input ke SPK Produksi Handlers (1 Kode Produksi -> Multi SPK) ───────
+  const detectProductGroupLabel = (it) => {
+    const nama = String(it.nama_produk || "").trim();
+    const lower = nama.toLowerCase();
+    const sku = String(it.sku || "").toUpperCase();
+
+    if (lower.includes("topi")) return "Topi";
+    if (lower.includes("dasi")) return "Dasi";
+    if (lower.includes("sabuk") || lower.includes("gesper")) return "Sabuk";
+    if (lower.includes("kaos kaki")) return "Kaos Kaki";
+    if (lower.includes("celana")) return "Celana";
+    if (lower.includes("rok")) return "Rok";
+    if (lower.includes("rompi")) return "Rompi";
+    if (
+      lower.includes("bahan") ||
+      lower.includes("kain") ||
+      sku.startsWith("KB-") ||
+      sku.startsWith("K-")
+    ) {
+      return "Bahan Kain";
+    }
+    if (
+      lower.includes("baju batik") ||
+      lower.includes("kemeja batik") ||
+      lower.includes("batik") ||
+      sku.startsWith("BB-")
+    ) {
+      return "Baju Batik";
+    }
+    if (lower.includes("kemeja") || lower.includes("baju")) {
+      return "Baju / Kemeja";
+    }
+
+    // Hilangkan akhiran ukuran (S, M, L, XL, XXL, XXXL, JUMBO, No. ...) agar varian ukuran berkumpul di 1 SPK
+    const baseName = nama
+      .replace(
+        /\b(size|ukuran|uk)?\s*(xs|s|m|l|xl|xxl|xxxl|2xl|3xl|4xl|5xl|jumbo|all\s*size)\b/gi,
+        "",
+      )
+      .replace(/\s+/g, " ")
+      .trim();
+    return baseName ? baseName.slice(0, 28) : "Produk Umum";
+  };
+
+  const buildGroupedSpkList = (items = [], suffix = "101", mode = "auto") => {
+    const cleanItems = (items || []).map((it, idx) => ({
+      id: it.id || `item-${Date.now()}-${idx + 1}`,
+      sku: it.sku || "",
+      nama_produk: it.nama_produk || "Produk",
+      varian: it.varian || "",
+      qty: Number(it.qty) || 1,
+      catatan_item: it.catatan_item || "",
+    }));
+
+    if (cleanItems.length === 0) {
+      return [
+        {
+          id_spk: `SPK-${suffix}-01`,
+          nama_spk: "SPK Produksi 1",
+          penjahit: "Penjahit Workshop",
+          status_spk: "Potong Pola",
+          produk_items: [],
+        },
+      ];
+    }
+
+    if (mode === "single") {
+      return [
+        {
+          id_spk: `SPK-${suffix}-01`,
+          nama_spk: `SPK Gabungan (${cleanItems.length} Produk)`,
+          penjahit: "Penjahit Workshop",
+          status_spk: "Potong Pola",
+          produk_items: cleanItems.map((it) => ({
+            ...it,
+            no_spk: `SPK-${suffix}-01`,
+          })),
+        },
+      ];
+    }
+
+    if (mode === "per_item") {
+      return cleanItems.map((it, idx) => {
+        const spkNo = `SPK-${suffix}-${String(idx + 1).padStart(2, "0")}`;
+        return {
+          id_spk: spkNo,
+          nama_spk: `SPK ${it.nama_produk.slice(0, 32)}`,
+          penjahit: "Penjahit Workshop",
+          status_spk: "Potong Pola",
+          produk_items: [{ ...it, no_spk: spkNo }],
+        };
+      });
+    }
+
+    // Mode 'auto': kelompokkan otomatis berdasarkan jenis produk (Contoh: Topi -> SPK 1, Batik L & XL -> SPK 2, Celana L & S -> SPK 3)
+    const groupsMap = new Map();
+    cleanItems.forEach((it) => {
+      const label = detectProductGroupLabel(it);
+      if (!groupsMap.has(label)) {
+        groupsMap.set(label, []);
+      }
+      groupsMap.get(label).push(it);
+    });
+
+    const entries = Array.from(groupsMap.entries());
+    return entries.map(([groupLabel, groupItems], idx) => {
+      const spkNo =
+        entries.length === 1
+          ? `SPK-${suffix}-01`
+          : `SPK-${suffix}-${String(idx + 1).padStart(2, "0")}`;
+      return {
+        id_spk: spkNo,
+        nama_spk: `SPK ${groupLabel}`,
+        penjahit: "Penjahit Workshop",
+        status_spk: "Potong Pola",
+        produk_items: groupItems.map((it) => ({
+          ...it,
+          no_spk: spkNo,
+        })),
+      };
+    });
+  };
+
   const handleOpenSpkModal = async (idOrOrder) => {
     const id = typeof idOrOrder === "object" ? idOrOrder.id : idOrOrder;
     try {
@@ -899,31 +1017,178 @@ export default function PenjualanOfflineView({ onNavigate }) {
         (ord.no_pesanan || "").split("-").pop() ||
         Math.random().toString(36).slice(2, 5).toUpperCase();
 
+      const existingBatch = ord.existing_spk_batch;
+      const hasExistingSpkList =
+        existingBatch &&
+        Array.isArray(existingBatch.spk_list) &&
+        existingBatch.spk_list.length > 0 &&
+        existingBatch.spk_list.some(
+          (s) => Array.isArray(s.produk_items) && s.produk_items.length > 0,
+        );
+
+      const initialSpkList = hasExistingSpkList
+        ? existingBatch.spk_list.map((s, sIdx) => ({
+            id_spk:
+              s.id_spk ||
+              `SPK-${suffix}-${String(sIdx + 1).padStart(2, "0")}`,
+            nama_spk: s.nama_spk || `SPK ${sIdx + 1}`,
+            penjahit: s.penjahit || "Penjahit Workshop",
+            status_spk: s.status_spk || "Potong Pola",
+            produk_items: (s.produk_items || []).map((p, pIdx) => ({
+              id: p.id || `item-${Date.now()}-${sIdx}-${pIdx}`,
+              no_spk: s.id_spk,
+              sku: p.sku || "",
+              nama_produk: p.nama_produk || "",
+              qty: Number(p.qty) || 1,
+            })),
+          }))
+        : buildGroupedSpkList(ord.items || [], suffix, "auto");
+
       setSpkForm({
         kode_produksi: ord.no_spk || `PRD-OFF-${nowYmd}-${suffix}`,
-        id_spk: `SPK-${suffix}`,
-        nama_spk: `SPK ${ord.nama_pembeli || "Offline"}`,
-        penjahit: "Penjahit Workshop",
-        status_spk: "Potong Pola",
-        tgl_pesan: ord.batas_kirim
-          ? new Date(ord.batas_kirim).toISOString().slice(0, 10)
-          : new Date().toISOString().slice(0, 10),
-        deadline: new Date(Date.now() + 14 * 86400000)
-          .toISOString()
-          .slice(0, 10),
-        catatan: `Pesanan Offline ${ord.no_pesanan}${ord.catatan ? " — " + ord.catatan : ""}`,
-        items: (ord.items || []).map((it) => ({
-          sku: it.sku || "",
-          nama_produk: it.nama_produk || "",
-          varian: it.varian || "",
-          qty: Number(it.qty) || 1,
-          catatan_item: it.catatan_item || "",
-        })),
+        tgl_pesan:
+          existingBatch?.tgl_pesan ||
+          (ord.batas_kirim
+            ? new Date(ord.batas_kirim).toISOString().slice(0, 10)
+            : new Date().toISOString().slice(0, 10)),
+        deadline:
+          existingBatch?.deadline ||
+          new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
+        catatan:
+          existingBatch?.catatan ||
+          `Pesanan Offline ${ord.no_pesanan}${ord.catatan ? " — " + ord.catatan : ""}`,
+        spk_list: initialSpkList,
       });
       setSpkModalOrder(ord);
     } catch (err) {
       toastError(err.message);
     }
+  };
+
+  const handleAddSpkBlock = () => {
+    const suffix =
+      (spkModalOrder?.no_pesanan || "").split("-").pop() || "101";
+    const nextNum = (spkForm.spk_list?.length || 0) + 1;
+    const newSpkNo = `SPK-${suffix}-${String(nextNum).padStart(2, "0")}`;
+    setSpkForm((prev) => ({
+      ...prev,
+      spk_list: [
+        ...(prev.spk_list || []),
+        {
+          id_spk: newSpkNo,
+          nama_spk: `SPK Produksi ${nextNum}`,
+          penjahit: "Penjahit Workshop",
+          status_spk: "Potong Pola",
+          produk_items: [],
+        },
+      ],
+    }));
+  };
+
+  const handleRemoveSpkBlock = (sIdx) => {
+    if ((spkForm.spk_list || []).length <= 1) {
+      toastError("Minimal harus ada 1 SPK di dalam Kode Produksi ini!");
+      return;
+    }
+    setSpkForm((prev) => {
+      const list = [...(prev.spk_list || [])];
+      const removed = list[sIdx];
+      const remaining = list.filter((_, i) => i !== sIdx);
+      // Pindahkan produk dari SPK yang dihapus ke SPK pertama agar tidak ada produk pesanan yang hilang
+      if (removed?.produk_items?.length > 0 && remaining.length > 0) {
+        remaining[0] = {
+          ...remaining[0],
+          produk_items: [
+            ...(remaining[0].produk_items || []),
+            ...removed.produk_items.map((p) => ({
+              ...p,
+              no_spk: remaining[0].id_spk,
+            })),
+          ],
+        };
+      }
+      return { ...prev, spk_list: remaining };
+    });
+  };
+
+  const handleUpdateSpkBlockField = (sIdx, field, val) => {
+    setSpkForm((prev) => {
+      const list = [...(prev.spk_list || [])];
+      const updatedSpk = { ...list[sIdx], [field]: val };
+      if (field === "id_spk") {
+        updatedSpk.produk_items = (updatedSpk.produk_items || []).map((p) => ({
+          ...p,
+          no_spk: val,
+        }));
+      }
+      list[sIdx] = updatedSpk;
+      return { ...prev, spk_list: list };
+    });
+  };
+
+  const handleMoveProductBetweenSpk = (fromSpkIdx, prodIdx, targetVal) => {
+    const suffix =
+      (spkModalOrder?.no_pesanan || "").split("-").pop() || "101";
+
+    setSpkForm((prev) => {
+      const list = prev.spk_list.map((s) => ({
+        ...s,
+        produk_items: [...(s.produk_items || [])],
+      }));
+      const itemToMove = list[fromSpkIdx]?.produk_items?.[prodIdx];
+      if (!itemToMove) return prev;
+
+      // Hapus dari SPK asal
+      list[fromSpkIdx].produk_items.splice(prodIdx, 1);
+
+      if (targetVal === "__NEW_SPK__") {
+        const nextNum = list.length + 1;
+        const newSpkNo = `SPK-${suffix}-${String(nextNum).padStart(2, "0")}`;
+        const groupLabel = detectProductGroupLabel(itemToMove);
+        list.push({
+          id_spk: newSpkNo,
+          nama_spk: `SPK ${groupLabel}`,
+          penjahit: "Penjahit Workshop",
+          status_spk: "Potong Pola",
+          produk_items: [{ ...itemToMove, no_spk: newSpkNo }],
+        });
+      } else {
+        const targetIdx = Number(targetVal);
+        if (!isNaN(targetIdx) && list[targetIdx]) {
+          list[targetIdx].produk_items.push({
+            ...itemToMove,
+            no_spk: list[targetIdx].id_spk,
+          });
+        }
+      }
+
+      return { ...prev, spk_list: list };
+    });
+  };
+
+  const handleUpdateProductQtyInSpk = (sIdx, pIdx, newQty) => {
+    setSpkForm((prev) => {
+      const list = [...(prev.spk_list || [])];
+      const prods = [...(list[sIdx]?.produk_items || [])];
+      prods[pIdx] = { ...prods[pIdx], qty: Number(newQty) || 0 };
+      list[sIdx] = { ...list[sIdx], produk_items: prods };
+      return { ...prev, spk_list: list };
+    });
+  };
+
+  const handleRegroupSpkMode = (mode) => {
+    if (!spkModalOrder) return;
+    const suffix =
+      (spkModalOrder.no_pesanan || "").split("-").pop() || "101";
+    const allCurrentItems = (spkForm.spk_list || []).flatMap(
+      (s) => s.produk_items || [],
+    );
+    const sourceItems =
+      allCurrentItems.length > 0 ? allCurrentItems : spkModalOrder.items || [];
+    setSpkForm((prev) => ({
+      ...prev,
+      spk_list: buildGroupedSpkList(sourceItems, suffix, mode),
+    }));
   };
 
   const handleSaveSpk = async (e) => {
@@ -937,10 +1202,14 @@ export default function PenjualanOfflineView({ onNavigate }) {
       );
       return;
     }
-    if (!spkForm.items || !spkForm.items.length) {
+
+    const nonEmptySpkList = (spkForm.spk_list || []).filter(
+      (s) => Array.isArray(s.produk_items) && s.produk_items.length > 0,
+    );
+    if (nonEmptySpkList.length === 0) {
       showWarning(
-        "Item Produk Kosong",
-        "Tidak ada produk yang dapat dimasukkan ke SPK.",
+        "Produk SPK Kosong",
+        "Minimal harus ada 1 SPK yang berisi produk.",
       );
       return;
     }
@@ -950,7 +1219,10 @@ export default function PenjualanOfflineView({ onNavigate }) {
       const res = await fetch(`/api/offline/orders/${spkModalOrder.id}/spk`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(spkForm),
+        body: JSON.stringify({
+          ...spkForm,
+          spk_list: nonEmptySpkList,
+        }),
       });
       const json = await res.json();
       if (!res.ok || json.status === "error") {
@@ -959,7 +1231,7 @@ export default function PenjualanOfflineView({ onNavigate }) {
 
       toastSuccess(
         json.message ||
-          `Berhasil dimasukkan ke SPK (${spkForm.kode_produksi})!`,
+          `Berhasil menyimpan ${nonEmptySpkList.length} SPK dalam Kode Produksi ${spkForm.kode_produksi}!`,
       );
       const updated = json.data;
       setSpkModalOrder(null);
@@ -8030,12 +8302,12 @@ export default function PenjualanOfflineView({ onNavigate }) {
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "1fr 1.2fr",
+                gridTemplateColumns: "360px 1fr",
                 gap: "12px",
                 alignItems: "start",
               }}
             >
-              {/* KOLOM KIRI: KONFIGURASI SPK & JADWAL */}
+              {/* KOLOM KIRI: INDUK NOMOR PRODUKSI & KONTROL PEMBAGIAN SPK */}
               <div
                 style={{
                   display: "flex",
@@ -8058,7 +8330,7 @@ export default function PenjualanOfflineView({ onNavigate }) {
                     }}
                   >
                     <span>
-                      Pesanan ini sudah terdaftar pada Kode Produksi:{" "}
+                      Terdaftar pada Kode Produksi:{" "}
                       <strong>{spkModalOrder.no_spk}</strong>
                     </span>
                     {onNavigate && (
@@ -8085,6 +8357,7 @@ export default function PenjualanOfflineView({ onNavigate }) {
                   </div>
                 )}
 
+                {/* CARD 1: IDENTITAS NOMOR PRODUKSI INDUK & JADWAL */}
                 <div
                   style={{
                     backgroundColor: "#ffffff",
@@ -8114,86 +8387,11 @@ export default function PenjualanOfflineView({ onNavigate }) {
                         letterSpacing: "0.04em",
                       }}
                     >
-                      1. Identitas Kode Produksi & Nomor SPK
+                      1. Induk Nomor Produksi & Jadwal
                     </span>
                   </div>
 
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "1fr 1fr",
-                      gap: "10px",
-                      marginBottom: "10px",
-                    }}
-                  >
-                    <div>
-                      <label
-                        style={{
-                          display: "block",
-                          fontSize: "10.5px",
-                          fontWeight: "700",
-                          color: "#334155",
-                          marginBottom: "3px",
-                        }}
-                      >
-                        Kode Produksi <span style={{ color: "#ef4444" }}>*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={spkForm.kode_produksi}
-                        onChange={(e) =>
-                          setSpkForm({
-                            ...spkForm,
-                            kode_produksi: e.target.value,
-                          })
-                        }
-                        style={{
-                          width: "100%",
-                          padding: "6px 9px",
-                          borderRadius: "5px",
-                          border: "1px solid #c4b5fd",
-                          fontSize: "11.5px",
-                          fontWeight: "800",
-                          color: "#4c1d95",
-                          backgroundColor: "#f5f3ff",
-                          boxSizing: "border-box",
-                        }}
-                      />
-                    </div>
-
-                    <div>
-                      <label
-                        style={{
-                          display: "block",
-                          fontSize: "10.5px",
-                          fontWeight: "700",
-                          color: "#334155",
-                          marginBottom: "3px",
-                        }}
-                      >
-                        Nomor SPK <span style={{ color: "#ef4444" }}>*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={spkForm.id_spk}
-                        onChange={(e) =>
-                          setSpkForm({ ...spkForm, id_spk: e.target.value })
-                        }
-                        style={{
-                          width: "100%",
-                          padding: "6px 9px",
-                          borderRadius: "5px",
-                          border: "1px solid #cbd5e1",
-                          fontSize: "11.5px",
-                          fontWeight: "700",
-                          color: "#0f172a",
-                          boxSizing: "border-box",
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  <div>
+                  <div style={{ marginBottom: "10px" }}>
                     <label
                       style={{
                         display: "block",
@@ -8203,131 +8401,40 @@ export default function PenjualanOfflineView({ onNavigate }) {
                         marginBottom: "3px",
                       }}
                     >
-                      Nama SPK / Judul Produksi
+                      Kode / Nomor Produksi Induk{" "}
+                      <span style={{ color: "#ef4444" }}>*</span>
                     </label>
                     <input
                       type="text"
-                      value={spkForm.nama_spk}
+                      value={spkForm.kode_produksi}
                       onChange={(e) =>
-                        setSpkForm({ ...spkForm, nama_spk: e.target.value })
+                        setSpkForm({
+                          ...spkForm,
+                          kode_produksi: e.target.value,
+                        })
                       }
                       style={{
                         width: "100%",
                         padding: "6px 9px",
                         borderRadius: "5px",
-                        border: "1px solid #cbd5e1",
-                        fontSize: "11.5px",
-                        fontWeight: "600",
-                        color: "#0f172a",
+                        border: "1px solid #c4b5fd",
+                        fontSize: "12px",
+                        fontWeight: "800",
+                        color: "#4c1d95",
+                        backgroundColor: "#f5f3ff",
                         boxSizing: "border-box",
                       }}
                     />
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    backgroundColor: "#ffffff",
-                    borderRadius: "8px",
-                    border: "1px solid #cbd5e1",
-                    padding: "12px 14px",
-                    boxShadow: "0 1px 2px rgba(0, 0, 0, 0.03)",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "6px",
-                      marginBottom: "8px",
-                      paddingBottom: "5px",
-                      borderBottom: "1px solid #f1f5f9",
-                    }}
-                  >
-                    <Calendar size={13} color="#0284c7" />
-                    <span
-                      style={{
-                        fontSize: "11px",
-                        fontWeight: "800",
-                        color: "#0f172a",
-                        textTransform: "uppercase",
-                        letterSpacing: "0.04em",
-                      }}
-                    >
-                      2. Penjahit, Tahapan & Jadwal Produksi
-                    </span>
                   </div>
 
                   <div
                     style={{
                       display: "grid",
                       gridTemplateColumns: "1fr 1fr",
-                      gap: "10px",
+                      gap: "8px",
                       marginBottom: "10px",
                     }}
                   >
-                    <div>
-                      <label
-                        style={{
-                          display: "block",
-                          fontSize: "10.5px",
-                          fontWeight: "700",
-                          color: "#334155",
-                          marginBottom: "3px",
-                        }}
-                      >
-                        Penjahit / Makloon
-                      </label>
-                      <input
-                        type="text"
-                        value={spkForm.penjahit}
-                        onChange={(e) =>
-                          setSpkForm({ ...spkForm, penjahit: e.target.value })
-                        }
-                        placeholder="Nama penjahit..."
-                        style={{
-                          width: "100%",
-                          padding: "6px 9px",
-                          borderRadius: "5px",
-                          border: "1px solid #cbd5e1",
-                          fontSize: "11.5px",
-                          fontWeight: "600",
-                          color: "#0f172a",
-                          boxSizing: "border-box",
-                        }}
-                      />
-                    </div>
-
-                    <div>
-                      <label
-                        style={{
-                          display: "block",
-                          fontSize: "10.5px",
-                          fontWeight: "700",
-                          color: "#334155",
-                          marginBottom: "3px",
-                        }}
-                      >
-                        Tahapan SPK Awal
-                      </label>
-                      <SearchableSelect
-                        value={spkForm.status_spk}
-                        onChange={(val) =>
-                          setSpkForm({
-                            ...spkForm,
-                            status_spk: val || "Potong Pola",
-                          })
-                        }
-                        options={[
-                          { value: "Potong Pola", label: "Potong Pola" },
-                          { value: "Proses Jahit", label: "Proses Jahit" },
-                          { value: "Finishing & QC", label: "Finishing & QC" },
-                          { value: "Selesai", label: "Selesai" },
-                        ]}
-                        size="sm"
-                      />
-                    </div>
-
                     <div>
                       <label
                         style={{
@@ -8401,10 +8508,10 @@ export default function PenjualanOfflineView({ onNavigate }) {
                         marginBottom: "3px",
                       }}
                     >
-                      Catatan Produksi / Keterangan SPK
+                      Catatan Produksi / Keterangan Umum
                     </label>
                     <textarea
-                      rows={3}
+                      rows={2}
                       value={spkForm.catatan}
                       onChange={(e) =>
                         setSpkForm({ ...spkForm, catatan: e.target.value })
@@ -8423,26 +8530,15 @@ export default function PenjualanOfflineView({ onNavigate }) {
                     />
                   </div>
                 </div>
-              </div>
 
-              {/* KOLOM KANAN: DAFTAR PRODUK YANG MASUK KE SPK */}
-              <div
-                style={{
-                  backgroundColor: "#ffffff",
-                  borderRadius: "8px",
-                  border: "1px solid #cbd5e1",
-                  padding: "12px 14px",
-                  boxShadow: "0 1px 2px rgba(0, 0, 0, 0.03)",
-                }}
-              >
+                {/* CARD 2: MODE PEMBAGIAN SPK OTOMATIS / MANUAL */}
                 <div
                   style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    marginBottom: "8px",
-                    paddingBottom: "5px",
-                    borderBottom: "1px solid #f1f5f9",
+                    backgroundColor: "#ffffff",
+                    borderRadius: "8px",
+                    border: "1px solid #cbd5e1",
+                    padding: "12px 14px",
+                    boxShadow: "0 1px 2px rgba(0, 0, 0, 0.03)",
                   }}
                 >
                   <div
@@ -8450,9 +8546,12 @@ export default function PenjualanOfflineView({ onNavigate }) {
                       display: "flex",
                       alignItems: "center",
                       gap: "6px",
+                      marginBottom: "8px",
+                      paddingBottom: "5px",
+                      borderBottom: "1px solid #f1f5f9",
                     }}
                   >
-                    <Package size={13} color="#7c3aed" />
+                    <Package size={13} color="#0284c7" />
                     <span
                       style={{
                         fontSize: "11px",
@@ -8462,166 +8561,699 @@ export default function PenjualanOfflineView({ onNavigate }) {
                         letterSpacing: "0.04em",
                       }}
                     >
-                      3. Daftar Produk yang Masuk ke SPK (
-                      {spkForm.items.length} Macam)
+                      2. Mode Pembagian SPK Cepat
                     </span>
                   </div>
-                  <span
-                    style={{
-                      fontSize: "10.5px",
-                      fontWeight: "800",
-                      padding: "2px 8px",
-                      borderRadius: "4px",
-                      backgroundColor: "#f5f3ff",
-                      color: "#6d28d9",
-                      border: "1px solid #ddd6fe",
-                    }}
-                  >
-                    Total Qty:{" "}
-                    {spkForm.items.reduce(
-                      (s, it) => s + Number(it.qty || 0),
-                      0,
-                    )}{" "}
-                    Pcs
-                  </span>
-                </div>
 
-                <div
-                  style={{
-                    border: "1px solid #cbd5e1",
-                    borderRadius: "6px",
-                    overflow: "hidden",
-                  }}
-                >
-                  <table
+                  <div
                     style={{
-                      width: "100%",
-                      borderCollapse: "collapse",
-                      fontSize: "11.5px",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "6px",
+                      marginBottom: "10px",
                     }}
                   >
-                    <thead>
-                      <tr
+                    <button
+                      type="button"
+                      onClick={() => handleRegroupSpkMode("auto")}
+                      style={{
+                        width: "100%",
+                        padding: "7px 10px",
+                        borderRadius: "6px",
+                        border: "1px solid #7c3aed",
+                        backgroundColor: "#f5f3ff",
+                        color: "#6d28d9",
+                        fontSize: "11px",
+                        fontWeight: "800",
+                        cursor: "pointer",
+                        textAlign: "left",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                      }}
+                    >
+                      <span>⚡ Bagi Otomatis per Jenis Produk</span>
+                      <span
                         style={{
-                          backgroundColor: "#f8fafc",
-                          color: "#475569",
-                          fontSize: "10px",
-                          fontWeight: "800",
-                          textTransform: "uppercase",
+                          fontSize: "9.5px",
+                          padding: "1px 6px",
+                          borderRadius: "4px",
+                          backgroundColor: "#7c3aed",
+                          color: "#ffffff",
                         }}
                       >
-                        <th
-                          style={{
-                            padding: "7px 8px",
-                            borderBottom: "1px solid #cbd5e1",
-                            borderRight: "1px solid #cbd5e1",
-                            textAlign: "center",
-                            width: "40px",
-                          }}
-                        >
-                          NO
-                        </th>
-                        <th
-                          style={{
-                            padding: "7px 8px",
-                            borderBottom: "1px solid #cbd5e1",
-                            borderRight: "1px solid #cbd5e1",
-                            textAlign: "left",
-                          }}
-                        >
-                          SKU & NAMA PRODUK
-                        </th>
-                        <th
-                          style={{
-                            padding: "7px 8px",
-                            borderBottom: "1px solid #cbd5e1",
-                            textAlign: "center",
-                            width: "110px",
-                          }}
-                        >
-                          QTY SPK
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {spkForm.items.map((it, idx) => (
-                        <tr
-                          key={idx}
-                          style={{
-                            borderBottom:
-                              idx < spkForm.items.length - 1
-                                ? "1px solid #e2e8f0"
-                                : "none",
-                          }}
-                        >
-                          <td
-                            style={{
-                              padding: "7px 8px",
-                              textAlign: "center",
-                              fontWeight: "700",
-                              color: "#64748b",
-                              borderRight: "1px solid #e2e8f0",
-                            }}
-                          >
-                            {idx + 1}
-                          </td>
-                          <td
-                            style={{
-                              padding: "7px 8px",
-                              borderRight: "1px solid #e2e8f0",
-                            }}
-                          >
-                            <div
-                              style={{
-                                fontWeight: "700",
-                                color: "#0f172a",
-                              }}
-                            >
-                              {it.nama_produk}
-                            </div>
-                            <div
-                              style={{
-                                fontSize: "10px",
-                                color: "#0284c7",
-                                fontFamily: "monospace",
-                                fontWeight: "700",
-                              }}
-                            >
-                              SKU: {it.sku || "-"}
-                            </div>
-                          </td>
-                          <td
-                            style={{
-                              padding: "7px 8px",
-                              textAlign: "center",
-                            }}
-                          >
-                            <RupiahInput
-                              value={it.qty}
-                              onChange={(val) => {
-                                const nextItems = [...spkForm.items];
-                                nextItems[idx] = {
-                                  ...nextItems[idx],
-                                  qty: val,
-                                };
-                                setSpkForm({ ...spkForm, items: nextItems });
-                              }}
-                              style={{
-                                width: "80px",
-                                padding: "5px 8px",
-                                borderRadius: "5px",
-                                border: "1px solid #cbd5e1",
-                                fontSize: "12px",
-                                fontWeight: "800",
-                                textAlign: "center",
-                              }}
-                            />
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                        Rekomendasi
+                      </span>
+                    </button>
+
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "1fr 1fr",
+                        gap: "6px",
+                      }}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => handleRegroupSpkMode("single")}
+                        style={{
+                          padding: "6px 8px",
+                          borderRadius: "5px",
+                          border: "1px solid #cbd5e1",
+                          backgroundColor: "#f8fafc",
+                          color: "#334155",
+                          fontSize: "10.5px",
+                          fontWeight: "700",
+                          cursor: "pointer",
+                        }}
+                      >
+                        Gabung Semua ke 1 SPK
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleRegroupSpkMode("per_item")}
+                        style={{
+                          padding: "6px 8px",
+                          borderRadius: "5px",
+                          border: "1px solid #cbd5e1",
+                          backgroundColor: "#f8fafc",
+                          color: "#334155",
+                          fontSize: "10.5px",
+                          fontWeight: "700",
+                          cursor: "pointer",
+                        }}
+                      >
+                        Pisah 1 Produk = 1 SPK
+                      </button>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleAddSpkBlock}
+                      style={{
+                        width: "100%",
+                        padding: "7px 10px",
+                        borderRadius: "6px",
+                        border: "1px dashed #0284c7",
+                        backgroundColor: "#f0f9ff",
+                        color: "#0369a1",
+                        fontSize: "11px",
+                        fontWeight: "800",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "5px",
+                      }}
+                    >
+                      <Plus size={13} />
+                      <span>Tambah SPK Baru dalam Kode Produksi Ini</span>
+                    </button>
+                  </div>
+
+                  <div
+                    style={{
+                      padding: "8px 10px",
+                      borderRadius: "6px",
+                      backgroundColor: "#f8fafc",
+                      border: "1px solid #e2e8f0",
+                      fontSize: "10.5px",
+                      color: "#475569",
+                      lineHeight: 1.45,
+                    }}
+                  >
+                    <strong style={{ color: "#0f172a" }}>
+                      Cara Kerja Multi-SPK:
+                    </strong>
+                    <br />• 1 Nomor Produksi (
+                    <strong>{spkForm.kode_produksi}</strong>) dapat memiliki{" "}
+                    <strong>{(spkForm.spk_list || []).length} SPK</strong>{" "}
+                    sekaligus.
+                    <br />• Contoh: <em>Topi</em> (SPK 1),{" "}
+                    <em>Batik L &amp; XL</em> (SPK 2),{" "}
+                    <em>Celana L &amp; S</em> (SPK 3).
+                    <br />• Anda juga bisa memindahkan produk antar SPK lewat
+                    kolom <strong>Pindah ke SPK</strong> di tabel kanan.
+                  </div>
                 </div>
+              </div>
+
+              {/* KOLOM KANAN: DAFTAR SPK DI DALAM KODE PRODUKSI INI */}
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "10px",
+                }}
+              >
+                {/* Header Ringkasan Daftar SPK */}
+                <div
+                  style={{
+                    backgroundColor: "#ffffff",
+                    borderRadius: "8px",
+                    border: "1px solid #cbd5e1",
+                    padding: "9px 14px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    boxShadow: "0 1px 2px rgba(0, 0, 0, 0.03)",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                    }}
+                  >
+                    <ClipboardList size={14} color="#7c3aed" />
+                    <span
+                      style={{
+                        fontSize: "11.5px",
+                        fontWeight: "800",
+                        color: "#0f172a",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.04em",
+                      }}
+                    >
+                      3. Daftar SPK dalam Nomor Produksi Ini (
+                      {(spkForm.spk_list || []).length} SPK)
+                    </span>
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: "10.5px",
+                        fontWeight: "800",
+                        padding: "3px 9px",
+                        borderRadius: "4px",
+                        backgroundColor: "#f5f3ff",
+                        color: "#6d28d9",
+                        border: "1px solid #ddd6fe",
+                      }}
+                    >
+                      Total Item:{" "}
+                      {(spkForm.spk_list || []).reduce(
+                        (acc, spk) =>
+                          acc +
+                          (spk.produk_items || []).reduce(
+                            (s, it) => s + Number(it.qty || 0),
+                            0,
+                          ),
+                        0,
+                      )}{" "}
+                      Pcs
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleAddSpkBlock}
+                      style={{
+                        height: "24px",
+                        padding: "0 10px",
+                        borderRadius: "5px",
+                        border: "1px solid #7c3aed",
+                        backgroundColor: "#7c3aed",
+                        color: "#ffffff",
+                        fontSize: "10.5px",
+                        fontWeight: "800",
+                        cursor: "pointer",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "4px",
+                      }}
+                    >
+                      <Plus size={12} />
+                      <span>Tambah SPK</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* LOOP SETIAP SPK BLOCK */}
+                {(spkForm.spk_list || []).map((spk, sIdx) => {
+                  const totalQtySpk = (spk.produk_items || []).reduce(
+                    (s, it) => s + Number(it.qty || 0),
+                    0,
+                  );
+                  return (
+                    <div
+                      key={sIdx}
+                      style={{
+                        backgroundColor: "#ffffff",
+                        borderRadius: "8px",
+                        border: "1.5px solid #c4b5fd",
+                        overflow: "hidden",
+                        boxShadow: "0 1px 3px rgba(0, 0, 0, 0.04)",
+                      }}
+                    >
+                      {/* Header Tiap SPK */}
+                      <div
+                        style={{
+                          backgroundColor: "#f5f3ff",
+                          borderBottom: "1px solid #ddd6fe",
+                          padding: "8px 12px",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: "10px",
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "8px",
+                          }}
+                        >
+                          <span
+                            style={{
+                              padding: "2px 8px",
+                              borderRadius: "4px",
+                              backgroundColor: "#7c3aed",
+                              color: "#ffffff",
+                              fontSize: "10.5px",
+                              fontWeight: "800",
+                            }}
+                          >
+                            SPK #{sIdx + 1}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: "12px",
+                              fontWeight: "800",
+                              color: "#4c1d95",
+                            }}
+                          >
+                            {spk.id_spk} — {spk.nama_spk}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: "10px",
+                              fontWeight: "700",
+                              color: "#6d28d9",
+                              backgroundColor: "#ede9fe",
+                              padding: "1px 7px",
+                              borderRadius: "99px",
+                            }}
+                          >
+                            {(spk.produk_items || []).length} Macam •{" "}
+                            {totalQtySpk} Pcs
+                          </span>
+                        </div>
+
+                        {(spkForm.spk_list || []).length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveSpkBlock(sIdx)}
+                            title="Hapus SPK ini (produk di dalamnya otomatis dipindahkan ke SPK lain)"
+                            style={{
+                              padding: "3px 8px",
+                              borderRadius: "4px",
+                              border: "1px solid #fca5a5",
+                              backgroundColor: "#fef2f2",
+                              color: "#dc2626",
+                              fontSize: "10px",
+                              fontWeight: "700",
+                              cursor: "pointer",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "4px",
+                            }}
+                          >
+                            <Trash2 size={11} />
+                            <span>Hapus & Gabung Produk</span>
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Form Konfigurasi SPK Ini (No SPK, Nama SPK, Penjahit, Status) */}
+                      <div
+                        style={{
+                          padding: "10px 12px",
+                          backgroundColor: "#fafafa",
+                          borderBottom: "1px solid #e2e8f0",
+                          display: "grid",
+                          gridTemplateColumns: "1.1fr 1.5fr 1.2fr 1.1fr",
+                          gap: "8px",
+                          alignItems: "end",
+                        }}
+                      >
+                        <div>
+                          <label
+                            style={{
+                              display: "block",
+                              fontSize: "10px",
+                              fontWeight: "700",
+                              color: "#475569",
+                              marginBottom: "2px",
+                            }}
+                          >
+                            Nomor SPK <span style={{ color: "#ef4444" }}>*</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={spk.id_spk}
+                            onChange={(e) =>
+                              handleUpdateSpkBlockField(
+                                sIdx,
+                                "id_spk",
+                                e.target.value,
+                              )
+                            }
+                            style={{
+                              width: "100%",
+                              padding: "5px 8px",
+                              borderRadius: "5px",
+                              border: "1px solid #cbd5e1",
+                              fontSize: "11px",
+                              fontWeight: "800",
+                              color: "#0f172a",
+                              boxSizing: "border-box",
+                            }}
+                          />
+                        </div>
+
+                        <div>
+                          <label
+                            style={{
+                              display: "block",
+                              fontSize: "10px",
+                              fontWeight: "700",
+                              color: "#475569",
+                              marginBottom: "2px",
+                            }}
+                          >
+                            Nama / Jenis SPK
+                          </label>
+                          <input
+                            type="text"
+                            value={spk.nama_spk}
+                            onChange={(e) =>
+                              handleUpdateSpkBlockField(
+                                sIdx,
+                                "nama_spk",
+                                e.target.value,
+                              )
+                            }
+                            placeholder="Misal: SPK Topi / SPK Batik..."
+                            style={{
+                              width: "100%",
+                              padding: "5px 8px",
+                              borderRadius: "5px",
+                              border: "1px solid #cbd5e1",
+                              fontSize: "11px",
+                              fontWeight: "700",
+                              color: "#0f172a",
+                              boxSizing: "border-box",
+                            }}
+                          />
+                        </div>
+
+                        <div>
+                          <label
+                            style={{
+                              display: "block",
+                              fontSize: "10px",
+                              fontWeight: "700",
+                              color: "#475569",
+                              marginBottom: "2px",
+                            }}
+                          >
+                            Penjahit / Makloon SPK Ini
+                          </label>
+                          <input
+                            type="text"
+                            value={spk.penjahit}
+                            onChange={(e) =>
+                              handleUpdateSpkBlockField(
+                                sIdx,
+                                "penjahit",
+                                e.target.value,
+                              )
+                            }
+                            placeholder="Nama penjahit..."
+                            style={{
+                              width: "100%",
+                              padding: "5px 8px",
+                              borderRadius: "5px",
+                              border: "1px solid #cbd5e1",
+                              fontSize: "11px",
+                              fontWeight: "600",
+                              color: "#0f172a",
+                              boxSizing: "border-box",
+                            }}
+                          />
+                        </div>
+
+                        <div>
+                          <label
+                            style={{
+                              display: "block",
+                              fontSize: "10px",
+                              fontWeight: "700",
+                              color: "#475569",
+                              marginBottom: "2px",
+                            }}
+                          >
+                            Tahapan SPK Awal
+                          </label>
+                          <select
+                            value={spk.status_spk || "Potong Pola"}
+                            onChange={(e) =>
+                              handleUpdateSpkBlockField(
+                                sIdx,
+                                "status_spk",
+                                e.target.value,
+                              )
+                            }
+                            style={{
+                              width: "100%",
+                              padding: "5px 8px",
+                              borderRadius: "5px",
+                              border: "1px solid #cbd5e1",
+                              fontSize: "11px",
+                              fontWeight: "700",
+                              color: "#0f172a",
+                              backgroundColor: "#ffffff",
+                              boxSizing: "border-box",
+                            }}
+                          >
+                            <option value="Potong Pola">Potong Pola</option>
+                            <option value="Proses Jahit">Proses Jahit</option>
+                            <option value="Finishing & QC">
+                              Finishing & QC
+                            </option>
+                            <option value="Selesai">Selesai</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Tabel Produk di dalam SPK Ini */}
+                      {(spk.produk_items || []).length === 0 ? (
+                        <div
+                          style={{
+                            padding: "14px",
+                            textAlign: "center",
+                            fontSize: "11px",
+                            color: "#94a3b8",
+                            fontStyle: "italic",
+                          }}
+                        >
+                          Belum ada produk di SPK ini. Pindahkan produk dari SPK
+                          lain menggunakan kolom &quot;Pindah ke SPK&quot;.
+                        </div>
+                      ) : (
+                        <table
+                          style={{
+                            width: "100%",
+                            borderCollapse: "collapse",
+                            fontSize: "11.5px",
+                          }}
+                        >
+                          <thead>
+                            <tr
+                              style={{
+                                backgroundColor: "#f8fafc",
+                                color: "#475569",
+                                fontSize: "9.5px",
+                                fontWeight: "800",
+                                textTransform: "uppercase",
+                              }}
+                            >
+                              <th
+                                style={{
+                                  padding: "6px 8px",
+                                  borderBottom: "1px solid #e2e8f0",
+                                  borderRight: "1px solid #e2e8f0",
+                                  textAlign: "center",
+                                  width: "36px",
+                                }}
+                              >
+                                NO
+                              </th>
+                              <th
+                                style={{
+                                  padding: "6px 8px",
+                                  borderBottom: "1px solid #e2e8f0",
+                                  borderRight: "1px solid #e2e8f0",
+                                  textAlign: "left",
+                                }}
+                              >
+                                SKU & NAMA PRODUK
+                              </th>
+                              <th
+                                style={{
+                                  padding: "6px 8px",
+                                  borderBottom: "1px solid #e2e8f0",
+                                  borderRight: "1px solid #e2e8f0",
+                                  textAlign: "left",
+                                  width: "190px",
+                                }}
+                              >
+                                PINDAH KE SPK LAIN
+                              </th>
+                              <th
+                                style={{
+                                  padding: "6px 8px",
+                                  borderBottom: "1px solid #e2e8f0",
+                                  textAlign: "center",
+                                  width: "95px",
+                                }}
+                              >
+                                QTY SPK
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(spk.produk_items || []).map((it, pIdx) => (
+                              <tr
+                                key={pIdx}
+                                style={{
+                                  borderBottom:
+                                    pIdx < spk.produk_items.length - 1
+                                      ? "1px solid #e2e8f0"
+                                      : "none",
+                                }}
+                              >
+                                <td
+                                  style={{
+                                    padding: "6px 8px",
+                                    textAlign: "center",
+                                    fontWeight: "700",
+                                    color: "#64748b",
+                                    borderRight: "1px solid #e2e8f0",
+                                  }}
+                                >
+                                  {pIdx + 1}
+                                </td>
+                                <td
+                                  style={{
+                                    padding: "6px 8px",
+                                    borderRight: "1px solid #e2e8f0",
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      fontWeight: "700",
+                                      color: "#0f172a",
+                                    }}
+                                  >
+                                    {it.nama_produk}
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: "10px",
+                                      color: "#0284c7",
+                                      fontFamily: "monospace",
+                                      fontWeight: "700",
+                                    }}
+                                  >
+                                    SKU: {it.sku || "-"}
+                                  </div>
+                                </td>
+                                <td
+                                  style={{
+                                    padding: "6px 8px",
+                                    borderRight: "1px solid #e2e8f0",
+                                  }}
+                                >
+                                  <select
+                                    value={String(sIdx)}
+                                    onChange={(e) =>
+                                      handleMoveProductBetweenSpk(
+                                        sIdx,
+                                        pIdx,
+                                        e.target.value,
+                                      )
+                                    }
+                                    style={{
+                                      width: "100%",
+                                      padding: "4px 6px",
+                                      borderRadius: "4px",
+                                      border: "1px solid #c4b5fd",
+                                      backgroundColor: "#f5f3ff",
+                                      color: "#5b21b6",
+                                      fontSize: "10.5px",
+                                      fontWeight: "700",
+                                      cursor: "pointer",
+                                    }}
+                                  >
+                                    {(spkForm.spk_list || []).map(
+                                      (optSpk, optIdx) => (
+                                        <option
+                                          key={optIdx}
+                                          value={String(optIdx)}
+                                        >
+                                          SPK #{optIdx + 1}: {optSpk.nama_spk}
+                                        </option>
+                                      ),
+                                    )}
+                                    <option value="NEW_SPK">
+                                      + Buat SPK Baru untuk Produk Ini
+                                    </option>
+                                  </select>
+                                </td>
+                                <td
+                                  style={{
+                                    padding: "6px 8px",
+                                    textAlign: "center",
+                                  }}
+                                >
+                                  <RupiahInput
+                                    value={it.qty}
+                                    onChange={(val) =>
+                                      handleUpdateProductQtyInSpk(
+                                        sIdx,
+                                        pIdx,
+                                        val,
+                                      )
+                                    }
+                                    style={{
+                                      width: "74px",
+                                      padding: "4px 6px",
+                                      borderRadius: "5px",
+                                      border: "1px solid #cbd5e1",
+                                      fontSize: "11.5px",
+                                      fontWeight: "800",
+                                      textAlign: "center",
+                                    }}
+                                  />
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
@@ -8641,11 +9273,18 @@ export default function PenjualanOfflineView({ onNavigate }) {
               }}
             >
               <div style={{ fontSize: "11px", color: "#64748b" }}>
-                Masukkan pesanan{" "}
+                Simpan Kode Produksi{" "}
+                <strong style={{ color: "#4c1d95" }}>
+                  {spkForm.kode_produksi}
+                </strong>{" "}
+                beserta{" "}
+                <strong style={{ color: "#0f172a" }}>
+                  {(spkForm.spk_list || []).length} SPK
+                </strong>{" "}
+                untuk pesanan{" "}
                 <strong style={{ color: "#0f172a" }}>
                   {spkModalOrder.no_pesanan}
-                </strong>{" "}
-                ke antrean SPK Produksi
+                </strong>
               </div>
               <div style={{ display: "flex", gap: "8px" }}>
                 <button
@@ -8689,8 +9328,8 @@ export default function PenjualanOfflineView({ onNavigate }) {
                     {isSavingSpk
                       ? "Menyimpan ke SPK..."
                       : spkModalOrder.no_spk
-                        ? "Perbarui Data SPK"
-                        : "Simpan & Masukkan ke SPK"}
+                        ? `Perbarui ${(spkForm.spk_list || []).length} SPK Produksi`
+                        : `Simpan ${(spkForm.spk_list || []).length} SPK ke Produksi`}
                   </span>
                 </button>
               </div>
