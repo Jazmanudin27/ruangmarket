@@ -13,7 +13,18 @@ function generateKodeProduksi() {
   const now = new Date();
   const ymd = now.toISOString().slice(0, 10).replace(/-/g, '');
   const rand = Math.random().toString(36).slice(2, 5).toUpperCase();
-  return `SPK-OFF-${ymd}-${rand}`;
+  return `PRD-OFF-${ymd}-${rand}`;
+}
+
+function buildEstimasiKainText(kainNama, cmPerPcs, hargaCm, qty) {
+  const q = Number(qty || 1);
+  const cm = Math.round(Number(cmPerPcs || 0));
+  const hrg = Number(hargaCm || 0);
+  const totalCm = Math.round(cm * q);
+  const totalMeter = (totalCm / 100).toFixed(1).replace(/\.0$/, '');
+  const totalBiaya = Math.round(totalCm * hrg);
+  const nama = kainNama || 'Kain';
+  return `${nama} - ${totalCm.toLocaleString('id-ID')} CM (${totalMeter}M) @Rp${hrg.toLocaleString('id-ID')}/CM (Rp ${totalBiaya.toLocaleString('id-ID')})`;
 }
 
 // ─── Ensure tables exist ──────────────────────────────────────────────────────
@@ -46,6 +57,7 @@ async function ensureTables(pool) {
       diskon              DECIMAL(15,2) NOT NULL DEFAULT 0,
       ongkir              DECIMAL(15,2) NOT NULL DEFAULT 0,
       total_harga         DECIMAL(15,2) NOT NULL DEFAULT 0,
+      jenis_transaksi     VARCHAR(30)   DEFAULT 'tunai',
       metode_pembayaran   VARCHAR(30)   DEFAULT 'cash',
       bank_tujuan         VARCHAR(100)  DEFAULT NULL,
       status_pembayaran   VARCHAR(20)   DEFAULT 'belum_bayar',
@@ -64,6 +76,10 @@ async function ensureTables(pool) {
       INDEX idx_dibuat (dibuat_pada)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `);
+
+  try {
+    await pool.query("ALTER TABLE pesanan_offline ADD COLUMN jenis_transaksi VARCHAR(30) DEFAULT 'tunai' AFTER total_harga");
+  } catch (e) {}
 
   try {
     await pool.query('ALTER TABLE pesanan_offline ADD COLUMN bank_tujuan VARCHAR(100) DEFAULT NULL AFTER metode_pembayaran');
@@ -202,6 +218,7 @@ export async function handleOfflineOrdersRoutes(req, res, pathname, urlObj, { po
         is_dropship = false, nama_pengirim_ds = '', no_telp_pengirim_ds = '',
         kurir = '', jenis_layanan = '', batas_kirim = null,
         diskon = 0, ongkir = 0,
+        jenis_transaksi = 'tunai',
         metode_pembayaran = 'cash', bank_tujuan = null, status_pembayaran = 'belum_bayar', nominal_dp = 0, tanggal_bayar = null,
         catatan = '', dibuat_oleh = '',
         items = [],
@@ -254,16 +271,16 @@ export async function handleOfflineOrdersRoutes(req, res, pathname, urlObj, { po
           nama_pembeli, no_telepon, alamat_pengiriman, kota, provinsi, kode_pos,
           is_dropship, nama_pengirim_ds, no_telp_pengirim_ds,
           kurir, jenis_layanan, batas_kirim,
-          subtotal, diskon, ongkir, total_harga,
+          subtotal, diskon, ongkir, total_harga, jenis_transaksi,
           metode_pembayaran, bank_tujuan, status_pembayaran, nominal_dp, tanggal_bayar,
           status_pesanan, catatan, dibuat_oleh
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, [
         id, kode_perusahaan, no_pesanan, id_toko || null, nama_toko || null,
         nama_pembeli, no_telepon, alamat_pengiriman, kota, provinsi, kode_pos,
         is_dropship ? 1 : 0, nama_pengirim_ds, no_telp_pengirim_ds,
         kurir, jenis_layanan, batas_kirim || null,
-        subtotal, Number(diskon), Number(ongkir), total_harga,
+        subtotal, Number(diskon), Number(ongkir), total_harga, jenis_transaksi || 'tunai',
         metode_pembayaran, bank_tujuan || null, status_pembayaran, effectiveDp,
         effectiveDp > 0 ? (tanggal_bayar || new Date()) : null,
         status_pesanan, catatan, dibuat_oleh
@@ -314,7 +331,7 @@ export async function handleOfflineOrdersRoutes(req, res, pathname, urlObj, { po
       const allowed = [
         'id_toko', 'nama_toko', 'nama_pembeli', 'no_telepon',
         'status_pesanan', 'no_resi', 'kurir', 'jenis_layanan', 'batas_kirim',
-        'diskon', 'ongkir', 'metode_pembayaran', 'bank_tujuan', 'status_pembayaran', 'nominal_dp', 'tanggal_bayar',
+        'diskon', 'ongkir', 'jenis_transaksi', 'metode_pembayaran', 'bank_tujuan', 'status_pembayaran', 'nominal_dp', 'tanggal_bayar',
         'catatan', 'alamat_pengiriman', 'kota', 'provinsi', 'kode_pos',
         'is_dropship', 'nama_pengirim_ds', 'no_telp_pengirim_ds'
       ];
@@ -362,35 +379,9 @@ export async function handleOfflineOrdersRoutes(req, res, pathname, urlObj, { po
       }
 
       const newStatus = body.status_pesanan || existing.status_pesanan;
-      let noSpk = existing.no_spk;
-
-      // ── Auto-generate SPK saat status → dikonfirmasi ───────────────────
-      if (newStatus === 'dikonfirmasi' && existing.status_pesanan !== 'dikonfirmasi' && !noSpk) {
-        const kodeProduksi = generateKodeProduksi();
-        const [items] = await pool.query('SELECT * FROM pesanan_offline_item WHERE id_pesanan = ?', [id]);
-        const spkList = items.map(it => ({
-          sku: it.sku || '',
-          nama_produk: it.nama_produk,
-          varian: it.varian || '',
-          qty: it.qty,
-          catatan: it.catatan_item || ''
-        }));
-
-        await pool.query(`
-          INSERT INTO spk_batch (kode_perusahaan, kode_produksi, nama_pelanggan, no_telepon, instansi, tgl_pesan, status, catatan, spk_list)
-          VALUES (?, ?, ?, ?, ?, NOW(), 'Dalam Proses', ?, ?)
-        `, [
-          existing.kode_perusahaan,
-          kodeProduksi,
-          fields.nama_pembeli || existing.nama_pembeli,
-          fields.no_telepon !== undefined ? fields.no_telepon : (existing.no_telepon || ''),
-          fields.nama_toko || existing.nama_toko || 'Offline',
-          `Pesanan Offline ${existing.no_pesanan}${body.catatan ? ' - ' + body.catatan : ''}`,
-          JSON.stringify(spkList)
-        ]);
-
-        noSpk = kodeProduksi;
-        fields.no_spk = noSpk;
+      let noSpk = body.no_spk !== undefined ? body.no_spk : existing.no_spk;
+      if (body.no_spk !== undefined) {
+        fields.no_spk = body.no_spk || null;
       }
 
       // ── Auto-deduct stok saat dikonfirmasi ────────────────────────────
@@ -415,6 +406,165 @@ export async function handleOfflineOrdersRoutes(req, res, pathname, urlObj, { po
       return true;
     } catch (err) {
       console.error('[Offline Order PUT Error]:', err.message);
+      sendJson(res, 500, { status: 'error', message: err.message });
+      return true;
+    }
+  }
+
+  // ── 4B. POST Input Pesanan Offline ke SPK Produksi ─────────────────────────
+  const spkPostMatch = pathname.match(/^\/api\/offline\/orders\/([^/]+)\/spk$/);
+  if (spkPostMatch && req.method === 'POST') {
+    try {
+      const id = decodeURIComponent(spkPostMatch[1]);
+      const body = await parseJsonBody(req);
+      const [[order]] = await pool.query('SELECT * FROM pesanan_offline WHERE id = ?', [id]);
+      if (!order) {
+        sendJson(res, 404, { status: 'error', message: 'Pesanan tidak ditemukan' });
+        return true;
+      }
+
+      const [orderItems] = await pool.query('SELECT * FROM pesanan_offline_item WHERE id_pesanan = ? ORDER BY id', [id]);
+      if (!orderItems.length) {
+        sendJson(res, 400, { status: 'error', message: 'Pesanan tidak memiliki item produk untuk dimasukkan ke SPK' });
+        return true;
+      }
+
+      // Ambil data master produk untuk melengkapi kategori & estimasi kain
+      let masterMap = new Map();
+      try {
+        const [mRows] = await pool.query('SELECT * FROM produk_master');
+        (mRows || []).forEach(m => {
+          if (m.kode_sku) masterMap.set(String(m.kode_sku).trim().toLowerCase(), m);
+          if (m.nama_produk) masterMap.set(String(m.nama_produk).trim().toLowerCase(), m);
+        });
+      } catch (e) {}
+
+      const kodeProduksi = (body.kode_produksi || order.no_spk || generateKodeProduksi()).trim();
+      const idSpk = (body.id_spk || `SPK-${order.no_pesanan.split('-').pop() || '101'}`).trim();
+      const namaSpk = (body.nama_spk || `SPK ${order.nama_pembeli}`).trim();
+      const penjahit = (body.penjahit || 'Penjahit Workshop').trim();
+      const statusSpk = (body.status_spk || 'Potong Pola').trim();
+      const tglPesan = body.tgl_pesan || new Date().toISOString().slice(0, 10);
+      const deadline = body.deadline || (order.batas_kirim ? new Date(order.batas_kirim).toISOString().slice(0, 10) : new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10));
+      const catatan = body.catatan !== undefined
+        ? body.catatan
+        : `Pesanan Offline ${order.no_pesanan}${order.catatan ? ' — ' + order.catatan : ''}`;
+
+      const customItems = Array.isArray(body.items) && body.items.length > 0 ? body.items : orderItems;
+      const produkItems = customItems.map((it, idx) => {
+        const skuKey = String(it.sku || '').trim().toLowerCase();
+        const nameKey = String(it.nama_produk || '').trim().toLowerCase();
+        const m = masterMap.get(skuKey) || masterMap.get(nameKey) || {};
+        const qty = Number(it.qty || 1);
+        const kainNama = it.kain_nama || m.nama_kain || m.sku_kain || 'Kain';
+        const cmPerPcs = Number(it.panjang_kain_cm || m.estimasi_kain || m.panjang_kain_cm || 200);
+        const hargaCm = Number(it.harga_kain_cm || m.harga_kain_cm || 150);
+
+        return {
+          id: `item-${Date.now()}-${idx + 1}`,
+          no_spk: idSpk,
+          produk_id: m.id || idx + 1,
+          sku: it.sku || m.kode_sku || '',
+          nama_produk: it.nama_produk || m.nama_produk || 'Produk',
+          kategori: it.kategori || m.kategori || 'Umum',
+          satuan: it.satuan || m.satuan || 'PCS',
+          qty,
+          kain_nama: kainNama,
+          panjang_kain_cm: cmPerPcs,
+          harga_kain_cm: hargaCm,
+          estimasi_kain: it.estimasi_kain || buildEstimasiKainText(kainNama, cmPerPcs, hargaCm, qty)
+        };
+      });
+
+      const spkList = [
+        {
+          id_spk: idSpk,
+          nama_spk: namaSpk,
+          penjahit,
+          status_spk: statusSpk,
+          produk_items: produkItems
+        }
+      ];
+
+      // Cek apakah kode_produksi sudah ada di spk_batch
+      const [existingSpkRows] = await pool.query(
+        'SELECT id FROM spk_batch WHERE kode_produksi = ? LIMIT 1',
+        [kodeProduksi]
+      );
+
+      let spkBatchId = null;
+      if (existingSpkRows && existingSpkRows.length > 0) {
+        spkBatchId = existingSpkRows[0].id;
+        await pool.query(
+          `UPDATE spk_batch SET
+            kode_perusahaan = ?,
+            nama_pelanggan = ?,
+            no_telepon = ?,
+            instansi = ?,
+            tgl_pesan = ?,
+            deadline = ?,
+            status = 'Dalam Proses',
+            catatan = ?,
+            spk_list = ?
+           WHERE id = ?`,
+          [
+            order.kode_perusahaan || 'RSG',
+            order.nama_pembeli || '',
+            order.no_telepon || '',
+            order.nama_toko || 'Offline',
+            tglPesan,
+            deadline,
+            catatan,
+            JSON.stringify(spkList),
+            spkBatchId
+          ]
+        );
+      } else {
+        const [insRes] = await pool.query(
+          `INSERT INTO spk_batch (
+            kode_perusahaan, kode_produksi, nama_pelanggan, no_telepon, instansi,
+            tgl_pesan, deadline, status, catatan, spk_list
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, 'Dalam Proses', ?, ?)`,
+          [
+            order.kode_perusahaan || 'RSG',
+            kodeProduksi,
+            order.nama_pembeli || '',
+            order.no_telepon || '',
+            order.nama_toko || 'Offline',
+            tglPesan,
+            deadline,
+            catatan,
+            JSON.stringify(spkList)
+          ]
+        );
+        spkBatchId = insRes.insertId;
+      }
+
+      const nextOrderStatus = (order.status_pesanan === 'draft' || order.status_pesanan === 'dikonfirmasi')
+        ? 'diproses'
+        : order.status_pesanan;
+
+      await pool.query(
+        'UPDATE pesanan_offline SET no_spk = ?, status_pesanan = ? WHERE id = ?',
+        [kodeProduksi, nextOrderStatus, id]
+      );
+
+      const [[updatedOrder]] = await pool.query('SELECT * FROM pesanan_offline WHERE id = ?', [id]);
+      const [pembayaran_list] = await pool.query(
+        'SELECT * FROM pesanan_offline_pembayaran WHERE id_pesanan = ? ORDER BY tanggal_bayar ASC, id ASC',
+        [id]
+      );
+
+      sendJson(res, 200, {
+        status: 'success',
+        message: `Pesanan ${order.no_pesanan} berhasil dimasukkan ke SPK (${kodeProduksi})!`,
+        no_spk: kodeProduksi,
+        spk_batch_id: spkBatchId,
+        data: { ...updatedOrder, items: orderItems, pembayaran_list }
+      });
+      return true;
+    } catch (err) {
+      console.error('[Offline Order SPK POST Error]:', err.message);
       sendJson(res, 500, { status: 'error', message: err.message });
       return true;
     }

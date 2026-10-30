@@ -31,6 +31,7 @@ import {
   RefreshCw,
   CheckCircle,
   XCircle,
+  ClipboardList,
 } from "lucide-react";
 import SearchableSelect from "../../components/SearchableSelect";
 import RupiahInput from "../../components/RupiahInput";
@@ -222,6 +223,21 @@ export default function PenjualanOfflineView({ onNavigate }) {
     keterangan: "",
   });
 
+  // Modal Input ke SPK Produksi
+  const [spkModalOrder, setSpkModalOrder] = useState(null);
+  const [isSavingSpk, setIsSavingSpk] = useState(false);
+  const [spkForm, setSpkForm] = useState({
+    kode_produksi: "",
+    id_spk: "",
+    nama_spk: "",
+    penjahit: "Penjahit Workshop",
+    status_spk: "Potong Pola",
+    tgl_pesan: new Date().toISOString().slice(0, 10),
+    deadline: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
+    catatan: "",
+    items: [],
+  });
+
   // Stores & Pelanggan
   const [stores, setStores] = useState([]);
   const [pelangganList, setPelangganList] = useState([]);
@@ -276,6 +292,7 @@ export default function PenjualanOfflineView({ onNavigate }) {
     kurir: "",
     jenis_layanan: "",
     batas_kirim: new Date().toISOString().slice(0, 10),
+    jenis_transaksi: "tunai",
     diskon: 0,
     ongkir: 0,
     metode_pembayaran: "cash",
@@ -596,6 +613,7 @@ export default function PenjualanOfflineView({ onNavigate }) {
       kurir: "",
       jenis_layanan: "",
       batas_kirim: new Date().toISOString().slice(0, 10),
+      jenis_transaksi: "tunai",
       diskon: 0,
       ongkir: 0,
       metode_pembayaran: "cash",
@@ -643,8 +661,9 @@ export default function PenjualanOfflineView({ onNavigate }) {
         batas_kirim: ord.batas_kirim
           ? new Date(ord.batas_kirim).toISOString().slice(0, 10)
           : new Date().toISOString().slice(0, 10),
+        jenis_transaksi: ord.jenis_transaksi || "tunai",
         diskon: Number(ord.diskon) || 0,
-        ongkir: Number(ord.ongkir) || 0,
+        ongkir: 0,
         metode_pembayaran: ord.metode_pembayaran || "cash",
         bank_tujuan: ord.bank_tujuan || "",
         status_pembayaran: ord.status_pembayaran || "belum_bayar",
@@ -710,10 +729,7 @@ export default function PenjualanOfflineView({ onNavigate }) {
       (Number(it.harga_satuan) * Number(it.qty) - Number(it.diskon_item || 0)),
     0,
   );
-  const totalHarga = Math.max(
-    0,
-    subtotal - Number(form.diskon) + Number(form.ongkir),
-  );
+  const totalHarga = Math.max(0, subtotal - Number(form.diskon));
 
   const handleSubmit = async (asDraft = true) => {
     if (!form.batas_kirim) {
@@ -744,23 +760,6 @@ export default function PenjualanOfflineView({ onNavigate }) {
       showWarning(
         "Jumlah Qty Tidak Valid",
         `Jumlah (Qty) untuk produk "${invalidQtyItem.nama_produk || invalidQtyItem.sku}" harus lebih dari 0!`,
-      );
-      return;
-    }
-    if (form.metode_pembayaran === "transfer" && !form.bank_tujuan?.trim()) {
-      showWarning(
-        "Bank Tujuan Belum Dipilih",
-        "Metode pembayaran adalah Transfer. Silakan tentukan Bank Tujuan terlebih dahulu!",
-      );
-      return;
-    }
-    if (
-      form.status_pembayaran === "dp" &&
-      (!form.nominal_dp || Number(form.nominal_dp) <= 0)
-    ) {
-      showWarning(
-        "Nominal DP Wajib Diisi",
-        "Status pembayaran dipilih DP (Uang Muka). Masukkan nominal DP lebih dari Rp 0!",
       );
       return;
     }
@@ -882,6 +881,96 @@ export default function PenjualanOfflineView({ onNavigate }) {
       setDetailOrder(json.data || null);
     } catch (e) {
       toastError("Gagal memuat detail");
+    }
+  };
+
+  // ── Input ke SPK Produksi Handlers ──────────────────────────────────────
+  const handleOpenSpkModal = async (idOrOrder) => {
+    const id = typeof idOrOrder === "object" ? idOrOrder.id : idOrOrder;
+    try {
+      const res = await fetch(`/api/offline/orders/${id}`);
+      const json = await res.json();
+      if (!res.ok || !json.data) {
+        throw new Error(json.message || "Gagal memuat data pesanan untuk SPK");
+      }
+      const ord = json.data;
+      const nowYmd = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+      const suffix =
+        (ord.no_pesanan || "").split("-").pop() ||
+        Math.random().toString(36).slice(2, 5).toUpperCase();
+
+      setSpkForm({
+        kode_produksi: ord.no_spk || `PRD-OFF-${nowYmd}-${suffix}`,
+        id_spk: `SPK-${suffix}`,
+        nama_spk: `SPK ${ord.nama_pembeli || "Offline"}`,
+        penjahit: "Penjahit Workshop",
+        status_spk: "Potong Pola",
+        tgl_pesan: ord.batas_kirim
+          ? new Date(ord.batas_kirim).toISOString().slice(0, 10)
+          : new Date().toISOString().slice(0, 10),
+        deadline: new Date(Date.now() + 14 * 86400000)
+          .toISOString()
+          .slice(0, 10),
+        catatan: `Pesanan Offline ${ord.no_pesanan}${ord.catatan ? " — " + ord.catatan : ""}`,
+        items: (ord.items || []).map((it) => ({
+          sku: it.sku || "",
+          nama_produk: it.nama_produk || "",
+          varian: it.varian || "",
+          qty: Number(it.qty) || 1,
+          catatan_item: it.catatan_item || "",
+        })),
+      });
+      setSpkModalOrder(ord);
+    } catch (err) {
+      toastError(err.message);
+    }
+  };
+
+  const handleSaveSpk = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!spkModalOrder) return;
+
+    if (!spkForm.kode_produksi || !spkForm.kode_produksi.trim()) {
+      showWarning(
+        "Kode Produksi Wajib Diisi",
+        "Masukkan nomor / kode produksi SPK terlebih dahulu.",
+      );
+      return;
+    }
+    if (!spkForm.items || !spkForm.items.length) {
+      showWarning(
+        "Item Produk Kosong",
+        "Tidak ada produk yang dapat dimasukkan ke SPK.",
+      );
+      return;
+    }
+
+    setIsSavingSpk(true);
+    try {
+      const res = await fetch(`/api/offline/orders/${spkModalOrder.id}/spk`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(spkForm),
+      });
+      const json = await res.json();
+      if (!res.ok || json.status === "error") {
+        throw new Error(json.message || "Gagal memasukkan pesanan ke SPK");
+      }
+
+      toastSuccess(
+        json.message ||
+          `Berhasil dimasukkan ke SPK (${spkForm.kode_produksi})!`,
+      );
+      const updated = json.data;
+      setSpkModalOrder(null);
+      if (detailOrder && detailOrder.id === updated.id) {
+        setDetailOrder(updated);
+      }
+      loadOrders();
+    } catch (err) {
+      toastError(err.message);
+    } finally {
+      setIsSavingSpk(false);
     }
   };
 
@@ -1948,18 +2037,22 @@ export default function PenjualanOfflineView({ onNavigate }) {
                           >
                             <span
                               style={{
-                                fontWeight: "700",
+                                fontWeight: "800",
+                                padding: "1px 5px",
+                                borderRadius: "3px",
+                                backgroundColor:
+                                  ord.jenis_transaksi === "kredit"
+                                    ? "#fef3c7"
+                                    : "#e0f2fe",
                                 color:
-                                  ord.metode_pembayaran === "transfer"
-                                    ? "#0284c7"
-                                    : "#0f766e",
+                                  ord.jenis_transaksi === "kredit"
+                                    ? "#b45309"
+                                    : "#0369a1",
                               }}
                             >
-                              {ord.metode_pembayaran === "transfer"
-                                ? ord.bank_tujuan
-                                  ? `Transfer (${ord.bank_tujuan})`
-                                  : "Transfer"
-                                : "Cash"}
+                              {ord.jenis_transaksi === "kredit"
+                                ? "Kredit"
+                                : "Tunai"}
                             </span>
                             {" · "}
                             <span
@@ -1983,7 +2076,7 @@ export default function PenjualanOfflineView({ onNavigate }) {
                               {ord.status_pembayaran === "lunas"
                                 ? "✓ Lunas"
                                 : ord.status_pembayaran === "dp"
-                                  ? `DP ${formatRupiah(ord.nominal_dp)} (Sisa ${formatRupiah(Math.max(0, Number(ord.total_harga || 0) - Number(ord.nominal_dp || 0)))})`
+                                  ? `Cicilan ${formatRupiah(ord.nominal_dp)} (Sisa ${formatRupiah(Math.max(0, Number(ord.total_harga || 0) - Number(ord.nominal_dp || 0)))})`
                                   : "Belum bayar (Klik Bayar)"}
                             </span>
                           </div>
@@ -2192,7 +2285,41 @@ export default function PenjualanOfflineView({ onNavigate }) {
                               <DollarSign size={13} />
                             </button>
 
-                            {/* 3. Edit Pencil Button (Blue) */}
+                            {/* 3. Input ke SPK Button (Purple / Indigo) */}
+                            <button
+                              type="button"
+                              onClick={() => handleOpenSpkModal(ord.id)}
+                              title={
+                                ord.no_spk
+                                  ? `Sudah Masuk SPK: ${ord.no_spk} (Klik untuk lihat / update)`
+                                  : "Input Pesanan ke SPK Produksi"
+                              }
+                              style={{
+                                width: "26px",
+                                height: "26px",
+                                borderRadius: "4px",
+                                border: "none",
+                                backgroundColor: ord.no_spk
+                                  ? "#4f46e5"
+                                  : "#8b5cf6",
+                                color: "#ffffff",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                cursor: "pointer",
+                                transition: "opacity 0.15s ease",
+                              }}
+                              onMouseEnter={(e) =>
+                                (e.currentTarget.style.opacity = "0.85")
+                              }
+                              onMouseLeave={(e) =>
+                                (e.currentTarget.style.opacity = "1")
+                              }
+                            >
+                              <ClipboardList size={13} />
+                            </button>
+
+                            {/* 4. Edit Pencil Button (Blue) */}
                             <button
                               type="button"
                               onClick={() => handleEditOrder(ord.id)}
@@ -3609,318 +3736,9 @@ export default function PenjualanOfflineView({ onNavigate }) {
                         letterSpacing: "0.04em",
                       }}
                     >
-                      5. Metode & Status Pembayaran
+                      5. Jenis Transaksi & Diskon
                     </span>
                   </div>
-
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns:
-                        form.metode_pembayaran === "transfer"
-                          ? "1fr 1.2fr"
-                          : "1fr 1fr",
-                      gap: "8px",
-                      marginBottom: "8px",
-                    }}
-                  >
-                    <div>
-                      <label
-                        style={{
-                          display: "block",
-                          fontSize: "10.5px",
-                          fontWeight: "700",
-                          color: "#334155",
-                          marginBottom: "3px",
-                        }}
-                      >
-                        Metode Bayar
-                      </label>
-                      <SearchableSelect
-                        value={form.metode_pembayaran}
-                        onChange={(val) => {
-                          setForm({
-                            ...form,
-                            metode_pembayaran: val,
-                            bank_tujuan:
-                              val === "transfer"
-                                ? form.bank_tujuan || "BCA"
-                                : "",
-                          });
-                        }}
-                        options={BAYAR_OPTIONS}
-                        placeholder="Metode Bayar"
-                        size="sm"
-                      />
-                    </div>
-
-                    {form.metode_pembayaran === "transfer" ? (
-                      <div>
-                        <div
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            marginBottom: "3px",
-                            flexWrap: "wrap",
-                            gap: "4px",
-                          }}
-                        >
-                          <label
-                            style={{
-                              fontSize: "10.5px",
-                              fontWeight: "700",
-                              color: "#0284c7",
-                            }}
-                          >
-                            Transfer ke Bank Mana?{" "}
-                            <span style={{ color: "#ef4444" }}>*</span>
-                          </label>
-
-                          <div style={{ display: "flex", gap: "4px" }}>
-                            <button
-                              type="button"
-                              onClick={handleOpenAddBank}
-                              style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: "2px",
-                                padding: "1px 6px",
-                                borderRadius: "3px",
-                                backgroundColor: "#0284c7",
-                                color: "#ffffff",
-                                border: "none",
-                                fontSize: "9.5px",
-                                fontWeight: "700",
-                                cursor: "pointer",
-                                transition: "background-color 0.15s ease",
-                              }}
-                              onMouseEnter={(e) =>
-                                (e.currentTarget.style.backgroundColor =
-                                  "#0369a1")
-                              }
-                              onMouseLeave={(e) =>
-                                (e.currentTarget.style.backgroundColor =
-                                  "#0284c7")
-                              }
-                              title="Tambah Rekening Bank Baru"
-                            >
-                              <Plus size={10} /> Tambah
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={handleOpenEditBank}
-                              style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: "2px",
-                                padding: "1px 6px",
-                                borderRadius: "3px",
-                                backgroundColor: form.bank_tujuan
-                                  ? "#f8fafc"
-                                  : "#f1f5f9",
-                                color: form.bank_tujuan ? "#0284c7" : "#94a3b8",
-                                border: `1px solid ${form.bank_tujuan ? "#0284c7" : "#cbd5e1"}`,
-                                fontSize: "9.5px",
-                                fontWeight: "700",
-                                cursor: form.bank_tujuan
-                                  ? "pointer"
-                                  : "not-allowed",
-                                transition: "all 0.15s ease",
-                              }}
-                              title="Edit Rekening Bank Terpilih"
-                            >
-                              <Edit3 size={10} /> Edit
-                            </button>
-                          </div>
-                        </div>
-
-                        <SearchableSelect
-                          value={form.bank_tujuan}
-                          onChange={(val) =>
-                            setForm({ ...form, bank_tujuan: val })
-                          }
-                          options={[
-                            { value: "", label: "-- Pilih Bank Tujuan --" },
-                            ...bankList.map((b) => ({
-                              value: b.nama_bank,
-                              label: `${b.nama_bank}${b.no_rekening ? ` (${b.no_rekening})` : ""}`,
-                              subtitle: b.atas_nama
-                                ? `a.n ${b.atas_nama}`
-                                : undefined,
-                            })),
-                          ]}
-                          placeholder="Pilih atau cari bank tujuan..."
-                          size="sm"
-                        />
-                      </div>
-                    ) : (
-                      <div>
-                        <label
-                          style={{
-                            display: "block",
-                            fontSize: "10.5px",
-                            fontWeight: "700",
-                            color: "#334155",
-                            marginBottom: "3px",
-                          }}
-                        >
-                          Status Pembayaran
-                        </label>
-                        <SearchableSelect
-                          value={form.status_pembayaran}
-                          onChange={(val) =>
-                            setForm({ ...form, status_pembayaran: val })
-                          }
-                          options={[
-                            {
-                              value: "belum_bayar",
-                              label: "Belum Bayar",
-                              color: "#ef4444",
-                            },
-                            {
-                              value: "dp",
-                              label: "DP (Uang Muka)",
-                              color: "#f59e0b",
-                            },
-                            {
-                              value: "lunas",
-                              label: "Lunas",
-                              color: "#10b981",
-                            },
-                          ]}
-                          placeholder="Status Bayar"
-                          size="sm"
-                        />
-                      </div>
-                    )}
-                  </div>
-
-                  {form.metode_pembayaran === "transfer" && (
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns:
-                          form.status_pembayaran === "dp" ? "1fr 1fr" : "1fr",
-                        gap: "8px",
-                        marginBottom: "8px",
-                      }}
-                    >
-                      <div>
-                        <label
-                          style={{
-                            display: "block",
-                            fontSize: "10.5px",
-                            fontWeight: "700",
-                            color: "#334155",
-                            marginBottom: "3px",
-                          }}
-                        >
-                          Status Pembayaran
-                        </label>
-                        <SearchableSelect
-                          value={form.status_pembayaran}
-                          onChange={(val) =>
-                            setForm({ ...form, status_pembayaran: val })
-                          }
-                          options={[
-                            {
-                              value: "belum_bayar",
-                              label: "Belum Bayar",
-                              color: "#ef4444",
-                            },
-                            {
-                              value: "dp",
-                              label: "DP (Uang Muka)",
-                              color: "#f59e0b",
-                            },
-                            {
-                              value: "lunas",
-                              label: "Lunas",
-                              color: "#10b981",
-                            },
-                          ]}
-                          placeholder="Status Bayar"
-                          size="sm"
-                        />
-                      </div>
-                      {form.status_pembayaran === "dp" && (
-                        <div>
-                          <label
-                            style={{
-                              display: "block",
-                              fontSize: "10.5px",
-                              fontWeight: "700",
-                              color: "#d97706",
-                              marginBottom: "3px",
-                            }}
-                          >
-                            Nominal DP (Rp)
-                          </label>
-                          <RupiahInput
-                            value={form.nominal_dp}
-                            onChange={(val) =>
-                              setForm({
-                                ...form,
-                                nominal_dp: val,
-                              })
-                            }
-                            placeholder="0"
-                            style={{
-                              width: "100%",
-                              padding: "6px 9px",
-                              borderRadius: "5px",
-                              border: "1px solid #f59e0b",
-                              fontSize: "11.5px",
-                              fontWeight: "600",
-                              color: "#0f172a",
-                              backgroundColor: "#fffbeb",
-                              boxSizing: "border-box",
-                            }}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {form.metode_pembayaran === "cash" &&
-                    form.status_pembayaran === "dp" && (
-                      <div style={{ marginBottom: "8px" }}>
-                        <label
-                          style={{
-                            display: "block",
-                            fontSize: "10.5px",
-                            fontWeight: "700",
-                            color: "#d97706",
-                            marginBottom: "3px",
-                          }}
-                        >
-                          Nominal DP (Rp)
-                        </label>
-                        <RupiahInput
-                          value={form.nominal_dp}
-                          onChange={(val) =>
-                            setForm({
-                              ...form,
-                              nominal_dp: val,
-                            })
-                          }
-                          placeholder="0"
-                          style={{
-                            width: "100%",
-                            padding: "6px 9px",
-                            borderRadius: "5px",
-                            border: "1px solid #f59e0b",
-                            fontSize: "11.5px",
-                            fontWeight: "600",
-                            color: "#0f172a",
-                            backgroundColor: "#fffbeb",
-                            boxSizing: "border-box",
-                          }}
-                        />
-                      </div>
-                    )}
 
                   <div
                     style={{
@@ -3940,27 +3758,34 @@ export default function PenjualanOfflineView({ onNavigate }) {
                           marginBottom: "3px",
                         }}
                       >
-                        Potongan Diskon (Rp)
+                        Jenis Transaksi{" "}
+                        <span style={{ color: "#ef4444" }}>*</span>
                       </label>
-                      <RupiahInput
-                        value={form.diskon}
+                      <SearchableSelect
+                        value={form.jenis_transaksi || "tunai"}
                         onChange={(val) =>
-                          setForm({ ...form, diskon: val })
+                          setForm({
+                            ...form,
+                            jenis_transaksi: val || "tunai",
+                          })
                         }
-                        placeholder="0"
-                        style={{
-                          width: "100%",
-                          padding: "6px 9px",
-                          borderRadius: "5px",
-                          border: "1px solid #cbd5e1",
-                          fontSize: "11.5px",
-                          fontWeight: "600",
-                          color: "#0f172a",
-                          backgroundColor: "#ffffff",
-                          boxSizing: "border-box",
-                        }}
+                        options={[
+                          {
+                            value: "tunai",
+                            label: "Tunai",
+                            color: "#0284c7",
+                          },
+                          {
+                            value: "kredit",
+                            label: "Kredit",
+                            color: "#d97706",
+                          },
+                        ]}
+                        placeholder="Pilih Jenis Transaksi..."
+                        size="sm"
                       />
                     </div>
+
                     <div>
                       <label
                         style={{
@@ -3971,12 +3796,12 @@ export default function PenjualanOfflineView({ onNavigate }) {
                           marginBottom: "3px",
                         }}
                       >
-                        Ongkos Kirim (Rp)
+                        Potongan Diskon (Rp)
                       </label>
                       <RupiahInput
-                        value={form.ongkir}
+                        value={form.diskon}
                         onChange={(val) =>
-                          setForm({ ...form, ongkir: val })
+                          setForm({ ...form, diskon: val })
                         }
                         placeholder="0"
                         style={{
@@ -4013,9 +3838,6 @@ export default function PenjualanOfflineView({ onNavigate }) {
                         Subtotal {formatRupiah(subtotal)}{" "}
                         {Number(form.diskon) > 0
                           ? ` - Diskon ${formatRupiah(form.diskon)}`
-                          : ""}{" "}
-                        {Number(form.ongkir) > 0
-                          ? ` + Ongkir ${formatRupiah(form.ongkir)}`
                           : ""}
                       </div>
                       <div
@@ -5275,7 +5097,7 @@ export default function PenjualanOfflineView({ onNavigate }) {
                           letterSpacing: "0.04em",
                         }}
                       >
-                        5. Metode & Status Pembayaran
+                        5. Jenis Transaksi, Diskon & Pembayaran
                       </span>
                     </div>
 
@@ -5308,7 +5130,7 @@ export default function PenjualanOfflineView({ onNavigate }) {
                       {detailOrder.status_pembayaran === "lunas"
                         ? "LUNAS"
                         : detailOrder.status_pembayaran === "dp"
-                          ? "DP (DOWN PAYMENT)"
+                          ? "DICICIL / DP"
                           : "BELUM BAYAR"}
                     </span>
                   </div>
@@ -5331,7 +5153,7 @@ export default function PenjualanOfflineView({ onNavigate }) {
                           marginBottom: "2px",
                         }}
                       >
-                        Metode Pembayaran
+                        Jenis Transaksi
                       </span>
                       <div
                         style={{
@@ -5342,52 +5164,14 @@ export default function PenjualanOfflineView({ onNavigate }) {
                           fontSize: "12px",
                           fontWeight: "800",
                           color:
-                            detailOrder.metode_pembayaran === "transfer"
-                              ? "#0284c7"
-                              : "#0f766e",
+                            detailOrder.jenis_transaksi === "kredit"
+                              ? "#b45309"
+                              : "#0284c7",
                         }}
                       >
-                        {detailOrder.metode_pembayaran === "transfer"
-                          ? detailOrder.bank_tujuan
-                            ? `Transfer — Bank ${detailOrder.bank_tujuan}`
-                            : "Transfer Bank"
-                          : "Cash (Tunai)"}
-                      </div>
-                    </div>
-
-                    <div>
-                      <span
-                        style={{
-                          display: "block",
-                          fontSize: "10.5px",
-                          fontWeight: "700",
-                          color: "#64748b",
-                          marginBottom: "2px",
-                        }}
-                      >
-                        Status Pembayaran
-                      </span>
-                      <div
-                        style={{
-                          padding: "6px 9px",
-                          borderRadius: "5px",
-                          border: "1px solid #cbd5e1",
-                          backgroundColor: "#f8fafc",
-                          fontSize: "12px",
-                          fontWeight: "800",
-                          color:
-                            detailOrder.status_pembayaran === "lunas"
-                              ? "#059669"
-                              : detailOrder.status_pembayaran === "dp"
-                                ? "#d97706"
-                                : "#dc2626",
-                        }}
-                      >
-                        {detailOrder.status_pembayaran === "lunas"
-                          ? "✓ Lunas"
-                          : detailOrder.status_pembayaran === "dp"
-                            ? `DP: ${formatRupiah(detailOrder.nominal_dp)} (Sisa: ${formatRupiah(Math.max(0, Number(detailOrder.total_harga || 0) - Number(detailOrder.nominal_dp || 0)))})`
-                            : "● Belum Bayar"}
+                        {detailOrder.jenis_transaksi === "kredit"
+                          ? "Kredit"
+                          : "Tunai"}
                       </div>
                     </div>
 
@@ -5419,34 +5203,6 @@ export default function PenjualanOfflineView({ onNavigate }) {
                         }}
                       >
                         {formatRupiah(detailOrder.diskon || 0)}
-                      </div>
-                    </div>
-
-                    <div>
-                      <span
-                        style={{
-                          display: "block",
-                          fontSize: "10.5px",
-                          fontWeight: "700",
-                          color: "#64748b",
-                          marginBottom: "2px",
-                        }}
-                      >
-                        Ongkos Kirim (Rp)
-                      </span>
-                      <div
-                        style={{
-                          padding: "6px 9px",
-                          borderRadius: "5px",
-                          border: "1px solid #cbd5e1",
-                          backgroundColor: "#f8fafc",
-                          fontSize: "12px",
-                          fontWeight: "700",
-                          color: "#475569",
-                          textAlign: "right",
-                        }}
-                      >
-                        {formatRupiah(detailOrder.ongkir || 0)}
                       </div>
                     </div>
                   </div>
@@ -5831,9 +5587,6 @@ export default function PenjualanOfflineView({ onNavigate }) {
                         Subtotal {formatRupiah(detailOrder.subtotal)}{" "}
                         {Number(detailOrder.diskon) > 0
                           ? ` - Diskon ${formatRupiah(detailOrder.diskon)}`
-                          : ""}{" "}
-                        {Number(detailOrder.ongkir) > 0
-                          ? ` + Ongkir ${formatRupiah(detailOrder.ongkir)}`
                           : ""}
                       </div>
                       <div
@@ -5888,6 +5641,33 @@ export default function PenjualanOfflineView({ onNavigate }) {
                 </strong>
               </div>
               <div style={{ display: "flex", gap: "8px" }}>
+                <button
+                  type="button"
+                  onClick={() => handleOpenSpkModal(detailOrder)}
+                  style={{
+                    height: "28px",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "5px",
+                    padding: "0 14px",
+                    borderRadius: "5px",
+                    border: "none",
+                    backgroundColor: "#7c3aed",
+                    color: "#ffffff",
+                    fontSize: "11.5px",
+                    fontWeight: "800",
+                    cursor: "pointer",
+                    boxShadow: "0 2px 4px rgba(124, 58, 237, 0.35)",
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  <ClipboardList size={13} />
+                  <span>
+                    {detailOrder.no_spk
+                      ? `Update SPK (${detailOrder.no_spk})`
+                      : "Input ke SPK"}
+                  </span>
+                </button>
                 <button
                   type="button"
                   onClick={() => handleOpenPaymentModal(detailOrder)}
@@ -7420,6 +7200,637 @@ export default function PenjualanOfflineView({ onNavigate }) {
                 >
                   <Save size={13} />
                   <span>{isSavingBank ? "Menyimpan..." : "Simpan Bank"}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* MODAL: INPUT PESANAN KE SPK PRODUKSI                                */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {spkModalOrder && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(15, 23, 42, 0.72)",
+            backdropFilter: "blur(3px)",
+            zIndex: 3500,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "16px",
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: "680px",
+              maxHeight: "92vh",
+              backgroundColor: "#ffffff",
+              borderRadius: "10px",
+              border: "1px solid #cbd5e1",
+              boxShadow: "0 20px 40px rgba(0, 0, 0, 0.35)",
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
+            }}
+          >
+            {/* Header Modal SPK */}
+            <div
+              style={{
+                padding: "12px 16px",
+                background:
+                  "linear-gradient(135deg, #4c1d95 0%, #6d28d9 50%, #7c3aed 100%)",
+                color: "#ffffff",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                flexShrink: 0,
+              }}
+            >
+              <div
+                style={{ display: "flex", alignItems: "center", gap: "10px" }}
+              >
+                <div
+                  style={{
+                    width: "30px",
+                    height: "30px",
+                    borderRadius: "7px",
+                    backgroundColor: "rgba(255, 255, 255, 0.2)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <ClipboardList size={16} />
+                </div>
+                <div>
+                  <div
+                    style={{
+                      fontSize: "13.5px",
+                      fontWeight: "800",
+                      letterSpacing: "-0.01em",
+                    }}
+                  >
+                    Input Pesanan ke SPK Produksi — {spkModalOrder.no_pesanan}
+                  </div>
+                  <div style={{ fontSize: "11px", color: "#ddd6fe" }}>
+                    Pelanggan: <strong>{spkModalOrder.nama_pembeli}</strong>{" "}
+                    {spkModalOrder.nama_toko
+                      ? `• Toko: ${spkModalOrder.nama_toko}`
+                      : ""}
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSpkModalOrder(null)}
+                style={{
+                  width: "26px",
+                  height: "26px",
+                  borderRadius: "6px",
+                  border: "1px solid rgba(255, 255, 255, 0.3)",
+                  backgroundColor: "rgba(255, 255, 255, 0.15)",
+                  color: "#ffffff",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            {/* Body Modal SPK */}
+            <form
+              onSubmit={handleSaveSpk}
+              style={{
+                padding: "14px 16px",
+                overflowY: "auto",
+                display: "flex",
+                flexDirection: "column",
+                gap: "12px",
+              }}
+            >
+              {spkModalOrder.no_spk && (
+                <div
+                  style={{
+                    padding: "8px 12px",
+                    borderRadius: "6px",
+                    backgroundColor: "#f5f3ff",
+                    border: "1px solid #ddd6fe",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    fontSize: "11.5px",
+                    color: "#5b21b6",
+                  }}
+                >
+                  <span>
+                    Pesanan ini sudah terdaftar pada Kode Produksi:{" "}
+                    <strong>{spkModalOrder.no_spk}</strong>
+                  </span>
+                  {onNavigate && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSpkModalOrder(null);
+                        onNavigate("spk");
+                      }}
+                      style={{
+                        padding: "3px 9px",
+                        borderRadius: "4px",
+                        border: "1px solid #7c3aed",
+                        backgroundColor: "#7c3aed",
+                        color: "#ffffff",
+                        fontSize: "10.5px",
+                        fontWeight: "700",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Buka Menu SPK →
+                    </button>
+                  )}
+                </div>
+              )}
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr 1fr",
+                  gap: "10px",
+                }}
+              >
+                <div>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: "10.5px",
+                      fontWeight: "700",
+                      color: "#334155",
+                      marginBottom: "3px",
+                    }}
+                  >
+                    Kode Produksi <span style={{ color: "#ef4444" }}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={spkForm.kode_produksi}
+                    onChange={(e) =>
+                      setSpkForm({
+                        ...spkForm,
+                        kode_produksi: e.target.value,
+                      })
+                    }
+                    style={{
+                      width: "100%",
+                      padding: "6px 9px",
+                      borderRadius: "5px",
+                      border: "1px solid #cbd5e1",
+                      fontSize: "11.5px",
+                      fontWeight: "700",
+                      color: "#4c1d95",
+                      backgroundColor: "#f5f3ff",
+                      boxSizing: "border-box",
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: "10.5px",
+                      fontWeight: "700",
+                      color: "#334155",
+                      marginBottom: "3px",
+                    }}
+                  >
+                    Nomor SPK <span style={{ color: "#ef4444" }}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={spkForm.id_spk}
+                    onChange={(e) =>
+                      setSpkForm({ ...spkForm, id_spk: e.target.value })
+                    }
+                    style={{
+                      width: "100%",
+                      padding: "6px 9px",
+                      borderRadius: "5px",
+                      border: "1px solid #cbd5e1",
+                      fontSize: "11.5px",
+                      fontWeight: "700",
+                      color: "#0f172a",
+                      boxSizing: "border-box",
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: "10.5px",
+                      fontWeight: "700",
+                      color: "#334155",
+                      marginBottom: "3px",
+                    }}
+                  >
+                    Nama SPK
+                  </label>
+                  <input
+                    type="text"
+                    value={spkForm.nama_spk}
+                    onChange={(e) =>
+                      setSpkForm({ ...spkForm, nama_spk: e.target.value })
+                    }
+                    style={{
+                      width: "100%",
+                      padding: "6px 9px",
+                      borderRadius: "5px",
+                      border: "1px solid #cbd5e1",
+                      fontSize: "11.5px",
+                      fontWeight: "600",
+                      color: "#0f172a",
+                      boxSizing: "border-box",
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr 1fr 1fr",
+                  gap: "10px",
+                }}
+              >
+                <div>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: "10.5px",
+                      fontWeight: "700",
+                      color: "#334155",
+                      marginBottom: "3px",
+                    }}
+                  >
+                    Penjahit / Makloon
+                  </label>
+                  <input
+                    type="text"
+                    value={spkForm.penjahit}
+                    onChange={(e) =>
+                      setSpkForm({ ...spkForm, penjahit: e.target.value })
+                    }
+                    placeholder="Nama penjahit..."
+                    style={{
+                      width: "100%",
+                      padding: "6px 9px",
+                      borderRadius: "5px",
+                      border: "1px solid #cbd5e1",
+                      fontSize: "11.5px",
+                      fontWeight: "600",
+                      color: "#0f172a",
+                      boxSizing: "border-box",
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: "10.5px",
+                      fontWeight: "700",
+                      color: "#334155",
+                      marginBottom: "3px",
+                    }}
+                  >
+                    Tahapan SPK Awal
+                  </label>
+                  <SearchableSelect
+                    value={spkForm.status_spk}
+                    onChange={(val) =>
+                      setSpkForm({
+                        ...spkForm,
+                        status_spk: val || "Potong Pola",
+                      })
+                    }
+                    options={[
+                      { value: "Potong Pola", label: "Potong Pola" },
+                      { value: "Proses Jahit", label: "Proses Jahit" },
+                      { value: "Finishing & QC", label: "Finishing & QC" },
+                      { value: "Selesai", label: "Selesai" },
+                    ]}
+                    size="sm"
+                  />
+                </div>
+
+                <div>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: "10.5px",
+                      fontWeight: "700",
+                      color: "#334155",
+                      marginBottom: "3px",
+                    }}
+                  >
+                    Tanggal Mulai
+                  </label>
+                  <input
+                    type="date"
+                    value={spkForm.tgl_pesan}
+                    onChange={(e) =>
+                      setSpkForm({ ...spkForm, tgl_pesan: e.target.value })
+                    }
+                    style={{
+                      width: "100%",
+                      padding: "5px 8px",
+                      borderRadius: "5px",
+                      border: "1px solid #cbd5e1",
+                      fontSize: "11.5px",
+                      fontWeight: "600",
+                      color: "#0f172a",
+                      boxSizing: "border-box",
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: "10.5px",
+                      fontWeight: "700",
+                      color: "#334155",
+                      marginBottom: "3px",
+                    }}
+                  >
+                    Deadline Selesai
+                  </label>
+                  <input
+                    type="date"
+                    value={spkForm.deadline}
+                    onChange={(e) =>
+                      setSpkForm({ ...spkForm, deadline: e.target.value })
+                    }
+                    style={{
+                      width: "100%",
+                      padding: "5px 8px",
+                      borderRadius: "5px",
+                      border: "1px solid #cbd5e1",
+                      fontSize: "11.5px",
+                      fontWeight: "600",
+                      color: "#0f172a",
+                      boxSizing: "border-box",
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: "10.5px",
+                    fontWeight: "700",
+                    color: "#334155",
+                    marginBottom: "3px",
+                  }}
+                >
+                  Catatan Produksi / Keterangan SPK
+                </label>
+                <input
+                  type="text"
+                  value={spkForm.catatan}
+                  onChange={(e) =>
+                    setSpkForm({ ...spkForm, catatan: e.target.value })
+                  }
+                  placeholder="Catatan instruksi produksi..."
+                  style={{
+                    width: "100%",
+                    padding: "6px 9px",
+                    borderRadius: "5px",
+                    border: "1px solid #cbd5e1",
+                    fontSize: "11.5px",
+                    color: "#0f172a",
+                    boxSizing: "border-box",
+                  }}
+                />
+              </div>
+
+              {/* Tabel Item Produk yang masuk ke SPK */}
+              <div>
+                <div
+                  style={{
+                    fontSize: "10.5px",
+                    fontWeight: "800",
+                    color: "#334155",
+                    textTransform: "uppercase",
+                    marginBottom: "5px",
+                  }}
+                >
+                  Daftar Produk yang Masuk ke SPK ({spkForm.items.length} Item)
+                </div>
+                <div
+                  style={{
+                    border: "1px solid #cbd5e1",
+                    borderRadius: "6px",
+                    overflow: "hidden",
+                  }}
+                >
+                  <table
+                    style={{
+                      width: "100%",
+                      borderCollapse: "collapse",
+                      fontSize: "11px",
+                    }}
+                  >
+                    <thead>
+                      <tr
+                        style={{
+                          backgroundColor: "#f8fafc",
+                          color: "#475569",
+                          fontSize: "10px",
+                          fontWeight: "800",
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        <th
+                          style={{
+                            padding: "6px 8px",
+                            borderBottom: "1px solid #cbd5e1",
+                            borderRight: "1px solid #cbd5e1",
+                            textAlign: "center",
+                            width: "36px",
+                          }}
+                        >
+                          NO
+                        </th>
+                        <th
+                          style={{
+                            padding: "6px 8px",
+                            borderBottom: "1px solid #cbd5e1",
+                            borderRight: "1px solid #cbd5e1",
+                            textAlign: "left",
+                          }}
+                        >
+                          SKU & NAMA PRODUK
+                        </th>
+                        <th
+                          style={{
+                            padding: "6px 8px",
+                            borderBottom: "1px solid #cbd5e1",
+                            textAlign: "center",
+                            width: "90px",
+                          }}
+                        >
+                          QTY SPK
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {spkForm.items.map((it, idx) => (
+                        <tr
+                          key={idx}
+                          style={{
+                            borderBottom:
+                              idx < spkForm.items.length - 1
+                                ? "1px solid #e2e8f0"
+                                : "none",
+                          }}
+                        >
+                          <td
+                            style={{
+                              padding: "6px 8px",
+                              textAlign: "center",
+                              fontWeight: "700",
+                              color: "#64748b",
+                              borderRight: "1px solid #e2e8f0",
+                            }}
+                          >
+                            {idx + 1}
+                          </td>
+                          <td
+                            style={{
+                              padding: "6px 8px",
+                              borderRight: "1px solid #e2e8f0",
+                            }}
+                          >
+                            <div
+                              style={{
+                                fontWeight: "700",
+                                color: "#0f172a",
+                              }}
+                            >
+                              {it.nama_produk}
+                            </div>
+                            <div
+                              style={{
+                                fontSize: "10px",
+                                color: "#0284c7",
+                                fontFamily: "monospace",
+                                fontWeight: "700",
+                              }}
+                            >
+                              SKU: {it.sku || "-"}
+                            </div>
+                          </td>
+                          <td
+                            style={{
+                              padding: "6px 8px",
+                              textAlign: "center",
+                            }}
+                          >
+                            <RupiahInput
+                              value={it.qty}
+                              onChange={(val) => {
+                                const nextItems = [...spkForm.items];
+                                nextItems[idx] = {
+                                  ...nextItems[idx],
+                                  qty: val,
+                                };
+                                setSpkForm({ ...spkForm, items: nextItems });
+                              }}
+                              style={{
+                                width: "70px",
+                                padding: "4px 6px",
+                                borderRadius: "4px",
+                                border: "1px solid #cbd5e1",
+                                fontSize: "11.5px",
+                                fontWeight: "800",
+                                textAlign: "center",
+                              }}
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Footer Modal SPK */}
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  gap: "8px",
+                  paddingTop: "10px",
+                  borderTop: "1px solid #e2e8f0",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setSpkModalOrder(null)}
+                  style={{
+                    height: "30px",
+                    padding: "0 14px",
+                    borderRadius: "5px",
+                    border: "1px solid #cbd5e1",
+                    backgroundColor: "#ffffff",
+                    color: "#64748b",
+                    fontSize: "11.5px",
+                    fontWeight: "700",
+                    cursor: "pointer",
+                  }}
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingSpk}
+                  style={{
+                    height: "30px",
+                    padding: "0 16px",
+                    borderRadius: "5px",
+                    border: "none",
+                    backgroundColor: "#7c3aed",
+                    color: "#ffffff",
+                    fontSize: "11.5px",
+                    fontWeight: "800",
+                    cursor: isSavingSpk ? "not-allowed" : "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "5px",
+                    boxShadow: "0 2px 5px rgba(124, 58, 237, 0.35)",
+                  }}
+                >
+                  <ClipboardList size={13} />
+                  <span>
+                    {isSavingSpk
+                      ? "Menyimpan ke SPK..."
+                      : spkModalOrder.no_spk
+                        ? "Perbarui Data SPK"
+                        : "Simpan & Masukkan ke SPK"}
+                  </span>
                 </button>
               </div>
             </form>
