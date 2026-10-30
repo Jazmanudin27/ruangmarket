@@ -304,10 +304,6 @@ export default function MarketplaceView({ onBack, onNavigate }) {
 
       setSyncLoading(null);
       toastSuccess(`Berhasil menarik ${fetchedItems.length} produk dari ${channelTitle}!`);
-
-      if (onNavigate) {
-        onNavigate('produk_marketplace');
-      }
     } catch (err) {
       setSyncLoading(null);
       toastError(`Gagal tarik produk: ${err.message}`);
@@ -353,20 +349,6 @@ export default function MarketplaceView({ onBack, onNavigate }) {
         toastSuccess(`Berhasil menarik ${orders.length} pesanan dari ${store.shopName} ke menu Pesanan Masuk!`);
       } else {
         toastSuccess(`Sinkronisasi selesai. Belum ada transaksi baru di toko ${store.shopName}.`);
-      }
-
-      if (onNavigate) {
-        setTimeout(async () => {
-          const jump = await showConfirm(
-            'Pesanan Berhasil Masuk!',
-            `Pesanan dari ${store.shopName} berhasil ditarik dan tersimpan di menu "Pesanan Masuk".\n\nBuka menu Pesanan Masuk sekarang untuk cek dan proses ke SPK?`,
-            'Lihat Pesanan Masuk',
-            'Tetap di Sini'
-          );
-          if (jump) {
-            onNavigate('pesanan_masuk');
-          }
-        }, 400);
       }
     } catch (err) {
       setSyncLoading(null);
