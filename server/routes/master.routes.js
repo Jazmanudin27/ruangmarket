@@ -98,7 +98,7 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
             status_order: p.status_order || 'Ready Stok',
             tipe_set: p.tipe_set || 'Single',
             sku_kain: p.sku_kain || '',
-            estimasi_kain: p.estimasi_kain || '',
+            estimasi_kain: p.estimasi_kain ? (!isNaN(parseFloat(p.estimasi_kain)) ? Math.round(parseFloat(p.estimasi_kain)) : p.estimasi_kain) : '',
             id_kategori_hpp: p.id_kategori_hpp || ''
           }));
         }
@@ -322,7 +322,7 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
         if (rawEstimasi) {
           const numMatch = rawEstimasi.match(/([0-9]+(\.[0-9]+)?)/);
           if (numMatch) {
-            estimasiKain = String(parseFloat(numMatch[1]) || 200);
+            estimasiKain = String(Math.round(parseFloat(numMatch[1])) || 200);
           } else {
             estimasiKain = rawEstimasi.slice(0, 100);
           }
@@ -708,6 +708,53 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
       }
 
       const [rows] = await pool.query(sql, queryParams);
+
+      // Tarik info toko marketplace terhubung untuk setiap SKU di baris ini
+      const skuList = rows.map(r => r.kode_sku).filter(Boolean);
+      const skuListClean = skuList.map(s => s.replace(/^[A-Za-z0-9]+-/, ''));
+      const allSearchSkus = Array.from(new Set([...skuList, ...skuListClean].filter(Boolean)));
+      const storeMap = new Map();
+
+      if (allSearchSkus.length > 0) {
+        try {
+          const [pmRows] = await pool.query(`
+            SELECT 
+              pm.sku_marketplace,
+              pm.saluran,
+              pm.nama_saluran,
+              pm.nama_toko,
+              pm.id_toko,
+              pm.stok_marketplace,
+              pm.harga_jual,
+              pm.id_produk_marketplace
+            FROM produk_marketplace pm
+            WHERE pm.sku_marketplace IN (?)
+          `, [allSearchSkus]);
+
+          for (const pm of pmRows) {
+            const sLower = String(pm.sku_marketplace || '').trim().toLowerCase();
+            if (!storeMap.has(sLower)) {
+              storeMap.set(sLower, []);
+            }
+            const existing = storeMap.get(sLower);
+            const isDup = existing.some(e => e.saluran === pm.saluran && (e.nama_toko === pm.nama_toko || e.id_toko === pm.id_toko));
+            if (!isDup) {
+              existing.push({
+                saluran: pm.saluran,
+                nama_saluran: pm.nama_saluran || (pm.saluran === 'shopee' ? 'Shopee' : 'TikTok Shop'),
+                nama_toko: pm.nama_toko || (pm.saluran === 'shopee' ? 'Shopee Store' : 'TikTok Shop'),
+                id_toko: pm.id_toko,
+                stok_marketplace: Number(pm.stok_marketplace || 0),
+                harga_jual: Number(pm.harga_jual || 0),
+                id_produk_marketplace: pm.id_produk_marketplace
+              });
+            }
+          }
+        } catch (errPm) {
+          console.warn('[Master Products] Error getting connected stores:', errPm.message);
+        }
+      }
+
       const mapped = rows.map(r => {
         let parsedBundle = [];
         if (r.bundle_items) {
@@ -720,11 +767,19 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
         // Hitung harga_kain_cm murni dari master_kain (harga_per_meter / 100)
         const meterPrice = Number(r.harga_kain_meter) || 0;
         const computedHargaKainCm = meterPrice > 0 ? Math.round(meterPrice / 100) : 0;
+        const numEst = parseFloat(String(r.estimasi_kain || '').replace(/[^0-9.]/g, ''));
+        const cleanEstimasiKain = !isNaN(numEst) ? String(Math.round(numEst)) : (r.estimasi_kain || '200');
+
+        const sKey = String(r.kode_sku || '').trim().toLowerCase();
+        const sKeyClean = sKey.replace(/^[a-z0-9]+-/, '');
+        const connectedStores = storeMap.get(sKey) || storeMap.get(sKeyClean) || [];
 
         return {
           ...r,
+          estimasi_kain: cleanEstimasiKain,
           bundle_items: parsedBundle,
-          harga_kain_cm: computedHargaKainCm
+          harga_kain_cm: computedHargaKainCm,
+          toko_terhubung: connectedStores
         };
       });
 
@@ -782,7 +837,9 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
           const fotoProduk = String(item.foto_produk || item.image || '').slice(0, 1000);
           const tipeSet = String(item.tipe_set || 'Single').slice(0, 32);
           const bundleItems = item.bundle_items ? (typeof item.bundle_items === 'string' ? item.bundle_items : JSON.stringify(item.bundle_items)) : null;
-          const estimasiKain = item.estimasi_kain ? String(item.estimasi_kain).slice(0, 100) : (item.panjang_kain_cm ? String(item.panjang_kain_cm) : '200');
+          const rawEstStr = item.estimasi_kain ? String(item.estimasi_kain).slice(0, 100) : (item.panjang_kain_cm ? String(item.panjang_kain_cm) : '200');
+          const numEst = parseFloat(rawEstStr.replace(/[^0-9.]/g, ''));
+          const estimasiKain = !isNaN(numEst) ? String(Math.round(numEst)) : rawEstStr;
           const idKategoriHpp = item.id_kategori_hpp ? String(item.id_kategori_hpp).slice(0, 64) : null;
           const skuKain = item.sku_kain ? String(item.sku_kain).slice(0, 64) : null;
 

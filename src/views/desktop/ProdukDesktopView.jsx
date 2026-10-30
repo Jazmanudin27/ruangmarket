@@ -593,7 +593,13 @@ export default function ProdukView() {
         }
 
         const rawEstimasi = getVal(['estimasi_kain', 'Estimasi Kain', 'estimasi_kain_cm', 'panjang_kain_cm', 'panjang_kain'], '');
-        const estimasiKain = String(rawEstimasi).trim();
+        let estimasiKain = String(rawEstimasi).trim();
+        if (estimasiKain) {
+          const numEst = parseFloat(estimasiKain.replace(/[^0-9.]/g, ''));
+          if (!isNaN(numEst)) {
+            estimasiKain = String(Math.round(numEst));
+          }
+        }
 
         let idKategoriHpp = getVal(['id_kategori_hpp', 'ID Kategori HPP', 'kategori_hpp'], '');
         let isAutoHpp = false;
@@ -1225,7 +1231,7 @@ export default function ProdukView() {
       const nextItems = [...(prev.bundle_items || []), newItem];
       // Auto kalkulasi total modal dan estimasi kain dari gabungan item
       const totalModal = nextItems.reduce((acc, it) => acc + (Number(it.harga_modal_item || 0) * (Number(it.qty) || 1)), 0);
-      const totalCm = nextItems.reduce((acc, it) => acc + (Number(it.estimasi_kain || it.panjang_kain_cm || 0) * (Number(it.qty) || 1)), 0);
+      const totalCm = Math.round(nextItems.reduce((acc, it) => acc + (Number(it.estimasi_kain || it.panjang_kain_cm || 0) * (Number(it.qty) || 1)), 0));
       const avgHargaCm = nextItems.length > 0 ? Math.round(nextItems.reduce((acc, it) => acc + Number(it.harga_kain_cm || 0), 0) / nextItems.length) : 150;
 
       return {
@@ -1242,7 +1248,7 @@ export default function ProdukView() {
     setFormData(prev => {
       const nextItems = (prev.bundle_items || []).filter((_, i) => i !== index);
       const totalModal = nextItems.reduce((acc, it) => acc + (Number(it.harga_modal_item || 0) * (Number(it.qty) || 1)), 0);
-      const totalCm = nextItems.reduce((acc, it) => acc + (Number(it.estimasi_kain || it.panjang_kain_cm || 0) * (Number(it.qty) || 1)), 0);
+      const totalCm = Math.round(nextItems.reduce((acc, it) => acc + (Number(it.estimasi_kain || it.panjang_kain_cm || 0) * (Number(it.qty) || 1)), 0));
       const avgHargaCm = nextItems.length > 0 ? Math.round(nextItems.reduce((acc, it) => acc + Number(it.harga_kain_cm || 0), 0) / nextItems.length) : 150;
 
       return {
@@ -1298,7 +1304,7 @@ export default function ProdukView() {
       nextItems[index] = updatedItem;
 
       const totalModal = nextItems.reduce((acc, it) => acc + (Number(it.harga_modal_item || 0) * (Number(it.qty) || 1)), 0);
-      const totalCm = nextItems.reduce((acc, it) => acc + (Number(it.estimasi_kain || it.panjang_kain_cm || 0) * (Number(it.qty) || 1)), 0);
+      const totalCm = Math.round(nextItems.reduce((acc, it) => acc + (Number(it.estimasi_kain || it.panjang_kain_cm || 0) * (Number(it.qty) || 1)), 0));
       const avgHargaCm = nextItems.length > 0 ? Math.round(nextItems.reduce((acc, it) => acc + Number(it.harga_kain_cm || 0), 0) / nextItems.length) : 150;
 
       return {
@@ -1351,7 +1357,7 @@ export default function ProdukView() {
             kode_sku: formData.sku,
             tipe_set: formData.tipe_set || 'Single',
             bundle_items: formData.bundle_items || [],
-            estimasi_kain: Number(formData.estimasi_kain) || 200,
+            estimasi_kain: Math.round(Number(formData.estimasi_kain) || 200),
             sku_kain: formData.sku_kain || null,
             id_kategori_hpp: formData.id_kategori_hpp || null
           })
@@ -1402,7 +1408,7 @@ export default function ProdukView() {
             status_order: newProduk.status_order,
             tipe_set: newProduk.tipe_set || 'Single',
             bundle_items: newProduk.bundle_items || [],
-            estimasi_kain: Number(newProduk.estimasi_kain) || 200,
+            estimasi_kain: Math.round(Number(newProduk.estimasi_kain) || 200),
             sku_kain: newProduk.sku_kain || null,
             id_kategori_hpp: newProduk.id_kategori_hpp || null
           })
@@ -1477,110 +1483,7 @@ export default function ProdukView() {
         {/* Action Buttons */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
           
-          {/* Tombol Deteksi PO */}
-          <button
-            disabled={isBatchProcessing}
-            onClick={() => handleBatchAutoDetectStatusOrder(false)}
-            title="Scan dan deteksi otomatis semua produk: kata PO (bukan Polos) & Custom otomatis jadi PO, lainnya Ready Stok"
-            style={{
-              height: '30px',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '6px',
-              padding: '0 12px',
-              borderRadius: '6px',
-              border: 'none',
-              backgroundColor: isBatchProcessing ? '#a78bfa' : '#8b5cf6',
-              color: '#ffffff',
-              fontSize: '12px',
-              fontWeight: '700',
-              lineHeight: 1,
-              cursor: isBatchProcessing ? 'not-allowed' : 'pointer',
-              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.15)',
-              transition: 'all 0.15s ease'
-            }}
-            onMouseEnter={(e) => { if (!isBatchProcessing) e.currentTarget.style.backgroundColor = '#7c3aed'; }}
-            onMouseLeave={(e) => { if (!isBatchProcessing) e.currentTarget.style.backgroundColor = '#8b5cf6'; }}
-          >
-            {isBatchProcessing ? (
-              <Loader2 size={13} className="animate-spin" />
-            ) : (
-              <Sparkles size={13} />
-            )}
-            <span>{isBatchProcessing ? 'Memproses...' : 'Deteksi PO'}</span>
-          </button>
 
-          {/* Tombol Deteksi Bundle */}
-          <button
-            disabled={isBatchProcessing}
-            onClick={() => handleAutoDetectBundle(false)}
-            title="Scan SKU 'SET-' atau nama produk 'Setelan / 1 Set / Bundle' dan jadikan Bundle Set otomatis"
-            style={{
-              height: '30px',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '6px',
-              padding: '0 12px',
-              borderRadius: '6px',
-              border: 'none',
-              backgroundColor: isBatchProcessing ? '#38bdf8' : '#0284c7',
-              color: '#ffffff',
-              fontSize: '12px',
-              fontWeight: '700',
-              lineHeight: 1,
-              cursor: isBatchProcessing ? 'not-allowed' : 'pointer',
-              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.15)',
-              transition: 'all 0.15s ease'
-            }}
-            onMouseEnter={(e) => { if (!isBatchProcessing) e.currentTarget.style.backgroundColor = '#0369a1'; }}
-            onMouseLeave={(e) => { if (!isBatchProcessing) e.currentTarget.style.backgroundColor = '#0284c7'; }}
-          >
-            {isBatchProcessing ? (
-              <Loader2 size={13} className="animate-spin" />
-            ) : (
-              <Boxes size={13} />
-            )}
-            <span>{isBatchProcessing ? 'Memproses...' : 'Deteksi Bundle'}</span>
-          </button>
-
-
-          {/* Tombol Auto-Deteksi Relasi Kain & HPP */}
-          <button
-            type="button"
-            onClick={handleAutoDetectAllRelations}
-            disabled={isAutoDetectingRelations}
-            title="Pindai seluruh master produk yang belum punya SKU Kain atau Kategori HPP dan isi otomatis berdasarkan pola SKU"
-            style={{
-              height: '30px',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '6px',
-              padding: '0 12px',
-              borderRadius: '6px',
-              border: 'none',
-              backgroundColor: '#7c3aed',
-              color: '#ffffff',
-              fontSize: '12px',
-              fontWeight: '700',
-              lineHeight: 1,
-              cursor: isAutoDetectingRelations ? 'not-allowed' : 'pointer',
-              opacity: isAutoDetectingRelations ? 0.7 : 1,
-              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.15)',
-              transition: 'all 0.15s ease'
-            }}
-            onMouseEnter={(e) => { if (!isAutoDetectingRelations) e.currentTarget.style.backgroundColor = '#6d28d9'; }}
-            onMouseLeave={(e) => { if (!isAutoDetectingRelations) e.currentTarget.style.backgroundColor = '#7c3aed'; }}
-          >
-            {isAutoDetectingRelations ? (
-              <Loader2 size={13} className="animate-spin" />
-            ) : (
-              <Sparkles size={13} />
-            )}
-            <span>{isAutoDetectingRelations ? 'Memindai...' : 'Auto Relasi Kain & HPP'}</span>
-          </button>
 
           {/* Tombol Import Excel & Smart Update */}
           <button
@@ -2066,57 +1969,7 @@ export default function ProdukView() {
               <span>{isBatchProcessing ? 'Memproses...' : 'Ubah Masal ke Ready Stok'}</span>
             </button>
 
-            {/* Tombol Masal: Deteksi PO */}
-            <button
-              type="button"
-              disabled={isBatchProcessing}
-              onClick={() => handleBatchAutoDetectStatusOrder(true)}
-              title="Deteksi kata PO & Custom (bukan Polos)"
-              style={{
-                height: '28px',
-                padding: '0 12px',
-                borderRadius: '6px',
-                border: '1px solid #7c3aed',
-                backgroundColor: isBatchProcessing ? '#a78bfa' : '#8b5cf6',
-                color: '#ffffff',
-                fontSize: '11.5px',
-                fontWeight: '700',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '5px',
-                cursor: isBatchProcessing ? 'not-allowed' : 'pointer',
-                boxShadow: '0 1px 3px rgba(139, 92, 246, 0.3)'
-              }}
-            >
-              {isBatchProcessing ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
-              <span>{isBatchProcessing ? 'Memproses...' : 'Deteksi PO'}</span>
-            </button>
 
-            {/* Tombol Masal: Deteksi Bundle */}
-            <button
-              type="button"
-              disabled={isBatchProcessing}
-              onClick={() => handleAutoDetectBundle(true)}
-              title="Deteksi SKU 'SET-' atau nama produk 'Setelan / 1 Set / Bundle' untuk produk terpilih"
-              style={{
-                height: '28px',
-                padding: '0 12px',
-                borderRadius: '6px',
-                border: '1px solid #0284c7',
-                backgroundColor: isBatchProcessing ? '#38bdf8' : '#0284c7',
-                color: '#ffffff',
-                fontSize: '11.5px',
-                fontWeight: '700',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '5px',
-                cursor: isBatchProcessing ? 'not-allowed' : 'pointer',
-                boxShadow: '0 1px 3px rgba(2, 132, 199, 0.3)'
-              }}
-            >
-              {isBatchProcessing ? <Loader2 size={13} className="animate-spin" /> : <Boxes size={13} />}
-              <span>{isBatchProcessing ? 'Memproses...' : 'Deteksi Bundle'}</span>
-            </button>
 
             {/* Tombol Batal Pilih */}
             <button
@@ -2363,6 +2216,56 @@ export default function ProdukView() {
                             </span>
                           </div>
                         ) : null}
+
+                        {/* Baris 4: Toko Marketplace Terhubung */}
+                        <div style={{ marginTop: '3px', display: 'flex', flexWrap: 'wrap', gap: '3px', alignItems: 'center' }}>
+                          {item.toko_terhubung && item.toko_terhubung.length > 0 ? (
+                            item.toko_terhubung.map((tk, tkIdx) => {
+                              const isShopee = tk.saluran === 'shopee';
+                              return (
+                                <span
+                                  key={tkIdx}
+                                  title={`Terhubung ke ${tk.nama_saluran}: ${tk.nama_toko} (Stok: ${tk.stok_marketplace})`}
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '3px',
+                                    padding: '1px 5px',
+                                    borderRadius: '3px',
+                                    fontSize: '9px',
+                                    fontWeight: '700',
+                                    backgroundColor: isShopee ? '#fff7ed' : '#f1f5f9',
+                                    color: isShopee ? '#c2410c' : '#0f172a',
+                                    border: isShopee ? '1px solid #fed7aa' : '1px solid #cbd5e1'
+                                  }}
+                                >
+                                  <span style={{
+                                    width: '5px',
+                                    height: '5px',
+                                    borderRadius: '50%',
+                                    backgroundColor: isShopee ? '#ea580c' : '#0f172a'
+                                  }} />
+                                  <span>{isShopee ? 'Shopee' : 'TikTok'}: {tk.nama_toko}</span>
+                                </span>
+                              );
+                            })
+                          ) : (
+                            <span style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '3px',
+                              padding: '1px 5px',
+                              borderRadius: '3px',
+                              fontSize: '9px',
+                              fontWeight: '600',
+                              backgroundColor: '#f8fafc',
+                              color: '#94a3b8',
+                              border: '1px dashed #cbd5e1'
+                            }}>
+                              Belum Terhubung
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       {/* ESTIMASI KAIN (CM & HARGA) */}
@@ -2396,7 +2299,7 @@ export default function ProdukView() {
                               border: '1px solid #bfdbfe',
                               whiteSpace: 'nowrap'
                             }}>
-                              {item.estimasi_kain || 0} CM
+                              {Math.round(Number(item.estimasi_kain) || 0)} CM
                             </span>
                           </div>
 
@@ -2440,7 +2343,7 @@ export default function ProdukView() {
                               color: '#059669',
                               whiteSpace: 'nowrap'
                             }}>
-                              Rp {((Number(item.estimasi_kain) || 0) * (Number(item.harga_kain_cm) || 0)).toLocaleString('id-ID')}/pcs
+                              Rp {Math.round((Number(item.estimasi_kain) || 0) * (Number(item.harga_kain_cm) || 0)).toLocaleString('id-ID')}/pcs
                             </span>
                           </div>
                         </div>
@@ -3436,7 +3339,7 @@ export default function ProdukView() {
                         color: '#0284c7',
                         border: '1px solid #bae6fd'
                       }}>
-                        Kain/Pcs: {formData.estimasi_kain} CM ({((Number(formData.estimasi_kain) || 0) / 100).toFixed(1)} Meter) • Est. Biaya: {formatRupiah((Number(formData.estimasi_kain) || 0) * (Number(formData.harga_kain_cm) || 0))}
+                        Kain/Pcs: {Math.round(Number(formData.estimasi_kain) || 0)} CM ({((Math.round(Number(formData.estimasi_kain) || 0)) / 100).toFixed(1)} Meter) • Est. Biaya: {formatRupiah(Math.round(Number(formData.estimasi_kain) || 0) * (Number(formData.harga_kain_cm) || 0))}
                       </span>
                     )}
                   </div>
@@ -3486,8 +3389,8 @@ export default function ProdukView() {
                           type="number"
                           min="0"
                           placeholder="Contoh: 100, 120, 200"
-                          value={formData.estimasi_kain || ''}
-                          onChange={(e) => setFormData({ ...formData, estimasi_kain: Number(e.target.value) || 0 })}
+                          value={formData.estimasi_kain ? Math.round(Number(formData.estimasi_kain)) : ''}
+                          onChange={(e) => setFormData({ ...formData, estimasi_kain: Math.round(Number(e.target.value) || 0) })}
                           style={{
                             width: '100%',
                             padding: '6px 36px 6px 10px',
@@ -4318,7 +4221,7 @@ export default function ProdukView() {
                         color: '#0284c7',
                         border: '1px solid #bae6fd'
                       }}>
-                        Kain/Pcs: {selectedProduk.estimasi_kain} CM ({((Number(selectedProduk.estimasi_kain) || 0) / 100).toFixed(1)} Meter) • Est. Biaya: {formatRupiah((Number(selectedProduk.estimasi_kain) || 0) * (Number(selectedProduk.harga_kain_cm) || 0))}
+                        Kain/Pcs: {Math.round(Number(selectedProduk.estimasi_kain) || 0)} CM ({((Math.round(Number(selectedProduk.estimasi_kain) || 0)) / 100).toFixed(1)} Meter) • Est. Biaya: {formatRupiah(Math.round(Number(selectedProduk.estimasi_kain) || 0) * (Number(selectedProduk.harga_kain_cm) || 0))}
                       </span>
                     )}
                   </div>
@@ -4355,7 +4258,7 @@ export default function ProdukView() {
                         color: '#0284c7',
                         backgroundColor: '#f8fafc'
                       }}>
-                        {selectedProduk.estimasi_kain || 0} CM
+                        {Math.round(Number(selectedProduk.estimasi_kain) || 0)} CM
                       </div>
                     </div>
 
@@ -4377,6 +4280,84 @@ export default function ProdukView() {
                       </div>
                     </div>
                   </div>
+                </div>
+
+                {/* 6. Integrasi Toko Marketplace Terhubung */}
+                <div style={{
+                  backgroundColor: '#ffffff',
+                  borderRadius: '8px',
+                  border: '1px solid #38bdf8',
+                  padding: '10px 12px',
+                  boxShadow: '0 1px 3px rgba(2, 132, 199, 0.08)',
+                  marginTop: '10px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Store size={13} color="#0284c7" />
+                      <span style={{ fontSize: '11px', fontWeight: '800', color: '#0f172a', textTransform: 'uppercase' }}>
+                        6. Integrasi Marketplace & Toko Terhubung
+                      </span>
+                    </div>
+                    <span style={{
+                      fontSize: '10px',
+                      fontWeight: '800',
+                      padding: '1px 8px',
+                      borderRadius: '4px',
+                      backgroundColor: (selectedProduk.toko_terhubung && selectedProduk.toko_terhubung.length > 0) ? '#f0fdf4' : '#f8fafc',
+                      color: (selectedProduk.toko_terhubung && selectedProduk.toko_terhubung.length > 0) ? '#16a34a' : '#64748b',
+                      border: (selectedProduk.toko_terhubung && selectedProduk.toko_terhubung.length > 0) ? '1px solid #bbf7d0' : '1px solid #cbd5e1'
+                    }}>
+                      {selectedProduk.toko_terhubung && selectedProduk.toko_terhubung.length > 0
+                        ? `${selectedProduk.toko_terhubung.length} Toko Terhubung`
+                        : 'Belum Terhubung'}
+                    </span>
+                  </div>
+
+                  {selectedProduk.toko_terhubung && selectedProduk.toko_terhubung.length > 0 ? (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '6px' }}>
+                      {selectedProduk.toko_terhubung.map((tk, tkIdx) => {
+                        const isShopee = tk.saluran === 'shopee';
+                        return (
+                          <div key={tkIdx} style={{
+                            padding: '8px 10px',
+                            borderRadius: '6px',
+                            border: isShopee ? '1px solid #fed7aa' : '1px solid #cbd5e1',
+                            backgroundColor: isShopee ? '#fff7ed' : '#f8fafc',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '3px'
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <span style={{
+                                fontSize: '10px',
+                                fontWeight: '800',
+                                color: isShopee ? '#ea580c' : '#0f172a',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}>
+                                <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: isShopee ? '#ea580c' : '#0f172a' }} />
+                                {tk.nama_saluran}
+                              </span>
+                              <span style={{ fontSize: '9.5px', color: '#059669', fontWeight: '800' }}>
+                                Stok: {tk.stok_marketplace}
+                              </span>
+                            </div>
+                            <div style={{ fontSize: '11px', fontWeight: '700', color: '#1e293b' }}>
+                              {tk.nama_toko}
+                            </div>
+                            <div style={{ fontSize: '9.5px', color: '#64748b' }}>
+                              Harga Jual Toko: Rp {Number(tk.harga_jual || 0).toLocaleString('id-ID')}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div style={{ padding: '10px', textAlign: 'center', fontSize: '11px', color: '#64748b', backgroundColor: '#f8fafc', borderRadius: '6px', border: '1px dashed #cbd5e1' }}>
+                      Produk ini belum dipetakan ke toko marketplace manapun. Anda dapat memetakan produk ini di menu <strong>Produk Marketplace</strong>.
+                    </div>
+                  )}
                 </div>
 
               </div>
@@ -4704,7 +4685,11 @@ export default function ProdukView() {
                                 <td style={{ padding: '5px 8px', textAlign: 'center' }}>
                                   {row.estimasi_kain ? (
                                     <span style={{ backgroundColor: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: '700' }}>
-                                      {row.estimasi_kain.includes('cm') ? row.estimasi_kain : `${row.estimasi_kain} cm`}
+                                      {(() => {
+                                        const numEst = parseFloat(String(row.estimasi_kain).replace(/[^0-9.]/g, ''));
+                                        const val = !isNaN(numEst) ? Math.round(numEst) : row.estimasi_kain;
+                                        return String(val).includes('cm') ? val : `${val} cm`;
+                                      })()}
                                     </span>
                                   ) : (
                                     <span style={{ color: '#94a3b8' }}>-</span>

@@ -581,11 +581,11 @@ export default function SPKView() {
   // Helper generate text & kalkulasi estimasi kain dari data master produk & qty
   const buildEstimasiKain = (kainNama, cmPerPcs, hargaCm, qty) => {
     const q = Number(qty || 1);
-    const cm = Number(cmPerPcs || 0);
+    const cm = Math.round(Number(cmPerPcs || 0));
     const hrg = Number(hargaCm || 0);
-    const totalCm = cm * q;
+    const totalCm = Math.round(cm * q);
     const totalMeter = (totalCm / 100).toFixed(1).replace(/\.0$/, "");
-    const totalBiaya = totalCm * hrg;
+    const totalBiaya = Math.round(totalCm * hrg);
     const nama = kainNama || "Kain";
     return `${nama} - ${totalCm.toLocaleString("id-ID")} CM (${totalMeter}M) @Rp${hrg.toLocaleString("id-ID")}/CM (Rp ${totalBiaya.toLocaleString("id-ID")})`;
   };

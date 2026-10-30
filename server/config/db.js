@@ -125,6 +125,13 @@ export async function initDb() {
     try {
       await conn.query(`ALTER TABLE produk_master ADD COLUMN estimasi_kain VARCHAR(100) DEFAULT '200'`);
     } catch (e) {}
+    try {
+      await conn.query(`
+        UPDATE produk_master 
+        SET estimasi_kain = CAST(ROUND(CAST(estimasi_kain AS DECIMAL(10,2))) AS CHAR)
+        WHERE estimasi_kain REGEXP '^[0-9]+(\\.[0-9]+)+$'
+      `);
+    } catch (e) {}
 
     // Auto-migrate: Bersihkan prefix RSG- dari kode_sku yang terlanjur tersimpan di produk_master
     try {
