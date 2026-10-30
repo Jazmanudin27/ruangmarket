@@ -908,9 +908,7 @@ export async function handleOrdersRoutes(req, res, pathname, urlObj, { pool, lar
   // 10. Sync Historical Orders — Tarik pesanan berdasarkan rentang hari (manual, tidak memengaruhi auto-sync)
   if (pathname === '/api/marketplace/orders/sync-historical' && req.method === 'POST') {
     try {
-      let body = '';
-      await new Promise(resolve => { req.on('data', c => body += c); req.on('end', resolve); });
-      const parsed = (() => { try { return JSON.parse(body); } catch (e) { return {}; } })();
+      const parsed = await parseJsonBody(req).catch(() => ({}));
       const days = Math.min(Math.max(Number(parsed.days) || 30, 1), 150); // 1–150 hari
 
       const [stores] = await pool.query('SELECT * FROM toko_marketplace WHERE status_koneksi LIKE "%Aktif%" OR status_koneksi LIKE "%Terhubung%" OR status_koneksi LIKE "%connected%"');
