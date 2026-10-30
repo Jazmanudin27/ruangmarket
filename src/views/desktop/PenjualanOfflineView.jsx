@@ -7128,7 +7128,352 @@ export default function PenjualanOfflineView({ onNavigate }) {
                       </div>
                     </div>
 
-                    {/* Card 2: Form Input Pembayaran / Cicilan Baru */}
+                    {/* Card 2: Daftar Produk Pesanan (Diperbesar Height-nya) */}
+                    {orderItems.length > 0 && (
+                      <div
+                        style={{
+                          backgroundColor: "#ffffff",
+                          borderRadius: "8px",
+                          border: "1px solid #cbd5e1",
+                          padding: "10px 12px",
+                          boxShadow: "0 1px 2px rgba(0, 0, 0, 0.03)",
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            marginBottom: "6px",
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "6px",
+                            }}
+                          >
+                            <Package size={13} color="#0284c7" />
+                            <span
+                              style={{
+                                fontSize: "11px",
+                                fontWeight: "800",
+                                color: "#0f172a",
+                                textTransform: "uppercase",
+                              }}
+                            >
+                              2. Rincian Produk Pesanan ({orderItems.length}{" "}
+                              Macam)
+                            </span>
+                          </div>
+                        </div>
+                        <div
+                          style={{
+                            border: "1px solid #e2e8f0",
+                            borderRadius: "6px",
+                            overflow: "hidden",
+                            maxHeight: "430px",
+                            overflowY: "auto",
+                          }}
+                        >
+                          <table
+                            style={{
+                              width: "100%",
+                              borderCollapse: "collapse",
+                              fontSize: "11px",
+                            }}
+                          >
+                            <thead>
+                              <tr
+                                style={{
+                                  backgroundColor: "#f8fafc",
+                                  color: "#475569",
+                                  fontSize: "9.5px",
+                                  fontWeight: "800",
+                                }}
+                              >
+                                <th
+                                  style={{
+                                    padding: "5px 8px",
+                                    textAlign: "left",
+                                    borderBottom: "1px solid #cbd5e1",
+                                  }}
+                                >
+                                  PRODUK
+                                </th>
+                                <th
+                                  style={{
+                                    padding: "5px 8px",
+                                    textAlign: "center",
+                                    borderBottom: "1px solid #cbd5e1",
+                                    width: "55px",
+                                  }}
+                                >
+                                  QTY
+                                </th>
+                                <th
+                                  style={{
+                                    padding: "5px 8px",
+                                    textAlign: "right",
+                                    borderBottom: "1px solid #cbd5e1",
+                                    width: "100px",
+                                  }}
+                                >
+                                  SUBTOTAL
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {orderItems.map((it, idx) => (
+                                <tr
+                                  key={idx}
+                                  style={{
+                                    borderBottom:
+                                      idx < orderItems.length - 1
+                                        ? "1px solid #f1f5f9"
+                                        : "none",
+                                  }}
+                                >
+                                  <td style={{ padding: "6px 8px" }}>
+                                    <div
+                                      style={{
+                                        fontWeight: "700",
+                                        color: "#0f172a",
+                                      }}
+                                    >
+                                      {it.nama_produk}
+                                    </div>
+                                    <div
+                                      style={{
+                                        fontSize: "9.5px",
+                                        color: "#0284c7",
+                                        fontFamily: "monospace",
+                                      }}
+                                    >
+                                      {it.sku || "-"}
+                                    </div>
+                                  </td>
+                                  <td
+                                    style={{
+                                      padding: "6px 8px",
+                                      textAlign: "center",
+                                      fontWeight: "800",
+                                    }}
+                                  >
+                                    {it.qty}
+                                  </td>
+                                  <td
+                                    style={{
+                                      padding: "6px 8px",
+                                      textAlign: "right",
+                                      fontWeight: "700",
+                                      color: "#0f172a",
+                                    }}
+                                  >
+                                    {formatRupiah(
+                                      Number(it.harga_satuan || 0) *
+                                        Number(it.qty || 1) -
+                                        Number(it.diskon_item || 0),
+                                    )}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ── KOLOM KANAN: RINGKASAN TAGIHAN, INPUT PEMBAYARAN (NO 4) & TABEL RIWAYAT CICILAN ── */}
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "10px",
+                    }}
+                  >
+                    {/* Card 3: Ringkasan Tagihan & Progress Pelunasan */}
+                    <div
+                      style={{
+                        backgroundColor: "#ffffff",
+                        borderRadius: "8px",
+                        border: "1px solid #cbd5e1",
+                        padding: "12px 14px",
+                        boxShadow: "0 1px 2px rgba(0, 0, 0, 0.03)",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          marginBottom: "8px",
+                          paddingBottom: "5px",
+                          borderBottom: "1px solid #f1f5f9",
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "6px",
+                          }}
+                        >
+                          <DollarSign size={13} color="#059669" />
+                          <span
+                            style={{
+                              fontSize: "11px",
+                              fontWeight: "800",
+                              color: "#0f172a",
+                              textTransform: "uppercase",
+                              letterSpacing: "0.04em",
+                            }}
+                          >
+                            3. Ringkasan Tagihan & Status Pelunasan
+                          </span>
+                        </div>
+                        <span
+                          style={{
+                            fontSize: "11px",
+                            fontWeight: "800",
+                            color: persenBayar >= 100 ? "#059669" : "#0284c7",
+                          }}
+                        >
+                          Terbayar {persenBayar}%
+                        </span>
+                      </div>
+
+                      {/* 3 Kartu Ringkasan Tagihan */}
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "repeat(3, 1fr)",
+                          gap: "10px",
+                          marginBottom: "10px",
+                        }}
+                      >
+                        <div
+                          style={{
+                            padding: "10px 12px",
+                            borderRadius: "8px",
+                            backgroundColor: "#f8fafc",
+                            border: "1px solid #cbd5e1",
+                          }}
+                        >
+                          <span
+                            style={{
+                              display: "block",
+                              fontSize: "10px",
+                              fontWeight: "800",
+                              color: "#64748b",
+                            }}
+                          >
+                            TOTAL TAGIHAN
+                          </span>
+                          <div
+                            style={{
+                              fontSize: "16px",
+                              fontWeight: "900",
+                              color: "#0f172a",
+                              marginTop: "3px",
+                            }}
+                          >
+                            {formatRupiah(totalTagihan)}
+                          </div>
+                        </div>
+
+                        <div
+                          style={{
+                            padding: "10px 12px",
+                            borderRadius: "8px",
+                            backgroundColor: "#ecfdf5",
+                            border: "1px solid #a7f3d0",
+                          }}
+                        >
+                          <span
+                            style={{
+                              display: "block",
+                              fontSize: "10px",
+                              fontWeight: "800",
+                              color: "#047857",
+                            }}
+                          >
+                            SUDAH DIBAYAR ({listBayar.length}x)
+                          </span>
+                          <div
+                            style={{
+                              fontSize: "16px",
+                              fontWeight: "900",
+                              color: "#059669",
+                              marginTop: "3px",
+                            }}
+                          >
+                            {formatRupiah(sudahBayar)}
+                          </div>
+                        </div>
+
+                        <div
+                          style={{
+                            padding: "10px 12px",
+                            borderRadius: "8px",
+                            backgroundColor:
+                              sisaTagihan > 0 ? "#fef2f2" : "#f0fdf4",
+                            border:
+                              sisaTagihan > 0
+                                ? "1px solid #fecaca"
+                                : "1px solid #bbf7d0",
+                          }}
+                        >
+                          <span
+                            style={{
+                              display: "block",
+                              fontSize: "10px",
+                              fontWeight: "800",
+                              color: sisaTagihan > 0 ? "#b91c1c" : "#15803d",
+                            }}
+                          >
+                            SISA TAGIHAN
+                          </span>
+                          <div
+                            style={{
+                              fontSize: "16px",
+                              fontWeight: "900",
+                              color: sisaTagihan > 0 ? "#dc2626" : "#16a34a",
+                              marginTop: "3px",
+                            }}
+                          >
+                            {sisaTagihan > 0
+                              ? formatRupiah(sisaTagihan)
+                              : "LUNAS ✓"}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Progress Bar Pelunasan */}
+                      <div
+                        style={{
+                          width: "100%",
+                          height: "8px",
+                          backgroundColor: "#e2e8f0",
+                          borderRadius: "999px",
+                          overflow: "hidden",
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: `${persenBayar}%`,
+                            height: "100%",
+                            backgroundColor:
+                              persenBayar >= 100 ? "#10b981" : "#0284c7",
+                            transition: "width 0.3s ease",
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Card 4: Form Input Pembayaran / Cicilan Baru */}
                     <form
                       onSubmit={handleSavePayment}
                       style={{
@@ -7170,7 +7515,7 @@ export default function PenjualanOfflineView({ onNavigate }) {
                               letterSpacing: "0.04em",
                             }}
                           >
-                            2. Input Pembayaran / Cicilan Baru
+                            4. Input Pembayaran / Cicilan Baru
                           </span>
                         </div>
                         {sisaTagihan > 0 && (
@@ -7512,351 +7857,6 @@ export default function PenjualanOfflineView({ onNavigate }) {
                         </button>
                       </div>
                     </form>
-
-                    {/* Card 3: Daftar Produk Singkat */}
-                    {orderItems.length > 0 && (
-                      <div
-                        style={{
-                          backgroundColor: "#ffffff",
-                          borderRadius: "8px",
-                          border: "1px solid #cbd5e1",
-                          padding: "10px 12px",
-                          boxShadow: "0 1px 2px rgba(0, 0, 0, 0.03)",
-                        }}
-                      >
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            marginBottom: "6px",
-                          }}
-                        >
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "6px",
-                            }}
-                          >
-                            <Package size={13} color="#0284c7" />
-                            <span
-                              style={{
-                                fontSize: "11px",
-                                fontWeight: "800",
-                                color: "#0f172a",
-                                textTransform: "uppercase",
-                              }}
-                            >
-                              3. Rincian Produk Pesanan ({orderItems.length}{" "}
-                              Macam)
-                            </span>
-                          </div>
-                        </div>
-                        <div
-                          style={{
-                            border: "1px solid #e2e8f0",
-                            borderRadius: "6px",
-                            overflow: "hidden",
-                            maxHeight: "150px",
-                            overflowY: "auto",
-                          }}
-                        >
-                          <table
-                            style={{
-                              width: "100%",
-                              borderCollapse: "collapse",
-                              fontSize: "11px",
-                            }}
-                          >
-                            <thead>
-                              <tr
-                                style={{
-                                  backgroundColor: "#f8fafc",
-                                  color: "#475569",
-                                  fontSize: "9.5px",
-                                  fontWeight: "800",
-                                }}
-                              >
-                                <th
-                                  style={{
-                                    padding: "5px 8px",
-                                    textAlign: "left",
-                                    borderBottom: "1px solid #cbd5e1",
-                                  }}
-                                >
-                                  PRODUK
-                                </th>
-                                <th
-                                  style={{
-                                    padding: "5px 8px",
-                                    textAlign: "center",
-                                    borderBottom: "1px solid #cbd5e1",
-                                    width: "55px",
-                                  }}
-                                >
-                                  QTY
-                                </th>
-                                <th
-                                  style={{
-                                    padding: "5px 8px",
-                                    textAlign: "right",
-                                    borderBottom: "1px solid #cbd5e1",
-                                    width: "100px",
-                                  }}
-                                >
-                                  SUBTOTAL
-                                </th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {orderItems.map((it, idx) => (
-                                <tr
-                                  key={idx}
-                                  style={{
-                                    borderBottom:
-                                      idx < orderItems.length - 1
-                                        ? "1px solid #f1f5f9"
-                                        : "none",
-                                  }}
-                                >
-                                  <td style={{ padding: "5px 8px" }}>
-                                    <div
-                                      style={{
-                                        fontWeight: "700",
-                                        color: "#0f172a",
-                                      }}
-                                    >
-                                      {it.nama_produk}
-                                    </div>
-                                    <div
-                                      style={{
-                                        fontSize: "9.5px",
-                                        color: "#0284c7",
-                                        fontFamily: "monospace",
-                                      }}
-                                    >
-                                      {it.sku || "-"}
-                                    </div>
-                                  </td>
-                                  <td
-                                    style={{
-                                      padding: "5px 8px",
-                                      textAlign: "center",
-                                      fontWeight: "800",
-                                    }}
-                                  >
-                                    {it.qty}
-                                  </td>
-                                  <td
-                                    style={{
-                                      padding: "5px 8px",
-                                      textAlign: "right",
-                                      fontWeight: "700",
-                                      color: "#0f172a",
-                                    }}
-                                  >
-                                    {formatRupiah(
-                                      Number(it.harga_satuan || 0) *
-                                        Number(it.qty || 1) -
-                                        Number(it.diskon_item || 0),
-                                    )}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* ── KOLOM KANAN: RINGKASAN TAGIHAN & TABEL RIWAYAT CICILAN ── */}
-                  <div
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "10px",
-                    }}
-                  >
-                    {/* Card 4: Ringkasan Tagihan & Progress Pelunasan */}
-                    <div
-                      style={{
-                        backgroundColor: "#ffffff",
-                        borderRadius: "8px",
-                        border: "1px solid #cbd5e1",
-                        padding: "12px 14px",
-                        boxShadow: "0 1px 2px rgba(0, 0, 0, 0.03)",
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          marginBottom: "8px",
-                          paddingBottom: "5px",
-                          borderBottom: "1px solid #f1f5f9",
-                        }}
-                      >
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "6px",
-                          }}
-                        >
-                          <DollarSign size={13} color="#059669" />
-                          <span
-                            style={{
-                              fontSize: "11px",
-                              fontWeight: "800",
-                              color: "#0f172a",
-                              textTransform: "uppercase",
-                              letterSpacing: "0.04em",
-                            }}
-                          >
-                            4. Ringkasan Tagihan & Status Pelunasan
-                          </span>
-                        </div>
-                        <span
-                          style={{
-                            fontSize: "11px",
-                            fontWeight: "800",
-                            color: persenBayar >= 100 ? "#059669" : "#0284c7",
-                          }}
-                        >
-                          Terbayar {persenBayar}%
-                        </span>
-                      </div>
-
-                      {/* 3 Kartu Ringkasan Tagihan */}
-                      <div
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns: "repeat(3, 1fr)",
-                          gap: "10px",
-                          marginBottom: "10px",
-                        }}
-                      >
-                        <div
-                          style={{
-                            padding: "10px 12px",
-                            borderRadius: "8px",
-                            backgroundColor: "#f8fafc",
-                            border: "1px solid #cbd5e1",
-                          }}
-                        >
-                          <span
-                            style={{
-                              display: "block",
-                              fontSize: "10px",
-                              fontWeight: "800",
-                              color: "#64748b",
-                            }}
-                          >
-                            TOTAL TAGIHAN
-                          </span>
-                          <div
-                            style={{
-                              fontSize: "16px",
-                              fontWeight: "900",
-                              color: "#0f172a",
-                              marginTop: "3px",
-                            }}
-                          >
-                            {formatRupiah(totalTagihan)}
-                          </div>
-                        </div>
-
-                        <div
-                          style={{
-                            padding: "10px 12px",
-                            borderRadius: "8px",
-                            backgroundColor: "#ecfdf5",
-                            border: "1px solid #a7f3d0",
-                          }}
-                        >
-                          <span
-                            style={{
-                              display: "block",
-                              fontSize: "10px",
-                              fontWeight: "800",
-                              color: "#047857",
-                            }}
-                          >
-                            SUDAH DIBAYAR ({listBayar.length}x)
-                          </span>
-                          <div
-                            style={{
-                              fontSize: "16px",
-                              fontWeight: "900",
-                              color: "#059669",
-                              marginTop: "3px",
-                            }}
-                          >
-                            {formatRupiah(sudahBayar)}
-                          </div>
-                        </div>
-
-                        <div
-                          style={{
-                            padding: "10px 12px",
-                            borderRadius: "8px",
-                            backgroundColor:
-                              sisaTagihan > 0 ? "#fef2f2" : "#f0fdf4",
-                            border:
-                              sisaTagihan > 0
-                                ? "1px solid #fecaca"
-                                : "1px solid #bbf7d0",
-                          }}
-                        >
-                          <span
-                            style={{
-                              display: "block",
-                              fontSize: "10px",
-                              fontWeight: "800",
-                              color: sisaTagihan > 0 ? "#b91c1c" : "#15803d",
-                            }}
-                          >
-                            SISA TAGIHAN
-                          </span>
-                          <div
-                            style={{
-                              fontSize: "16px",
-                              fontWeight: "900",
-                              color: sisaTagihan > 0 ? "#dc2626" : "#16a34a",
-                              marginTop: "3px",
-                            }}
-                          >
-                            {sisaTagihan > 0
-                              ? formatRupiah(sisaTagihan)
-                              : "LUNAS ✓"}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Progress Bar Pelunasan */}
-                      <div
-                        style={{
-                          width: "100%",
-                          height: "8px",
-                          backgroundColor: "#e2e8f0",
-                          borderRadius: "999px",
-                          overflow: "hidden",
-                        }}
-                      >
-                        <div
-                          style={{
-                            width: `${persenBayar}%`,
-                            height: "100%",
-                            backgroundColor:
-                              persenBayar >= 100 ? "#10b981" : "#0284c7",
-                            transition: "width 0.3s ease",
-                          }}
-                        />
-                      </div>
-                    </div>
 
                     {/* Card 5: Tabel Riwayat Cicilan & Pembayaran */}
                     <div
