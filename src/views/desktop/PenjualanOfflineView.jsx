@@ -26,6 +26,11 @@ import {
   FileText,
   Users,
   Save,
+  Layers,
+  Loader2,
+  RefreshCw,
+  CheckCircle,
+  XCircle,
 } from "lucide-react";
 import SearchableSelect from "../../components/SearchableSelect";
 import RupiahInput from "../../components/RupiahInput";
@@ -191,8 +196,10 @@ export default function PenjualanOfflineView({ onNavigate }) {
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("semua");
+  const [filterToko, setFilterToko] = useState("Semua");
+  const [filterPembayaran, setFilterPembayaran] = useState("Semua");
   const [currentPage, setCurrentPage] = useState(1);
-  const [entriesPerPage] = useState(25);
+  const [entriesPerPage, setEntriesPerPage] = useState(25);
 
   // Modals & Edit Mode
   const [showForm, setShowForm] = useState(false);
@@ -276,8 +283,6 @@ export default function PenjualanOfflineView({ onNavigate }) {
       const params = new URLSearchParams({
         kode_perusahaan: activeCompany.code,
       });
-      if (filterStatus !== "semua") params.set("status", filterStatus);
-      if (search) params.set("search", search);
       const res = await fetch(`/api/offline/orders?${params}`);
       const json = await res.json();
       setOrders(json.data || []);
@@ -561,7 +566,7 @@ export default function PenjualanOfflineView({ onNavigate }) {
     loadMasterProduk();
     loadPelanggan();
     loadBank();
-  }, [filterStatus]);
+  }, []);
 
   // ── Handlers ────────────────────────────────────────────────────────────
   const resetForm = () => {
@@ -871,6 +876,18 @@ export default function PenjualanOfflineView({ onNavigate }) {
 
   // ── Filtered + paginated ────────────────────────────────────────────────
   const filtered = orders.filter((o) => {
+    if (filterStatus !== "semua" && o.status_pesanan !== filterStatus) {
+      return false;
+    }
+    if (filterToko !== "Semua" && (o.nama_toko || "-") !== filterToko) {
+      return false;
+    }
+    if (
+      filterPembayaran !== "Semua" &&
+      o.status_pembayaran !== filterPembayaran
+    ) {
+      return false;
+    }
     if (search) {
       const s = search.toLowerCase();
       const match = [
@@ -879,6 +896,7 @@ export default function PenjualanOfflineView({ onNavigate }) {
         o.no_telepon,
         o.no_resi,
         o.ringkasan_produk,
+        o.nama_toko,
       ].some((v) =>
         String(v || "")
           .toLowerCase()
@@ -888,7 +906,8 @@ export default function PenjualanOfflineView({ onNavigate }) {
     }
     return true;
   });
-  const totalPages = Math.ceil(filtered.length / entriesPerPage);
+  const totalCount = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(totalCount / entriesPerPage));
   const paginated = filtered.slice(
     (currentPage - 1) * entriesPerPage,
     currentPage * entriesPerPage,
@@ -903,14 +922,16 @@ export default function PenjualanOfflineView({ onNavigate }) {
     return (
       <span
         style={{
-          padding: "3px 10px",
-          borderRadius: "12px",
+          display: "inline-block",
+          padding: "2px 10px",
+          borderRadius: "4px",
           fontSize: "10.5px",
           fontWeight: "800",
           backgroundColor: s.bg,
           color: s.color,
-          border: `1px solid ${s.color}30`,
+          border: `1px solid ${s.color}40`,
           textTransform: "uppercase",
+          whiteSpace: "nowrap",
         }}
       >
         {s.label}
@@ -943,6 +964,108 @@ export default function PenjualanOfflineView({ onNavigate }) {
       .slice(0, 40);
   }, [masterProduk, produkSearch, filterSingleOnly]);
 
+  const tokoFilterOptions = useMemo(() => {
+    const set = new Set();
+    orders.forEach((o) => {
+      if (o.nama_toko) set.add(o.nama_toko);
+    });
+    stores.forEach((s) => {
+      if (s.nama_toko) set.add(s.nama_toko);
+    });
+    return Array.from(set);
+  }, [orders, stores]);
+
+  const TABS_CONFIG = [
+    {
+      value: "semua",
+      label: `Semua Pesanan (${orders.length})`,
+      icon: Layers,
+      activeBorder: "#0284c7",
+      inactiveBorder: "#bfdbfe",
+      activeBg: "#0284c7",
+      inactiveBg: "#eff6ff",
+      inactiveColor: "#1d4ed8",
+      shadow: "rgba(2, 132, 199, 0.25)",
+    },
+    {
+      value: "draft",
+      label: `Draft (${countByStatus("draft")})`,
+      icon: FileText,
+      activeBorder: "#475569",
+      inactiveBorder: "#cbd5e1",
+      activeBg: "#475569",
+      inactiveBg: "#f8fafc",
+      inactiveColor: "#334155",
+      shadow: "rgba(71, 85, 105, 0.25)",
+    },
+    {
+      value: "dikonfirmasi",
+      label: `Dikonfirmasi (${countByStatus("dikonfirmasi")})`,
+      icon: Clock,
+      activeBorder: "#d97706",
+      inactiveBorder: "#fde68a",
+      activeBg: "#d97706",
+      inactiveBg: "#fffbeb",
+      inactiveColor: "#b45309",
+      shadow: "rgba(217, 119, 6, 0.25)",
+    },
+    {
+      value: "diproses",
+      label: `Diproses (${countByStatus("diproses")})`,
+      icon: Package,
+      activeBorder: "#2563eb",
+      inactiveBorder: "#bfdbfe",
+      activeBg: "#2563eb",
+      inactiveBg: "#eff6ff",
+      inactiveColor: "#1d4ed8",
+      shadow: "rgba(37, 99, 235, 0.25)",
+    },
+    {
+      value: "siap_kirim",
+      label: `Siap Kirim (${countByStatus("siap_kirim")})`,
+      icon: Store,
+      activeBorder: "#7c3aed",
+      inactiveBorder: "#ddd6fe",
+      activeBg: "#7c3aed",
+      inactiveBg: "#f5f3ff",
+      inactiveColor: "#6d28d9",
+      shadow: "rgba(124, 58, 237, 0.25)",
+    },
+    {
+      value: "dikirim",
+      label: `Dikirim (${countByStatus("dikirim")})`,
+      icon: Truck,
+      activeBorder: "#0891b2",
+      inactiveBorder: "#a5f3fc",
+      activeBg: "#0891b2",
+      inactiveBg: "#ecfeff",
+      inactiveColor: "#0e7490",
+      shadow: "rgba(8, 145, 178, 0.25)",
+    },
+    {
+      value: "selesai",
+      label: `Selesai (${countByStatus("selesai")})`,
+      icon: CheckCircle,
+      activeBorder: "#059669",
+      inactiveBorder: "#a7f3d0",
+      activeBg: "#059669",
+      inactiveBg: "#ecfdf5",
+      inactiveColor: "#047857",
+      shadow: "rgba(5, 150, 105, 0.25)",
+    },
+    {
+      value: "dibatalkan",
+      label: `Dibatalkan (${countByStatus("dibatalkan")})`,
+      icon: XCircle,
+      activeBorder: "#ef4444",
+      inactiveBorder: "#fecaca",
+      activeBg: "#ef4444",
+      inactiveBg: "#fef2f2",
+      inactiveColor: "#b91c1c",
+      shadow: "rgba(239, 68, 68, 0.25)",
+    },
+  ];
+
   // ═══════════════════════════════════════════════════════════════════════
   // RENDER
   // ═══════════════════════════════════════════════════════════════════════
@@ -955,792 +1078,1171 @@ export default function PenjualanOfflineView({ onNavigate }) {
         boxSizing: "border-box",
       }}
     >
-      {/* ── 1. MASTER HEADER CARD (RUANGMARKET DARK STYLE) ────────────────── */}
+      {/* MASTER CONTAINER CARD (MATCHING DATA PRODUK) */}
       <div
         style={{
-          background:
-            "linear-gradient(135deg, #090d16 0%, #0f172a 45%, #1e293b 100%)",
-          border: "1px solid rgba(255, 255, 255, 0.1)",
+          backgroundColor: "#ffffff",
+          border: "1px solid #cbd5e1",
           borderRadius: "10px",
-          padding: "12px 18px",
-          color: "#ffffff",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          flexWrap: "wrap",
-          gap: "12px",
-          marginBottom: "10px",
-          boxShadow: "0 4px 16px rgba(0, 0, 0, 0.25)",
+          padding: "12px 14px",
+          boxShadow: "0 2px 8px rgba(15, 23, 42, 0.05)",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <div
-            style={{
-              width: "40px",
-              height: "40px",
-              borderRadius: "9px",
-              background:
-                "linear-gradient(135deg, rgba(37, 211, 102, 0.25) 0%, rgba(16, 185, 129, 0.15) 100%)",
-              border: "1px solid rgba(37, 211, 102, 0.4)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "#25d366",
-              flexShrink: 0,
-              boxShadow: "0 0 12px rgba(37, 211, 102, 0.2)",
-            }}
-          >
-            <Send size={21} />
-          </div>
-          <div>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <h1
+        {/* HEADER TITLE & ACTION BUTTONS (BERWARNA BLUE GRADIENT) */}
+        <div
+          style={{
+            background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
+            borderRadius: "8px",
+            padding: "10px 16px",
+            color: "#ffffff",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: "8px",
+            marginBottom: "6px",
+            boxShadow: "0 2px 6px rgba(2, 132, 199, 0.22)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <div
+              style={{
+                width: "36px",
+                height: "36px",
+                borderRadius: "8px",
+                backgroundColor: "rgba(255, 255, 255, 0.2)",
+                color: "#ffffff",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+                backdropFilter: "blur(4px)",
+              }}
+            >
+              <Send size={20} />
+            </div>
+            <div>
+              <div
+                style={{ display: "flex", alignItems: "center", gap: "8px" }}
+              >
+                <h1
+                  style={{
+                    margin: 0,
+                    fontSize: "15px",
+                    fontWeight: "800",
+                    color: "#ffffff",
+                    letterSpacing: "-0.01em",
+                    lineHeight: 1.2,
+                  }}
+                >
+                  Data Penjualan & Pesanan Offline
+                </h1>
+                <span
+                  style={{
+                    fontSize: "10px",
+                    fontWeight: "800",
+                    padding: "1.5px 7px",
+                    borderRadius: "4px",
+                    backgroundColor: "rgba(255, 255, 255, 0.2)",
+                    color: "#ffffff",
+                    border: "1px solid rgba(255, 255, 255, 0.35)",
+                  }}
+                >
+                  {activeCompany?.code || "RSG"}
+                </span>
+              </div>
+              <p
                 style={{
                   margin: 0,
-                  fontSize: "15.5px",
-                  fontWeight: "800",
-                  color: "#ffffff",
-                  letterSpacing: "-0.01em",
+                  fontSize: "11px",
+                  color: "rgba(255, 255, 255, 0.88)",
                 }}
               >
-                Penjualan Offline
-              </h1>
-              <span
-                style={{
-                  fontSize: "10px",
-                  fontWeight: "800",
-                  padding: "1.5px 8px",
-                  borderRadius: "4px",
-                  backgroundColor: "rgba(37, 211, 102, 0.18)",
-                  color: "#25d366",
-                  border: "1px solid rgba(37, 211, 102, 0.35)",
-                }}
-              >
-                {activeCompany?.code || "RSG"}
-              </span>
+                Catat & kelola transaksi manual pelanggan, Dropship, Reseller,
+                Walk-in, dan Toko/Instansi. Otomatis potong stok & buat SPK.
+              </p>
             </div>
-            <p style={{ margin: 0, fontSize: "11.5px", color: "#94a3b8" }}>
-              Catat & kelola transaksi manual pelanggan, Dropship, Reseller,
-              Walk-in, dan Toko/Instansi. Otomatis potong stok & buat SPK.
-            </p>
+          </div>
+
+          {/* Action Buttons */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              flexWrap: "wrap",
+            }}
+          >
+            {onNavigate && (
+              <button
+                type="button"
+                onClick={() => onNavigate("pesanan_masuk")}
+                style={{
+                  height: "30px",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "6px",
+                  padding: "0 13px",
+                  borderRadius: "6px",
+                  border: "none",
+                  backgroundColor: "#059669",
+                  color: "#ffffff",
+                  fontSize: "12px",
+                  fontWeight: "700",
+                  lineHeight: 1,
+                  cursor: "pointer",
+                  boxShadow: "0 2px 4px rgba(0, 0, 0, 0.15)",
+                  transition: "all 0.15s ease",
+                }}
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.backgroundColor = "#047857")
+                }
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.backgroundColor = "#059669")
+                }
+              >
+                <ShoppingBag size={13} />
+                <span>Pesanan Marketplace</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              id="btn-tambah-pesanan-offline"
+              onClick={() => {
+                resetForm();
+                setShowForm(true);
+              }}
+              style={{
+                height: "30px",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "6px",
+                padding: "0 14px",
+                borderRadius: "6px",
+                border: "none",
+                backgroundColor: "#ffffff",
+                color: "#0284c7",
+                fontSize: "12px",
+                fontWeight: "800",
+                lineHeight: 1,
+                cursor: "pointer",
+                boxShadow: "0 2px 4px rgba(0, 0, 0, 0.15)",
+                transition: "all 0.15s ease",
+              }}
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.backgroundColor = "#f0f9ff")
+              }
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.backgroundColor = "#ffffff")
+              }
+            >
+              <Plus size={14} />
+              <span>Buat Pesanan Baru</span>
+            </button>
           </div>
         </div>
 
-        {/* Header Action Buttons */}
+        {/* FILTER TABS (BERWARNA COLOR-CODED SEPERTI DATA PRODUK) */}
         <div
           style={{
             display: "flex",
             alignItems: "center",
-            gap: "8px",
+            gap: "6px",
+            marginBottom: "6px",
             flexWrap: "wrap",
           }}
         >
-          {onNavigate && (
-            <button
-              type="button"
-              onClick={() => onNavigate("pesanan_masuk")}
-              style={{
-                padding: "7px 14px",
-                borderRadius: "7px",
-                border: "1px solid rgba(56, 189, 248, 0.4)",
-                backgroundColor: "rgba(56, 189, 248, 0.1)",
-                color: "#38bdf8",
-                fontSize: "12px",
-                fontWeight: "700",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "6px",
-                cursor: "pointer",
-                transition: "all 0.15s",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor =
-                  "rgba(56, 189, 248, 0.2)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor =
-                  "rgba(56, 189, 248, 0.1)";
-              }}
-            >
-              <ShoppingBag size={13} />
-              <span>Pesanan Marketplace</span>
-            </button>
-          )}
-
-          <button
-            type="button"
-            id="btn-tambah-pesanan-offline"
-            onClick={() => {
-              resetForm();
-              setShowForm(true);
-            }}
-            style={{
-              padding: "7px 16px",
-              borderRadius: "7px",
-              border: "none",
-              background: "linear-gradient(135deg, #16a34a 0%, #15803d 100%)",
-              color: "#ffffff",
-              fontSize: "12px",
-              fontWeight: "800",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "6px",
-              cursor: "pointer",
-              boxShadow: "0 2px 8px rgba(22, 163, 74, 0.4)",
-              transition: "all 0.15s",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = "translateY(-1px)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = "translateY(0)";
-            }}
-          >
-            <Plus size={14} />
-            <span>Buat Pesanan Baru</span>
-          </button>
-        </div>
-      </div>
-
-      {/* ── STATUS TABS ──────────────────────────────────────────────────── */}
-      <div
-        style={{
-          display: "flex",
-          gap: "5px",
-          marginBottom: "8px",
-          flexWrap: "wrap",
-        }}
-      >
-        {[
-          { value: "semua", label: `Semua (${orders.length})` },
-          ...STATUS_LIST.map((s) => ({
-            value: s.value,
-            label: `${s.label} (${countByStatus(s.value)})`,
-          })),
-        ].map((tab) => (
-          <button
-            key={tab.value}
-            onClick={() => {
-              setFilterStatus(tab.value);
-              setCurrentPage(1);
-            }}
-            style={{
-              height: "28px",
-              padding: "0 12px",
-              borderRadius: "6px",
-              border:
-                filterStatus === tab.value
-                  ? "1px solid #2563eb"
-                  : "1px solid #e2e8f0",
-              backgroundColor: filterStatus === tab.value ? "#2563eb" : "#fff",
-              color: filterStatus === tab.value ? "#fff" : "#475569",
-              fontSize: "11px",
-              fontWeight: "700",
-              cursor: "pointer",
-            }}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {/* ── SEARCH & FILTER BAR ──────────────────────────────────────────── */}
-      <div
-        style={{
-          display: "flex",
-          gap: "10px",
-          marginBottom: "8px",
-          alignItems: "center",
-          backgroundColor: "#fff",
-          border: "1px solid #e2e8f0",
-          borderRadius: "8px",
-          padding: "8px 12px",
-        }}
-      >
-        <div style={{ flex: 1, minWidth: "200px", position: "relative" }}>
-          <Search
-            size={14}
-            color="#94a3b8"
-            style={{
-              position: "absolute",
-              left: "10px",
-              top: "50%",
-              transform: "translateY(-50%)",
-            }}
-          />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setCurrentPage(1);
-            }}
-            placeholder="Cari no pesanan, nama, no HP, resi..."
-            style={{
-              width: "100%",
-              padding: "6px 10px 6px 32px",
-              borderRadius: "6px",
-              border: "1px solid #e2e8f0",
-              fontSize: "12px",
-              outline: "none",
-            }}
-          />
-        </div>
-        <button
-          type="button"
-          onClick={() => loadOrders()}
-          style={{
-            padding: "6px 12px",
-            borderRadius: "6px",
-            border: "1px solid #e2e8f0",
-            fontSize: "12px",
-            cursor: "pointer",
-            fontWeight: "700",
-            backgroundColor: "#f8fafc",
-          }}
-        >
-          Refresh
-        </button>
-      </div>
-
-      {/* ── TABLE ────────────────────────────────────────────────────────── */}
-      <div
-        style={{
-          backgroundColor: "#fff",
-          border: "1px solid #e2e8f0",
-          borderRadius: "8px",
-          overflow: "hidden",
-          boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-        }}
-      >
-        <div style={{ overflowX: "auto" }}>
-          <table
-            style={{
-              width: "100%",
-              borderCollapse: "collapse",
-              fontSize: "12px",
-              textAlign: "left",
-            }}
-          >
-            <thead>
-              <tr
+          {TABS_CONFIG.map((tab) => {
+            const IconComp = tab.icon;
+            const isActive = filterStatus === tab.value;
+            return (
+              <button
+                key={tab.value}
+                type="button"
+                onClick={() => {
+                  setFilterStatus(tab.value);
+                  setCurrentPage(1);
+                }}
                 style={{
-                  backgroundColor: "#f8fafc",
-                  fontSize: "10.5px",
-                  fontWeight: "800",
-                  textTransform: "uppercase",
-                  color: "#64748b",
+                  height: "28px",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "6px",
+                  padding: "0 12px",
+                  borderRadius: "6px",
+                  border: isActive
+                    ? `1px solid ${tab.activeBorder}`
+                    : `1px solid ${tab.inactiveBorder}`,
+                  backgroundColor: isActive ? tab.activeBg : tab.inactiveBg,
+                  color: isActive ? "#ffffff" : tab.inactiveColor,
+                  fontSize: "12px",
+                  fontWeight: "700",
+                  lineHeight: 1,
+                  cursor: "pointer",
+                  transition: "all 0.15s ease",
+                  boxShadow: isActive ? `0 1px 4px ${tab.shadow}` : "none",
                 }}
               >
-                <th
-                  style={{ padding: "8px 12px", border: "1px solid #e2e8f0" }}
-                >
-                  NO PESANAN
-                </th>
-                <th
-                  style={{ padding: "8px 12px", border: "1px solid #e2e8f0" }}
-                >
-                  PELANGGAN
-                </th>
-                <th
-                  style={{ padding: "8px 12px", border: "1px solid #e2e8f0" }}
-                >
-                  TOKO
-                </th>
-                <th
-                  style={{ padding: "8px 12px", border: "1px solid #e2e8f0" }}
-                >
-                  PRODUK
-                </th>
-                <th
+                <IconComp size={13} />
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* FILTER CONTROLS BAR (MEPET 5-6PX SEPERTI DATA PRODUK) */}
+        <div
+          style={{
+            backgroundColor: "#ffffff",
+            border: "1px solid #cbd5e1",
+            borderRadius: "8px",
+            padding: "8px 12px",
+            marginBottom: "6px",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            flexWrap: "wrap",
+            boxShadow: "0 1px 3px rgba(15, 23, 42, 0.04)",
+          }}
+        >
+          {/* Search input with icon */}
+          <div style={{ flex: 1, minWidth: "220px", position: "relative" }}>
+            <Search
+              size={14}
+              color="#94a3b8"
+              style={{
+                position: "absolute",
+                left: "10px",
+                top: "50%",
+                transform: "translateY(-50%)",
+              }}
+            />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setCurrentPage(1);
+              }}
+              placeholder="Cari no pesanan, nama pelanggan, no HP, produk, resi..."
+              style={{
+                width: "100%",
+                padding: "6px 10px 6px 32px",
+                borderRadius: "6px",
+                border: "1px solid #cbd5e1",
+                fontSize: "12px",
+                outline: "none",
+                backgroundColor: "#f8fafc",
+                transition: "all 0.15s ease",
+              }}
+              onFocus={(e) => {
+                e.target.style.borderColor = "#0284c7";
+                e.target.style.backgroundColor = "#ffffff";
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = "#cbd5e1";
+                e.target.style.backgroundColor = "#f8fafc";
+              }}
+            />
+          </div>
+
+          {/* Select Toko / Instansi */}
+          <select
+            value={filterToko}
+            onChange={(e) => {
+              setFilterToko(e.target.value);
+              setCurrentPage(1);
+            }}
+            style={{
+              padding: "6px 10px",
+              borderRadius: "6px",
+              border: "1px solid #cbd5e1",
+              fontSize: "12px",
+              color: "#334155",
+              backgroundColor: "#ffffff",
+              cursor: "pointer",
+              minWidth: "135px",
+            }}
+          >
+            <option value="Semua">Semua Toko / Instansi</option>
+            {tokoFilterOptions.map((tk, idx) => (
+              <option key={idx} value={tk}>
+                {tk}
+              </option>
+            ))}
+          </select>
+
+          {/* Select Status Pembayaran */}
+          <select
+            value={filterPembayaran}
+            onChange={(e) => {
+              setFilterPembayaran(e.target.value);
+              setCurrentPage(1);
+            }}
+            style={{
+              padding: "6px 10px",
+              borderRadius: "6px",
+              border: "1px solid #cbd5e1",
+              fontSize: "12px",
+              color: "#334155",
+              backgroundColor: "#ffffff",
+              cursor: "pointer",
+              minWidth: "130px",
+            }}
+          >
+            <option value="Semua">Semua Pembayaran</option>
+            <option value="lunas">Lunas</option>
+            <option value="dp">DP (Down Payment)</option>
+            <option value="belum_bayar">Belum Bayar</option>
+          </select>
+
+          {/* Select Baris Per Halaman (Paging) */}
+          <select
+            value={entriesPerPage}
+            onChange={(e) => {
+              setEntriesPerPage(Number(e.target.value));
+              setCurrentPage(1);
+            }}
+            style={{
+              padding: "6px 10px",
+              borderRadius: "6px",
+              border: "1px solid #cbd5e1",
+              fontSize: "12px",
+              color: "#334155",
+              backgroundColor: "#ffffff",
+              cursor: "pointer",
+              minWidth: "105px",
+            }}
+          >
+            <option value={10}>10 Baris</option>
+            <option value={25}>25 Baris</option>
+            <option value={50}>50 Baris</option>
+            <option value={100}>100 Baris</option>
+          </select>
+
+          {/* Refresh Button */}
+          <button
+            type="button"
+            onClick={() => loadOrders()}
+            style={{
+              padding: "6px 12px",
+              borderRadius: "6px",
+              border: "1px solid #cbd5e1",
+              fontSize: "12px",
+              color: "#334155",
+              cursor: "pointer",
+              fontWeight: "700",
+              backgroundColor: "#f8fafc",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "5px",
+              transition: "all 0.15s ease",
+            }}
+            onMouseEnter={(e) =>
+              (e.currentTarget.style.backgroundColor = "#f1f5f9")
+            }
+            onMouseLeave={(e) =>
+              (e.currentTarget.style.backgroundColor = "#f8fafc")
+            }
+          >
+            <RefreshCw size={13} color="#0284c7" />
+            <span>Refresh</span>
+          </button>
+        </div>
+
+        {/* DATA TABLE (MATCHING DATA PRODUK) */}
+        <div
+          style={{
+            backgroundColor: "#ffffff",
+            border: "1px solid #cbd5e1",
+            borderRadius: "8px",
+            overflow: "hidden",
+            boxShadow: "0 2px 6px rgba(15, 23, 42, 0.05)",
+          }}
+        >
+          <div style={{ overflowX: "auto" }}>
+            <table
+              className="table-bordered-hover"
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                textAlign: "left",
+                fontSize: "12px",
+                border: "1px solid #cbd5e1",
+              }}
+            >
+              <thead>
+                <tr
                   style={{
-                    padding: "8px 12px",
-                    border: "1px solid #e2e8f0",
-                    textAlign: "right",
+                    backgroundColor: "#f8fafc",
+                    color: "#475569",
+                    fontSize: "11px",
+                    fontWeight: "800",
+                    letterSpacing: "0.04em",
+                    textTransform: "uppercase",
                   }}
                 >
-                  TOTAL
-                </th>
-                <th
-                  style={{ padding: "8px 12px", border: "1px solid #e2e8f0" }}
-                >
-                  RESI & KURIR
-                </th>
-                <th
-                  style={{
-                    padding: "8px 12px",
-                    border: "1px solid #e2e8f0",
-                    textAlign: "center",
-                  }}
-                >
-                  STATUS
-                </th>
-                <th
-                  style={{
-                    padding: "8px 12px",
-                    border: "1px solid #e2e8f0",
-                    textAlign: "center",
-                    width: "200px",
-                  }}
-                >
-                  AKSI
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading ? (
-                <tr>
-                  <td
-                    colSpan="8"
+                  <th
                     style={{
-                      padding: "32px",
+                      padding: "5px 8px",
                       textAlign: "center",
-                      color: "#94a3b8",
-                      border: "1px solid #e2e8f0",
+                      width: "45px",
+                      border: "1px solid #cbd5e1",
                     }}
                   >
-                    Memuat...
-                  </td>
-                </tr>
-              ) : paginated.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan="8"
+                    NO
+                  </th>
+                  <th
+                    style={{ padding: "5px 8px", border: "1px solid #cbd5e1" }}
+                  >
+                    NO PESANAN & TANGGAL
+                  </th>
+                  <th
+                    style={{ padding: "5px 8px", border: "1px solid #cbd5e1" }}
+                  >
+                    PELANGGAN
+                  </th>
+                  <th
+                    style={{ padding: "5px 8px", border: "1px solid #cbd5e1" }}
+                  >
+                    TOKO / INSTANSI
+                  </th>
+                  <th
+                    style={{ padding: "5px 8px", border: "1px solid #cbd5e1" }}
+                  >
+                    RINGKASAN PRODUK
+                  </th>
+                  <th
                     style={{
-                      padding: "32px",
-                      textAlign: "center",
-                      color: "#94a3b8",
-                      border: "1px solid #e2e8f0",
+                      padding: "5px 8px",
+                      border: "1px solid #cbd5e1",
+                      textAlign: "right",
                     }}
                   >
-                    <Package
-                      size={32}
-                      color="#cbd5e1"
-                      style={{ marginBottom: "6px" }}
-                    />
-                    <div style={{ fontWeight: "700", color: "#475569" }}>
-                      Belum ada pesanan offline
-                    </div>
-                    <div style={{ fontSize: "11px", marginTop: "2px" }}>
-                      Klik "Buat Pesanan Baru" untuk mulai
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                paginated.map((ord) => (
-                  <tr
-                    key={ord.id}
-                    style={{ transition: "background-color 0.1s" }}
-                    onMouseEnter={(e) =>
-                      (e.currentTarget.style.backgroundColor = "#f8fafc")
-                    }
-                    onMouseLeave={(e) =>
-                      (e.currentTarget.style.backgroundColor = "#fff")
-                    }
+                    TOTAL TAGIHAN
+                  </th>
+                  <th
+                    style={{ padding: "5px 8px", border: "1px solid #cbd5e1" }}
                   >
-                    {/* NO PESANAN */}
+                    RESI & KURIR
+                  </th>
+                  <th
+                    style={{
+                      padding: "5px 8px",
+                      border: "1px solid #cbd5e1",
+                      textAlign: "center",
+                    }}
+                  >
+                    STATUS
+                  </th>
+                  <th
+                    style={{
+                      padding: "5px 8px",
+                      border: "1px solid #cbd5e1",
+                      textAlign: "center",
+                      width: "140px",
+                    }}
+                  >
+                    AKSI
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {isLoading ? (
+                  <tr>
                     <td
+                      colSpan="9"
                       style={{
-                        padding: "8px 12px",
-                        border: "1px solid #e2e8f0",
-                        fontWeight: "700",
-                        color: "#1e40af",
-                        fontSize: "11.5px",
-                      }}
-                    >
-                      {ord.no_pesanan}
-                      <div
-                        style={{
-                          fontSize: "10px",
-                          color: "#94a3b8",
-                          fontWeight: "400",
-                        }}
-                      >
-                        {new Date(ord.dibuat_pada).toLocaleDateString("id-ID", {
-                          day: "numeric",
-                          month: "short",
-                          year: "numeric",
-                        })}
-                      </div>
-                    </td>
-
-                    {/* PELANGGAN */}
-                    <td
-                      style={{
-                        padding: "8px 12px",
-                        border: "1px solid #e2e8f0",
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontWeight: "700",
-                          color: "#1e293b",
-                          fontSize: "12px",
-                        }}
-                      >
-                        {ord.nama_pembeli}
-                      </div>
-                      {ord.no_telepon && (
-                        <div
-                          style={{
-                            fontSize: "10.5px",
-                            color: "#64748b",
-                            marginTop: "2px",
-                          }}
-                        >
-                          {ord.no_telepon}
-                        </div>
-                      )}
-                      {ord.is_dropship === 1 && (
-                        <div
-                          style={{
-                            fontSize: "10px",
-                            color: "#8b5cf6",
-                            fontWeight: "600",
-                            marginTop: "2px",
-                          }}
-                        >
-                          ↳ DS: {ord.nama_pengirim_ds || "-"}
-                        </div>
-                      )}
-                    </td>
-
-                    {/* TOKO */}
-                    <td
-                      style={{
-                        padding: "8px 12px",
-                        border: "1px solid #e2e8f0",
-                        fontSize: "11.5px",
-                        color: "#475569",
-                      }}
-                    >
-                      {ord.nama_toko || "-"}
-                    </td>
-
-                    {/* PRODUK */}
-                    <td
-                      style={{
-                        padding: "8px 12px",
-                        border: "1px solid #e2e8f0",
-                        maxWidth: "200px",
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: "11.5px",
-                          color: "#334155",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                          maxWidth: "200px",
-                        }}
-                      >
-                        {ord.ringkasan_produk || "-"}
-                      </div>
-                      <div style={{ fontSize: "10px", color: "#94a3b8" }}>
-                        {ord.jumlah_item || 0} item · {ord.total_qty || 0} pcs
-                      </div>
-                    </td>
-
-                    {/* TOTAL */}
-                    <td
-                      style={{
-                        padding: "8px 12px",
-                        border: "1px solid #e2e8f0",
-                        textAlign: "right",
-                        fontWeight: "700",
-                        color: "#059669",
-                        fontSize: "12px",
-                      }}
-                    >
-                      {formatRupiah(ord.total_harga)}
-                      <div
-                        style={{
-                          fontSize: "10px",
-                          color: "#94a3b8",
-                          fontWeight: "400",
-                        }}
-                      >
-                        <span style={{ fontWeight: "600", color: ord.metode_pembayaran === "transfer" ? "#0284c7" : "#0f766e" }}>
-                          {ord.metode_pembayaran === "transfer" ? (ord.bank_tujuan ? `Transfer (${ord.bank_tujuan})` : "Transfer") : "Cash"}
-                        </span>
-                        {" · "}
-                        {ord.status_pembayaran === "lunas"
-                          ? "✓ Lunas"
-                          : ord.status_pembayaran === "dp"
-                            ? `DP ${formatRupiah(ord.nominal_dp)}`
-                            : "Belum bayar"}
-                      </div>
-                    </td>
-
-                    {/* RESI & KURIR */}
-                    <td
-                      style={{
-                        padding: "8px 12px",
-                        border: "1px solid #e2e8f0",
-                      }}
-                    >
-                      {editResiId === ord.id ? (
-                        <div style={{ display: "flex", gap: "4px" }}>
-                          <input
-                            value={resiInput}
-                            onChange={(e) => setResiInput(e.target.value)}
-                            placeholder="No resi..."
-                            style={{
-                              width: "100px",
-                              padding: "3px 6px",
-                              fontSize: "11px",
-                              border: "1px solid #cbd5e1",
-                              borderRadius: "4px",
-                            }}
-                          />
-                          <button
-                            onClick={() => handleUpdateResi(ord.id)}
-                            style={{
-                              padding: "3px 6px",
-                              fontSize: "10px",
-                              border: "none",
-                              borderRadius: "4px",
-                              backgroundColor: "#2563eb",
-                              color: "#fff",
-                              cursor: "pointer",
-                            }}
-                          >
-                            OK
-                          </button>
-                          <button
-                            onClick={() => setEditResiId(null)}
-                            style={{
-                              padding: "3px 6px",
-                              fontSize: "10px",
-                              border: "1px solid #e2e8f0",
-                              borderRadius: "4px",
-                              cursor: "pointer",
-                              backgroundColor: "#fff",
-                            }}
-                          >
-                            ×
-                          </button>
-                        </div>
-                      ) : (
-                        <>
-                          <div style={{ fontSize: "11.5px", color: "#334155" }}>
-                            {ord.kurir || "-"}
-                          </div>
-                          <div
-                            style={{
-                              fontSize: "10.5px",
-                              color: ord.no_resi ? "#2563eb" : "#94a3b8",
-                              fontWeight: ord.no_resi ? "600" : "400",
-                              cursor: "pointer",
-                            }}
-                            onClick={() => {
-                              setEditResiId(ord.id);
-                              setResiInput(ord.no_resi || "");
-                            }}
-                          >
-                            {ord.no_resi || "Klik untuk input resi"}
-                          </div>
-                        </>
-                      )}
-                    </td>
-
-                    {/* STATUS */}
-                    <td
-                      style={{
-                        padding: "8px 12px",
-                        border: "1px solid #e2e8f0",
+                        padding: "48px 16px",
                         textAlign: "center",
-                      }}
-                    >
-                      {editStatusId === ord.id ? (
-                        <div style={{ width: "130px", margin: "0 auto" }}>
-                          <SearchableSelect
-                            value={ord.status_pesanan}
-                            onChange={(val) => handleUpdateStatus(ord.id, val)}
-                            options={STATUS_LIST.map((s) => ({
-                              value: s.value,
-                              label: s.label,
-                              color: s.color,
-                            }))}
-                            size="sm"
-                          />
-                        </div>
-                      ) : (
-                        <div
-                          style={{ cursor: "pointer" }}
-                          onClick={() => setEditStatusId(ord.id)}
-                        >
-                          {getStatusBadge(ord.status_pesanan)}
-                        </div>
-                      )}
-                      {ord.no_spk && (
-                        <div
-                          style={{
-                            fontSize: "9.5px",
-                            color: "#7c3aed",
-                            fontWeight: "600",
-                            marginTop: "3px",
-                          }}
-                        >
-                          SPK: {ord.no_spk}
-                        </div>
-                      )}
-                    </td>
-
-                    {/* AKSI */}
-                    <td
-                      style={{
-                        padding: "8px 12px",
-                        border: "1px solid #e2e8f0",
-                        textAlign: "center",
+                        backgroundColor: "#fbfcfe",
+                        border: "1px solid #cbd5e1",
                       }}
                     >
                       <div
                         style={{
                           display: "flex",
-                          gap: "4px",
+                          flexDirection: "column",
+                          alignItems: "center",
                           justifyContent: "center",
-                          flexWrap: "wrap",
+                          gap: "10px",
                         }}
                       >
-                        <button
-                          onClick={() => loadDetail(ord.id)}
-                          title="Detail Pesanan"
+                        <div
                           style={{
-                            padding: "4px 8px",
-                            borderRadius: "5px",
-                            border: "1px solid #e2e8f0",
-                            backgroundColor: "#f8fafc",
-                            color: "#334155",
-                            cursor: "pointer",
-                            fontSize: "10.5px",
+                            width: "46px",
+                            height: "46px",
+                            borderRadius: "50%",
+                            background:
+                              "linear-gradient(135deg, #e0f2fe 0%, #f0fdf4 100%)",
                             display: "flex",
                             alignItems: "center",
-                            gap: "3px",
-                            fontWeight: "600",
+                            justifyContent: "center",
+                            boxShadow: "0 4px 12px rgba(2, 132, 199, 0.12)",
                           }}
                         >
-                          <Eye size={12} /> Detail
-                        </button>
-                        <button
-                          onClick={() => handleEditOrder(ord.id)}
-                          title="Edit Pesanan"
-                          style={{
-                            padding: "4px 8px",
-                            borderRadius: "5px",
-                            border: "1px solid #bae6fd",
-                            backgroundColor: "#e0f2fe",
-                            color: "#0284c7",
-                            cursor: "pointer",
-                            fontSize: "10.5px",
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "3px",
-                            fontWeight: "700",
-                          }}
-                        >
-                          <Edit3 size={12} /> Edit
-                        </button>
-                        {ord.status_pesanan === "draft" && (
-                          <button
-                            onClick={() =>
-                              handleUpdateStatus(ord.id, "dikonfirmasi")
-                            }
-                            title="Konfirmasi Pesanan"
+                          <Loader2
+                            size={24}
+                            color="#0284c7"
+                            className="animate-spin"
+                          />
+                        </div>
+                        <div>
+                          <div
                             style={{
-                              padding: "4px 8px",
-                              borderRadius: "5px",
-                              border: "none",
-                              backgroundColor: "#2563eb",
-                              color: "#fff",
-                              cursor: "pointer",
-                              fontSize: "10.5px",
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "3px",
-                              fontWeight: "600",
+                              fontSize: "13.5px",
+                              fontWeight: "800",
+                              color: "#0f172a",
+                              letterSpacing: "-0.01em",
                             }}
                           >
-                            <CheckCircle2 size={12} /> Konfirmasi
-                          </button>
-                        )}
-                        <button
-                          onClick={() => handleDelete(ord)}
-                          title="Hapus Pesanan"
-                          style={{
-                            padding: "4px 8px",
-                            borderRadius: "5px",
-                            border: "1px solid #fecaca",
-                            backgroundColor: "#fee2e2",
-                            color: "#ef4444",
-                            cursor: "pointer",
-                            fontSize: "10.5px",
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "3px",
-                            fontWeight: "700",
-                          }}
-                        >
-                          <Trash2 size={12} /> Hapus
-                        </button>
+                            Menarik Data Pesanan Offline...
+                          </div>
+                          <div
+                            style={{
+                              fontSize: "11px",
+                              color: "#64748b",
+                              marginTop: "3px",
+                            }}
+                          >
+                            Sinkronisasi transaksi & status pembayaran dari
+                            database MySQL
+                          </div>
+                        </div>
                       </div>
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                ) : paginated.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan="9"
+                      style={{
+                        padding: "24px 16px",
+                        textAlign: "center",
+                        color: "#64748b",
+                        border: "1px solid #cbd5e1",
+                      }}
+                    >
+                      <Package
+                        size={32}
+                        color="#cbd5e1"
+                        style={{ marginBottom: "6px" }}
+                      />
+                      <div
+                        style={{
+                          fontWeight: "700",
+                          fontSize: "13px",
+                          color: "#334155",
+                        }}
+                      >
+                        Tidak ada pesanan offline ditemukan
+                      </div>
+                      <div style={{ fontSize: "11px", marginTop: "2px" }}>
+                        Klik tombol &quot;Buat Pesanan Baru&quot; atau ubah
+                        filter pencarian.
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  paginated.map((ord, index) => {
+                    const rowNumber =
+                      (currentPage - 1) * entriesPerPage + index + 1;
+                    return (
+                      <tr
+                        key={ord.id}
+                        style={{
+                          backgroundColor: "transparent",
+                          transition: "background-color 0.15s ease",
+                          cursor: "default",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = "#f1f5f9";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = "transparent";
+                        }}
+                      >
+                        {/* NO */}
+                        <td
+                          style={{
+                            padding: "5px 8px",
+                            textAlign: "center",
+                            color: "#64748b",
+                            fontWeight: "600",
+                            border: "1px solid #cbd5e1",
+                          }}
+                        >
+                          {rowNumber}
+                        </td>
 
-        {/* Pagination */}
-        {totalPages > 1 && (
+                        {/* NO PESANAN & TANGGAL */}
+                        <td
+                          style={{
+                            padding: "5px 8px",
+                            border: "1px solid #cbd5e1",
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontWeight: "700",
+                              color: "#0f172a",
+                              fontSize: "12px",
+                              lineHeight: 1.2,
+                            }}
+                          >
+                            {ord.no_pesanan}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: "11px",
+                              color: "#0284c7",
+                              fontWeight: "600",
+                            }}
+                          >
+                            {new Date(ord.dibuat_pada).toLocaleDateString(
+                              "id-ID",
+                              {
+                                day: "numeric",
+                                month: "short",
+                                year: "numeric",
+                              },
+                            )}
+                          </div>
+                        </td>
+
+                        {/* PELANGGAN */}
+                        <td
+                          style={{
+                            padding: "5px 8px",
+                            border: "1px solid #cbd5e1",
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontWeight: "700",
+                              color: "#0f172a",
+                              fontSize: "12px",
+                              lineHeight: 1.2,
+                            }}
+                          >
+                            {ord.nama_pembeli}
+                          </div>
+                          {ord.no_telepon && (
+                            <div
+                              style={{
+                                fontSize: "11px",
+                                color: "#64748b",
+                                marginTop: "2px",
+                              }}
+                            >
+                              {ord.no_telepon}
+                            </div>
+                          )}
+                          {ord.is_dropship === 1 && (
+                            <div
+                              style={{
+                                fontSize: "10px",
+                                color: "#7c3aed",
+                                fontWeight: "700",
+                                marginTop: "2px",
+                              }}
+                            >
+                              ↳ DS: {ord.nama_pengirim_ds || "-"}
+                            </div>
+                          )}
+                        </td>
+
+                        {/* TOKO / INSTANSI */}
+                        <td
+                          style={{
+                            padding: "5px 8px",
+                            border: "1px solid #cbd5e1",
+                          }}
+                        >
+                          {ord.nama_toko ? (
+                            <span
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "4px",
+                                padding: "2px 7px",
+                                borderRadius: "4px",
+                                fontSize: "10.5px",
+                                fontWeight: "700",
+                                backgroundColor: "#eff6ff",
+                                color: "#1d4ed8",
+                                border: "1px solid #bfdbfe",
+                              }}
+                            >
+                              <Store size={11} />
+                              <span>{ord.nama_toko}</span>
+                            </span>
+                          ) : (
+                            <span style={{ color: "#94a3b8" }}>-</span>
+                          )}
+                        </td>
+
+                        {/* PRODUK */}
+                        <td
+                          style={{
+                            padding: "5px 8px",
+                            border: "1px solid #cbd5e1",
+                            maxWidth: "240px",
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontSize: "11.5px",
+                              fontWeight: "700",
+                              color: "#0f172a",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                              maxWidth: "240px",
+                            }}
+                            title={ord.ringkasan_produk || "-"}
+                          >
+                            {ord.ringkasan_produk || "-"}
+                          </div>
+                          <div
+                            style={{
+                              marginTop: "2px",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "4px",
+                            }}
+                          >
+                            <span
+                              style={{
+                                display: "inline-block",
+                                padding: "1px 6px",
+                                borderRadius: "4px",
+                                fontSize: "10px",
+                                fontWeight: "700",
+                                backgroundColor: "#f1f5f9",
+                                color: "#475569",
+                                border: "1px solid #cbd5e1",
+                              }}
+                            >
+                              {ord.jumlah_item || 0} Macam ·{" "}
+                              {ord.total_qty || 0} Pcs
+                            </span>
+                          </div>
+                        </td>
+
+                        {/* TOTAL */}
+                        <td
+                          style={{
+                            padding: "5px 8px",
+                            border: "1px solid #cbd5e1",
+                            textAlign: "right",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontWeight: "800",
+                              color: "#059669",
+                              fontSize: "12px",
+                            }}
+                          >
+                            {formatRupiah(ord.total_harga)}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: "10px",
+                              color: "#64748b",
+                              marginTop: "2px",
+                            }}
+                          >
+                            <span
+                              style={{
+                                fontWeight: "700",
+                                color:
+                                  ord.metode_pembayaran === "transfer"
+                                    ? "#0284c7"
+                                    : "#0f766e",
+                              }}
+                            >
+                              {ord.metode_pembayaran === "transfer"
+                                ? ord.bank_tujuan
+                                  ? `Transfer (${ord.bank_tujuan})`
+                                  : "Transfer"
+                                : "Cash"}
+                            </span>
+                            {" · "}
+                            <span
+                              style={{
+                                fontWeight: "700",
+                                color:
+                                  ord.status_pembayaran === "lunas"
+                                    ? "#059669"
+                                    : ord.status_pembayaran === "dp"
+                                      ? "#d97706"
+                                      : "#dc2626",
+                              }}
+                            >
+                              {ord.status_pembayaran === "lunas"
+                                ? "✓ Lunas"
+                                : ord.status_pembayaran === "dp"
+                                  ? `DP ${formatRupiah(ord.nominal_dp)}`
+                                  : "Belum bayar"}
+                            </span>
+                          </div>
+                        </td>
+
+                        {/* RESI & KURIR */}
+                        <td
+                          style={{
+                            padding: "5px 8px",
+                            border: "1px solid #cbd5e1",
+                          }}
+                        >
+                          {editResiId === ord.id ? (
+                            <div style={{ display: "flex", gap: "4px" }}>
+                              <input
+                                value={resiInput}
+                                onChange={(e) => setResiInput(e.target.value)}
+                                placeholder="No resi..."
+                                style={{
+                                  width: "100px",
+                                  padding: "3px 6px",
+                                  fontSize: "11px",
+                                  border: "1px solid #cbd5e1",
+                                  borderRadius: "4px",
+                                }}
+                              />
+                              <button
+                                onClick={() => handleUpdateResi(ord.id)}
+                                style={{
+                                  padding: "3px 6px",
+                                  fontSize: "10px",
+                                  border: "none",
+                                  borderRadius: "4px",
+                                  backgroundColor: "#0284c7",
+                                  color: "#fff",
+                                  cursor: "pointer",
+                                  fontWeight: "700",
+                                }}
+                              >
+                                OK
+                              </button>
+                              <button
+                                onClick={() => setEditResiId(null)}
+                                style={{
+                                  padding: "3px 6px",
+                                  fontSize: "10px",
+                                  border: "1px solid #cbd5e1",
+                                  borderRadius: "4px",
+                                  cursor: "pointer",
+                                  backgroundColor: "#fff",
+                                }}
+                              >
+                                ×
+                              </button>
+                            </div>
+                          ) : (
+                            <>
+                              <div
+                                style={{
+                                  fontSize: "11.5px",
+                                  fontWeight: "600",
+                                  color: "#334155",
+                                }}
+                              >
+                                {ord.kurir || "-"}
+                              </div>
+                              <div
+                                style={{
+                                  fontSize: "10.5px",
+                                  color: ord.no_resi ? "#0284c7" : "#94a3b8",
+                                  fontWeight: ord.no_resi ? "700" : "400",
+                                  cursor: "pointer",
+                                }}
+                                onClick={() => {
+                                  setEditResiId(ord.id);
+                                  setResiInput(ord.no_resi || "");
+                                }}
+                              >
+                                {ord.no_resi || "Klik untuk input resi"}
+                              </div>
+                            </>
+                          )}
+                        </td>
+
+                        {/* STATUS */}
+                        <td
+                          style={{
+                            padding: "5px 8px",
+                            border: "1px solid #cbd5e1",
+                            textAlign: "center",
+                          }}
+                        >
+                          {editStatusId === ord.id ? (
+                            <div style={{ width: "130px", margin: "0 auto" }}>
+                              <SearchableSelect
+                                value={ord.status_pesanan}
+                                onChange={(val) =>
+                                  handleUpdateStatus(ord.id, val)
+                                }
+                                options={STATUS_LIST.map((s) => ({
+                                  value: s.value,
+                                  label: s.label,
+                                  color: s.color,
+                                }))}
+                                size="sm"
+                              />
+                            </div>
+                          ) : (
+                            <div
+                              style={{ cursor: "pointer" }}
+                              onClick={() => setEditStatusId(ord.id)}
+                              title="Klik untuk ubah status pesanan"
+                            >
+                              {getStatusBadge(ord.status_pesanan)}
+                            </div>
+                          )}
+                          {ord.no_spk && (
+                            <div
+                              style={{
+                                fontSize: "9.5px",
+                                color: "#7c3aed",
+                                fontWeight: "700",
+                                marginTop: "3px",
+                              }}
+                            >
+                              SPK: {ord.no_spk}
+                            </div>
+                          )}
+                        </td>
+
+                        {/* ACTION BUTTONS (Detail, Edit, Konfirmasi, Hapus - Matching Data Produk) */}
+                        <td
+                          style={{
+                            padding: "5px 8px",
+                            border: "1px solid #cbd5e1",
+                            textAlign: "center",
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "4px",
+                            }}
+                          >
+                            {/* 1. Detail Eye Button (Teal / Cyan) */}
+                            <button
+                              type="button"
+                              onClick={() => loadDetail(ord.id)}
+                              title="Lihat Detail Pesanan"
+                              style={{
+                                width: "26px",
+                                height: "26px",
+                                borderRadius: "4px",
+                                border: "none",
+                                backgroundColor: "#06b6d4",
+                                color: "#ffffff",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                cursor: "pointer",
+                                transition: "opacity 0.15s ease",
+                              }}
+                              onMouseEnter={(e) =>
+                                (e.currentTarget.style.opacity = "0.85")
+                              }
+                              onMouseLeave={(e) =>
+                                (e.currentTarget.style.opacity = "1")
+                              }
+                            >
+                              <Eye size={13} />
+                            </button>
+
+                            {/* 2. Edit Pencil Button (Blue) */}
+                            <button
+                              type="button"
+                              onClick={() => handleEditOrder(ord.id)}
+                              title="Edit Data Pesanan"
+                              style={{
+                                width: "26px",
+                                height: "26px",
+                                borderRadius: "4px",
+                                border: "none",
+                                backgroundColor: "#0284c7",
+                                color: "#ffffff",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                cursor: "pointer",
+                                transition: "opacity 0.15s ease",
+                              }}
+                              onMouseEnter={(e) =>
+                                (e.currentTarget.style.opacity = "0.85")
+                              }
+                              onMouseLeave={(e) =>
+                                (e.currentTarget.style.opacity = "1")
+                              }
+                            >
+                              <Edit3 size={13} />
+                            </button>
+
+                            {/* 3. Konfirmasi Draft Button (Green) */}
+                            {ord.status_pesanan === "draft" && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleUpdateStatus(ord.id, "dikonfirmasi")
+                                }
+                                title="Konfirmasi Pesanan"
+                                style={{
+                                  width: "26px",
+                                  height: "26px",
+                                  borderRadius: "4px",
+                                  border: "none",
+                                  backgroundColor: "#059669",
+                                  color: "#ffffff",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  cursor: "pointer",
+                                  transition: "opacity 0.15s ease",
+                                }}
+                                onMouseEnter={(e) =>
+                                  (e.currentTarget.style.opacity = "0.85")
+                                }
+                                onMouseLeave={(e) =>
+                                  (e.currentTarget.style.opacity = "1")
+                                }
+                              >
+                                <CheckCircle2 size={13} />
+                              </button>
+                            )}
+
+                            {/* 4. Delete Trash Button (Red) */}
+                            <button
+                              type="button"
+                              onClick={() => handleDelete(ord)}
+                              title="Hapus Pesanan"
+                              style={{
+                                width: "26px",
+                                height: "26px",
+                                borderRadius: "4px",
+                                border: "none",
+                                backgroundColor: "#ef4444",
+                                color: "#ffffff",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                cursor: "pointer",
+                                transition: "opacity 0.15s ease",
+                              }}
+                              onMouseEnter={(e) =>
+                                (e.currentTarget.style.opacity = "0.85")
+                              }
+                              onMouseLeave={(e) =>
+                                (e.currentTarget.style.opacity = "1")
+                              }
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* PAGING FOOTER (MATCHING DATA PRODUK) */}
           <div
             style={{
-              padding: "8px 12px",
+              padding: "8px 14px",
+              borderTop: "1px solid #cbd5e1",
+              backgroundColor: "#f8fafc",
               display: "flex",
-              justifyContent: "space-between",
               alignItems: "center",
-              borderTop: "1px solid #e2e8f0",
+              justifyContent: "space-between",
+              flexWrap: "wrap",
+              gap: "10px",
+              fontSize: "11.5px",
+              color: "#64748b",
             }}
           >
-            <span style={{ fontSize: "11px", color: "#64748b" }}>
-              {filtered.length} pesanan · Hal {currentPage}/{totalPages}
-            </span>
-            <div style={{ display: "flex", gap: "4px" }}>
+            <div>
+              Menampilkan{" "}
+              <strong>
+                {totalCount === 0
+                  ? 0
+                  : (currentPage - 1) * entriesPerPage + 1}
+              </strong>{" "}
+              sampai{" "}
+              <strong>
+                {Math.min(currentPage * entriesPerPage, totalCount)}
+              </strong>{" "}
+              dari <strong>{totalCount}</strong> pesanan
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
               <button
+                type="button"
+                disabled={currentPage <= 1}
                 onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
                 style={{
-                  padding: "4px 10px",
+                  padding: "4px 12px",
                   borderRadius: "5px",
-                  border: "1px solid #e2e8f0",
-                  cursor: "pointer",
-                  fontSize: "11px",
-                  fontWeight: "600",
+                  border: "1px solid #cbd5e1",
+                  backgroundColor: currentPage <= 1 ? "#f1f5f9" : "#ffffff",
+                  color: currentPage <= 1 ? "#94a3b8" : "#334155",
+                  cursor: currentPage <= 1 ? "not-allowed" : "pointer",
+                  fontSize: "11.5px",
+                  fontWeight: "700",
+                  transition: "all 0.15s ease",
                 }}
               >
-                ‹
+                Sebelumnya
               </button>
+              <span
+                style={{
+                  padding: "0 8px",
+                  fontWeight: "800",
+                  color: "#0f172a",
+                  fontSize: "12px",
+                }}
+              >
+                {currentPage} / {totalPages}
+              </span>
               <button
+                type="button"
+                disabled={currentPage >= totalPages}
                 onClick={() =>
                   setCurrentPage((p) => Math.min(totalPages, p + 1))
                 }
-                disabled={currentPage === totalPages}
                 style={{
-                  padding: "4px 10px",
+                  padding: "4px 12px",
                   borderRadius: "5px",
-                  border: "1px solid #e2e8f0",
-                  cursor: "pointer",
-                  fontSize: "11px",
-                  fontWeight: "600",
+                  border: "1px solid #cbd5e1",
+                  backgroundColor:
+                    currentPage >= totalPages ? "#f1f5f9" : "#ffffff",
+                  color: currentPage >= totalPages ? "#94a3b8" : "#334155",
+                  cursor:
+                    currentPage >= totalPages ? "not-allowed" : "pointer",
+                  fontSize: "11.5px",
+                  fontWeight: "700",
+                  transition: "all 0.15s ease",
                 }}
               >
-                ›
+                Selanjutnya
               </button>
             </div>
           </div>
-        )}
+        </div>
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
