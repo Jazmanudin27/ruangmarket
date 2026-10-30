@@ -32,6 +32,8 @@ import {
   CheckCircle,
   XCircle,
   ClipboardList,
+  QrCode,
+  Printer,
 } from "lucide-react";
 import SearchableSelect from "../../components/SearchableSelect";
 import RupiahInput from "../../components/RupiahInput";
@@ -42,6 +44,10 @@ import {
   showConfirm,
 } from "../../utils/alert.util";
 import { getActiveCompany } from "../../utils/tenant.util";
+import {
+  INITIAL_TAHAPAN_DATA,
+  TAHAPAN_STORAGE_KEY,
+} from "./TahapanSPKDesktopView";
 
 function formatRupiah(val) {
   return "Rp " + Number(val || 0).toLocaleString("id-ID");
@@ -255,6 +261,7 @@ export default function PenjualanOfflineView({ onNavigate }) {
 
   // Master Bank (Tambah & Edit)
   const [bankList, setBankList] = useState([]);
+  const [tahapanSpkList, setTahapanSpkList] = useState(INITIAL_TAHAPAN_DATA);
   const [isBankModalOpen, setIsBankModalOpen] = useState(false);
   const [isSavingBank, setIsSavingBank] = useState(false);
   const [bankModalMode, setBankModalMode] = useState("create"); // 'create' | 'edit'
@@ -590,7 +597,40 @@ export default function PenjualanOfflineView({ onNavigate }) {
     loadMasterProduk();
     loadPelanggan();
     loadBank();
+    loadTahapanSpk();
   }, []);
+
+  const loadTahapanSpk = async () => {
+    try {
+      const res = await fetch(
+        `/api/marketplace/tahapan-spk?kode_perusahaan=${activeCompany?.code || "RSG"}`,
+      );
+      if (res.ok) {
+        const json = await res.json();
+        if (json && Array.isArray(json.data) && json.data.length > 0) {
+          setTahapanSpkList(json.data);
+          try {
+            localStorage.setItem(
+              TAHAPAN_STORAGE_KEY,
+              JSON.stringify(json.data),
+            );
+          } catch (e) {}
+          return;
+        }
+      }
+    } catch (e) {}
+    try {
+      const saved = localStorage.getItem(TAHAPAN_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setTahapanSpkList(parsed);
+          return;
+        }
+      }
+    } catch (e) {}
+    setTahapanSpkList(INITIAL_TAHAPAN_DATA);
+  };
 
   // ── Handlers ────────────────────────────────────────────────────────────
   const resetForm = () => {
@@ -924,7 +964,19 @@ export default function PenjualanOfflineView({ onNavigate }) {
     return baseName ? baseName.slice(0, 28) : "Produk Umum";
   };
 
+  const getDefaultTahapanSpk = () => {
+    const active = (tahapanSpkList || []).filter(
+      (t) => t.status !== "Nonaktif",
+    );
+    return (
+      active[0]?.nama_tahapan ||
+      tahapanSpkList?.[0]?.nama_tahapan ||
+      "Perencanaan"
+    );
+  };
+
   const buildGroupedSpkList = (items = [], suffix = "101", mode = "auto") => {
+    const defaultStage = getDefaultTahapanSpk();
     const cleanItems = (items || []).map((it, idx) => ({
       id: it.id || `item-${Date.now()}-${idx + 1}`,
       sku: it.sku || "",
@@ -940,7 +992,7 @@ export default function PenjualanOfflineView({ onNavigate }) {
           id_spk: `SPK-${suffix}-01`,
           nama_spk: "SPK Produksi 1",
           penjahit: "Penjahit Workshop",
-          status_spk: "Potong Pola",
+          status_spk: defaultStage,
           produk_items: [],
         },
       ];
@@ -952,7 +1004,7 @@ export default function PenjualanOfflineView({ onNavigate }) {
           id_spk: `SPK-${suffix}-01`,
           nama_spk: `SPK Gabungan (${cleanItems.length} Produk)`,
           penjahit: "Penjahit Workshop",
-          status_spk: "Potong Pola",
+          status_spk: defaultStage,
           produk_items: cleanItems.map((it) => ({
             ...it,
             no_spk: `SPK-${suffix}-01`,
@@ -968,7 +1020,7 @@ export default function PenjualanOfflineView({ onNavigate }) {
           id_spk: spkNo,
           nama_spk: `SPK ${it.nama_produk.slice(0, 32)}`,
           penjahit: "Penjahit Workshop",
-          status_spk: "Potong Pola",
+          status_spk: defaultStage,
           produk_items: [{ ...it, no_spk: spkNo }],
         };
       });
@@ -994,7 +1046,7 @@ export default function PenjualanOfflineView({ onNavigate }) {
         id_spk: spkNo,
         nama_spk: `SPK ${groupLabel}`,
         penjahit: "Penjahit Workshop",
-        status_spk: "Potong Pola",
+        status_spk: defaultStage,
         produk_items: groupItems.map((it) => ({
           ...it,
           no_spk: spkNo,
@@ -1005,6 +1057,7 @@ export default function PenjualanOfflineView({ onNavigate }) {
 
   const handleOpenSpkModal = async (idOrOrder) => {
     const id = typeof idOrOrder === "object" ? idOrOrder.id : idOrOrder;
+    loadTahapanSpk();
     try {
       const res = await fetch(`/api/offline/orders/${id}`);
       const json = await res.json();
@@ -1026,6 +1079,10 @@ export default function PenjualanOfflineView({ onNavigate }) {
           (s) => Array.isArray(s.produk_items) && s.produk_items.length > 0,
         );
 
+      const defaultStage = getDefaultTahapanSpk();
+      const validStageNames = new Set(
+        (tahapanSpkList || []).map((t) => t.nama_tahapan),
+      );
       const initialSpkList = hasExistingSpkList
         ? existingBatch.spk_list.map((s, sIdx) => ({
             id_spk:
@@ -1033,7 +1090,10 @@ export default function PenjualanOfflineView({ onNavigate }) {
               `SPK-${suffix}-${String(sIdx + 1).padStart(2, "0")}`,
             nama_spk: s.nama_spk || `SPK ${sIdx + 1}`,
             penjahit: s.penjahit || "Penjahit Workshop",
-            status_spk: s.status_spk || "Potong Pola",
+            status_spk:
+              s.status_spk && validStageNames.has(s.status_spk)
+                ? s.status_spk
+                : defaultStage,
             produk_items: (s.produk_items || []).map((p, pIdx) => ({
               id: p.id || `item-${Date.now()}-${sIdx}-${pIdx}`,
               no_spk: s.id_spk,
@@ -1076,7 +1136,7 @@ export default function PenjualanOfflineView({ onNavigate }) {
           id_spk: newSpkNo,
           nama_spk: `SPK Produksi ${nextNum}`,
           penjahit: "Penjahit Workshop",
-          status_spk: "Potong Pola",
+          status_spk: getDefaultTahapanSpk(),
           produk_items: [],
         },
       ],
@@ -1139,7 +1199,7 @@ export default function PenjualanOfflineView({ onNavigate }) {
       // Hapus dari SPK asal
       list[fromSpkIdx].produk_items.splice(prodIdx, 1);
 
-      if (targetVal === "__NEW_SPK__") {
+      if (targetVal === "__NEW_SPK__" || targetVal === "NEW_SPK") {
         const nextNum = list.length + 1;
         const newSpkNo = `SPK-${suffix}-${String(nextNum).padStart(2, "0")}`;
         const groupLabel = detectProductGroupLabel(itemToMove);
@@ -1147,7 +1207,7 @@ export default function PenjualanOfflineView({ onNavigate }) {
           id_spk: newSpkNo,
           nama_spk: `SPK ${groupLabel}`,
           penjahit: "Penjahit Workshop",
-          status_spk: "Potong Pola",
+          status_spk: getDefaultTahapanSpk(),
           produk_items: [{ ...itemToMove, no_spk: newSpkNo }],
         });
       } else {
@@ -1230,6 +1290,47 @@ export default function PenjualanOfflineView({ onNavigate }) {
   };
 
   // ── Pembayaran / Cicilan Handlers ───────────────────────────────────────
+  const getPaymentSummary = (ord) => {
+    if (!ord) {
+      return {
+        totalTagihan: 0,
+        sudahBayar: 0,
+        sisaTagihan: 0,
+        statusBayar: "belum_bayar",
+        isLunas: false,
+      };
+    }
+    const totalTagihan = Number(ord.total_harga || 0);
+    const listBayar = Array.isArray(ord.pembayaran_list)
+      ? ord.pembayaran_list
+      : [];
+    const sumList = listBayar.reduce(
+      (sum, p) => sum + Number(p.nominal || 0),
+      0,
+    );
+    const sudahBayar =
+      listBayar.length > 0
+        ? sumList
+        : Number(ord.cnt_pembayaran || 0) > 0
+          ? Number(ord.sum_pembayaran || 0)
+          : Number(ord.nominal_dp || 0);
+    const sisaTagihan = Math.max(0, totalTagihan - sudahBayar);
+    const isLunas = totalTagihan > 0 && sudahBayar >= totalTagihan;
+    const statusBayar = isLunas
+      ? "lunas"
+      : sudahBayar > 0
+        ? "dp"
+        : "belum_bayar";
+
+    return {
+      totalTagihan,
+      sudahBayar,
+      sisaTagihan,
+      statusBayar,
+      isLunas,
+    };
+  };
+
   const handleOpenPaymentModal = async (idOrOrder) => {
     const id = typeof idOrOrder === "object" ? idOrOrder.id : idOrOrder;
     try {
@@ -1239,12 +1340,7 @@ export default function PenjualanOfflineView({ onNavigate }) {
         throw new Error(json.message || "Gagal memuat data pembayaran");
       }
       const ord = json.data;
-      const sudahBayar =
-        ord.status_pembayaran === "lunas"
-          ? Number(ord.total_harga || 0)
-          : Number(ord.nominal_dp || 0);
-      const sisa = Math.max(0, Number(ord.total_harga || 0) - sudahBayar);
-      const tahapKe = (ord.pembayaran_list?.length || 0) + 1;
+      const { sisaTagihan: sisa } = getPaymentSummary(ord);
 
       setPaymentForm({
         tanggal_bayar: new Date().toISOString().slice(0, 10),
@@ -1304,16 +1400,11 @@ export default function PenjualanOfflineView({ onNavigate }) {
       }
       loadOrders();
 
-      const sudahBayar =
-        updated.status_pembayaran === "lunas"
-          ? Number(updated.total_harga || 0)
-          : Number(updated.nominal_dp || 0);
-      const sisa = Math.max(0, Number(updated.total_harga || 0) - sudahBayar);
-      const nextTahap = (updated.pembayaran_list?.length || 0) + 1;
+      const { sisaTagihan: sisa } = getPaymentSummary(updated);
       setPaymentForm((prev) => ({
         ...prev,
         nominal: sisa > 0 ? sisa : 0,
-        keterangan: sisa > 0 ? `Cicilan ke-${nextTahap}` : "Pelunasan",
+        keterangan: "",
       }));
     } catch (err) {
       toastError(err.message);
@@ -1351,6 +1442,513 @@ export default function PenjualanOfflineView({ onNavigate }) {
     } catch (err) {
       toastError(err.message);
     }
+  };
+
+  // ── Scan Kemasan & Verifikasi Packing Penjualan Offline (Seperti Laravel Marketplace) ──
+  const [isScanModalOpen, setIsScanModalOpen] = useState(false);
+  const [scanOrderInput, setScanOrderInput] = useState("");
+  const [scanSkuInput, setScanSkuInput] = useState("");
+  const [activeScanOrder, setActiveScanOrder] = useState(null);
+  const [scanItems, setScanItems] = useState([]);
+  const [scanKurir, setScanKurir] = useState("");
+  const [scanResi, setScanResi] = useState("");
+  const [scanPic, setScanPic] = useState("Admin Gudang");
+  const [scanCatatan, setScanCatatan] = useState("");
+  const [scanFeedback, setScanFeedback] = useState(null); // { type: 'success'|'warning'|'error', text: string }
+  const [scanHistory, setScanHistory] = useState([]);
+  const [isSavingPack, setIsSavingPack] = useState(false);
+  const [isLookingUpScan, setIsLookingUpScan] = useState(false);
+
+  const playScanBeep = (type = "success") => {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      if (type === "success") {
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(1046.5, ctx.currentTime); // C6 beep
+        gain.gain.setValueAtTime(0.15, ctx.currentTime);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.11);
+      } else {
+        osc.type = "sawtooth";
+        osc.frequency.setValueAtTime(220, ctx.currentTime); // Error buzz
+        gain.gain.setValueAtTime(0.2, ctx.currentTime);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.25);
+      }
+    } catch {
+      // ignore audio error
+    }
+  };
+
+  const applyActiveScanOrderData = (ord) => {
+    setActiveScanOrder(ord);
+    const itemsList = Array.isArray(ord.items) ? ord.items : [];
+    setScanItems(
+      itemsList.map((it, idx) => ({
+        ...it,
+        _idx: idx,
+        qty: Number(it.qty || 0),
+        qty_dikemas: Math.min(
+          Number(it.qty || 0),
+          Math.max(0, Number(it.qty_dikemas || 0)),
+        ),
+      })),
+    );
+    setScanKurir(ord.kurir || "");
+    setScanResi(ord.no_resi || "");
+    setScanPic(ord.dikemas_oleh || "Admin Gudang");
+    setScanCatatan(ord.catatan_kemas || "");
+    setScanSkuInput("");
+  };
+
+  const handleOpenScanKemasan = async (orderOrId = null) => {
+    setIsScanModalOpen(true);
+    setScanFeedback(null);
+    setScanOrderInput("");
+    setScanSkuInput("");
+
+    if (orderOrId) {
+      const id = typeof orderOrId === "object" ? orderOrId.id : orderOrId;
+      try {
+        setIsLookingUpScan(true);
+        const res = await fetch(`/api/offline/orders/${id}`);
+        const json = await res.json();
+        if (res.ok && json.data) {
+          applyActiveScanOrderData(json.data);
+          setScanFeedback({
+            type: "success",
+            text: `Pesanan ${json.data.no_pesanan} (${json.data.nama_pelanggan}) siap diverifikasi & dikemas.`,
+          });
+        }
+      } catch (err) {
+        toastError(err.message);
+      } finally {
+        setIsLookingUpScan(false);
+      }
+    } else {
+      setActiveScanOrder(null);
+      setScanItems([]);
+    }
+  };
+
+  const handleScanOrderLookup = async (e, manualKeyword = null) => {
+    if (e && e.preventDefault) e.preventDefault();
+    const kw = (manualKeyword !== null ? manualKeyword : scanOrderInput).trim();
+    if (!kw) {
+      showWarning(
+        "Barcode Pesanan Kosong",
+        "Scan atau ketik No. Pesanan / No. Resi / No. SPK terlebih dahulu.",
+      );
+      return;
+    }
+
+    setIsLookingUpScan(true);
+    try {
+      const res = await fetch("/api/offline/orders/scan-lookup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          keyword: kw,
+          perusahaan_id: activeCompanyId,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || json.status === "error" || !json.data) {
+        playScanBeep("error");
+        setScanFeedback({
+          type: "error",
+          text:
+            json.message ||
+            `Barcode "${kw}" tidak ditemukan di data pesanan offline.`,
+        });
+        return;
+      }
+
+      playScanBeep("success");
+      applyActiveScanOrderData(json.data);
+      setScanOrderInput("");
+      setScanFeedback({
+        type: "success",
+        text: `Berhasil memuat pesanan ${json.data.no_pesanan} — ${json.data.nama_pelanggan} (${(json.data.items || []).length} macam produk). Silakan scan barcode SKU produk!`,
+      });
+    } catch (err) {
+      playScanBeep("error");
+      toastError(err.message);
+    } finally {
+      setIsLookingUpScan(false);
+    }
+  };
+
+  const handleScanSkuSubmit = (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!activeScanOrder) {
+      playScanBeep("error");
+      showWarning(
+        "Belum Ada Pesanan Aktif",
+        "Scan atau pilih Nomor Pesanan terlebih dahulu di panel kiri.",
+      );
+      return;
+    }
+
+    const code = scanSkuInput.trim();
+    if (!code) return;
+    const upper = code.toUpperCase();
+
+    // Cari item dengan SKU cocok (prioritaskan item yang belum lengkap ter-scan)
+    let matchIdx = scanItems.findIndex(
+      (it) =>
+        (String(it.sku || "").toUpperCase() === upper ||
+          String(it.nama_produk || "").toUpperCase() === upper) &&
+        Number(it.qty_dikemas || 0) < Number(it.qty || 0),
+    );
+
+    if (matchIdx === -1) {
+      // Coba partial SKU atau yang sudah lengkap
+      matchIdx = scanItems.findIndex(
+        (it) =>
+          (String(it.sku || "").toUpperCase() === upper ||
+            String(it.sku || "")
+              .toUpperCase()
+              .includes(upper) ||
+            String(it.nama_produk || "")
+              .toUpperCase()
+              .includes(upper)) &&
+          Number(it.qty_dikemas || 0) < Number(it.qty || 0),
+      );
+    }
+
+    if (matchIdx === -1) {
+      // Cek apakah SKU ada di pesanan tapi sudah penuh (over-scan)
+      const alreadyFullIdx = scanItems.findIndex(
+        (it) =>
+          String(it.sku || "").toUpperCase() === upper ||
+          String(it.sku || "")
+            .toUpperCase()
+            .includes(upper),
+      );
+      if (alreadyFullIdx !== -1) {
+        const fullItem = scanItems[alreadyFullIdx];
+        playScanBeep("error");
+        setScanFeedback({
+          type: "warning",
+          text: `PERINGATAN OVER-SCAN: Produk "${fullItem.nama_produk}" (${fullItem.sku || "-"}) sudah lengkap ter-scan (${fullItem.qty_dikemas}/${fullItem.qty} pcs)!`,
+        });
+        setScanSkuInput("");
+        return;
+      }
+
+      playScanBeep("error");
+      setScanFeedback({
+        type: "error",
+        text: `SKU TIDAK COCOK! Barcode "${code}" tidak ada dalam daftar produk pesanan ${activeScanOrder.no_pesanan}.`,
+      });
+      setScanSkuInput("");
+      return;
+    }
+
+    // Increment qty_dikemas + 1
+    playScanBeep("success");
+    const targetItem = scanItems[matchIdx];
+    const nextQty = Math.min(
+      Number(targetItem.qty || 0),
+      Number(targetItem.qty_dikemas || 0) + 1,
+    );
+
+    setScanItems((prev) =>
+      prev.map((it, idx) =>
+        idx === matchIdx ? { ...it, qty_dikemas: nextQty } : it,
+      ),
+    );
+    setScanFeedback({
+      type: "success",
+      text: `SCAN SKU OK: ${targetItem.sku || "TANPA-SKU"} — ${targetItem.nama_produk} (${nextQty}/${targetItem.qty} pcs)`,
+    });
+    setScanSkuInput("");
+  };
+
+  const handleAdjustScanItemQty = (idx, nextVal) => {
+    setScanItems((prev) =>
+      prev.map((it, i) => {
+        if (i !== idx) return it;
+        const clamped = Math.max(
+          0,
+          Math.min(Number(it.qty || 0), Number(nextVal || 0)),
+        );
+        return { ...it, qty_dikemas: clamped };
+      }),
+    );
+  };
+
+  const handleCheckAllScanItems = () => {
+    if (!scanItems.length) return;
+    playScanBeep("success");
+    setScanItems((prev) =>
+      prev.map((it) => ({ ...it, qty_dikemas: Number(it.qty || 0) })),
+    );
+    setScanFeedback({
+      type: "success",
+      text: `Semua produk (${scanItems.length} item) ditandai lengkap terverifikasi & siap dikemas.`,
+    });
+  };
+
+  const handleResetScanItems = () => {
+    setScanItems((prev) => prev.map((it) => ({ ...it, qty_dikemas: 0 })));
+    setScanFeedback({
+      type: "warning",
+      text: "Hitungan scan item di-reset ke 0.",
+    });
+  };
+
+  const handleSaveScanKemasan = async (targetStatus = "siap_kirim") => {
+    if (!activeScanOrder) return;
+
+    const totalOrdered = scanItems.reduce(
+      (sum, it) => sum + Number(it.qty || 0),
+      0,
+    );
+    const totalPacked = scanItems.reduce(
+      (sum, it) => sum + Number(it.qty_dikemas || 0),
+      0,
+    );
+
+    if (
+      (targetStatus === "siap_kirim" || targetStatus === "dikirim") &&
+      totalPacked < totalOrdered
+    ) {
+      const confirmed = await showConfirm(
+        "Item Kemasan Belum Lengkap 100%",
+        `Baru ter-scan ${totalPacked} dari ${totalOrdered} pcs produk. Apakah Anda yakin tetap menyelesaikan kemasan ini?`,
+        "Ya, Tetap Selesaikan",
+      );
+      if (!confirmed) return;
+    }
+
+    setIsSavingPack(true);
+    try {
+      const res = await fetch(
+        `/api/offline/orders/${activeScanOrder.id}/pack`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            items: scanItems.map((it) => ({
+              id: it.id,
+              sku: it.sku,
+              qty_dikemas: Number(it.qty_dikemas || 0),
+            })),
+            status_kemas:
+              totalPacked >= totalOrdered && totalOrdered > 0
+                ? "sudah_dikemas"
+                : totalPacked > 0
+                  ? "sedang_dikemas"
+                  : "belum_dikemas",
+            dikemas_oleh: scanPic || "Admin Gudang",
+            catatan_kemas: scanCatatan || "",
+            kurir: scanKurir,
+            no_resi: scanResi,
+            target_status_pesanan: targetStatus,
+          }),
+        },
+      );
+      const json = await res.json();
+      if (!res.ok || json.status === "error") {
+        throw new Error(json.message || "Gagal menyimpan data scan kemasan");
+      }
+
+      playScanBeep("success");
+      toastSuccess(json.message || "Kemasan pesanan berhasil diverifikasi!");
+      const updated = json.data;
+      applyActiveScanOrderData(updated);
+
+      setScanHistory((prev) => [
+        {
+          id: updated.id,
+          no_pesanan: updated.no_pesanan,
+          nama_pelanggan: updated.nama_pelanggan,
+          nama_toko: updated.nama_toko,
+          kurir: updated.kurir,
+          no_resi: updated.no_resi,
+          total_packed: totalPacked,
+          total_ordered: totalOrdered,
+          status_pesanan: updated.status_pesanan,
+          waktu: new Date().toLocaleTimeString("id-ID", {
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+          }),
+        },
+        ...prev.filter((h) => h.id !== updated.id).slice(0, 19),
+      ]);
+
+      setScanFeedback({
+        type: "success",
+        text: `${json.message} — Silakan cetak label kemasan atau lanjut scan pesanan berikutnya.`,
+      });
+
+      if (detailOrder && detailOrder.id === updated.id) {
+        setDetailOrder(updated);
+      }
+      loadOrders();
+    } catch (err) {
+      playScanBeep("error");
+      toastError(err.message);
+    } finally {
+      setIsSavingPack(false);
+    }
+  };
+
+  const handlePrintLabelKemasan = (ordData = activeScanOrder) => {
+    if (!ordData) return;
+    const itemsToPrint =
+      activeScanOrder && activeScanOrder.id === ordData.id
+        ? scanItems
+        : ordData.items || [];
+    const totalPcs = itemsToPrint.reduce(
+      (s, it) => s + Number(it.qty || 0),
+      0,
+    );
+    const senderName = ordData.is_dropship
+      ? ordData.nama_pengirim || ordData.nama_toko || "Toko Pengirim"
+      : ordData.nama_toko || "RUANG SERAGAM";
+    const senderPhone = ordData.is_dropship
+      ? ordData.telepon_pengirim || "-"
+      : "-";
+
+    // Buat pola garis barcode deterministik dari kode pesanan
+    const buildBarsHtml = (text) => {
+      const str = String(text || "OFFLINE");
+      const bars = [];
+      for (let i = 0; i < str.length; i++) {
+        const code = str.charCodeAt(i);
+        bars.push((code % 3) + 1);
+        bars.push(((code >> 2) % 2) + 1);
+        bars.push(((code >> 4) % 3) + 1);
+      }
+      return bars
+        .map(
+          (w, idx) =>
+            `<span style="display:inline-block;height:38px;width:${w * 1.6}px;background:${idx % 2 === 0 ? "#000" : "#fff"};"></span>`,
+        )
+        .join("");
+    };
+
+    const win = window.open("", "_blank", "width=480,height=680");
+    if (!win) {
+      showWarning(
+        "Popup Diblokir Browser",
+        "Izinkan popup di browser untuk mencetak Label Kemasan / Barcode.",
+      );
+      return;
+    }
+
+    const rowsHtml = itemsToPrint
+      .map(
+        (it, idx) => `
+        <tr>
+          <td style="padding:4px 6px;border-bottom:1px solid #cbd5e1;text-align:center;font-weight:700;">${idx + 1}</td>
+          <td style="padding:4px 6px;border-bottom:1px solid #cbd5e1;">
+            <div style="font-weight:700;font-size:11px;">${it.nama_produk || "-"}</div>
+            <div style="font-size:9.5px;color:#475569;font-family:monospace;">SKU: ${it.sku || "-"}</div>
+          </td>
+          <td style="padding:4px 6px;border-bottom:1px solid #cbd5e1;text-align:center;font-weight:800;font-size:12px;">${it.qty || 0}</td>
+          <td style="padding:4px 6px;border-bottom:1px solid #cbd5e1;text-align:center;font-weight:800;">☑</td>
+        </tr>`,
+      )
+      .join("");
+
+    win.document.write(`
+      <html>
+        <head>
+          <title>Label Kemasan - ${ordData.no_pesanan}</title>
+          <style>
+            @page { size: 100mm 150mm; margin: 4mm; }
+            body { font-family: Arial, Helvetica, sans-serif; color: #0f172a; margin: 0; padding: 8px; font-size: 11px; }
+            .box { border: 2px solid #0f172a; border-radius: 6px; padding: 10px; }
+            .hdr { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #0f172a; padding-bottom: 6px; margin-bottom: 8px; }
+            .barcode-box { text-align: center; padding: 6px 4px; border: 1px dashed #64748b; border-radius: 4px; margin-bottom: 8px; background: #fff; }
+            .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; border-bottom: 1.5px solid #0f172a; padding-bottom: 8px; margin-bottom: 8px; }
+            table { width: 100%; border-collapse: collapse; font-size: 10.5px; }
+            th { background: #f1f5f9; border-bottom: 1.5px solid #0f172a; padding: 4px 6px; text-align: left; font-size: 9.5px; text-transform: uppercase; }
+          </style>
+        </head>
+        <body>
+          <div class="box">
+            <div class="hdr">
+              <div>
+                <div style="font-size:14px;font-weight:900;letter-spacing:0.03em;">${ordData.nama_toko || "PENJUALAN OFFLINE"}</div>
+                <div style="font-size:9.5px;color:#475569;font-weight:700;">LABEL KEMASAN & PACKING SLIP</div>
+              </div>
+              <div style="text-align:right;">
+                <div style="background:#0f172a;color:#fff;padding:3px 8px;border-radius:4px;font-weight:900;font-size:12px;">${ordData.kurir || "PICKUP / KURIR"}</div>
+                <div style="font-size:9px;margin-top:2px;">Tgl: ${ordData.tanggal_pesan || "-"}</div>
+              </div>
+            </div>
+
+            <div class="barcode-box">
+              <div>${buildBarsHtml(ordData.no_pesanan)}</div>
+              <div style="font-family:monospace;font-weight:900;font-size:13px;letter-spacing:0.08em;margin-top:3px;">${ordData.no_pesanan}</div>
+              ${
+                ordData.no_resi
+                  ? `<div style="font-size:10.5px;font-weight:800;color:#0284c7;margin-top:2px;">RESI: ${ordData.no_resi}</div>`
+                  : ""
+              }
+            </div>
+
+            <div class="grid2">
+              <div>
+                <div style="font-size:9px;font-weight:800;color:#64748b;text-transform:uppercase;">PENERIMA:</div>
+                <div style="font-size:12.5px;font-weight:900;margin-top:2px;">${ordData.nama_pelanggan || "-"}</div>
+                <div style="font-size:11px;font-weight:700;margin-top:1px;">Telp: ${ordData.telepon_pelanggan || "-"}</div>
+                <div style="font-size:10.5px;margin-top:3px;line-height:1.35;">${ordData.alamat_pengiriman || "-"}</div>
+                <div style="font-size:10px;color:#334155;margin-top:1px;">${[ordData.kecamatan, ordData.kota_kabupaten, ordData.provinsi, ordData.kode_pos].filter(Boolean).join(", ")}</div>
+              </div>
+              <div style="border-left:1px solid #cbd5e1;padding-left:8px;">
+                <div style="font-size:9px;font-weight:800;color:#64748b;text-transform:uppercase;">PENGIRIM ${ordData.is_dropship ? "(DROPSHIP)" : ""}:</div>
+                <div style="font-size:11.5px;font-weight:800;margin-top:2px;">${senderName}</div>
+                <div style="font-size:10.5px;margin-top:1px;">Telp: ${senderPhone}</div>
+                <div style="margin-top:8px;padding-top:6px;border-top:1px dashed #cbd5e1;font-size:10px;">
+                  <div>Total Item: <b>${itemsToPrint.length} SKU (${totalPcs} Pcs)</b></div>
+                  <div>Checker: <b>${ordData.dikemas_oleh || scanPic || "Admin"}</b></div>
+                  ${ordData.no_spk ? `<div>No. SPK: <b>${ordData.no_spk}</b></div>` : ""}
+                </div>
+              </div>
+            </div>
+
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:24px;text-align:center;">No</th>
+                  <th>SKU & Nama Produk</th>
+                  <th style="width:42px;text-align:center;">Qty</th>
+                  <th style="width:32px;text-align:center;">Cek</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rowsHtml}
+              </tbody>
+            </table>
+
+            ${
+              ordData.catatan_pembeli || ordData.catatan_kemas
+                ? `<div style="margin-top:8px;padding:5px 7px;background:#f8fafc;border:1px solid #cbd5e1;border-radius:4px;font-size:10px;">
+                    <b>Catatan:</b> ${[ordData.catatan_pembeli, ordData.catatan_kemas].filter(Boolean).join(" | ")}
+                   </div>`
+                : ""
+            }
+          </div>
+          <script>
+            window.onload = function() { window.print(); };
+          </script>
+        </body>
+      </html>
+    `);
+    win.document.close();
   };
 
   // ── Filtered + paginated ────────────────────────────────────────────────
@@ -1685,6 +2283,39 @@ export default function PenjualanOfflineView({ onNavigate }) {
                 <span>Pesanan Marketplace</span>
               </button>
             )}
+
+            <button
+              type="button"
+              id="btn-scan-kemasan-offline"
+              onClick={() => handleOpenScanKemasan(null)}
+              style={{
+                height: "30px",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "6px",
+                padding: "0 13px",
+                borderRadius: "6px",
+                border: "1px solid rgba(255, 255, 255, 0.35)",
+                backgroundColor: "#0f172a",
+                color: "#ffffff",
+                fontSize: "12px",
+                fontWeight: "800",
+                lineHeight: 1,
+                cursor: "pointer",
+                boxShadow: "0 2px 4px rgba(0, 0, 0, 0.2)",
+                transition: "all 0.15s ease",
+              }}
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.backgroundColor = "#1e293b")
+              }
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.backgroundColor = "#0f172a")
+              }
+            >
+              <QrCode size={13} />
+              <span>Scan Kemasan</span>
+            </button>
 
             <button
               type="button"
@@ -2305,30 +2936,33 @@ export default function PenjualanOfflineView({ onNavigate }) {
                                 : "Tunai"}
                             </span>
                             {" · "}
-                            <span
-                              onClick={() => handleOpenPaymentModal(ord.id)}
-                              title="Klik untuk kelola pembayaran / cicilan"
-                              style={{
-                                fontWeight: "700",
-                                cursor: "pointer",
-                                textDecoration:
-                                  ord.status_pembayaran !== "lunas"
-                                    ? "underline"
-                                    : "none",
-                                color:
-                                  ord.status_pembayaran === "lunas"
-                                    ? "#059669"
-                                    : ord.status_pembayaran === "dp"
-                                      ? "#d97706"
-                                      : "#dc2626",
-                              }}
-                            >
-                              {ord.status_pembayaran === "lunas"
-                                ? "✓ Lunas"
-                                : ord.status_pembayaran === "dp"
-                                  ? `Cicilan ${formatRupiah(ord.nominal_dp)} (Sisa ${formatRupiah(Math.max(0, Number(ord.total_harga || 0) - Number(ord.nominal_dp || 0)))})`
-                                  : "Belum bayar (Klik Bayar)"}
-                            </span>
+                            {(() => {
+                              const payInfo = getPaymentSummary(ord);
+                              return (
+                                <span
+                                  onClick={() => handleOpenPaymentModal(ord.id)}
+                                  title="Klik untuk kelola pembayaran / cicilan"
+                                  style={{
+                                    fontWeight: "700",
+                                    cursor: "pointer",
+                                    textDecoration: !payInfo.isLunas
+                                      ? "underline"
+                                      : "none",
+                                    color: payInfo.isLunas
+                                      ? "#059669"
+                                      : payInfo.statusBayar === "dp"
+                                        ? "#d97706"
+                                        : "#dc2626",
+                                  }}
+                                >
+                                  {payInfo.isLunas
+                                    ? "✓ Lunas"
+                                    : payInfo.statusBayar === "dp"
+                                      ? `Cicilan ${formatRupiah(payInfo.sudahBayar)} (Sisa ${formatRupiah(payInfo.sisaTagihan)})`
+                                      : "Belum bayar (Klik Bayar)"}
+                                </span>
+                              );
+                            })()}
                           </div>
                         </td>
 
@@ -2455,6 +3089,49 @@ export default function PenjualanOfflineView({ onNavigate }) {
                               SPK: {ord.no_spk}
                             </div>
                           )}
+                          {ord.status_kemas === "sudah_dikemas" && (
+                            <div
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "3px",
+                                fontSize: "9px",
+                                backgroundColor: "#dcfce7",
+                                color: "#15803d",
+                                border: "1px solid #86efac",
+                                padding: "1px 5px",
+                                borderRadius: "4px",
+                                fontWeight: "800",
+                                marginTop: "3px",
+                              }}
+                              title={
+                                ord.waktu_kemas
+                                  ? `Dikemas oleh ${ord.dikemas_oleh || "Admin"} pada ${ord.waktu_kemas}`
+                                  : "Kemasan Sudah Terverifikasi"
+                              }
+                            >
+                              ✓ Terkemas
+                            </div>
+                          )}
+                          {ord.status_kemas === "sedang_dikemas" && (
+                            <div
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "3px",
+                                fontSize: "9px",
+                                backgroundColor: "#fef3c7",
+                                color: "#b45309",
+                                border: "1px solid #fde68a",
+                                padding: "1px 5px",
+                                borderRadius: "4px",
+                                fontWeight: "800",
+                                marginTop: "3px",
+                              }}
+                            >
+                              ⏳ Sedang Dikemas
+                            </div>
+                          )}
                         </td>
 
                         {/* ACTION BUTTONS (Detail, Edit, Konfirmasi, Hapus - Matching Data Produk) */}
@@ -2505,7 +3182,7 @@ export default function PenjualanOfflineView({ onNavigate }) {
                               type="button"
                               onClick={() => handleOpenPaymentModal(ord.id)}
                               title={
-                                ord.status_pembayaran === "lunas"
+                                getPaymentSummary(ord).isLunas
                                   ? "Riwayat Pembayaran (Sudah Lunas)"
                                   : "Input Pembayaran / Cicilan"
                               }
@@ -2514,10 +3191,9 @@ export default function PenjualanOfflineView({ onNavigate }) {
                                 height: "26px",
                                 borderRadius: "4px",
                                 border: "none",
-                                backgroundColor:
-                                  ord.status_pembayaran === "lunas"
-                                    ? "#10b981"
-                                    : "#f59e0b",
+                                backgroundColor: getPaymentSummary(ord).isLunas
+                                  ? "#10b981"
+                                  : "#f59e0b",
                                 color: "#ffffff",
                                 display: "flex",
                                 alignItems: "center",
@@ -2567,6 +3243,41 @@ export default function PenjualanOfflineView({ onNavigate }) {
                               }
                             >
                               <ClipboardList size={13} />
+                            </button>
+
+                            {/* 3b. Scan Kemasan / Packing Checker Button (Dark Slate / Emerald) */}
+                            <button
+                              type="button"
+                              onClick={() => handleOpenScanKemasan(ord.id)}
+                              title={
+                                ord.status_kemas === "sudah_dikemas"
+                                  ? `Kemasan Sudah Diverifikasi (${ord.dikemas_oleh || "Admin"}) — Klik untuk cek / cetak label`
+                                  : "Scan Kemasan & Verifikasi Packing"
+                              }
+                              style={{
+                                width: "26px",
+                                height: "26px",
+                                borderRadius: "4px",
+                                border: "none",
+                                backgroundColor:
+                                  ord.status_kemas === "sudah_dikemas"
+                                    ? "#059669"
+                                    : "#0f172a",
+                                color: "#ffffff",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                cursor: "pointer",
+                                transition: "opacity 0.15s ease",
+                              }}
+                              onMouseEnter={(e) =>
+                                (e.currentTarget.style.opacity = "0.85")
+                              }
+                              onMouseLeave={(e) =>
+                                (e.currentTarget.style.opacity = "1")
+                              }
+                            >
+                              <QrCode size={13} />
                             </button>
 
                             {/* 4. Edit Pencil Button (Blue) */}
@@ -5351,38 +6062,40 @@ export default function PenjualanOfflineView({ onNavigate }) {
                       </span>
                     </div>
 
-                    <span
-                      style={{
-                        fontSize: "10px",
-                        fontWeight: "800",
-                        padding: "1px 8px",
-                        borderRadius: "4px",
-                        backgroundColor:
-                          detailOrder.status_pembayaran === "lunas"
-                            ? "#ecfdf5"
-                            : detailOrder.status_pembayaran === "dp"
-                              ? "#fffbeb"
-                              : "#fef2f2",
-                        color:
-                          detailOrder.status_pembayaran === "lunas"
-                            ? "#059669"
-                            : detailOrder.status_pembayaran === "dp"
-                              ? "#d97706"
-                              : "#dc2626",
-                        border:
-                          detailOrder.status_pembayaran === "lunas"
-                            ? "1px solid #a7f3d0"
-                            : detailOrder.status_pembayaran === "dp"
-                              ? "1px solid #fde68a"
-                              : "1px solid #fecaca",
-                      }}
-                    >
-                      {detailOrder.status_pembayaran === "lunas"
-                        ? "LUNAS"
-                        : detailOrder.status_pembayaran === "dp"
-                          ? "DICICIL / DP"
-                          : "BELUM BAYAR"}
-                    </span>
+                    {(() => {
+                      const detailPay = getPaymentSummary(detailOrder);
+                      return (
+                        <span
+                          style={{
+                            fontSize: "10px",
+                            fontWeight: "800",
+                            padding: "1px 8px",
+                            borderRadius: "4px",
+                            backgroundColor: detailPay.isLunas
+                              ? "#ecfdf5"
+                              : detailPay.statusBayar === "dp"
+                                ? "#fffbeb"
+                                : "#fef2f2",
+                            color: detailPay.isLunas
+                              ? "#059669"
+                              : detailPay.statusBayar === "dp"
+                                ? "#d97706"
+                                : "#dc2626",
+                            border: detailPay.isLunas
+                              ? "1px solid #a7f3d0"
+                              : detailPay.statusBayar === "dp"
+                                ? "1px solid #fde68a"
+                                : "1px solid #fecaca",
+                          }}
+                        >
+                          {detailPay.isLunas
+                            ? "LUNAS"
+                            : detailPay.statusBayar === "dp"
+                              ? "DICICIL / DP"
+                              : "BELUM BAYAR"}
+                        </span>
+                      );
+                    })()}
                   </div>
 
                   <div
@@ -5459,14 +6172,8 @@ export default function PenjualanOfflineView({ onNavigate }) {
 
                   {/* Ringkasan Sudah Dibayar & Sisa Tagihan */}
                   {(() => {
-                    const sudahBayar =
-                      detailOrder.status_pembayaran === "lunas"
-                        ? Number(detailOrder.total_harga || 0)
-                        : Number(detailOrder.nominal_dp || 0);
-                    const sisaTagihan = Math.max(
-                      0,
-                      Number(detailOrder.total_harga || 0) - sudahBayar,
-                    );
+                    const { sudahBayar, sisaTagihan } =
+                      getPaymentSummary(detailOrder);
                     const listBayar = Array.isArray(detailOrder.pembayaran_list)
                       ? detailOrder.pembayaran_list
                       : [];
@@ -6098,38 +6805,40 @@ export default function PenjualanOfflineView({ onNavigate }) {
                     ? `(${paymentModalOrder.nama_toko})`
                     : ""}
                 </span>
-                <span
-                  style={{
-                    fontSize: "10px",
-                    fontWeight: "800",
-                    padding: "2px 8px",
-                    borderRadius: "4px",
-                    backgroundColor:
-                      paymentModalOrder.status_pembayaran === "lunas"
-                        ? "rgba(16, 185, 129, 0.2)"
-                        : paymentModalOrder.status_pembayaran === "dp"
-                          ? "rgba(245, 158, 11, 0.2)"
-                          : "rgba(239, 68, 68, 0.2)",
-                    color:
-                      paymentModalOrder.status_pembayaran === "lunas"
-                        ? "#34d399"
-                        : paymentModalOrder.status_pembayaran === "dp"
-                          ? "#fbbf24"
-                          : "#f87171",
-                    border:
-                      paymentModalOrder.status_pembayaran === "lunas"
-                        ? "1px solid rgba(16, 185, 129, 0.4)"
-                        : paymentModalOrder.status_pembayaran === "dp"
-                          ? "1px solid rgba(245, 158, 11, 0.4)"
-                          : "1px solid rgba(239, 68, 68, 0.4)",
-                  }}
-                >
-                  {paymentModalOrder.status_pembayaran === "lunas"
-                    ? "LUNAS"
-                    : paymentModalOrder.status_pembayaran === "dp"
-                      ? "DICICIL / DP"
-                      : "BELUM BAYAR"}
-                </span>
+                {(() => {
+                  const modalPay = getPaymentSummary(paymentModalOrder);
+                  return (
+                    <span
+                      style={{
+                        fontSize: "10px",
+                        fontWeight: "800",
+                        padding: "2px 8px",
+                        borderRadius: "4px",
+                        backgroundColor: modalPay.isLunas
+                          ? "rgba(16, 185, 129, 0.2)"
+                          : modalPay.statusBayar === "dp"
+                            ? "rgba(245, 158, 11, 0.2)"
+                            : "rgba(239, 68, 68, 0.2)",
+                        color: modalPay.isLunas
+                          ? "#34d399"
+                          : modalPay.statusBayar === "dp"
+                            ? "#fbbf24"
+                            : "#f87171",
+                        border: modalPay.isLunas
+                          ? "1px solid rgba(16, 185, 129, 0.4)"
+                          : modalPay.statusBayar === "dp"
+                            ? "1px solid rgba(245, 158, 11, 0.4)"
+                            : "1px solid rgba(239, 68, 68, 0.4)",
+                      }}
+                    >
+                      {modalPay.isLunas
+                        ? "LUNAS"
+                        : modalPay.statusBayar === "dp"
+                          ? "DICICIL / DP"
+                          : "BELUM BAYAR"}
+                    </span>
+                  );
+                })()}
               </div>
             </div>
 
@@ -6167,12 +6876,8 @@ export default function PenjualanOfflineView({ onNavigate }) {
 
           {/* Main Content Body Fullscreen */}
           {(() => {
-            const totalTagihan = Number(paymentModalOrder.total_harga || 0);
-            const sudahBayar =
-              paymentModalOrder.status_pembayaran === "lunas"
-                ? totalTagihan
-                : Number(paymentModalOrder.nominal_dp || 0);
-            const sisaTagihan = Math.max(0, totalTagihan - sudahBayar);
+            const { totalTagihan, sudahBayar, sisaTagihan } =
+              getPaymentSummary(paymentModalOrder);
             const persenBayar =
               totalTagihan > 0
                 ? Math.min(100, Math.round((sudahBayar / totalTagihan) * 100))
@@ -8837,7 +9542,7 @@ export default function PenjualanOfflineView({ onNavigate }) {
                             Tahapan SPK Awal
                           </label>
                           <select
-                            value={spk.status_spk || "Potong Pola"}
+                            value={spk.status_spk || getDefaultTahapanSpk()}
                             onChange={(e) =>
                               handleUpdateSpkBlockField(
                                 sIdx,
@@ -8857,12 +9562,19 @@ export default function PenjualanOfflineView({ onNavigate }) {
                               boxSizing: "border-box",
                             }}
                           >
-                            <option value="Potong Pola">Potong Pola</option>
-                            <option value="Proses Jahit">Proses Jahit</option>
-                            <option value="Finishing & QC">
-                              Finishing & QC
-                            </option>
-                            <option value="Selesai">Selesai</option>
+                            {(tahapanSpkList || [])
+                              .filter((t) => t.status !== "Nonaktif")
+                              .map((t) => (
+                                <option
+                                  key={
+                                    t.id || t.kode_tahapan || t.nama_tahapan
+                                  }
+                                  value={t.nama_tahapan}
+                                >
+                                  {t.emoji ? `${t.emoji} ` : ""}
+                                  {t.nama_tahapan}
+                                </option>
+                              ))}
                           </select>
                         </div>
                       </div>
@@ -9149,6 +9861,1381 @@ export default function PenjualanOfflineView({ onNavigate }) {
           </form>
         </div>
       )}
+
+      {/* ── MODAL FULLSCREEN: SCAN KEMASAN & VERIFIKASI PACKING PENJUALAN OFFLINE (SEPERTI LARAVEL MARKETPLACE) ── */}
+      {isScanModalOpen &&
+        (() => {
+          const totalOrderedPcs = scanItems.reduce(
+            (sum, it) => sum + Number(it.qty || 0),
+            0,
+          );
+          const totalScannedPcs = scanItems.reduce(
+            (sum, it) => sum + Number(it.qty_dikemas || 0),
+            0,
+          );
+          const isAllComplete =
+            scanItems.length > 0 &&
+            totalOrderedPcs > 0 &&
+            totalScannedPcs >= totalOrderedPcs;
+          const progressPct =
+            totalOrderedPcs > 0
+              ? Math.min(
+                  100,
+                  Math.round((totalScannedPcs / totalOrderedPcs) * 100),
+                )
+              : 0;
+
+          // Antrean pesanan yang siap dikemas (dikonfirmasi / diproses / siap_kirim)
+          const packingQueue = orders.filter(
+            (o) =>
+              o.status_pesanan !== "dibatalkan" &&
+              o.status_pesanan !== "selesai",
+          );
+
+          return (
+            <div
+              style={{
+                position: "fixed",
+                inset: 0,
+                backgroundColor: "#f1f5f9",
+                zIndex: 10002,
+                display: "flex",
+                flexDirection: "column",
+                overflow: "hidden",
+              }}
+            >
+              {/* TOP HEADER BAR */}
+              <div
+                style={{
+                  background:
+                    "linear-gradient(135deg, #0f172a 0%, #1e293b 55%, #047857 100%)",
+                  padding: "8px 18px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  color: "#ffffff",
+                  flexShrink: 0,
+                  boxShadow: "0 2px 6px rgba(15, 23, 42, 0.25)",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: "30px",
+                      height: "30px",
+                      borderRadius: "7px",
+                      backgroundColor: "rgba(16, 185, 129, 0.25)",
+                      border: "1px solid rgba(16, 185, 129, 0.5)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "#34d399",
+                    }}
+                  >
+                    <QrCode size={16} />
+                  </div>
+                  <div>
+                    <div
+                      style={{
+                        fontSize: "13.5px",
+                        fontWeight: "800",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                      }}
+                    >
+                      <span>
+                        Scan Kemasan & Verifikasi Outbound Penjualan Offline
+                      </span>
+                      <span
+                        style={{
+                          fontSize: "10px",
+                          backgroundColor: "#10b981",
+                          color: "#ffffff",
+                          padding: "1px 7px",
+                          borderRadius: "999px",
+                          fontWeight: "800",
+                        }}
+                      >
+                        PACKING CHECKER
+                      </span>
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "11px",
+                        opacity: 0.85,
+                      }}
+                    >
+                      Tahap 1: Scan No. Pesanan / Resi ➔ Tahap 2: Scan Barcode
+                      SKU Produk ➔ Tahap 3: Selesai Kemas & Cetak Label
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  style={{ display: "flex", alignItems: "center", gap: "8px" }}
+                >
+                  {activeScanOrder && (
+                    <button
+                      type="button"
+                      onClick={() => handlePrintLabelKemasan(activeScanOrder)}
+                      style={{
+                        padding: "5px 12px",
+                        borderRadius: "6px",
+                        border: "1px solid rgba(255,255,255,0.3)",
+                        backgroundColor: "rgba(255,255,255,0.14)",
+                        color: "#ffffff",
+                        fontSize: "11.5px",
+                        fontWeight: "700",
+                        cursor: "pointer",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "5px",
+                      }}
+                    >
+                      <Printer size={13} />
+                      <span>Cetak Label Kemasan / Barcode</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setIsScanModalOpen(false)}
+                    style={{
+                      width: "28px",
+                      height: "28px",
+                      borderRadius: "6px",
+                      border: "none",
+                      backgroundColor: "rgba(255,255,255,0.18)",
+                      color: "#fff",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                    title="Tutup Layar Scan Kemasan"
+                  >
+                    <X size={15} />
+                  </button>
+                </div>
+              </div>
+
+              {/* MAIN 2-COLUMN WORKSPACE */}
+              <div
+                style={{
+                  padding: "12px 18px",
+                  overflowY: "auto",
+                  flex: 1,
+                }}
+              >
+                {/* BANNER FEEDBACK HASIL SCAN */}
+                {scanFeedback && (
+                  <div
+                    style={{
+                      marginBottom: "10px",
+                      padding: "8px 14px",
+                      borderRadius: "7px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      backgroundColor:
+                        scanFeedback.type === "success"
+                          ? "#dcfce7"
+                          : scanFeedback.type === "warning"
+                            ? "#fef3c7"
+                            : "#fee2e2",
+                      border: `1.5px solid ${
+                        scanFeedback.type === "success"
+                          ? "#22c55e"
+                          : scanFeedback.type === "warning"
+                            ? "#f59e0b"
+                            : "#ef4444"
+                      }`,
+                      color:
+                        scanFeedback.type === "success"
+                          ? "#14532d"
+                          : scanFeedback.type === "warning"
+                            ? "#78350f"
+                            : "#7f1d1d",
+                      fontSize: "12px",
+                      fontWeight: "800",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                      }}
+                    >
+                      {scanFeedback.type === "success" ? (
+                        <CheckCircle2 size={16} color="#16a34a" />
+                      ) : (
+                        <XCircle
+                          size={16}
+                          color={
+                            scanFeedback.type === "warning"
+                              ? "#d97706"
+                              : "#dc2626"
+                          }
+                        />
+                      )}
+                      <span>{scanFeedback.text}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setScanFeedback(null)}
+                      style={{
+                        border: "none",
+                        background: "transparent",
+                        cursor: "pointer",
+                        color: "inherit",
+                        fontWeight: "800",
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                )}
+
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "370px 1fr",
+                    gap: "12px",
+                    alignItems: "start",
+                  }}
+                >
+                  {/* ── KOLOM KIRI: SCAN BARCODE NO. PESANAN / ANTREAN KEMASAN ── */}
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "10px",
+                    }}
+                  >
+                    {/* Card 1: Input Scan Barcode No. Pesanan / Resi */}
+                    <div
+                      style={{
+                        backgroundColor: "#ffffff",
+                        border: "1.5px solid #cbd5e1",
+                        borderRadius: "8px",
+                        padding: "12px 14px",
+                        boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: "11px",
+                          fontWeight: "800",
+                          color: "#0f172a",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.04em",
+                          marginBottom: "8px",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "6px",
+                        }}
+                      >
+                        <QrCode size={13} color="#059669" />
+                        <span>1. Scan Barcode Pesanan / No. Resi</span>
+                      </div>
+
+                      <form
+                        onSubmit={(e) => handleScanOrderLookup(e)}
+                        style={{ display: "flex", gap: "6px" }}
+                      >
+                        <input
+                          type="text"
+                          autoFocus={!activeScanOrder}
+                          value={scanOrderInput}
+                          onChange={(e) => setScanOrderInput(e.target.value)}
+                          placeholder="Scan No. Pesanan / Resi / SPK lalu Enter..."
+                          style={{
+                            flex: 1,
+                            padding: "7px 10px",
+                            borderRadius: "6px",
+                            border: "2px solid #059669",
+                            backgroundColor: "#f0fdf4",
+                            fontSize: "12px",
+                            fontWeight: "700",
+                            color: "#0f172a",
+                            outline: "none",
+                          }}
+                        />
+                        <button
+                          type="submit"
+                          disabled={isLookingUpScan}
+                          style={{
+                            padding: "0 12px",
+                            borderRadius: "6px",
+                            border: "none",
+                            backgroundColor: "#059669",
+                            color: "#ffffff",
+                            fontSize: "11.5px",
+                            fontWeight: "800",
+                            cursor: "pointer",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "4px",
+                          }}
+                        >
+                          <Search size={13} />
+                          <span>{isLookingUpScan ? "..." : "Cari"}</span>
+                        </button>
+                      </form>
+                      <div
+                        style={{
+                          fontSize: "10px",
+                          color: "#64748b",
+                          marginTop: "5px",
+                        }}
+                      >
+                        Arahkan scanner barcode ke Label Pesanan / SPK atau klik
+                        daftar antrean di bawah.
+                      </div>
+                    </div>
+
+                    {/* Card 2: Daftar Antrean Pesanan Siap Kemas */}
+                    <div
+                      style={{
+                        backgroundColor: "#ffffff",
+                        border: "1px solid #cbd5e1",
+                        borderRadius: "8px",
+                        padding: "12px 14px",
+                        boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          marginBottom: "8px",
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: "11px",
+                            fontWeight: "800",
+                            color: "#334155",
+                            textTransform: "uppercase",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "6px",
+                          }}
+                        >
+                          <Package size={13} color="#0284c7" />
+                          <span>
+                            Antrean Pesanan Offline ({packingQueue.length})
+                          </span>
+                        </div>
+                      </div>
+
+                      <div
+                        style={{
+                          maxHeight: "310px",
+                          overflowY: "auto",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "6px",
+                        }}
+                      >
+                        {packingQueue.length === 0 ? (
+                          <div
+                            style={{
+                              padding: "18px 10px",
+                              textAlign: "center",
+                              color: "#94a3b8",
+                              fontSize: "11.5px",
+                            }}
+                          >
+                            Tidak ada antrean pesanan aktif.
+                          </div>
+                        ) : (
+                          packingQueue.map((ord) => {
+                            const isSelected =
+                              activeScanOrder && activeScanOrder.id === ord.id;
+                            const isPacked =
+                              ord.status_kemas === "sudah_dikemas";
+                            return (
+                              <div
+                                key={ord.id}
+                                onClick={() => handleOpenScanKemasan(ord.id)}
+                                style={{
+                                  padding: "8px 10px",
+                                  borderRadius: "6px",
+                                  border: isSelected
+                                    ? "2px solid #0284c7"
+                                    : "1px solid #e2e8f0",
+                                  backgroundColor: isSelected
+                                    ? "#f0f9ff"
+                                    : isPacked
+                                      ? "#f0fdf4"
+                                      : "#ffffff",
+                                  cursor: "pointer",
+                                  transition: "all 0.12s ease",
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "space-between",
+                                    gap: "6px",
+                                  }}
+                                >
+                                  <span
+                                    style={{
+                                      fontSize: "11.5px",
+                                      fontWeight: "800",
+                                      color: "#0284c7",
+                                      fontFamily: "monospace",
+                                    }}
+                                  >
+                                    {ord.no_pesanan}
+                                  </span>
+                                  <span
+                                    style={{
+                                      fontSize: "9.5px",
+                                      fontWeight: "800",
+                                      padding: "1px 6px",
+                                      borderRadius: "4px",
+                                      backgroundColor: isPacked
+                                        ? "#dcfce7"
+                                        : ord.status_kemas === "sedang_dikemas"
+                                          ? "#fef3c7"
+                                          : "#f1f5f9",
+                                      color: isPacked
+                                        ? "#15803d"
+                                        : ord.status_kemas === "sedang_dikemas"
+                                          ? "#b45309"
+                                          : "#475569",
+                                    }}
+                                  >
+                                    {isPacked
+                                      ? "✓ Sudah Dikemas"
+                                      : ord.status_kemas === "sedang_dikemas"
+                                        ? "⏳ Sedang Dikemas"
+                                        : "Belum Dikemas"}
+                                  </span>
+                                </div>
+                                <div
+                                  style={{
+                                    fontSize: "11.5px",
+                                    fontWeight: "700",
+                                    color: "#1e293b",
+                                    marginTop: "2px",
+                                  }}
+                                >
+                                  {ord.nama_pelanggan}
+                                </div>
+                                <div
+                                  style={{
+                                    fontSize: "10px",
+                                    color: "#64748b",
+                                    marginTop: "2px",
+                                    display: "flex",
+                                    justifyContent: "space-between",
+                                  }}
+                                >
+                                  <span>
+                                    {ord.nama_toko || "-"} • {ord.kurir || "-"}
+                                  </span>
+                                  <span style={{ fontWeight: "700" }}>
+                                    {ord.jumlah_jenis_produk ||
+                                      (ord.items || []).length}{" "}
+                                    SKU ({ord.total_qty_produk || 0} Pcs)
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Card 3: Riwayat Scan Kemasan Sesi Ini */}
+                    {scanHistory.length > 0 && (
+                      <div
+                        style={{
+                          backgroundColor: "#ffffff",
+                          border: "1px solid #cbd5e1",
+                          borderRadius: "8px",
+                          padding: "10px 14px",
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: "10.5px",
+                            fontWeight: "800",
+                            color: "#059669",
+                            textTransform: "uppercase",
+                            marginBottom: "6px",
+                          }}
+                        >
+                          ✓ Riwayat Selesai Kemas Sesi Ini ({scanHistory.length}
+                          )
+                        </div>
+                        <div
+                          style={{
+                            maxHeight: "130px",
+                            overflowY: "auto",
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: "4px",
+                          }}
+                        >
+                          {scanHistory.map((h) => (
+                            <div
+                              key={`${h.id}-${h.waktu}`}
+                              onClick={() => handleOpenScanKemasan(h.id)}
+                              style={{
+                                fontSize: "10.5px",
+                                padding: "5px 8px",
+                                borderRadius: "5px",
+                                backgroundColor: "#f0fdf4",
+                                border: "1px solid #bbf7d0",
+                                display: "flex",
+                                justifyContent: "space-between",
+                                cursor: "pointer",
+                              }}
+                            >
+                              <div>
+                                <b style={{ color: "#15803d" }}>
+                                  {h.no_pesanan}
+                                </b>{" "}
+                                — {h.nama_pelanggan}
+                              </div>
+                              <span
+                                style={{
+                                  color: "#047857",
+                                  fontWeight: "700",
+                                }}
+                              >
+                                {h.total_packed}/{h.total_ordered} pcs ({h.waktu}
+                                )
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ── KOLOM KANAN: VERIFIKASI & SCAN BARCODE SKU PRODUK (PACKING CHECKER) ── */}
+                  <div
+                    style={{
+                      backgroundColor: "#ffffff",
+                      border: "1px solid #cbd5e1",
+                      borderRadius: "8px",
+                      padding: "14px 16px",
+                      boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
+                    }}
+                  >
+                    {!activeScanOrder ? (
+                      <div
+                        style={{
+                          padding: "60px 20px",
+                          textAlign: "center",
+                          color: "#64748b",
+                        }}
+                      >
+                        <QrCode
+                          size={44}
+                          color="#94a3b8"
+                          style={{ margin: "0 auto 10px" }}
+                        />
+                        <div
+                          style={{
+                            fontSize: "14px",
+                            fontWeight: "800",
+                            color: "#334155",
+                          }}
+                        >
+                          Belum Ada Pesanan yang Dipilih / Di-Scan
+                        </div>
+                        <div
+                          style={{
+                            fontSize: "12px",
+                            marginTop: "4px",
+                            maxWidth: "460px",
+                            marginInline: "auto",
+                          }}
+                        >
+                          Silakan scan barcode Nomor Pesanan / Nomor Resi pada
+                          kolom kiri, atau klik salah satu pesanan dari daftar
+                          antrean untuk mulai memverifikasi kemasan produk.
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        {/* Header Info Pesanan Aktif + Progress Bar */}
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            flexWrap: "wrap",
+                            gap: "10px",
+                            paddingBottom: "10px",
+                            borderBottom: "1px solid #e2e8f0",
+                            marginBottom: "12px",
+                          }}
+                        >
+                          <div>
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "8px",
+                              }}
+                            >
+                              <span
+                                style={{
+                                  fontSize: "15px",
+                                  fontWeight: "900",
+                                  color: "#0f172a",
+                                  fontFamily: "monospace",
+                                }}
+                              >
+                                {activeScanOrder.no_pesanan}
+                              </span>
+                              {getStatusBadge(activeScanOrder.status_pesanan)}
+                              {activeScanOrder.no_spk && (
+                                <span
+                                  style={{
+                                    fontSize: "10.5px",
+                                    fontWeight: "800",
+                                    backgroundColor: "#ede9fe",
+                                    color: "#6d28d9",
+                                    padding: "2px 8px",
+                                    borderRadius: "999px",
+                                  }}
+                                >
+                                  SPK: {activeScanOrder.no_spk}
+                                </span>
+                              )}
+                            </div>
+                            <div
+                              style={{
+                                fontSize: "12px",
+                                color: "#334155",
+                                marginTop: "3px",
+                              }}
+                            >
+                              Pelanggan:{" "}
+                              <b>{activeScanOrder.nama_pelanggan}</b> (
+                              {activeScanOrder.telepon_pelanggan || "-"}) •
+                              Toko: <b>{activeScanOrder.nama_toko || "-"}</b>
+                            </div>
+                          </div>
+
+                          {/* Indikator Progress Kemasan */}
+                          <div
+                            style={{
+                              minWidth: "230px",
+                              backgroundColor: isAllComplete
+                                ? "#f0fdf4"
+                                : "#f8fafc",
+                              border: `1.5px solid ${
+                                isAllComplete ? "#22c55e" : "#cbd5e1"
+                              }`,
+                              borderRadius: "8px",
+                              padding: "7px 12px",
+                            }}
+                          >
+                            <div
+                              style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                fontSize: "11px",
+                                fontWeight: "800",
+                                color: isAllComplete ? "#15803d" : "#334155",
+                                marginBottom: "4px",
+                              }}
+                            >
+                              <span>PROGRES SCAN ITEM</span>
+                              <span>
+                                {totalScannedPcs} / {totalOrderedPcs} Pcs (
+                                {progressPct}%)
+                              </span>
+                            </div>
+                            <div
+                              style={{
+                                height: "7px",
+                                borderRadius: "999px",
+                                backgroundColor: "#e2e8f0",
+                                overflow: "hidden",
+                              }}
+                            >
+                              <div
+                                style={{
+                                  width: `${progressPct}%`,
+                                  height: "100%",
+                                  backgroundColor: isAllComplete
+                                    ? "#16a34a"
+                                    : "#0284c7",
+                                  transition: "width 0.2s ease",
+                                }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Bar Scan Barcode SKU Produk + Tombol Cepat */}
+                        <div
+                          style={{
+                            backgroundColor: "#f8fafc",
+                            border: "1.5px solid #93c5fd",
+                            borderRadius: "8px",
+                            padding: "10px 12px",
+                            marginBottom: "12px",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: "10px",
+                            flexWrap: "wrap",
+                          }}
+                        >
+                          <form
+                            onSubmit={handleScanSkuSubmit}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "8px",
+                              flex: 1,
+                              minWidth: "280px",
+                            }}
+                          >
+                            <div
+                              style={{
+                                fontSize: "11px",
+                                fontWeight: "800",
+                                color: "#1e3a8a",
+                                whiteSpace: "nowrap",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "5px",
+                              }}
+                            >
+                              <QrCode size={14} color="#2563eb" />
+                              <span>2. SCAN SKU PRODUK:</span>
+                            </div>
+                            <input
+                              type="text"
+                              autoFocus
+                              value={scanSkuInput}
+                              onChange={(e) => setScanSkuInput(e.target.value)}
+                              placeholder="Scan barcode SKU / ketik kode SKU lalu tekan Enter..."
+                              style={{
+                                flex: 1,
+                                padding: "6px 10px",
+                                borderRadius: "6px",
+                                border: "2px solid #2563eb",
+                                backgroundColor: "#ffffff",
+                                fontSize: "12px",
+                                fontWeight: "700",
+                                color: "#0f172a",
+                                outline: "none",
+                              }}
+                            />
+                            <button
+                              type="submit"
+                              style={{
+                                padding: "6px 12px",
+                                borderRadius: "6px",
+                                border: "none",
+                                backgroundColor: "#2563eb",
+                                color: "#ffffff",
+                                fontSize: "11.5px",
+                                fontWeight: "800",
+                                cursor: "pointer",
+                              }}
+                            >
+                              + Scan SKU
+                            </button>
+                          </form>
+
+                          <div style={{ display: "flex", gap: "6px" }}>
+                            <button
+                              type="button"
+                              onClick={handleCheckAllScanItems}
+                              style={{
+                                padding: "6px 11px",
+                                borderRadius: "6px",
+                                border: "1px solid #16a34a",
+                                backgroundColor: "#dcfce7",
+                                color: "#15803d",
+                                fontSize: "11px",
+                                fontWeight: "800",
+                                cursor: "pointer",
+                              }}
+                            >
+                              ✓ Check Semua Lengkap
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleResetScanItems}
+                              style={{
+                                padding: "6px 10px",
+                                borderRadius: "6px",
+                                border: "1px solid #cbd5e1",
+                                backgroundColor: "#ffffff",
+                                color: "#475569",
+                                fontSize: "11px",
+                                fontWeight: "700",
+                                cursor: "pointer",
+                              }}
+                            >
+                              Reset (0)
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Tabel Checker Item Produk */}
+                        <div
+                          style={{
+                            border: "1px solid #cbd5e1",
+                            borderRadius: "7px",
+                            overflow: "hidden",
+                            marginBottom: "12px",
+                          }}
+                        >
+                          <table
+                            style={{
+                              width: "100%",
+                              borderCollapse: "collapse",
+                              fontSize: "11.5px",
+                            }}
+                          >
+                            <thead>
+                              <tr
+                                style={{
+                                  backgroundColor: "#f8fafc",
+                                  borderBottom: "1px solid #cbd5e1",
+                                  color: "#475569",
+                                  fontSize: "10.5px",
+                                  fontWeight: "800",
+                                  textTransform: "uppercase",
+                                }}
+                              >
+                                <th
+                                  style={{
+                                    padding: "7px 8px",
+                                    width: "34px",
+                                    textAlign: "center",
+                                  }}
+                                >
+                                  No
+                                </th>
+                                <th
+                                  style={{
+                                    padding: "7px 10px",
+                                    textAlign: "left",
+                                  }}
+                                >
+                                  SKU & Nama Produk
+                                </th>
+                                <th
+                                  style={{
+                                    padding: "7px 8px",
+                                    width: "90px",
+                                    textAlign: "center",
+                                  }}
+                                >
+                                  Qty Pesan
+                                </th>
+                                <th
+                                  style={{
+                                    padding: "7px 8px",
+                                    width: "155px",
+                                    textAlign: "center",
+                                  }}
+                                >
+                                  Qty Ter-Scan (Kemas)
+                                </th>
+                                <th
+                                  style={{
+                                    padding: "7px 10px",
+                                    width: "130px",
+                                    textAlign: "center",
+                                  }}
+                                >
+                                  Status Cek
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {scanItems.map((it, idx) => {
+                                const ordered = Number(it.qty || 0);
+                                const scanned = Number(it.qty_dikemas || 0);
+                                const isDone = scanned >= ordered && ordered > 0;
+                                return (
+                                  <tr
+                                    key={it.id || idx}
+                                    style={{
+                                      borderBottom:
+                                        idx < scanItems.length - 1
+                                          ? "1px solid #e2e8f0"
+                                          : "none",
+                                      backgroundColor: isDone
+                                        ? "#f0fdf4"
+                                        : scanned > 0
+                                          ? "#fffbeb"
+                                          : "#ffffff",
+                                    }}
+                                  >
+                                    <td
+                                      style={{
+                                        padding: "8px",
+                                        textAlign: "center",
+                                        fontWeight: "700",
+                                        color: "#64748b",
+                                      }}
+                                    >
+                                      {idx + 1}
+                                    </td>
+                                    <td style={{ padding: "8px 10px" }}>
+                                      <div
+                                        style={{
+                                          fontWeight: "700",
+                                          color: "#1e293b",
+                                        }}
+                                      >
+                                        {it.nama_produk}
+                                      </div>
+                                      <div
+                                        style={{
+                                          display: "flex",
+                                          alignItems: "center",
+                                          gap: "8px",
+                                          marginTop: "2px",
+                                        }}
+                                      >
+                                        <span
+                                          style={{
+                                            fontSize: "10.5px",
+                                            color: "#0284c7",
+                                            fontFamily: "monospace",
+                                            fontWeight: "800",
+                                            backgroundColor: "#e0f2fe",
+                                            padding: "1px 6px",
+                                            borderRadius: "4px",
+                                          }}
+                                        >
+                                          SKU: {it.sku || "-"}
+                                        </span>
+                                        {it.varian && (
+                                          <span
+                                            style={{
+                                              fontSize: "10px",
+                                              color: "#64748b",
+                                            }}
+                                          >
+                                            Varian: {it.varian}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </td>
+                                    <td
+                                      style={{
+                                        padding: "8px",
+                                        textAlign: "center",
+                                        fontWeight: "800",
+                                        fontSize: "13px",
+                                        color: "#0f172a",
+                                      }}
+                                    >
+                                      {ordered}
+                                    </td>
+                                    <td
+                                      style={{
+                                        padding: "8px",
+                                        textAlign: "center",
+                                      }}
+                                    >
+                                      <div
+                                        style={{
+                                          display: "inline-flex",
+                                          alignItems: "center",
+                                          gap: "4px",
+                                        }}
+                                      >
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            handleAdjustScanItemQty(
+                                              idx,
+                                              scanned - 1,
+                                            )
+                                          }
+                                          style={{
+                                            width: "24px",
+                                            height: "24px",
+                                            borderRadius: "4px",
+                                            border: "1px solid #cbd5e1",
+                                            backgroundColor: "#fff",
+                                            fontWeight: "800",
+                                            cursor: "pointer",
+                                          }}
+                                        >
+                                          -
+                                        </button>
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          max={ordered}
+                                          value={scanned}
+                                          onChange={(e) =>
+                                            handleAdjustScanItemQty(
+                                              idx,
+                                              e.target.value,
+                                            )
+                                          }
+                                          style={{
+                                            width: "52px",
+                                            padding: "3px 4px",
+                                            textAlign: "center",
+                                            borderRadius: "5px",
+                                            border: `1.5px solid ${
+                                              isDone ? "#16a34a" : "#cbd5e1"
+                                            }`,
+                                            fontWeight: "800",
+                                            fontSize: "12px",
+                                          }}
+                                        />
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            handleAdjustScanItemQty(
+                                              idx,
+                                              scanned + 1,
+                                            )
+                                          }
+                                          style={{
+                                            width: "24px",
+                                            height: "24px",
+                                            borderRadius: "4px",
+                                            border: "1px solid #0284c7",
+                                            backgroundColor: "#e0f2fe",
+                                            color: "#0369a1",
+                                            fontWeight: "800",
+                                            cursor: "pointer",
+                                          }}
+                                        >
+                                          +
+                                        </button>
+                                      </div>
+                                    </td>
+                                    <td
+                                      style={{
+                                        padding: "8px 10px",
+                                        textAlign: "center",
+                                      }}
+                                    >
+                                      {isDone ? (
+                                        <span
+                                          style={{
+                                            display: "inline-flex",
+                                            alignItems: "center",
+                                            gap: "4px",
+                                            padding: "3px 8px",
+                                            borderRadius: "999px",
+                                            backgroundColor: "#dcfce7",
+                                            color: "#15803d",
+                                            fontSize: "10.5px",
+                                            fontWeight: "800",
+                                          }}
+                                        >
+                                          ✓ Lengkap ({scanned}/{ordered})
+                                        </span>
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            handleAdjustScanItemQty(
+                                              idx,
+                                              ordered,
+                                            )
+                                          }
+                                          style={{
+                                            padding: "3px 8px",
+                                            borderRadius: "999px",
+                                            border: "1px solid #f59e0b",
+                                            backgroundColor: "#fef3c7",
+                                            color: "#b45309",
+                                            fontSize: "10px",
+                                            fontWeight: "800",
+                                            cursor: "pointer",
+                                          }}
+                                          title="Klik untuk langsung menandai item ini lengkap"
+                                        >
+                                          Kurang {ordered - scanned} Pcs (Klik
+                                          Penuh)
+                                        </button>
+                                      )}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        {/* Form Ekspedisi, Resi, PIC Kemas & Catatan Kemas */}
+                        <div
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns: "1fr 1fr 1fr 1.3fr",
+                            gap: "10px",
+                            padding: "10px 12px",
+                            backgroundColor: "#f8fafc",
+                            border: "1px solid #e2e8f0",
+                            borderRadius: "7px",
+                            marginBottom: "14px",
+                          }}
+                        >
+                          <div>
+                            <label
+                              style={{
+                                display: "block",
+                                fontSize: "10.5px",
+                                fontWeight: "700",
+                                color: "#475569",
+                                marginBottom: "3px",
+                              }}
+                            >
+                              Kurir / Ekspedisi
+                            </label>
+                            <input
+                              type="text"
+                              value={scanKurir}
+                              onChange={(e) => setScanKurir(e.target.value)}
+                              placeholder="JNE / J&T / Cargo / Pickup"
+                              style={{
+                                width: "100%",
+                                padding: "5px 8px",
+                                borderRadius: "5px",
+                                border: "1px solid #cbd5e1",
+                                fontSize: "11.5px",
+                                fontWeight: "600",
+                                boxSizing: "border-box",
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <label
+                              style={{
+                                display: "block",
+                                fontSize: "10.5px",
+                                fontWeight: "700",
+                                color: "#475569",
+                                marginBottom: "3px",
+                              }}
+                            >
+                              Nomor Resi Pengiriman
+                            </label>
+                            <input
+                              type="text"
+                              value={scanResi}
+                              onChange={(e) => setScanResi(e.target.value)}
+                              placeholder="Scan / ketik nomor resi..."
+                              style={{
+                                width: "100%",
+                                padding: "5px 8px",
+                                borderRadius: "5px",
+                                border: "1px solid #cbd5e1",
+                                fontSize: "11.5px",
+                                fontWeight: "700",
+                                fontFamily: "monospace",
+                                boxSizing: "border-box",
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <label
+                              style={{
+                                display: "block",
+                                fontSize: "10.5px",
+                                fontWeight: "700",
+                                color: "#475569",
+                                marginBottom: "3px",
+                              }}
+                            >
+                              Petugas Kemas (Checker)
+                            </label>
+                            <input
+                              type="text"
+                              value={scanPic}
+                              onChange={(e) => setScanPic(e.target.value)}
+                              placeholder="Nama petugas packing..."
+                              style={{
+                                width: "100%",
+                                padding: "5px 8px",
+                                borderRadius: "5px",
+                                border: "1px solid #cbd5e1",
+                                fontSize: "11.5px",
+                                boxSizing: "border-box",
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <label
+                              style={{
+                                display: "block",
+                                fontSize: "10.5px",
+                                fontWeight: "700",
+                                color: "#475569",
+                                marginBottom: "3px",
+                              }}
+                            >
+                              Catatan Kemasan (Jml Karung / Koli)
+                            </label>
+                            <input
+                              type="text"
+                              value={scanCatatan}
+                              onChange={(e) => setScanCatatan(e.target.value)}
+                              placeholder="Opsional: 2 Koli / Plastik Lakban..."
+                              style={{
+                                width: "100%",
+                                padding: "5px 8px",
+                                borderRadius: "5px",
+                                border: "1px solid #cbd5e1",
+                                fontSize: "11.5px",
+                                boxSizing: "border-box",
+                              }}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Tombol Aksi Selesaikan Kemasan */}
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            flexWrap: "wrap",
+                            gap: "8px",
+                            paddingTop: "10px",
+                            borderTop: "1px solid #e2e8f0",
+                          }}
+                        >
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handlePrintLabelKemasan(activeScanOrder)
+                            }
+                            style={{
+                              padding: "7px 14px",
+                              borderRadius: "6px",
+                              border: "1px solid #0f172a",
+                              backgroundColor: "#ffffff",
+                              color: "#0f172a",
+                              fontSize: "11.5px",
+                              fontWeight: "800",
+                              cursor: "pointer",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "6px",
+                            }}
+                          >
+                            <Printer size={13} />
+                            <span>Cetak Label Kemasan (A6)</span>
+                          </button>
+
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "8px",
+                              flexWrap: "wrap",
+                            }}
+                          >
+                            <button
+                              type="button"
+                              disabled={isSavingPack}
+                              onClick={() => handleSaveScanKemasan("tetap")}
+                              style={{
+                                padding: "7px 13px",
+                                borderRadius: "6px",
+                                border: "1px solid #cbd5e1",
+                                backgroundColor: "#f8fafc",
+                                color: "#334155",
+                                fontSize: "11.5px",
+                                fontWeight: "700",
+                                cursor: "pointer",
+                              }}
+                            >
+                              Simpan Progres Cek
+                            </button>
+
+                            <button
+                              type="button"
+                              disabled={isSavingPack}
+                              onClick={() =>
+                                handleSaveScanKemasan("siap_kirim")
+                              }
+                              style={{
+                                padding: "7px 15px",
+                                borderRadius: "6px",
+                                border: "none",
+                                backgroundColor: "#059669",
+                                color: "#ffffff",
+                                fontSize: "11.5px",
+                                fontWeight: "800",
+                                cursor: "pointer",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "6px",
+                                boxShadow: "0 2px 5px rgba(5, 150, 105, 0.3)",
+                              }}
+                            >
+                              <CheckCircle2 size={14} />
+                              <span>
+                                {isSavingPack
+                                  ? "Menyimpan..."
+                                  : "Selesai Kemas (Status ➔ Siap Kirim)"}
+                              </span>
+                            </button>
+
+                            <button
+                              type="button"
+                              disabled={isSavingPack}
+                              onClick={() => handleSaveScanKemasan("dikirim")}
+                              style={{
+                                padding: "7px 15px",
+                                borderRadius: "6px",
+                                border: "none",
+                                backgroundColor: "#0284c7",
+                                color: "#ffffff",
+                                fontSize: "11.5px",
+                                fontWeight: "800",
+                                cursor: "pointer",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "6px",
+                                boxShadow: "0 2px 5px rgba(2, 132, 199, 0.3)",
+                              }}
+                            >
+                              <Truck size={14} />
+                              <span>Selesai Kemas & Langsung Kirim</span>
+                            </button>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
     </div>
   );
 }

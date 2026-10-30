@@ -89,6 +89,22 @@ async function ensureTables(pool) {
     await pool.query('ALTER TABLE pesanan_offline DROP COLUMN saluran');
   } catch (e) {}
 
+  try {
+    await pool.query("ALTER TABLE pesanan_offline ADD COLUMN status_kemas VARCHAR(30) DEFAULT 'belum_dikemas' AFTER status_pesanan");
+  } catch (e) {}
+
+  try {
+    await pool.query('ALTER TABLE pesanan_offline ADD COLUMN waktu_kemas DATETIME DEFAULT NULL AFTER status_kemas');
+  } catch (e) {}
+
+  try {
+    await pool.query('ALTER TABLE pesanan_offline ADD COLUMN dikemas_oleh VARCHAR(100) DEFAULT NULL AFTER waktu_kemas');
+  } catch (e) {}
+
+  try {
+    await pool.query('ALTER TABLE pesanan_offline ADD COLUMN catatan_kemas VARCHAR(300) DEFAULT NULL AFTER dikemas_oleh');
+  } catch (e) {}
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS pesanan_offline_item (
       id              INT           NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -97,6 +113,7 @@ async function ensureTables(pool) {
       nama_produk     VARCHAR(300)  NOT NULL,
       varian          VARCHAR(200)  DEFAULT NULL,
       qty             INT           NOT NULL DEFAULT 1,
+      qty_dikemas     INT           NOT NULL DEFAULT 0,
       harga_satuan    DECIMAL(15,2) NOT NULL DEFAULT 0,
       diskon_item     DECIMAL(15,2) NOT NULL DEFAULT 0,
       subtotal        DECIMAL(15,2) NOT NULL DEFAULT 0,
@@ -104,6 +121,10 @@ async function ensureTables(pool) {
       INDEX idx_pesanan (id_pesanan)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `);
+
+  try {
+    await pool.query('ALTER TABLE pesanan_offline_item ADD COLUMN qty_dikemas INT NOT NULL DEFAULT 0 AFTER qty');
+  } catch (e) {}
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS pesanan_offline_pembayaran (
@@ -142,8 +163,12 @@ export async function handleOfflineOrdersRoutes(req, res, pathname, urlObj, { po
 
       const where = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
       const [orders] = await pool.query(
-        `SELECT o.*, GROUP_CONCAT(i.nama_produk ORDER BY i.id SEPARATOR ', ') as ringkasan_produk,
-                SUM(i.qty) as total_qty, COUNT(i.id) as jumlah_item
+        `SELECT o.*,
+                GROUP_CONCAT(i.nama_produk ORDER BY i.id SEPARATOR ', ') as ringkasan_produk,
+                SUM(i.qty) as total_qty,
+                COUNT(i.id) as jumlah_item,
+                (SELECT COALESCE(SUM(p.nominal), 0) FROM pesanan_offline_pembayaran p WHERE p.id_pesanan = o.id) as sum_pembayaran,
+                (SELECT COUNT(p.id) FROM pesanan_offline_pembayaran p WHERE p.id_pesanan = o.id) as cnt_pembayaran
          FROM pesanan_offline o
          LEFT JOIN pesanan_offline_item i ON i.id_pesanan = o.id
          ${where}
@@ -151,6 +176,27 @@ export async function handleOfflineOrdersRoutes(req, res, pathname, urlObj, { po
          ORDER BY o.dibuat_pada DESC`,
         params
       );
+
+      // Sinkronkan nominal_dp & status_pembayaran aktual terhadap total_harga
+      for (const ord of orders) {
+        const totalHarga = Number(ord.total_harga || 0);
+        const cntPay = Number(ord.cnt_pembayaran || 0);
+        const realPaid = cntPay > 0
+          ? Number(ord.sum_pembayaran || 0)
+          : Number(ord.nominal_dp || 0);
+        const realStatus = totalHarga > 0 && realPaid >= totalHarga
+          ? 'lunas'
+          : (realPaid > 0 ? 'dp' : 'belum_bayar');
+
+        if (Number(ord.nominal_dp || 0) !== realPaid || ord.status_pembayaran !== realStatus) {
+          ord.nominal_dp = realPaid;
+          ord.status_pembayaran = realStatus;
+          await pool.query(
+            'UPDATE pesanan_offline SET nominal_dp = ?, status_pembayaran = ? WHERE id = ?',
+            [realPaid, realStatus, ord.id]
+          ).catch(() => {});
+        }
+      }
 
       sendJson(res, 200, { status: 'success', data: orders });
       return true;
@@ -175,9 +221,9 @@ export async function handleOfflineOrdersRoutes(req, res, pathname, urlObj, { po
 
       // Auto-seed riwayat awal jika pesanan lama sudah ada DP / Lunas tapi tabel pembayaran masih kosong
       if (pembayaran_list.length === 0) {
-        const initNominal = order.status_pembayaran === 'lunas'
-          ? Number(order.total_harga || 0)
-          : (order.status_pembayaran === 'dp' ? Number(order.nominal_dp || 0) : 0);
+        const initNominal = Number(order.nominal_dp || 0) > 0
+          ? Number(order.nominal_dp || 0)
+          : (order.status_pembayaran === 'lunas' ? Number(order.total_harga || 0) : 0);
         if (initNominal > 0) {
           await pool.query(
             `INSERT INTO pesanan_offline_pembayaran (id_pesanan, tanggal_bayar, nominal, metode_pembayaran, bank_tujuan, keterangan)
@@ -188,7 +234,7 @@ export async function handleOfflineOrdersRoutes(req, res, pathname, urlObj, { po
               initNominal,
               order.metode_pembayaran || 'cash',
               order.bank_tujuan || null,
-              order.status_pembayaran === 'lunas' ? 'Pembayaran Lunas Awal' : 'Pembayaran DP Awal'
+              initNominal >= Number(order.total_harga || 0) ? 'Pembayaran Lunas Awal' : 'Pembayaran DP Awal'
             ]
           );
           const [refetched] = await pool.query(
@@ -197,6 +243,28 @@ export async function handleOfflineOrdersRoutes(req, res, pathname, urlObj, { po
           );
           pembayaran_list = refetched;
         }
+      }
+
+      // Hitung ulang total terbayar & status_pembayaran dari riwayat pembayaran aktual vs total_harga
+      const totalHargaOrder = Number(order.total_harga || 0);
+      const totalTerbayarAktual = pembayaran_list.reduce(
+        (sum, p) => sum + Number(p.nominal || 0),
+        0
+      );
+      const statusBayarAktual = totalHargaOrder > 0 && totalTerbayarAktual >= totalHargaOrder
+        ? 'lunas'
+        : (totalTerbayarAktual > 0 ? 'dp' : 'belum_bayar');
+
+      if (
+        Number(order.nominal_dp || 0) !== totalTerbayarAktual ||
+        order.status_pembayaran !== statusBayarAktual
+      ) {
+        order.nominal_dp = totalTerbayarAktual;
+        order.status_pembayaran = statusBayarAktual;
+        await pool.query(
+          'UPDATE pesanan_offline SET nominal_dp = ?, status_pembayaran = ? WHERE id = ?',
+          [totalTerbayarAktual, statusBayarAktual, id]
+        ).catch(() => {});
       }
 
       let existing_spk_batch = null;
@@ -423,6 +491,26 @@ export async function handleOfflineOrdersRoutes(req, res, pathname, urlObj, { po
         await pool.query(`UPDATE pesanan_offline SET ${setClauses} WHERE id = ?`, [...Object.values(fields), id]);
       }
 
+      // Sinkronkan ulang nominal_dp & status_pembayaran berdasarkan riwayat cicilan dan total_harga terbaru
+      const [[payAgg]] = await pool.query(
+        'SELECT COALESCE(SUM(nominal), 0) AS total_bayar, COUNT(*) AS cnt FROM pesanan_offline_pembayaran WHERE id_pesanan = ?',
+        [id]
+      );
+      const latestTotalHarga = fields.total_harga !== undefined
+        ? Number(fields.total_harga || 0)
+        : Number(existing.total_harga || 0);
+      const latestPaid = Number(payAgg?.cnt || 0) > 0
+        ? Number(payAgg.total_bayar || 0)
+        : Number(fields.nominal_dp !== undefined ? fields.nominal_dp : (existing.nominal_dp || 0));
+      const latestStatusBayar = latestTotalHarga > 0 && latestPaid >= latestTotalHarga
+        ? 'lunas'
+        : (latestPaid > 0 ? 'dp' : 'belum_bayar');
+
+      await pool.query(
+        'UPDATE pesanan_offline SET nominal_dp = ?, status_pembayaran = ? WHERE id = ?',
+        [latestPaid, latestStatusBayar, id]
+      );
+
       sendJson(res, 200, { status: 'success', message: 'Pesanan diperbarui', no_spk: noSpk, no_pesanan: existing.no_pesanan });
       return true;
     } catch (err) {
@@ -503,7 +591,7 @@ export async function handleOfflineOrdersRoutes(req, res, pathname, urlObj, { po
               id_spk: spkId,
               nama_spk: (s.nama_spk || `SPK ${sIdx + 1}`).trim(),
               penjahit: (s.penjahit || 'Penjahit Workshop').trim(),
-              status_spk: (s.status_spk || 'Potong Pola').trim(),
+              status_spk: (s.status_spk || 'Perencanaan').trim(),
               design_img: s.design_img || null,
               produk_items: (s.produk_items || []).map((it, pIdx) =>
                 enrichProductItem(it, spkId, pIdx)
@@ -516,7 +604,7 @@ export async function handleOfflineOrdersRoutes(req, res, pathname, urlObj, { po
         const idSpk = (body.id_spk || `SPK-${order.no_pesanan.split('-').pop() || '101'}`).trim();
         const namaSpk = (body.nama_spk || `SPK ${order.nama_pembeli}`).trim();
         const penjahit = (body.penjahit || 'Penjahit Workshop').trim();
-        const statusSpk = (body.status_spk || 'Potong Pola').trim();
+        const statusSpk = (body.status_spk || 'Perencanaan').trim();
         const customItems = Array.isArray(body.items) && body.items.length > 0 ? body.items : orderItems;
         spkList = [
           {
@@ -757,6 +845,156 @@ export async function handleOfflineOrdersRoutes(req, res, pathname, urlObj, { po
       });
       return true;
     } catch (err) {
+      sendJson(res, 500, { status: 'error', message: err.message });
+      return true;
+    }
+  }
+
+  // ── 6B. POST Scan Lookup Pesanan Offline (Cari via No Pesanan / Resi / SPK) ─
+  if (pathname === '/api/offline/orders/scan-lookup' && req.method === 'POST') {
+    try {
+      const body = await parseJsonBody(req);
+      const rawCode = String(body.code || '').trim();
+      const kodePerusahaan = String(body.kode_perusahaan || '').trim();
+
+      if (!rawCode) {
+        sendJson(res, 400, { status: 'error', message: 'Kode scan (No. Pesanan / No. Resi) wajib diisi' });
+        return true;
+      }
+
+      const [rows] = await pool.query(
+        `SELECT * FROM pesanan_offline
+         WHERE (no_pesanan = ? OR no_resi = ? OR no_spk = ? OR id = ? OR no_pesanan LIKE ?)
+         ${kodePerusahaan ? 'AND kode_perusahaan = ?' : ''}
+         ORDER BY dibuat_pada DESC LIMIT 1`,
+        kodePerusahaan
+          ? [rawCode, rawCode, rawCode, rawCode, `%-${rawCode}`, kodePerusahaan]
+          : [rawCode, rawCode, rawCode, rawCode, `%-${rawCode}`]
+      );
+
+      if (!rows || rows.length === 0) {
+        sendJson(res, 404, {
+          status: 'error',
+          message: `Pesanan dengan kode / resi "${rawCode}" tidak ditemukan!`
+        });
+        return true;
+      }
+
+      const order = rows[0];
+      const [items] = await pool.query('SELECT * FROM pesanan_offline_item WHERE id_pesanan = ? ORDER BY id', [order.id]);
+      const [pembayaran_list] = await pool.query(
+        'SELECT * FROM pesanan_offline_pembayaran WHERE id_pesanan = ? ORDER BY tanggal_bayar ASC, id ASC',
+        [order.id]
+      );
+
+      sendJson(res, 200, {
+        status: 'success',
+        data: { ...order, items, pembayaran_list }
+      });
+      return true;
+    } catch (err) {
+      sendJson(res, 500, { status: 'error', message: err.message });
+      return true;
+    }
+  }
+
+  // ── 6C. POST Simpan Hasil Scan Kemasan (Packing Verification) ──────────────
+  const packPostMatch = pathname.match(/^\/api\/offline\/orders\/([^/]+)\/pack$/);
+  if (packPostMatch && req.method === 'POST') {
+    try {
+      const id = decodeURIComponent(packPostMatch[1]);
+      const body = await parseJsonBody(req);
+      const [[order]] = await pool.query('SELECT * FROM pesanan_offline WHERE id = ?', [id]);
+      if (!order) {
+        sendJson(res, 404, { status: 'error', message: 'Pesanan tidak ditemukan' });
+        return true;
+      }
+
+      const {
+        scanned_items = [],
+        kurir = undefined,
+        no_resi = undefined,
+        dikemas_oleh = 'Tim Gudang / Packing',
+        catatan_kemas = '',
+        target_status = 'siap_kirim', // 'siap_kirim' | 'dikirim' | 'simpan_progres'
+      } = body;
+
+      // Update qty_dikemas per item
+      if (Array.isArray(scanned_items) && scanned_items.length > 0) {
+        for (const si of scanned_items) {
+          if (si.id) {
+            await pool.query(
+              'UPDATE pesanan_offline_item SET qty_dikemas = ? WHERE id = ? AND id_pesanan = ?',
+              [Number(si.qty_dikemas || 0), si.id, id]
+            );
+          }
+        }
+      }
+
+      const [currentItems] = await pool.query('SELECT * FROM pesanan_offline_item WHERE id_pesanan = ? ORDER BY id', [id]);
+      const totalOrderQty = currentItems.reduce((s, it) => s + Number(it.qty || 0), 0);
+      const totalPackedQty = currentItems.reduce((s, it) => s + Number(it.qty_dikemas || 0), 0);
+      const isAllPacked = totalOrderQty > 0 && totalPackedQty >= totalOrderQty;
+
+      const statusKemas = isAllPacked || target_status !== 'simpan_progres'
+        ? 'sudah_dikemas'
+        : (totalPackedQty > 0 ? 'sedang_dikemas' : 'belum_dikemas');
+
+      let nextStatusPesanan = order.status_pesanan;
+      if (target_status === 'dikirim') {
+        nextStatusPesanan = 'dikirim';
+      } else if (target_status === 'siap_kirim') {
+        if (order.status_pesanan !== 'dikirim' && order.status_pesanan !== 'selesai') {
+          nextStatusPesanan = 'siap_kirim';
+        }
+      }
+
+      // Jika semua item selesai dikemas tanpa rincian per-item (mode kemas cepat), set qty_dikemas = qty
+      if (statusKemas === 'sudah_dikemas' && (!Array.isArray(scanned_items) || scanned_items.length === 0)) {
+        await pool.query('UPDATE pesanan_offline_item SET qty_dikemas = qty WHERE id_pesanan = ?', [id]);
+      }
+
+      const finalKurir = kurir !== undefined ? kurir : order.kurir;
+      const finalResi = no_resi !== undefined ? no_resi : order.no_resi;
+
+      await pool.query(
+        `UPDATE pesanan_offline
+         SET status_kemas = ?,
+             waktu_kemas = NOW(),
+             dikemas_oleh = ?,
+             catatan_kemas = ?,
+             kurir = ?,
+             no_resi = ?,
+             status_pesanan = ?
+         WHERE id = ?`,
+        [
+          statusKemas,
+          dikemas_oleh || 'Admin Packing',
+          catatan_kemas || null,
+          finalKurir || null,
+          finalResi || null,
+          nextStatusPesanan,
+          id
+        ]
+      );
+
+      const [[updatedOrder]] = await pool.query('SELECT * FROM pesanan_offline WHERE id = ?', [id]);
+      const [items] = await pool.query('SELECT * FROM pesanan_offline_item WHERE id_pesanan = ? ORDER BY id', [id]);
+      const [pembayaran_list] = await pool.query(
+        'SELECT * FROM pesanan_offline_pembayaran WHERE id_pesanan = ? ORDER BY tanggal_bayar ASC, id ASC',
+        [id]
+      );
+
+      sendJson(res, 200, {
+        status: 'success',
+        message: statusKemas === 'sudah_dikemas'
+          ? `Kemasan pesanan ${order.no_pesanan} selesai diverifikasi (${nextStatusPesanan.toUpperCase()})!`
+          : `Progres scan kemasan ${order.no_pesanan} disimpan (${totalPackedQty}/${totalOrderQty} Pcs)`,
+        data: { ...updatedOrder, items, pembayaran_list }
+      });
+      return true;
+    } catch (err) {
+      console.error('[Offline Order Pack POST Error]:', err.message);
       sendJson(res, 500, { status: 'error', message: err.message });
       return true;
     }
