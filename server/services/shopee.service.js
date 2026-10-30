@@ -519,14 +519,14 @@ export class ShopeeService {
   }
 
   // 6. Mendapatkan Daftar Order SN Shopee
-  async getOrderList(shopId, accessToken, pageSize = 50) {
+  async getOrderList(shopId, accessToken, pageSize = 50, days = 14) {
     const path = '/api/v2/order/get_order_list';
     const timestamp = Math.floor(Date.now() / 1000);
     const sId = String(shopId);
     const sign = this.generateSignature(path, timestamp, accessToken, sId);
 
     const timeTo = timestamp;
-    const timeFrom = timestamp - 14 * 86400; // 14 hari terakhir
+    const timeFrom = timestamp - days * 86400; // rentang hari (default 14)
 
     const query = new URLSearchParams({
       partner_id: this.partnerId,
@@ -605,9 +605,9 @@ export class ShopeeService {
   }
 
   // 8. Sinkronisasi Pesanan Shopee Lengkap dengan Finansial & HPP
-  async syncOrders(shopId, accessToken, fallbackShopName = 'Koperasi Sahabat Anak Bangsa') {
+  async syncOrders(shopId, accessToken, fallbackShopName = 'Koperasi Sahabat Anak Bangsa', days = 14) {
     const sId = String(shopId);
-    const orderList = await this.getOrderList(sId, accessToken, 50);
+    const orderList = await this.getOrderList(sId, accessToken, 50, days);
     if (!orderList || orderList.length === 0) return [];
 
     const orderSns = orderList.map(o => o.order_sn).filter(Boolean);

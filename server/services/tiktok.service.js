@@ -220,7 +220,7 @@ export class TiktokService {
   }
 
   // 5. Ambil Daftar Pesanan dari TikTok Shop Open API (v202309)
-  async getOrderSearch(accessToken, shopCipher, pageToken = '') {
+  async getOrderSearch(accessToken, shopCipher, pageToken = '', days = 14) {
     const timestamp = Math.floor(Date.now() / 1000);
     const path = '/order/202309/orders/search';
     const queryObj = {
@@ -235,7 +235,7 @@ export class TiktokService {
 
     const nowTs = Math.floor(Date.now() / 1000);
     const bodyObj = {
-      create_time_ge: nowTs - 14 * 86400, // 14 hari terakhir
+      create_time_ge: nowTs - days * 86400, // rentang hari
       create_time_lt: nowTs
     };
     const bodyJson = JSON.stringify(bodyObj);
@@ -260,7 +260,7 @@ export class TiktokService {
   }
 
   // 6. Sinkronisasi Pesanan TikTok Shop Asli & Format Lengkap Pesanan Masuk
-  async syncOrders(accessToken, shopCipher, fallbackShopName = 'RUANG SERAGAM') {
+  async syncOrders(accessToken, shopCipher, fallbackShopName = 'RUANG SERAGAM', days = 14) {
     let activeCipher = shopCipher;
 
     // Jika shopCipher belum ada, otomatis dapatkan dari API shops
@@ -279,7 +279,7 @@ export class TiktokService {
       throw new Error('shop_cipher TikTok Shop tidak ditemukan. Pastikan akun TikTok Shop sudah terotorisasi.');
     }
 
-    const result = await this.getOrderSearch(accessToken, activeCipher);
+    const result = await this.getOrderSearch(accessToken, activeCipher, '', days);
     const rawOrders = result.orders || [];
 
     if (!rawOrders || rawOrders.length === 0) {

@@ -33,6 +33,12 @@ export default function PesananMasukDesktopView() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState('');
 
+  // Historical Pull Modal
+  const [showHistoricalModal, setShowHistoricalModal] = useState(false);
+  const [historicalDays, setHistoricalDays] = useState(30);
+  const [isHistoricalSyncing, setIsHistoricalSyncing] = useState(false);
+  const [historicalProgress, setHistoricalProgress] = useState('');
+
   // Filter & Sort States
   const [search, setSearch] = useState('');
   const [filterChannel, setFilterChannel] = useState('Semua');
@@ -263,6 +269,33 @@ export default function PesananMasukDesktopView() {
     }
   };
 
+  // Tarik Pesanan Historical — rentang hari yang bisa dikonfigurasi
+  const handleSyncHistorical = async () => {
+    setIsHistoricalSyncing(true);
+    setHistoricalProgress(`Menghubungkan ke Shopee & TikTok API untuk menarik pesanan ${historicalDays} hari terakhir...`);
+    try {
+      const res = await fetch('/api/marketplace/orders/sync-historical', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ days: historicalDays })
+      });
+      const json = await res.json();
+      if (res.ok && json.status === 'success') {
+        const detail = (json.results || []).map(r => r.error ? `${r.store}: Gagal (${r.error})` : `${r.store}: ${r.count} pesanan`).join(' · ');
+        toastSuccess(`Berhasil menarik ${json.totalSynced || 0} pesanan dari ${json.days} hari terakhir! ${detail}`);
+        setShowHistoricalModal(false);
+        await loadOrders();
+      } else {
+        throw new Error(json.message || 'Gagal tarik pesanan historical');
+      }
+    } catch (err) {
+      toastError(`Gagal: ${err.message}`);
+    } finally {
+      setIsHistoricalSyncing(false);
+      setHistoricalProgress('');
+    }
+  };
+
   // Filter Company List
   const companyOrders = orders.filter(o => 
     !o.company_code || o.company_code === activeCompany.code
@@ -463,6 +496,32 @@ export default function PesananMasukDesktopView() {
 
         {/* Header Action Buttons */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          {/* Tarik Pesanan Historical */}
+          <button
+            type="button"
+            id="btn-tarik-pesanan-historical"
+            onClick={() => setShowHistoricalModal(true)}
+            style={{
+              padding: '7px 14px',
+              borderRadius: '7px',
+              border: '1px solid rgba(251, 191, 36, 0.5)',
+              backgroundColor: 'rgba(251, 191, 36, 0.12)',
+              color: '#fbbf24',
+              fontSize: '12px',
+              fontWeight: '700',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              cursor: 'pointer',
+              transition: 'all 0.15s'
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(251, 191, 36, 0.22)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(251, 191, 36, 0.12)'; }}
+            title="Tarik pesanan dari rentang tanggal yang lebih panjang (hingga 150 hari)"
+          >
+            <Calendar size={13} />
+            <span>Tarik Pesanan Historical</span>
+          </button>
         </div>
       </div>
 
@@ -1987,6 +2046,203 @@ export default function PesananMasukDesktopView() {
         );
       })()}
 
+      {/* MODAL TARIK PESANAN HISTORICAL */}
+      {showHistoricalModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.65)',
+          backdropFilter: 'blur(4px)',
+          zIndex: 9999,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}>
+          <div style={{
+            backgroundColor: '#0f172a',
+            border: '1px solid rgba(251, 191, 36, 0.3)',
+            borderRadius: '14px',
+            padding: '28px 32px',
+            width: '460px',
+            maxWidth: '90vw',
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5), 0 0 40px rgba(251, 191, 36, 0.08)',
+            color: '#ffffff'
+          }}>
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
+              <div style={{
+                width: '42px', height: '42px', borderRadius: '10px',
+                background: 'linear-gradient(135deg, rgba(251,191,36,0.25), rgba(251,191,36,0.1))',
+                border: '1px solid rgba(251,191,36,0.4)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: '#fbbf24', flexShrink: 0
+              }}>
+                <Calendar size={20} />
+              </div>
+              <div>
+                <h2 style={{ margin: 0, fontSize: '15px', fontWeight: '800', color: '#ffffff' }}>
+                  Tarik Pesanan Historical
+                </h2>
+                <p style={{ margin: 0, fontSize: '11.5px', color: '#94a3b8' }}>
+                  Sinkronisasi pesanan dari rentang tanggal yang lebih panjang
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => !isHistoricalSyncing && setShowHistoricalModal(false)}
+                style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '4px' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Slider */}
+            <div style={{ marginBottom: '24px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <label style={{ fontSize: '12.5px', fontWeight: '700', color: '#cbd5e1' }}>
+                  Rentang Waktu
+                </label>
+                <div style={{
+                  padding: '3px 14px', borderRadius: '20px',
+                  background: 'linear-gradient(135deg, rgba(251,191,36,0.25), rgba(251,191,36,0.1))',
+                  border: '1px solid rgba(251,191,36,0.4)',
+                  fontSize: '14px', fontWeight: '800', color: '#fbbf24'
+                }}>
+                  {historicalDays} hari
+                </div>
+              </div>
+
+              <input
+                type="range"
+                min={1}
+                max={150}
+                step={1}
+                value={historicalDays}
+                disabled={isHistoricalSyncing}
+                onChange={(e) => setHistoricalDays(Number(e.target.value))}
+                style={{ width: '100%', accentColor: '#fbbf24', cursor: 'pointer', height: '4px' }}
+              />
+
+              {/* Quick presets */}
+              <div style={{ display: 'flex', gap: '6px', marginTop: '10px', flexWrap: 'wrap' }}>
+                {[7, 14, 30, 60, 90, 150].map(d => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => setHistoricalDays(d)}
+                    disabled={isHistoricalSyncing}
+                    style={{
+                      padding: '4px 10px',
+                      borderRadius: '5px',
+                      border: historicalDays === d ? '1px solid #fbbf24' : '1px solid rgba(255,255,255,0.15)',
+                      backgroundColor: historicalDays === d ? 'rgba(251,191,36,0.2)' : 'rgba(255,255,255,0.05)',
+                      color: historicalDays === d ? '#fbbf24' : '#94a3b8',
+                      fontSize: '11px',
+                      fontWeight: '700',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {d === 150 ? '5 bln' : d === 90 ? '3 bln' : d === 60 ? '2 bln' : d === 30 ? '1 bln' : `${d}h`}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Info Box */}
+            <div style={{
+              padding: '12px 14px',
+              borderRadius: '8px',
+              background: 'rgba(251,191,36,0.08)',
+              border: '1px solid rgba(251,191,36,0.2)',
+              marginBottom: '20px'
+            }}>
+              <div style={{ fontSize: '11.5px', color: '#fcd34d', fontWeight: '700', marginBottom: '4px' }}>
+                ⚡ Estimasi & Info
+              </div>
+              <div style={{ fontSize: '11px', color: '#94a3b8', lineHeight: '1.6' }}>
+                • Auto-sync reguler (2 menit) <strong style={{ color: '#cbd5e1' }}>tetap 14 hari</strong> — tidak berubah<br/>
+                • Pull ini berjalan <strong style={{ color: '#cbd5e1' }}>sekali saja</strong> dan bisa memakan 1–5 menit<br/>
+                • Semua pesanan yang sudah ada di DB akan <strong style={{ color: '#cbd5e1' }}>diupdate, bukan diduplikasi</strong><br/>
+                • {historicalDays} hari ≈ estimasi <strong style={{ color: '#fbbf24' }}>{historicalDays <= 30 ? '30–60 detik' : historicalDays <= 90 ? '1–3 menit' : '3–6 menit'}</strong>
+              </div>
+            </div>
+
+            {/* Progress */}
+            {isHistoricalSyncing && historicalProgress && (
+              <div style={{
+                padding: '10px 12px',
+                borderRadius: '7px',
+                background: 'rgba(56,189,248,0.08)',
+                border: '1px solid rgba(56,189,248,0.2)',
+                marginBottom: '16px',
+                fontSize: '11.5px',
+                color: '#38bdf8',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                <div style={{
+                  width: '14px', height: '14px', border: '2px solid rgba(56,189,248,0.4)',
+                  borderTopColor: '#38bdf8', borderRadius: '50%',
+                  animation: 'spin 0.8s linear infinite', flexShrink: 0
+                }} />
+                {historicalProgress}
+              </div>
+            )}
+
+            {/* Actions */}
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={() => setShowHistoricalModal(false)}
+                disabled={isHistoricalSyncing}
+                style={{
+                  padding: '8px 20px', borderRadius: '7px',
+                  border: '1px solid rgba(255,255,255,0.15)',
+                  backgroundColor: 'transparent',
+                  color: '#94a3b8', fontSize: '12.5px', fontWeight: '700',
+                  cursor: isHistoricalSyncing ? 'not-allowed' : 'pointer', opacity: isHistoricalSyncing ? 0.5 : 1
+                }}
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                id="btn-mulai-tarik-historical"
+                onClick={handleSyncHistorical}
+                disabled={isHistoricalSyncing}
+                style={{
+                  padding: '8px 24px', borderRadius: '7px',
+                  border: '1px solid rgba(251,191,36,0.5)',
+                  background: isHistoricalSyncing
+                    ? 'rgba(251,191,36,0.1)'
+                    : 'linear-gradient(135deg, rgba(251,191,36,0.3), rgba(251,191,36,0.15))',
+                  color: '#fbbf24', fontSize: '12.5px', fontWeight: '800',
+                  cursor: isHistoricalSyncing ? 'not-allowed' : 'pointer',
+                  display: 'inline-flex', alignItems: 'center', gap: '7px',
+                  transition: 'all 0.15s'
+                }}
+              >
+                {isHistoricalSyncing ? (
+                  <>
+                    <div style={{
+                      width: '13px', height: '13px', border: '2px solid rgba(251,191,36,0.4)',
+                      borderTopColor: '#fbbf24', borderRadius: '50%', animation: 'spin 0.8s linear infinite'
+                    }} />
+                    Menarik Pesanan...
+                  </>
+                ) : (
+                  <>
+                    <Calendar size={13} />
+                    Tarik {historicalDays} Hari Terakhir
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
+
   );
 }

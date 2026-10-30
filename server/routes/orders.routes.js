@@ -905,5 +905,134 @@ export async function handleOrdersRoutes(req, res, pathname, urlObj, { pool, lar
     }
   }
 
+  // 10. Sync Historical Orders — Tarik pesanan berdasarkan rentang hari (manual, tidak memengaruhi auto-sync)
+  if (pathname === '/api/marketplace/orders/sync-historical' && req.method === 'POST') {
+    try {
+      let body = '';
+      await new Promise(resolve => { req.on('data', c => body += c); req.on('end', resolve); });
+      const parsed = (() => { try { return JSON.parse(body); } catch (e) { return {}; } })();
+      const days = Math.min(Math.max(Number(parsed.days) || 30, 1), 150); // 1–150 hari
+
+      const [stores] = await pool.query('SELECT * FROM toko_marketplace WHERE status_koneksi LIKE "%Aktif%" OR status_koneksi LIKE "%Terhubung%" OR status_koneksi LIKE "%connected%"');
+      let totalSynced = 0;
+      const results = [];
+
+      for (const st of stores) {
+        try {
+          if (st.saluran === 'shopee') {
+            let token = st.token_akses;
+            let shopeeOrders = [];
+            try {
+              shopeeOrders = await shopeeService.syncOrders(st.id_toko, token, st.nama_toko, days);
+            } catch (syncErr) {
+              if (st.token_refresh) {
+                const ref = await shopeeService.refreshAccessToken(st.token_refresh, st.id_toko, false);
+                if (ref?.access_token) {
+                  token = ref.access_token;
+                  await pool.query('UPDATE toko_marketplace SET token_akses=?, token_refresh=?, diperbarui_pada=CURRENT_TIMESTAMP WHERE id_toko=?', [token, ref.refresh_token || st.token_refresh, st.id_toko]);
+                  shopeeOrders = await shopeeService.syncOrders(st.id_toko, token, st.nama_toko, days);
+                } else throw syncErr;
+              } else throw syncErr;
+            }
+            for (const ord of shopeeOrders) {
+              const itemsJson = JSON.stringify(ord.items || []);
+              await pool.query(`
+                INSERT INTO pesanan_marketplace (
+                  id, kode_perusahaan, no_pesanan, saluran,
+                  nama_toko, nama_pembeli, total_harga, status_pesanan, no_spk,
+                  rincian_item, kurir, no_resi, waktu_pesanan, batas_kirim,
+                  ongkir, marketplace_fee, fee_platform, fee_free_shipping, fee_service, net_amount, ditarik_pada
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ON DUPLICATE KEY UPDATE
+                  nama_pembeli=VALUES(nama_pembeli), total_harga=VALUES(total_harga),
+                  status_pesanan=VALUES(status_pesanan), rincian_item=VALUES(rincian_item),
+                  kurir=VALUES(kurir), no_resi=VALUES(no_resi),
+                  waktu_pesanan=VALUES(waktu_pesanan), batas_kirim=VALUES(batas_kirim),
+                  ongkir=VALUES(ongkir), marketplace_fee=VALUES(marketplace_fee),
+                  fee_platform=VALUES(fee_platform), fee_free_shipping=VALUES(fee_free_shipping),
+                  fee_service=VALUES(fee_service), net_amount=VALUES(net_amount),
+                  no_spk=COALESCE(VALUES(no_spk), no_spk)
+              `, [
+                ord.id, st.kode_perusahaan || 'RSG', ord.no_pesanan, 'shopee',
+                ord.nama_toko || st.nama_toko, ord.nama_pembeli, ord.total_harga || 0,
+                ord.status_pesanan || 'Perlu Diproses', ord.no_spk || null,
+                itemsJson, ord.kurir || 'SPX Express', ord.no_resi || '',
+                ord.waktu_pesanan ? new Date(ord.waktu_pesanan) : new Date(),
+                ord.batas_kirim ? new Date(ord.batas_kirim) : null,
+                ord.ongkir || 0, ord.marketplace_fee || 0, ord.fee_platform || 0,
+                ord.fee_free_shipping || 0, ord.fee_service || 0, ord.net_amount || ord.total_harga || 0
+              ]);
+            }
+            totalSynced += shopeeOrders.length;
+            results.push({ store: st.nama_toko, channel: 'shopee', count: shopeeOrders.length });
+
+          } else if (st.saluran === 'tiktok') {
+            const cipher = st.cipher_toko || st.id_toko;
+            let currentToken = st.token_akses;
+            let ttOrders = [];
+            try {
+              ttOrders = await tiktokService.syncOrders(currentToken, cipher, st.nama_toko, days);
+            } catch (ttErr) {
+              const msg = ttErr.message.toLowerCase();
+              if ((msg.includes('token') || msg.includes('auth') || msg.includes('105001') || msg.includes('expired')) && st.token_refresh) {
+                const refreshed = await tiktokService.refreshAccessToken(st.token_refresh);
+                if (refreshed?.access_token) {
+                  currentToken = refreshed.access_token;
+                  await pool.query('UPDATE toko_marketplace SET token_akses=?, token_refresh=? WHERE id=?', [refreshed.access_token, refreshed.refresh_token || st.token_refresh, st.id]);
+                  ttOrders = await tiktokService.syncOrders(currentToken, cipher, st.nama_toko, days);
+                } else throw ttErr;
+              } else throw ttErr;
+            }
+            for (const ord of ttOrders) {
+              const itemsJson = JSON.stringify(ord.items || []);
+              await pool.query(`
+                INSERT INTO pesanan_marketplace (
+                  id, kode_perusahaan, no_pesanan, saluran,
+                  nama_toko, nama_pembeli, total_harga, status_pesanan, no_spk,
+                  rincian_item, kurir, no_resi, waktu_pesanan, batas_kirim,
+                  ongkir, marketplace_fee, fee_platform, fee_free_shipping, fee_service, net_amount,
+                  alamat, no_telepon, ditarik_pada
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ON DUPLICATE KEY UPDATE
+                  nama_pembeli=VALUES(nama_pembeli), total_harga=VALUES(total_harga),
+                  status_pesanan=VALUES(status_pesanan), rincian_item=VALUES(rincian_item),
+                  kurir=VALUES(kurir), no_resi=VALUES(no_resi),
+                  waktu_pesanan=VALUES(waktu_pesanan), batas_kirim=VALUES(batas_kirim),
+                  ongkir=VALUES(ongkir), marketplace_fee=VALUES(marketplace_fee),
+                  fee_platform=VALUES(fee_platform), fee_free_shipping=VALUES(fee_free_shipping),
+                  fee_service=VALUES(fee_service), net_amount=VALUES(net_amount),
+                  alamat=VALUES(alamat), no_telepon=VALUES(no_telepon),
+                  no_spk=COALESCE(VALUES(no_spk), no_spk)
+              `, [
+                ord.id, st.kode_perusahaan || 'RSG', ord.no_pesanan, 'tiktok',
+                ord.nama_toko || st.nama_toko, ord.nama_pembeli, ord.total_harga || 0,
+                ord.status_pesanan || 'Perlu Diproses', ord.no_spk || null,
+                itemsJson, ord.kurir || 'J&T Express', ord.no_resi || '',
+                ord.waktu_pesanan ? new Date(ord.waktu_pesanan) : new Date(),
+                ord.batas_kirim ? new Date(ord.batas_kirim) : null,
+                ord.ongkir || 0, ord.marketplace_fee || 0, ord.fee_platform || 0,
+                ord.fee_free_shipping || 0, ord.fee_service || 0, ord.net_amount || ord.total_harga || 0,
+                ord.alamat || '', ord.telepon || ''
+              ]);
+            }
+            totalSynced += ttOrders.length;
+            results.push({ store: st.nama_toko, channel: 'tiktok', count: ttOrders.length });
+          }
+        } catch (stErr) {
+          console.warn(`[Historical Sync Error] ${st.nama_toko}:`, stErr.message);
+          results.push({ store: st.nama_toko, error: stErr.message });
+        }
+      }
+
+      sendJson(res, 200, { status: 'success', days, totalSynced, results });
+      return true;
+    } catch (err) {
+      console.error('[Historical Sync Error]:', err.message);
+      sendJson(res, 500, { status: 'error', message: err.message });
+      return true;
+    }
+  }
+
   return false;
 }
+
