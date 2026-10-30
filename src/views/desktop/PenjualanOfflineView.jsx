@@ -646,16 +646,40 @@ export default function PenjualanOfflineView({ onNavigate }) {
   );
 
   const handleSubmit = async (asDraft = true) => {
-    if (!form.nama_pembeli.trim()) {
-      toastError("Nama pembeli wajib diisi");
+    if (!form.batas_kirim) {
+      toastError("Tanggal Pesanan wajib diisi!");
       return;
     }
-    if (!form.items.length) {
-      toastError("Tambah minimal 1 item produk");
+    if (!form.nama_pembeli || !form.nama_pembeli.trim()) {
+      toastError(
+        "Nama Pelanggan wajib diisi! Pilih dari master pelanggan atau klik '+ Tambah Pelanggan'.",
+      );
+      return;
+    }
+    if (!form.items || !form.items.length) {
+      toastError(
+        "Daftar Produk Pesanan masih kosong! Tambahkan minimal 1 item produk.",
+      );
+      return;
+    }
+    const invalidQtyItem = form.items.find(
+      (it) => !it.qty || Number(it.qty) <= 0,
+    );
+    if (invalidQtyItem) {
+      toastError(
+        `Jumlah (Qty) untuk produk "${invalidQtyItem.nama_produk || invalidQtyItem.sku}" harus lebih dari 0!`,
+      );
       return;
     }
     if (form.metode_pembayaran === "transfer" && !form.bank_tujuan?.trim()) {
-      toastError("Pilih bank tujuan untuk pembayaran transfer");
+      toastError("Pilih bank tujuan untuk pembayaran transfer!");
+      return;
+    }
+    if (
+      form.status_pembayaran === "dp" &&
+      (!form.nominal_dp || Number(form.nominal_dp) <= 0)
+    ) {
+      toastError("Nominal DP wajib diisi lebih dari 0!");
       return;
     }
 
@@ -1739,6 +1763,7 @@ export default function PenjualanOfflineView({ onNavigate }) {
 
           {/* Modal Form Body (Fullscreen 2-Column Compact Layout) */}
           <form
+            noValidate
             onSubmit={(e) => {
               e.preventDefault();
               handleSubmit(false);
@@ -2133,7 +2158,6 @@ export default function PenjualanOfflineView({ onNavigate }) {
                       </div>
                       <input
                         type="text"
-                        required
                         readOnly
                         value={form.nama_pembeli}
                         placeholder="(Pilih pelanggan di atas atau klik '+ Tambah Pelanggan')"
@@ -3389,7 +3413,8 @@ export default function PenjualanOfflineView({ onNavigate }) {
                   Simpan Draft
                 </button>
                 <button
-                  type="submit"
+                  type="button"
+                  onClick={() => handleSubmit(false)}
                   style={{
                     height: "28px",
                     display: "inline-flex",
