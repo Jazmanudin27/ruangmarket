@@ -7895,7 +7895,6 @@ export default function PenjualanOfflineView({ onNavigate }) {
                             border: "1px solid #cbd5e1",
                             borderRadius: "6px",
                             overflow: "hidden",
-                            marginBottom: "10px",
                           }}
                         >
                           <table
@@ -8101,7 +8100,6 @@ export default function PenjualanOfflineView({ onNavigate }) {
                             backgroundColor: "#f8fafc",
                             borderRadius: "6px",
                             border: "1px dashed #cbd5e1",
-                            marginBottom: "10px",
                           }}
                         >
                           Belum ada cicilan / pembayaran yang tercatat untuk
@@ -8109,53 +8107,6 @@ export default function PenjualanOfflineView({ onNavigate }) {
                           mencatat pembayaran.
                         </div>
                       )}
-
-                      {/* Dark Navy Banner Total Tagihan */}
-                      <div
-                        style={{
-                          padding: "10px 14px",
-                          borderRadius: "6px",
-                          background:
-                            "linear-gradient(135deg, #090d16 0%, #0f172a 50%, #1e293b 100%)",
-                          border: "1px solid #334155",
-                          color: "#ffffff",
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                        }}
-                      >
-                        <div>
-                          <div style={{ fontSize: "10.5px", color: "#94a3b8" }}>
-                            Subtotal{" "}
-                            {formatRupiah(
-                              paymentModalOrder.subtotal || totalTagihan,
-                            )}{" "}
-                            {Number(paymentModalOrder.diskon) > 0
-                              ? ` - Diskon ${formatRupiah(paymentModalOrder.diskon)}`
-                              : ""}
-                          </div>
-                          <div
-                            style={{
-                              fontSize: "11.5px",
-                              color: "#38bdf8",
-                              fontWeight: "700",
-                              marginTop: "1px",
-                            }}
-                          >
-                            Total Tagihan Pelanggan:
-                          </div>
-                        </div>
-                        <div
-                          style={{
-                            fontSize: "18px",
-                            fontWeight: "900",
-                            color: "#4ade80",
-                            letterSpacing: "-0.02em",
-                          }}
-                        >
-                          {formatRupiah(totalTagihan)}
-                        </div>
-                      </div>
                     </div>
                   </div>
                 </div>
