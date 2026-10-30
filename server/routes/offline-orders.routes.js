@@ -23,7 +23,6 @@ async function ensureTables(pool) {
       id                  VARCHAR(36)   NOT NULL PRIMARY KEY,
       kode_perusahaan     VARCHAR(10)   NOT NULL DEFAULT 'RSG',
       no_pesanan          VARCHAR(60)   NOT NULL UNIQUE,
-      saluran             VARCHAR(30)   NOT NULL DEFAULT 'whatsapp',
       id_toko             VARCHAR(100)  DEFAULT NULL,
       nama_toko           VARCHAR(200)  DEFAULT NULL,
 
@@ -70,6 +69,10 @@ async function ensureTables(pool) {
     await pool.query('ALTER TABLE pesanan_offline ADD COLUMN bank_tujuan VARCHAR(100) DEFAULT NULL AFTER metode_pembayaran');
   } catch (e) {}
 
+  try {
+    await pool.query('ALTER TABLE pesanan_offline DROP COLUMN saluran');
+  } catch (e) {}
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS pesanan_offline_item (
       id              INT           NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -96,14 +99,12 @@ export async function handleOfflineOrdersRoutes(req, res, pathname, urlObj, { po
     try {
       const kode = urlObj.searchParams.get('kode_perusahaan') || '';
       const status = urlObj.searchParams.get('status') || '';
-      const saluran = urlObj.searchParams.get('saluran') || '';
       const search = urlObj.searchParams.get('search') || '';
 
       const conds = [];
       const params = [];
       if (kode) { conds.push('o.kode_perusahaan = ?'); params.push(kode); }
       if (status && status !== 'semua') { conds.push('o.status_pesanan = ?'); params.push(status); }
-      if (saluran && saluran !== 'semua') { conds.push('o.saluran = ?'); params.push(saluran); }
       if (search) {
         conds.push('(o.no_pesanan LIKE ? OR o.nama_pembeli LIKE ? OR o.no_telepon LIKE ? OR o.no_resi LIKE ?)');
         params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
@@ -151,7 +152,6 @@ export async function handleOfflineOrdersRoutes(req, res, pathname, urlObj, { po
       const body = await parseJsonBody(req);
       const {
         kode_perusahaan = 'RSG',
-        saluran = 'whatsapp',
         id_toko, nama_toko,
         nama_pembeli, no_telepon = '', alamat_pengiriman = '', kota = '', provinsi = '', kode_pos = '',
         is_dropship = false, nama_pengirim_ds = '', no_telp_pengirim_ds = '',
@@ -184,7 +184,7 @@ export async function handleOfflineOrdersRoutes(req, res, pathname, urlObj, { po
         await pool.query(`
           INSERT INTO pelanggan_master (
             kode_perusahaan, kode_pelanggan, nama_pelanggan, alamat, no_hp, status, kategori_pelanggan
-          ) VALUES (?, ?, ?, ?, ?, 'Aktif', ?)
+          ) VALUES (?, ?, ?, ?, ?, 'Aktif', 'Offline')
           ON DUPLICATE KEY UPDATE
             alamat = IF(VALUES(alamat) != '', VALUES(alamat), alamat),
             no_hp = IF(VALUES(no_hp) != '', VALUES(no_hp), no_hp)
@@ -193,8 +193,7 @@ export async function handleOfflineOrdersRoutes(req, res, pathname, urlObj, { po
           generatedCustCode,
           nama_pembeli.trim(),
           alamat_pengiriman ? alamat_pengiriman.trim() : '',
-          no_telepon ? no_telepon.trim() : '',
-          saluran === 'reseller' ? 'Reseller' : saluran === 'dropship' ? 'Dropship' : 'Offline'
+          no_telepon ? no_telepon.trim() : ''
         ]);
       } catch (custErr) {
         console.warn('[Sync to pelanggan_master warning]:', custErr.message);
@@ -202,16 +201,16 @@ export async function handleOfflineOrdersRoutes(req, res, pathname, urlObj, { po
 
       await pool.query(`
         INSERT INTO pesanan_offline (
-          id, kode_perusahaan, no_pesanan, saluran, id_toko, nama_toko,
+          id, kode_perusahaan, no_pesanan, id_toko, nama_toko,
           nama_pembeli, no_telepon, alamat_pengiriman, kota, provinsi, kode_pos,
           is_dropship, nama_pengirim_ds, no_telp_pengirim_ds,
           kurir, jenis_layanan, batas_kirim,
           subtotal, diskon, ongkir, total_harga,
           metode_pembayaran, bank_tujuan, status_pembayaran, nominal_dp, tanggal_bayar,
           status_pesanan, catatan, dibuat_oleh
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, [
-        id, kode_perusahaan, no_pesanan, saluran, id_toko || null, nama_toko || null,
+        id, kode_perusahaan, no_pesanan, id_toko || null, nama_toko || null,
         nama_pembeli, no_telepon, alamat_pengiriman, kota, provinsi, kode_pos,
         is_dropship ? 1 : 0, nama_pengirim_ds, no_telp_pengirim_ds,
         kurir, jenis_layanan, batas_kirim || null,
@@ -238,7 +237,7 @@ export async function handleOfflineOrdersRoutes(req, res, pathname, urlObj, { po
     }
   }
 
-  // ── 4. PUT update pesanan (status, resi, catatan, dll) ────────────────────
+  // ── 4. PUT update pesanan (full edit, status, resi, catatan, dll) ──────────
   const updateMatch = pathname.match(/^\/api\/offline\/orders\/([^/]+)$/);
   if (updateMatch && req.method === 'PUT') {
     try {
@@ -246,6 +245,57 @@ export async function handleOfflineOrdersRoutes(req, res, pathname, urlObj, { po
       const body = await parseJsonBody(req);
       const [[existing]] = await pool.query('SELECT * FROM pesanan_offline WHERE id = ?', [id]);
       if (!existing) { sendJson(res, 404, { status: 'error', message: 'Pesanan tidak ditemukan' }); return true; }
+
+      const fields = {};
+      const allowed = [
+        'id_toko', 'nama_toko', 'nama_pembeli', 'no_telepon',
+        'status_pesanan', 'no_resi', 'kurir', 'jenis_layanan', 'batas_kirim',
+        'diskon', 'ongkir', 'metode_pembayaran', 'bank_tujuan', 'status_pembayaran', 'nominal_dp', 'tanggal_bayar',
+        'catatan', 'alamat_pengiriman', 'kota', 'provinsi', 'kode_pos',
+        'is_dropship', 'nama_pengirim_ds', 'no_telp_pengirim_ds'
+      ];
+      for (const k of allowed) {
+        if (body[k] !== undefined) {
+          if (k === 'is_dropship') fields[k] = body[k] ? 1 : 0;
+          else if (k === 'id_toko' || k === 'nama_toko' || k === 'bank_tujuan' || k === 'batas_kirim' || k === 'tanggal_bayar') {
+            fields[k] = body[k] || null;
+          } else {
+            fields[k] = body[k];
+          }
+        }
+      }
+
+      // Update items if provided (full edit mode)
+      if (Array.isArray(body.items) && body.items.length > 0) {
+        const diskonVal = body.diskon !== undefined ? Number(body.diskon) : Number(existing.diskon || 0);
+        const ongkirVal = body.ongkir !== undefined ? Number(body.ongkir) : Number(existing.ongkir || 0);
+        const subtotal = body.items.reduce(
+          (s, it) => s + (Number(it.harga_satuan) * Number(it.qty) - Number(it.diskon_item || 0)),
+          0
+        );
+        const total_harga = Math.max(0, subtotal - diskonVal + ongkirVal);
+        fields.subtotal = subtotal;
+        fields.total_harga = total_harga;
+
+        await pool.query('DELETE FROM pesanan_offline_item WHERE id_pesanan = ?', [id]);
+        for (const it of body.items) {
+          const itSubtotal = Number(it.harga_satuan) * Number(it.qty) - Number(it.diskon_item || 0);
+          await pool.query(`
+            INSERT INTO pesanan_offline_item (id_pesanan, sku, nama_produk, varian, qty, harga_satuan, diskon_item, subtotal, catatan_item)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `, [
+            id,
+            it.sku || null,
+            it.nama_produk,
+            it.varian || null,
+            Number(it.qty),
+            Number(it.harga_satuan),
+            Number(it.diskon_item || 0),
+            itSubtotal,
+            it.catatan_item || null
+          ]);
+        }
+      }
 
       const newStatus = body.status_pesanan || existing.status_pesanan;
       let noSpk = existing.no_spk;
@@ -262,21 +312,21 @@ export async function handleOfflineOrdersRoutes(req, res, pathname, urlObj, { po
           catatan: it.catatan_item || ''
         }));
 
-        const [spkResult] = await pool.query(`
+        await pool.query(`
           INSERT INTO spk_batch (kode_perusahaan, kode_produksi, nama_pelanggan, no_telepon, instansi, tgl_pesan, status, catatan, spk_list)
           VALUES (?, ?, ?, ?, ?, NOW(), 'Dalam Proses', ?, ?)
         `, [
           existing.kode_perusahaan,
           kodeProduksi,
-          existing.nama_pembeli,
-          existing.no_telepon || '',
-          existing.saluran || 'offline',
+          fields.nama_pembeli || existing.nama_pembeli,
+          fields.no_telepon !== undefined ? fields.no_telepon : (existing.no_telepon || ''),
+          fields.nama_toko || existing.nama_toko || 'Offline',
           `Pesanan Offline ${existing.no_pesanan}${body.catatan ? ' - ' + body.catatan : ''}`,
           JSON.stringify(spkList)
         ]);
 
         noSpk = kodeProduksi;
-        await pool.query('UPDATE pesanan_offline SET no_spk = ? WHERE id = ?', [noSpk, id]);
+        fields.no_spk = noSpk;
       }
 
       // ── Auto-deduct stok saat dikonfirmasi ────────────────────────────
@@ -292,25 +342,12 @@ export async function handleOfflineOrdersRoutes(req, res, pathname, urlObj, { po
         }
       }
 
-      // Rebuild fields to update
-      const fields = {};
-      const allowed = [
-        'status_pesanan', 'no_resi', 'kurir', 'jenis_layanan', 'batas_kirim',
-        'metode_pembayaran', 'status_pembayaran', 'nominal_dp', 'tanggal_bayar',
-        'catatan', 'alamat_pengiriman', 'kota', 'provinsi', 'kode_pos',
-        'nama_pengirim_ds', 'no_telp_pengirim_ds'
-      ];
-      for (const k of allowed) {
-        if (body[k] !== undefined) fields[k] = body[k];
-      }
-      if (noSpk !== existing.no_spk) fields.no_spk = noSpk;
-
       if (Object.keys(fields).length) {
         const setClauses = Object.keys(fields).map(k => `${k} = ?`).join(', ');
         await pool.query(`UPDATE pesanan_offline SET ${setClauses} WHERE id = ?`, [...Object.values(fields), id]);
       }
 
-      sendJson(res, 200, { status: 'success', message: 'Pesanan diperbarui', no_spk: noSpk });
+      sendJson(res, 200, { status: 'success', message: 'Pesanan diperbarui', no_spk: noSpk, no_pesanan: existing.no_pesanan });
       return true;
     } catch (err) {
       console.error('[Offline Order PUT Error]:', err.message);

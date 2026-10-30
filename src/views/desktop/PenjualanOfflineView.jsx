@@ -29,22 +29,17 @@ import {
 } from "lucide-react";
 import SearchableSelect from "../../components/SearchableSelect";
 import RupiahInput from "../../components/RupiahInput";
-import { toastSuccess, toastError, showWarning } from "../../utils/alert.util";
+import {
+  toastSuccess,
+  toastError,
+  showWarning,
+  showConfirm,
+} from "../../utils/alert.util";
 import { getActiveCompany } from "../../utils/tenant.util";
 
 function formatRupiah(val) {
   return "Rp " + Number(val || 0).toLocaleString("id-ID");
 }
-
-const SALURAN_OPTIONS = [
-  { value: "whatsapp", label: "WhatsApp", color: "#25d366" },
-  { value: "dropship", label: "Dropship", color: "#8b5cf6" },
-  { value: "reseller", label: "Reseller", color: "#f59e0b" },
-  { value: "walk_in", label: "Walk-in / Toko", color: "#06b6d4" },
-  { value: "telepon", label: "Telepon", color: "#3b82f6" },
-  { value: "instagram", label: "Instagram DM", color: "#e1306c" },
-  { value: "lainnya", label: "Lainnya", color: "#64748b" },
-];
 
 const STATUS_LIST = [
   { value: "draft", label: "Draft", color: "#94a3b8", bg: "#f1f5f9" },
@@ -196,12 +191,13 @@ export default function PenjualanOfflineView({ onNavigate }) {
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("semua");
-  const [filterSaluran, setFilterSaluran] = useState("semua");
   const [currentPage, setCurrentPage] = useState(1);
   const [entriesPerPage] = useState(25);
 
-  // Modals
+  // Modals & Edit Mode
   const [showForm, setShowForm] = useState(false);
+  const [editingOrderId, setEditingOrderId] = useState(null);
+  const [editingNoPesanan, setEditingNoPesanan] = useState("");
   const [isFullScreen, setIsFullScreen] = useState(true);
   const [detailOrder, setDetailOrder] = useState(null);
   const [editStatusId, setEditStatusId] = useState(null);
@@ -248,7 +244,6 @@ export default function PenjualanOfflineView({ onNavigate }) {
 
   // Form state
   const [form, setForm] = useState({
-    saluran: "whatsapp",
     id_toko: "",
     nama_toko: "",
     nama_pembeli: "",
@@ -269,6 +264,7 @@ export default function PenjualanOfflineView({ onNavigate }) {
     bank_tujuan: "",
     status_pembayaran: "belum_bayar",
     nominal_dp: 0,
+    status_pesanan: "draft",
     catatan: "",
     items: [],
   });
@@ -281,7 +277,6 @@ export default function PenjualanOfflineView({ onNavigate }) {
         kode_perusahaan: activeCompany.code,
       });
       if (filterStatus !== "semua") params.set("status", filterStatus);
-      if (filterSaluran !== "semua") params.set("saluran", filterSaluran);
       if (search) params.set("search", search);
       const res = await fetch(`/api/offline/orders?${params}`);
       const json = await res.json();
@@ -566,12 +561,11 @@ export default function PenjualanOfflineView({ onNavigate }) {
     loadMasterProduk();
     loadPelanggan();
     loadBank();
-  }, [filterStatus, filterSaluran]);
+  }, [filterStatus]);
 
   // ── Handlers ────────────────────────────────────────────────────────────
   const resetForm = () => {
     setForm({
-      saluran: "whatsapp",
       id_toko: "",
       nama_toko: "",
       nama_pembeli: "",
@@ -592,11 +586,70 @@ export default function PenjualanOfflineView({ onNavigate }) {
       bank_tujuan: "",
       status_pembayaran: "belum_bayar",
       nominal_dp: 0,
+      status_pesanan: "draft",
       catatan: "",
       items: [],
     });
+    setEditingOrderId(null);
+    setEditingNoPesanan("");
     setSelectedPelangganId("");
     setProdukSearch("");
+  };
+
+  const handleEditOrder = async (id) => {
+    try {
+      const res = await fetch(`/api/offline/orders/${id}`);
+      const json = await res.json();
+      if (!res.ok || !json.data) {
+        throw new Error(json.message || "Gagal memuat data pesanan");
+      }
+      const ord = json.data;
+      const matchedCust = pelangganList.find(
+        (p) => (p.nama_pelanggan || p.nama) === ord.nama_pembeli,
+      );
+      setSelectedPelangganId(matchedCust ? String(matchedCust.id) : "");
+      setEditingOrderId(ord.id);
+      setEditingNoPesanan(ord.no_pesanan || "");
+      setForm({
+        id_toko: ord.id_toko ? String(ord.id_toko) : "",
+        nama_toko: ord.nama_toko || "",
+        nama_pembeli: ord.nama_pembeli || "",
+        no_telepon: ord.no_telepon || "",
+        alamat_pengiriman: ord.alamat_pengiriman || "",
+        kota: ord.kota || "",
+        provinsi: ord.provinsi || "",
+        kode_pos: ord.kode_pos || "",
+        is_dropship: Boolean(ord.is_dropship),
+        nama_pengirim_ds: ord.nama_pengirim_ds || "",
+        no_telp_pengirim_ds: ord.no_telp_pengirim_ds || "",
+        kurir: ord.kurir || "",
+        jenis_layanan: ord.jenis_layanan || "",
+        batas_kirim: ord.batas_kirim
+          ? new Date(ord.batas_kirim).toISOString().slice(0, 10)
+          : new Date().toISOString().slice(0, 10),
+        diskon: Number(ord.diskon) || 0,
+        ongkir: Number(ord.ongkir) || 0,
+        metode_pembayaran: ord.metode_pembayaran || "cash",
+        bank_tujuan: ord.bank_tujuan || "",
+        status_pembayaran: ord.status_pembayaran || "belum_bayar",
+        nominal_dp: Number(ord.nominal_dp) || 0,
+        status_pesanan: ord.status_pesanan || "draft",
+        catatan: ord.catatan || "",
+        items: (ord.items || []).map((it) => ({
+          sku: it.sku || "",
+          nama_produk: it.nama_produk || "",
+          varian: it.varian || "",
+          qty: Number(it.qty) || 1,
+          harga_satuan: Number(it.harga_satuan) || 0,
+          diskon_item: Number(it.diskon_item) || 0,
+          catatan_item: it.catatan_item || "",
+        })),
+      });
+      setProdukSearch("");
+      setShowForm(true);
+    } catch (err) {
+      toastError(err.message || "Gagal memuat pesanan untuk diedit");
+    }
   };
 
   const addItem = (produk) => {
@@ -697,20 +750,36 @@ export default function PenjualanOfflineView({ onNavigate }) {
     }
 
     try {
-      const res = await fetch("/api/offline/orders", {
-        method: "POST",
+      const isEdit = Boolean(editingOrderId);
+      const targetStatus = asDraft
+        ? "draft"
+        : isEdit &&
+            form.status_pesanan &&
+            form.status_pesanan !== "draft"
+          ? form.status_pesanan
+          : "dikonfirmasi";
+
+      const url = isEdit
+        ? `/api/offline/orders/${editingOrderId}`
+        : "/api/offline/orders";
+      const method = isEdit ? "PUT" : "POST";
+
+      const res = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
           kode_perusahaan: activeCompany.code,
-          status_pesanan: asDraft ? "draft" : "dikonfirmasi",
+          status_pesanan: targetStatus,
           dibuat_oleh: activeCompany.name || "Admin",
         }),
       });
       const json = await res.json();
       if (res.ok && json.status === "success") {
         toastSuccess(
-          `Pesanan ${json.no_pesanan} berhasil ${asDraft ? "disimpan sebagai draft" : "dikonfirmasi"}!`,
+          isEdit
+            ? `Pesanan ${editingNoPesanan || ""} berhasil diperbarui!`
+            : `Pesanan ${json.no_pesanan} berhasil ${asDraft ? "disimpan sebagai draft" : "dikonfirmasi"}!`,
         );
         setShowForm(false);
         resetForm();
@@ -759,12 +828,31 @@ export default function PenjualanOfflineView({ onNavigate }) {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!confirm("Yakin hapus pesanan ini?")) return;
+  const handleDelete = async (ord) => {
+    const id = typeof ord === "object" ? ord.id : ord;
+    const label =
+      typeof ord === "object" && ord.no_pesanan
+        ? `${ord.no_pesanan} (${ord.nama_pembeli || ""})`
+        : "pesanan ini";
+    const confirmed = await showConfirm(
+      "Hapus Pesanan?",
+      `Yakin ingin menghapus ${label}? Data yang dihapus tidak dapat dikembalikan.`,
+      "Ya, Hapus",
+      "Batal",
+    );
+    if (!confirmed) return;
     try {
-      await fetch(`/api/offline/orders/${id}`, { method: "DELETE" });
-      toastSuccess("Pesanan dihapus");
-      loadOrders();
+      const res = await fetch(`/api/offline/orders/${id}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        toastSuccess("Pesanan berhasil dihapus");
+        if (detailOrder && detailOrder.id === id) setDetailOrder(null);
+        loadOrders();
+      } else {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json.message || "Gagal menghapus pesanan");
+      }
     } catch (err) {
       toastError(err.message);
     }
@@ -826,26 +914,6 @@ export default function PenjualanOfflineView({ onNavigate }) {
         }}
       >
         {s.label}
-      </span>
-    );
-  };
-
-  const getSaluranBadge = (saluran) => {
-    const ch =
-      SALURAN_OPTIONS.find((x) => x.value === saluran) || SALURAN_OPTIONS[6];
-    return (
-      <span
-        style={{
-          padding: "2px 8px",
-          borderRadius: "10px",
-          fontSize: "10px",
-          fontWeight: "700",
-          backgroundColor: `${ch.color}18`,
-          color: ch.color,
-          border: `1px solid ${ch.color}30`,
-        }}
-      >
-        {ch.label}
       </span>
     );
   };
@@ -952,8 +1020,8 @@ export default function PenjualanOfflineView({ onNavigate }) {
               </span>
             </div>
             <p style={{ margin: 0, fontSize: "11.5px", color: "#94a3b8" }}>
-              Catat & kelola transaksi manual WhatsApp, Dropship, Reseller,
-              Walk-in, dan Toko fisik. Otomatis potong stok & buat SPK.
+              Catat & kelola transaksi manual pelanggan, Dropship, Reseller,
+              Walk-in, dan Toko/Instansi. Otomatis potong stok & buat SPK.
             </p>
           </div>
         </div>
@@ -1118,21 +1186,6 @@ export default function PenjualanOfflineView({ onNavigate }) {
             }}
           />
         </div>
-        <div style={{ width: "180px" }}>
-          <SearchableSelect
-            value={filterSaluran}
-            onChange={(val) => {
-              setFilterSaluran(val);
-              setCurrentPage(1);
-            }}
-            options={[
-              { value: "semua", label: "Semua Saluran" },
-              ...SALURAN_OPTIONS,
-            ]}
-            placeholder="Semua Saluran"
-            size="sm"
-          />
-        </div>
         <button
           type="button"
           onClick={() => loadOrders()}
@@ -1187,7 +1240,7 @@ export default function PenjualanOfflineView({ onNavigate }) {
                 <th
                   style={{ padding: "8px 12px", border: "1px solid #e2e8f0" }}
                 >
-                  PELANGGAN & SALURAN
+                  PELANGGAN
                 </th>
                 <th
                   style={{ padding: "8px 12px", border: "1px solid #e2e8f0" }}
@@ -1227,7 +1280,7 @@ export default function PenjualanOfflineView({ onNavigate }) {
                     padding: "8px 12px",
                     border: "1px solid #e2e8f0",
                     textAlign: "center",
-                    width: "130px",
+                    width: "200px",
                   }}
                 >
                   AKSI
@@ -1311,7 +1364,7 @@ export default function PenjualanOfflineView({ onNavigate }) {
                       </div>
                     </td>
 
-                    {/* PEMBELI & SALURAN */}
+                    {/* PELANGGAN */}
                     <td
                       style={{
                         padding: "8px 12px",
@@ -1327,23 +1380,17 @@ export default function PenjualanOfflineView({ onNavigate }) {
                       >
                         {ord.nama_pembeli}
                       </div>
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "6px",
-                          marginTop: "3px",
-                        }}
-                      >
-                        {getSaluranBadge(ord.saluran)}
-                        {ord.no_telepon && (
-                          <span
-                            style={{ fontSize: "10.5px", color: "#64748b" }}
-                          >
-                            {ord.no_telepon}
-                          </span>
-                        )}
-                      </div>
+                      {ord.no_telepon && (
+                        <div
+                          style={{
+                            fontSize: "10.5px",
+                            color: "#64748b",
+                            marginTop: "2px",
+                          }}
+                        >
+                          {ord.no_telepon}
+                        </div>
+                      )}
                       {ord.is_dropship === 1 && (
                         <div
                           style={{
@@ -1559,12 +1606,13 @@ export default function PenjualanOfflineView({ onNavigate }) {
                       >
                         <button
                           onClick={() => loadDetail(ord.id)}
-                          title="Detail"
+                          title="Detail Pesanan"
                           style={{
                             padding: "4px 8px",
                             borderRadius: "5px",
                             border: "1px solid #e2e8f0",
                             backgroundColor: "#f8fafc",
+                            color: "#334155",
                             cursor: "pointer",
                             fontSize: "10.5px",
                             display: "flex",
@@ -1575,12 +1623,31 @@ export default function PenjualanOfflineView({ onNavigate }) {
                         >
                           <Eye size={12} /> Detail
                         </button>
+                        <button
+                          onClick={() => handleEditOrder(ord.id)}
+                          title="Edit Pesanan"
+                          style={{
+                            padding: "4px 8px",
+                            borderRadius: "5px",
+                            border: "1px solid #bae6fd",
+                            backgroundColor: "#e0f2fe",
+                            color: "#0284c7",
+                            cursor: "pointer",
+                            fontSize: "10.5px",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "3px",
+                            fontWeight: "700",
+                          }}
+                        >
+                          <Edit3 size={12} /> Edit
+                        </button>
                         {ord.status_pesanan === "draft" && (
                           <button
                             onClick={() =>
                               handleUpdateStatus(ord.id, "dikonfirmasi")
                             }
-                            title="Konfirmasi"
+                            title="Konfirmasi Pesanan"
                             style={{
                               padding: "4px 8px",
                               borderRadius: "5px",
@@ -1598,27 +1665,25 @@ export default function PenjualanOfflineView({ onNavigate }) {
                             <CheckCircle2 size={12} /> Konfirmasi
                           </button>
                         )}
-                        {ord.status_pesanan === "draft" && (
-                          <button
-                            onClick={() => handleDelete(ord.id)}
-                            title="Hapus"
-                            style={{
-                              padding: "4px 8px",
-                              borderRadius: "5px",
-                              border: "none",
-                              backgroundColor: "#fee2e2",
-                              color: "#ef4444",
-                              cursor: "pointer",
-                              fontSize: "10.5px",
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "3px",
-                              fontWeight: "600",
-                            }}
-                          >
-                            <Trash2 size={12} />
-                          </button>
-                        )}
+                        <button
+                          onClick={() => handleDelete(ord)}
+                          title="Hapus Pesanan"
+                          style={{
+                            padding: "4px 8px",
+                            borderRadius: "5px",
+                            border: "1px solid #fecaca",
+                            backgroundColor: "#fee2e2",
+                            color: "#ef4444",
+                            cursor: "pointer",
+                            fontSize: "10.5px",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "3px",
+                            fontWeight: "700",
+                          }}
+                        >
+                          <Trash2 size={12} /> Hapus
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -1733,17 +1798,22 @@ export default function PenjualanOfflineView({ onNavigate }) {
                   letterSpacing: "-0.01em",
                 }}
               >
-                Buat Pesanan Offline Baru
+                {editingOrderId
+                  ? `Edit Pesanan Offline — ${editingNoPesanan}`
+                  : "Buat Pesanan Offline Baru"}
               </h3>
               <span style={{ fontSize: "11px", color: "#64748b" }}>•</span>
               <span style={{ fontSize: "11px", color: "#94a3b8" }}>
-                Formulir Transaksi Manual WhatsApp, Reseller & Walk-in
+                Formulir Transaksi Manual Pelanggan, Reseller & Walk-in
               </span>
             </div>
 
             <button
               type="button"
-              onClick={() => setShowForm(false)}
+              onClick={() => {
+                setShowForm(false);
+                resetForm();
+              }}
               style={{
                 width: "26px",
                 height: "26px",
@@ -1906,10 +1976,6 @@ export default function PenjualanOfflineView({ onNavigate }) {
                             ...form,
                             id_toko: val,
                             nama_toko: st ? st.shopName : "",
-                            saluran:
-                              st && st.channel
-                                ? st.channel.toLowerCase()
-                                : form.saluran || "walk_in",
                           });
                         }}
                         options={[
@@ -3370,7 +3436,10 @@ export default function PenjualanOfflineView({ onNavigate }) {
               <div style={{ display: "flex", gap: "8px" }}>
                 <button
                   type="button"
-                  onClick={() => setShowForm(false)}
+                  onClick={() => {
+                    setShowForm(false);
+                    resetForm();
+                  }}
                   style={{
                     height: "28px",
                     padding: "0 14px",
@@ -3392,30 +3461,32 @@ export default function PenjualanOfflineView({ onNavigate }) {
                 >
                   Batal
                 </button>
-                <button
-                  type="button"
-                  onClick={() => handleSubmit(true)}
-                  style={{
-                    height: "28px",
-                    padding: "0 14px",
-                    borderRadius: "5px",
-                    border: "1px solid #94a3b8",
-                    backgroundColor: "#f8fafc",
-                    color: "#334155",
-                    fontSize: "11.5px",
-                    fontWeight: "700",
-                    cursor: "pointer",
-                    transition: "all 0.15s ease",
-                  }}
-                  onMouseEnter={(e) =>
-                    (e.currentTarget.style.backgroundColor = "#f1f5f9")
-                  }
-                  onMouseLeave={(e) =>
-                    (e.currentTarget.style.backgroundColor = "#f8fafc")
-                  }
-                >
-                  Simpan Draft
-                </button>
+                {(!editingOrderId || form.status_pesanan === "draft") && (
+                  <button
+                    type="button"
+                    onClick={() => handleSubmit(true)}
+                    style={{
+                      height: "28px",
+                      padding: "0 14px",
+                      borderRadius: "5px",
+                      border: "1px solid #94a3b8",
+                      backgroundColor: "#f8fafc",
+                      color: "#334155",
+                      fontSize: "11.5px",
+                      fontWeight: "700",
+                      cursor: "pointer",
+                      transition: "all 0.15s ease",
+                    }}
+                    onMouseEnter={(e) =>
+                      (e.currentTarget.style.backgroundColor = "#f1f5f9")
+                    }
+                    onMouseLeave={(e) =>
+                      (e.currentTarget.style.backgroundColor = "#f8fafc")
+                    }
+                  >
+                    Simpan Draft
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => handleSubmit(false)}
@@ -3443,7 +3514,11 @@ export default function PenjualanOfflineView({ onNavigate }) {
                   }
                 >
                   <Save size={13} />
-                  <span>Konfirmasi Pesanan</span>
+                  <span>
+                    {editingOrderId
+                      ? "Simpan Perubahan"
+                      : "Konfirmasi Pesanan"}
+                  </span>
                 </button>
               </div>
             </div>
@@ -3504,7 +3579,6 @@ export default function PenjualanOfflineView({ onNavigate }) {
                 </h2>
                 <div style={{ display: "flex", gap: "6px", marginTop: "4px" }}>
                   {getStatusBadge(detailOrder.status_pesanan)}
-                  {getSaluranBadge(detailOrder.saluran)}
                 </div>
               </div>
               <button
@@ -3849,8 +3923,60 @@ export default function PenjualanOfflineView({ onNavigate }) {
               </div>
             )}
 
-            <div style={{ textAlign: "right" }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: "8px",
+              }}
+            >
+              <div style={{ display: "flex", gap: "8px" }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const id = detailOrder.id;
+                    setDetailOrder(null);
+                    handleEditOrder(id);
+                  }}
+                  style={{
+                    padding: "8px 16px",
+                    borderRadius: "7px",
+                    border: "1px solid #bae6fd",
+                    backgroundColor: "#e0f2fe",
+                    color: "#0284c7",
+                    fontSize: "12px",
+                    fontWeight: "700",
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "5px",
+                  }}
+                >
+                  <Edit3 size={13} /> Edit Pesanan
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDelete(detailOrder)}
+                  style={{
+                    padding: "8px 16px",
+                    borderRadius: "7px",
+                    border: "1px solid #fecaca",
+                    backgroundColor: "#fee2e2",
+                    color: "#ef4444",
+                    fontSize: "12px",
+                    fontWeight: "700",
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "5px",
+                  }}
+                >
+                  <Trash2 size={13} /> Hapus
+                </button>
+              </div>
               <button
+                type="button"
                 onClick={() => setDetailOrder(null)}
                 style={{
                   padding: "8px 24px",
