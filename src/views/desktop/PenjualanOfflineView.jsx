@@ -5040,107 +5040,6 @@ export default function PenjualanOfflineView({ onNavigate }) {
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <button
                 type="button"
-                onClick={() => handleOpenPaymentModal(detailOrder)}
-                style={{
-                  height: "28px",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "5px",
-                  padding: "0 12px",
-                  borderRadius: "5px",
-                  border: "1px solid #10b981",
-                  backgroundColor: "rgba(16, 185, 129, 0.15)",
-                  color: "#34d399",
-                  fontSize: "11px",
-                  fontWeight: "700",
-                  cursor: "pointer",
-                  transition: "all 0.15s ease",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor =
-                    "rgba(16, 185, 129, 0.28)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor =
-                    "rgba(16, 185, 129, 0.15)";
-                }}
-              >
-                <DollarSign size={12} />
-                <span>
-                  {detailOrder.status_pembayaran === "lunas"
-                    ? "Riwayat Bayar"
-                    : "Bayar / Cicilan"}
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  const id = detailOrder.id;
-                  setDetailOrder(null);
-                  handleEditOrder(id);
-                }}
-                style={{
-                  height: "28px",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "5px",
-                  padding: "0 12px",
-                  borderRadius: "5px",
-                  border: "1px solid #38bdf8",
-                  backgroundColor: "rgba(56, 189, 248, 0.1)",
-                  color: "#38bdf8",
-                  fontSize: "11px",
-                  fontWeight: "700",
-                  cursor: "pointer",
-                  transition: "all 0.15s ease",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor =
-                    "rgba(56, 189, 248, 0.2)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor =
-                    "rgba(56, 189, 248, 0.1)";
-                }}
-              >
-                <Edit3 size={12} />
-                <span>Edit Pesanan</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleDelete(detailOrder)}
-                style={{
-                  height: "28px",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "5px",
-                  padding: "0 12px",
-                  borderRadius: "5px",
-                  border: "1px solid rgba(239, 68, 68, 0.5)",
-                  backgroundColor: "rgba(239, 68, 68, 0.12)",
-                  color: "#f87171",
-                  fontSize: "11px",
-                  fontWeight: "700",
-                  cursor: "pointer",
-                  transition: "all 0.15s ease",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor =
-                    "rgba(239, 68, 68, 0.25)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor =
-                    "rgba(239, 68, 68, 0.12)";
-                }}
-              >
-                <Trash2 size={12} />
-                <span>Hapus</span>
-              </button>
-
-              <button
-                type="button"
                 onClick={() => setDetailOrder(null)}
                 style={{
                   width: "28px",
@@ -6287,33 +6186,6 @@ export default function PenjualanOfflineView({ onNavigate }) {
                             >
                               Riwayat Pembayaran & Cicilan ({listBayar.length}x)
                             </span>
-                            <button
-                              type="button"
-                              onClick={() => handleOpenPaymentModal(detailOrder)}
-                              style={{
-                                height: "24px",
-                                padding: "0 10px",
-                                borderRadius: "5px",
-                                border: "none",
-                                backgroundColor: "#059669",
-                                color: "#ffffff",
-                                fontSize: "10.5px",
-                                fontWeight: "800",
-                                cursor: "pointer",
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: "4px",
-                                boxShadow:
-                                  "0 1px 3px rgba(5, 150, 105, 0.3)",
-                              }}
-                            >
-                              <Plus size={12} />
-                              <span>
-                                {sisaTagihan > 0
-                                  ? "Tambah Bayar / Cicilan"
-                                  : "Kelola Pembayaran"}
-                              </span>
-                            </button>
                           </div>
 
                           {listBayar.length > 0 ? (
@@ -7473,18 +7345,18 @@ export default function PenjualanOfflineView({ onNavigate }) {
                       </div>
                     </div>
 
-                    {/* Card 4: Form Input Pembayaran / Cicilan Baru */}
+                    {/* Card 4: Form Input Pembayaran / Cicilan Baru (Compact SM Layout) */}
                     <form
                       onSubmit={handleSavePayment}
                       style={{
                         backgroundColor: "#ffffff",
                         borderRadius: "8px",
-                        border: "2px solid #0284c7",
-                        padding: "12px 14px",
-                        boxShadow: "0 4px 12px rgba(2, 132, 199, 0.08)",
+                        border: "1px solid #cbd5e1",
+                        padding: "9px 12px",
+                        boxShadow: "0 1px 2px rgba(0, 0, 0, 0.03)",
                         display: "flex",
                         flexDirection: "column",
-                        gap: "10px",
+                        gap: "7px",
                       }}
                     >
                       <div
@@ -7494,8 +7366,8 @@ export default function PenjualanOfflineView({ onNavigate }) {
                           justifyContent: "space-between",
                           flexWrap: "wrap",
                           gap: "6px",
-                          paddingBottom: "6px",
-                          borderBottom: "1px solid #e2e8f0",
+                          paddingBottom: "5px",
+                          borderBottom: "1px solid #f1f5f9",
                         }}
                       >
                         <div
@@ -7505,12 +7377,12 @@ export default function PenjualanOfflineView({ onNavigate }) {
                             gap: "6px",
                           }}
                         >
-                          <CreditCard size={14} color="#0284c7" />
+                          <CreditCard size={13} color="#0284c7" />
                           <span
                             style={{
-                              fontSize: "11.5px",
+                              fontSize: "11px",
                               fontWeight: "800",
-                              color: "#0369a1",
+                              color: "#0f172a",
                               textTransform: "uppercase",
                               letterSpacing: "0.04em",
                             }}
@@ -7519,7 +7391,7 @@ export default function PenjualanOfflineView({ onNavigate }) {
                           </span>
                         </div>
                         {sisaTagihan > 0 && (
-                          <div style={{ display: "flex", gap: "6px" }}>
+                          <div style={{ display: "flex", gap: "5px" }}>
                             <button
                               type="button"
                               onClick={() =>
@@ -7530,12 +7402,13 @@ export default function PenjualanOfflineView({ onNavigate }) {
                                 }))
                               }
                               style={{
-                                padding: "3px 9px",
+                                height: "22px",
+                                padding: "0 8px",
                                 borderRadius: "4px",
-                                border: "1px solid #0284c7",
+                                border: "1px solid #bae6fd",
                                 backgroundColor: "#f0f9ff",
                                 color: "#0284c7",
-                                fontSize: "10px",
+                                fontSize: "9.5px",
                                 fontWeight: "700",
                                 cursor: "pointer",
                               }}
@@ -7553,12 +7426,13 @@ export default function PenjualanOfflineView({ onNavigate }) {
                                 }))
                               }
                               style={{
-                                padding: "3px 9px",
+                                height: "22px",
+                                padding: "0 8px",
                                 borderRadius: "4px",
                                 border: "1px solid #059669",
                                 backgroundColor: "#059669",
                                 color: "#ffffff",
-                                fontSize: "10px",
+                                fontSize: "9.5px",
                                 fontWeight: "800",
                                 cursor: "pointer",
                               }}
@@ -7572,18 +7446,22 @@ export default function PenjualanOfflineView({ onNavigate }) {
                       <div
                         style={{
                           display: "grid",
-                          gridTemplateColumns: "1fr 1.2fr",
-                          gap: "10px",
+                          gridTemplateColumns:
+                            paymentForm.metode_pembayaran === "transfer"
+                              ? "120px 140px 105px 1.2fr 1fr auto"
+                              : "125px 150px 115px 1fr auto",
+                          gap: "7px",
+                          alignItems: "end",
                         }}
                       >
                         <div>
                           <label
                             style={{
                               display: "block",
-                              fontSize: "10.5px",
+                              fontSize: "10px",
                               fontWeight: "700",
-                              color: "#334155",
-                              marginBottom: "3px",
+                              color: "#475569",
+                              marginBottom: "2px",
                             }}
                           >
                             Tanggal Bayar
@@ -7599,10 +7477,11 @@ export default function PenjualanOfflineView({ onNavigate }) {
                             }
                             style={{
                               width: "100%",
-                              padding: "6px 9px",
+                              height: "28px",
+                              padding: "0 7px",
                               borderRadius: "5px",
                               border: "1px solid #cbd5e1",
-                              fontSize: "11.5px",
+                              fontSize: "11px",
                               fontWeight: "600",
                               backgroundColor: "#ffffff",
                               boxSizing: "border-box",
@@ -7614,13 +7493,13 @@ export default function PenjualanOfflineView({ onNavigate }) {
                           <label
                             style={{
                               display: "block",
-                              fontSize: "10.5px",
+                              fontSize: "10px",
                               fontWeight: "700",
                               color: "#059669",
-                              marginBottom: "3px",
+                              marginBottom: "2px",
                             }}
                           >
-                            Nominal Bayar / Cicilan (Rp){" "}
+                            Nominal Bayar (Rp){" "}
                             <span style={{ color: "#ef4444" }}>*</span>
                           </label>
                           <RupiahInput
@@ -7634,10 +7513,11 @@ export default function PenjualanOfflineView({ onNavigate }) {
                             placeholder="0"
                             style={{
                               width: "100%",
-                              padding: "6px 9px",
+                              height: "28px",
+                              padding: "0 8px",
                               borderRadius: "5px",
                               border: "1px solid #10b981",
-                              fontSize: "12.5px",
+                              fontSize: "11.5px",
                               fontWeight: "800",
                               color: "#059669",
                               backgroundColor: "#ecfdf5",
@@ -7645,29 +7525,18 @@ export default function PenjualanOfflineView({ onNavigate }) {
                             }}
                           />
                         </div>
-                      </div>
 
-                      <div
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns:
-                            paymentForm.metode_pembayaran === "transfer"
-                              ? "1fr 1.2fr"
-                              : "1fr 1fr",
-                          gap: "10px",
-                        }}
-                      >
                         <div>
                           <label
                             style={{
                               display: "block",
-                              fontSize: "10.5px",
+                              fontSize: "10px",
                               fontWeight: "700",
-                              color: "#334155",
-                              marginBottom: "3px",
+                              color: "#475569",
+                              marginBottom: "2px",
                             }}
                           >
-                            Metode Pembayaran
+                            Metode
                           </label>
                           <SearchableSelect
                             value={paymentForm.metode_pembayaran}
@@ -7682,29 +7551,29 @@ export default function PenjualanOfflineView({ onNavigate }) {
                               }))
                             }
                             options={BAYAR_OPTIONS}
-                            placeholder="Pilih metode..."
+                            placeholder="Pilih..."
                             size="sm"
                           />
                         </div>
 
-                        {paymentForm.metode_pembayaran === "transfer" ? (
+                        {paymentForm.metode_pembayaran === "transfer" && (
                           <div>
                             <div
                               style={{
                                 display: "flex",
                                 justifyContent: "space-between",
                                 alignItems: "center",
-                                marginBottom: "3px",
+                                marginBottom: "2px",
                               }}
                             >
                               <label
                                 style={{
-                                  fontSize: "10.5px",
+                                  fontSize: "10px",
                                   fontWeight: "700",
                                   color: "#0284c7",
                                 }}
                               >
-                                Pilih Bank Tujuan Transfer{" "}
+                                Bank Tujuan{" "}
                                 <span style={{ color: "#ef4444" }}>*</span>
                               </label>
                               <button
@@ -7714,17 +7583,17 @@ export default function PenjualanOfflineView({ onNavigate }) {
                                   display: "inline-flex",
                                   alignItems: "center",
                                   gap: "2px",
-                                  padding: "1px 6px",
+                                  padding: "0px 5px",
                                   borderRadius: "3px",
                                   backgroundColor: "#0284c7",
                                   color: "#ffffff",
                                   border: "none",
-                                  fontSize: "9.5px",
+                                  fontSize: "9px",
                                   fontWeight: "700",
                                   cursor: "pointer",
                                 }}
                               >
-                                <Plus size={10} /> Bank
+                                <Plus size={9} /> Bank
                               </button>
                             </div>
                             <SearchableSelect
@@ -7745,59 +7614,23 @@ export default function PenjualanOfflineView({ onNavigate }) {
                                     }))
                                   : BANK_OPTIONS
                               }
-                              placeholder="-- Pilih Bank --"
+                              placeholder="-- Bank --"
                               size="sm"
                             />
                           </div>
-                        ) : (
-                          <div>
-                            <label
-                              style={{
-                                display: "block",
-                                fontSize: "10.5px",
-                                fontWeight: "700",
-                                color: "#334155",
-                                marginBottom: "3px",
-                              }}
-                            >
-                              Keterangan Pembayaran
-                            </label>
-                            <input
-                              type="text"
-                              value={paymentForm.keterangan}
-                              onChange={(e) =>
-                                setPaymentForm({
-                                  ...paymentForm,
-                                  keterangan: e.target.value,
-                                })
-                              }
-                              placeholder="Contoh: Cicilan ke-1, DP, Pelunasan..."
-                              style={{
-                                width: "100%",
-                                padding: "6px 9px",
-                                borderRadius: "5px",
-                                border: "1px solid #cbd5e1",
-                                fontSize: "11.5px",
-                                backgroundColor: "#ffffff",
-                                boxSizing: "border-box",
-                              }}
-                            />
-                          </div>
                         )}
-                      </div>
 
-                      {paymentForm.metode_pembayaran === "transfer" && (
                         <div>
                           <label
                             style={{
                               display: "block",
-                              fontSize: "10.5px",
+                              fontSize: "10px",
                               fontWeight: "700",
-                              color: "#334155",
-                              marginBottom: "3px",
+                              color: "#475569",
+                              marginBottom: "2px",
                             }}
                           >
-                            Keterangan Pembayaran
+                            Keterangan
                           </label>
                           <input
                             type="text"
@@ -7808,52 +7641,42 @@ export default function PenjualanOfflineView({ onNavigate }) {
                                 keterangan: e.target.value,
                               })
                             }
-                            placeholder="Contoh: Cicilan ke-1, DP, Pelunasan..."
+                            placeholder="DP / Cicilan / Pelunasan..."
                             style={{
                               width: "100%",
-                              padding: "6px 9px",
+                              height: "28px",
+                              padding: "0 8px",
                               borderRadius: "5px",
                               border: "1px solid #cbd5e1",
-                              fontSize: "11.5px",
+                              fontSize: "11px",
                               backgroundColor: "#ffffff",
                               boxSizing: "border-box",
                             }}
                           />
                         </div>
-                      )}
 
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "flex-end",
-                          paddingTop: "4px",
-                        }}
-                      >
                         <button
                           type="submit"
                           disabled={isSavingPayment}
                           style={{
-                            height: "30px",
+                            height: "28px",
                             display: "inline-flex",
                             alignItems: "center",
-                            gap: "6px",
-                            padding: "0 18px",
-                            borderRadius: "6px",
+                            gap: "5px",
+                            padding: "0 12px",
+                            borderRadius: "5px",
                             border: "none",
                             backgroundColor: "#059669",
                             color: "#ffffff",
-                            fontSize: "12px",
+                            fontSize: "11px",
                             fontWeight: "800",
+                            whiteSpace: "nowrap",
                             cursor: isSavingPayment ? "not-allowed" : "pointer",
-                            boxShadow: "0 2px 6px rgba(5, 150, 105, 0.35)",
+                            boxShadow: "0 1px 3px rgba(5, 150, 105, 0.3)",
                           }}
                         >
-                          <Save size={14} />
-                          <span>
-                            {isSavingPayment
-                              ? "Menyimpan Pembayaran..."
-                              : "Simpan Pembayaran / Cicilan"}
-                          </span>
+                          <Save size={12} />
+                          <span>{isSavingPayment ? "..." : "Simpan"}</span>
                         </button>
                       </div>
                     </form>
@@ -9944,28 +9767,6 @@ export default function PenjualanOfflineView({ onNavigate }) {
                 <div
                   style={{ display: "flex", alignItems: "center", gap: "8px" }}
                 >
-                  {activeScanOrder && (
-                    <button
-                      type="button"
-                      onClick={() => handlePrintLabelKemasan(activeScanOrder)}
-                      style={{
-                        padding: "5px 12px",
-                        borderRadius: "6px",
-                        border: "1px solid rgba(255,255,255,0.3)",
-                        backgroundColor: "rgba(255,255,255,0.14)",
-                        color: "#ffffff",
-                        fontSize: "11.5px",
-                        fontWeight: "700",
-                        cursor: "pointer",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "5px",
-                      }}
-                    >
-                      <Printer size={13} />
-                      <span>Cetak Label Kemasan / Barcode</span>
-                    </button>
-                  )}
                   <button
                     type="button"
                     onClick={() => setIsScanModalOpen(false)}
