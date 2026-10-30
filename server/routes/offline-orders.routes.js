@@ -88,6 +88,20 @@ async function ensureTables(pool) {
       INDEX idx_pesanan (id_pesanan)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS pesanan_offline_pembayaran (
+      id                  INT           NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      id_pesanan          VARCHAR(36)   NOT NULL,
+      tanggal_bayar       DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      nominal             DECIMAL(15,2) NOT NULL DEFAULT 0,
+      metode_pembayaran   VARCHAR(30)   DEFAULT 'cash',
+      bank_tujuan         VARCHAR(100)  DEFAULT NULL,
+      keterangan          VARCHAR(300)  DEFAULT NULL,
+      dibuat_pada         DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_pesanan_bayar (id_pesanan)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
 }
 
 export async function handleOfflineOrdersRoutes(req, res, pathname, urlObj, { pool }) {
@@ -130,7 +144,7 @@ export async function handleOfflineOrdersRoutes(req, res, pathname, urlObj, { po
     }
   }
 
-  // ── 2. GET detail 1 pesanan offline + items ───────────────────────────────
+  // ── 2. GET detail 1 pesanan offline + items + pembayaran_list ──────────────
   const detailMatch = pathname.match(/^\/api\/offline\/orders\/([^/]+)$/);
   if (detailMatch && req.method === 'GET') {
     try {
@@ -138,7 +152,38 @@ export async function handleOfflineOrdersRoutes(req, res, pathname, urlObj, { po
       const [[order]] = await pool.query('SELECT * FROM pesanan_offline WHERE id = ?', [id]);
       if (!order) { sendJson(res, 404, { status: 'error', message: 'Pesanan tidak ditemukan' }); return true; }
       const [items] = await pool.query('SELECT * FROM pesanan_offline_item WHERE id_pesanan = ? ORDER BY id', [id]);
-      sendJson(res, 200, { status: 'success', data: { ...order, items } });
+      let [pembayaran_list] = await pool.query(
+        'SELECT * FROM pesanan_offline_pembayaran WHERE id_pesanan = ? ORDER BY tanggal_bayar ASC, id ASC',
+        [id]
+      );
+
+      // Auto-seed riwayat awal jika pesanan lama sudah ada DP / Lunas tapi tabel pembayaran masih kosong
+      if (pembayaran_list.length === 0) {
+        const initNominal = order.status_pembayaran === 'lunas'
+          ? Number(order.total_harga || 0)
+          : (order.status_pembayaran === 'dp' ? Number(order.nominal_dp || 0) : 0);
+        if (initNominal > 0) {
+          await pool.query(
+            `INSERT INTO pesanan_offline_pembayaran (id_pesanan, tanggal_bayar, nominal, metode_pembayaran, bank_tujuan, keterangan)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [
+              id,
+              order.tanggal_bayar || order.dibuat_pada || new Date(),
+              initNominal,
+              order.metode_pembayaran || 'cash',
+              order.bank_tujuan || null,
+              order.status_pembayaran === 'lunas' ? 'Pembayaran Lunas Awal' : 'Pembayaran DP Awal'
+            ]
+          );
+          const [refetched] = await pool.query(
+            'SELECT * FROM pesanan_offline_pembayaran WHERE id_pesanan = ? ORDER BY tanggal_bayar ASC, id ASC',
+            [id]
+          );
+          pembayaran_list = refetched;
+        }
+      }
+
+      sendJson(res, 200, { status: 'success', data: { ...order, items, pembayaran_list } });
       return true;
     } catch (err) {
       sendJson(res, 500, { status: 'error', message: err.message });
@@ -199,6 +244,10 @@ export async function handleOfflineOrdersRoutes(req, res, pathname, urlObj, { po
         console.warn('[Sync to pelanggan_master warning]:', custErr.message);
       }
 
+      const effectiveDp = status_pembayaran === 'lunas'
+        ? total_harga
+        : (status_pembayaran === 'dp' ? Number(nominal_dp) : 0);
+
       await pool.query(`
         INSERT INTO pesanan_offline (
           id, kode_perusahaan, no_pesanan, id_toko, nama_toko,
@@ -215,9 +264,24 @@ export async function handleOfflineOrdersRoutes(req, res, pathname, urlObj, { po
         is_dropship ? 1 : 0, nama_pengirim_ds, no_telp_pengirim_ds,
         kurir, jenis_layanan, batas_kirim || null,
         subtotal, Number(diskon), Number(ongkir), total_harga,
-        metode_pembayaran, bank_tujuan || null, status_pembayaran, Number(nominal_dp), tanggal_bayar || null,
+        metode_pembayaran, bank_tujuan || null, status_pembayaran, effectiveDp,
+        effectiveDp > 0 ? (tanggal_bayar || new Date()) : null,
         status_pesanan, catatan, dibuat_oleh
       ]);
+
+      if (effectiveDp > 0) {
+        await pool.query(
+          `INSERT INTO pesanan_offline_pembayaran (id_pesanan, tanggal_bayar, nominal, metode_pembayaran, bank_tujuan, keterangan)
+           VALUES (?, NOW(), ?, ?, ?, ?)`,
+          [
+            id,
+            effectiveDp,
+            metode_pembayaran || 'cash',
+            bank_tujuan || null,
+            status_pembayaran === 'lunas' ? 'Pembayaran Lunas Awal' : 'Pembayaran DP Awal'
+          ]
+        );
+      }
 
       // Insert items
       for (const it of items) {
@@ -356,11 +420,159 @@ export async function handleOfflineOrdersRoutes(req, res, pathname, urlObj, { po
     }
   }
 
-  // ── 5. DELETE pesanan offline ─────────────────────────────────────────────
+  // ── 5. POST tambah pembayaran / cicilan pesanan ───────────────────────────
+  const paymentPostMatch = pathname.match(/^\/api\/offline\/orders\/([^/]+)\/payments$/);
+  if (paymentPostMatch && req.method === 'POST') {
+    try {
+      const id = decodeURIComponent(paymentPostMatch[1]);
+      const body = await parseJsonBody(req);
+      const {
+        nominal = 0,
+        metode_pembayaran = 'cash',
+        bank_tujuan = null,
+        tanggal_bayar = null,
+        keterangan = ''
+      } = body;
+
+      const payAmount = Number(nominal || 0);
+      if (payAmount <= 0) {
+        sendJson(res, 400, { status: 'error', message: 'Nominal pembayaran harus lebih dari Rp 0' });
+        return true;
+      }
+
+      const [[order]] = await pool.query('SELECT * FROM pesanan_offline WHERE id = ?', [id]);
+      if (!order) {
+        sendJson(res, 404, { status: 'error', message: 'Pesanan tidak ditemukan' });
+        return true;
+      }
+
+      // Pastikan riwayat awal sudah ter-seed jika sebelumnya punya DP tapi tabel pembayaran masih kosong
+      const [existingPays] = await pool.query('SELECT * FROM pesanan_offline_pembayaran WHERE id_pesanan = ?', [id]);
+      if (existingPays.length === 0 && Number(order.nominal_dp || 0) > 0) {
+        await pool.query(
+          `INSERT INTO pesanan_offline_pembayaran (id_pesanan, tanggal_bayar, nominal, metode_pembayaran, bank_tujuan, keterangan)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [
+            id,
+            order.tanggal_bayar || order.dibuat_pada || new Date(),
+            Number(order.nominal_dp),
+            order.metode_pembayaran || 'cash',
+            order.bank_tujuan || null,
+            'Pembayaran DP Awal'
+          ]
+        );
+      }
+
+      await pool.query(
+        `INSERT INTO pesanan_offline_pembayaran (id_pesanan, tanggal_bayar, nominal, metode_pembayaran, bank_tujuan, keterangan)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          id,
+          tanggal_bayar ? new Date(tanggal_bayar) : new Date(),
+          payAmount,
+          metode_pembayaran || 'cash',
+          metode_pembayaran === 'transfer' ? (bank_tujuan || null) : null,
+          keterangan || 'Cicilan / Pembayaran'
+        ]
+      );
+
+      const [[sumRow]] = await pool.query(
+        'SELECT COALESCE(SUM(nominal), 0) AS total_bayar FROM pesanan_offline_pembayaran WHERE id_pesanan = ?',
+        [id]
+      );
+      const totalTerbayar = Number(sumRow?.total_bayar || 0);
+      const totalHarga = Number(order.total_harga || 0);
+      const newStatusBayar = totalTerbayar >= totalHarga && totalHarga > 0
+        ? 'lunas'
+        : (totalTerbayar > 0 ? 'dp' : 'belum_bayar');
+
+      await pool.query(
+        `UPDATE pesanan_offline
+         SET nominal_dp = ?, status_pembayaran = ?, metode_pembayaran = ?, bank_tujuan = ?, tanggal_bayar = NOW()
+         WHERE id = ?`,
+        [
+          totalTerbayar,
+          newStatusBayar,
+          metode_pembayaran || order.metode_pembayaran || 'cash',
+          metode_pembayaran === 'transfer' ? (bank_tujuan || null) : null,
+          id
+        ]
+      );
+
+      const [[updatedOrder]] = await pool.query('SELECT * FROM pesanan_offline WHERE id = ?', [id]);
+      const [items] = await pool.query('SELECT * FROM pesanan_offline_item WHERE id_pesanan = ? ORDER BY id', [id]);
+      const [pembayaran_list] = await pool.query(
+        'SELECT * FROM pesanan_offline_pembayaran WHERE id_pesanan = ? ORDER BY tanggal_bayar ASC, id ASC',
+        [id]
+      );
+
+      sendJson(res, 200, {
+        status: 'success',
+        message: newStatusBayar === 'lunas' ? 'Pembayaran berhasil — Pesanan LUNAS!' : 'Cicilan pembayaran berhasil disimpan',
+        data: { ...updatedOrder, items, pembayaran_list }
+      });
+      return true;
+    } catch (err) {
+      sendJson(res, 500, { status: 'error', message: err.message });
+      return true;
+    }
+  }
+
+  // ── 6. DELETE hapus 1 riwayat cicilan pembayaran ──────────────────────────
+  const paymentDelMatch = pathname.match(/^\/api\/offline\/orders\/([^/]+)\/payments\/(\d+)$/);
+  if (paymentDelMatch && req.method === 'DELETE') {
+    try {
+      const id = decodeURIComponent(paymentDelMatch[1]);
+      const paymentId = Number(paymentDelMatch[2]);
+
+      const [[order]] = await pool.query('SELECT * FROM pesanan_offline WHERE id = ?', [id]);
+      if (!order) {
+        sendJson(res, 404, { status: 'error', message: 'Pesanan tidak ditemukan' });
+        return true;
+      }
+
+      await pool.query('DELETE FROM pesanan_offline_pembayaran WHERE id = ? AND id_pesanan = ?', [paymentId, id]);
+
+      const [[sumRow]] = await pool.query(
+        'SELECT COALESCE(SUM(nominal), 0) AS total_bayar FROM pesanan_offline_pembayaran WHERE id_pesanan = ?',
+        [id]
+      );
+      const totalTerbayar = Number(sumRow?.total_bayar || 0);
+      const totalHarga = Number(order.total_harga || 0);
+      const newStatusBayar = totalTerbayar >= totalHarga && totalHarga > 0
+        ? 'lunas'
+        : (totalTerbayar > 0 ? 'dp' : 'belum_bayar');
+
+      await pool.query(
+        'UPDATE pesanan_offline SET nominal_dp = ?, status_pembayaran = ? WHERE id = ?',
+        [totalTerbayar, newStatusBayar, id]
+      );
+
+      const [[updatedOrder]] = await pool.query('SELECT * FROM pesanan_offline WHERE id = ?', [id]);
+      const [items] = await pool.query('SELECT * FROM pesanan_offline_item WHERE id_pesanan = ? ORDER BY id', [id]);
+      const [pembayaran_list] = await pool.query(
+        'SELECT * FROM pesanan_offline_pembayaran WHERE id_pesanan = ? ORDER BY tanggal_bayar ASC, id ASC',
+        [id]
+      );
+
+      sendJson(res, 200, {
+        status: 'success',
+        message: 'Data pembayaran dihapus',
+        data: { ...updatedOrder, items, pembayaran_list }
+      });
+      return true;
+    } catch (err) {
+      sendJson(res, 500, { status: 'error', message: err.message });
+      return true;
+    }
+  }
+
+  // ── 7. DELETE pesanan offline ─────────────────────────────────────────────
   const deleteMatch2 = pathname.match(/^\/api\/offline\/orders\/([^/]+)$/);
   if (deleteMatch2 && req.method === 'DELETE') {
     try {
       const id = decodeURIComponent(deleteMatch2[1]);
+      await pool.query('DELETE FROM pesanan_offline_pembayaran WHERE id_pesanan = ?', [id]);
       await pool.query('DELETE FROM pesanan_offline_item WHERE id_pesanan = ?', [id]);
       await pool.query('DELETE FROM pesanan_offline WHERE id = ?', [id]);
       sendJson(res, 200, { status: 'success', message: 'Pesanan dihapus' });
