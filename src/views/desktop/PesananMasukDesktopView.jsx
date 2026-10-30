@@ -16,7 +16,8 @@ import {
   Info,
   FileText,
   TrendingUp,
-  ExternalLink
+  ExternalLink,
+  Filter
 } from 'lucide-react';
 import { toastSuccess, toastError } from '../../utils/alert.util';
 import { getActiveCompany } from '../../utils/tenant.util';
