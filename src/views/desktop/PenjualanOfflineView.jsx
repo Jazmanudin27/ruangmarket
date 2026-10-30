@@ -3223,39 +3223,35 @@ export default function PenjualanOfflineView({ onNavigate }) {
                               <DollarSign size={13} />
                             </button>
 
-                            {/* 3. Input ke SPK Button (Purple / Indigo) */}
-                            <button
-                              type="button"
-                              onClick={() => handleOpenSpkModal(ord.id)}
-                              title={
-                                ord.no_spk
-                                  ? `Sudah Masuk SPK: ${ord.no_spk} (Klik untuk lihat / update)`
-                                  : "Input Pesanan ke SPK Produksi"
-                              }
-                              style={{
-                                width: "26px",
-                                height: "26px",
-                                borderRadius: "4px",
-                                border: "none",
-                                backgroundColor: ord.no_spk
-                                  ? "#4f46e5"
-                                  : "#8b5cf6",
-                                color: "#ffffff",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                cursor: "pointer",
-                                transition: "opacity 0.15s ease",
-                              }}
-                              onMouseEnter={(e) =>
-                                (e.currentTarget.style.opacity = "0.85")
-                              }
-                              onMouseLeave={(e) =>
-                                (e.currentTarget.style.opacity = "1")
-                              }
-                            >
-                              <ClipboardList size={13} />
-                            </button>
+                            {/* 3. Input ke SPK Button (Hanya tampil jika SPK belum dibuat) */}
+                            {!ord.no_spk && (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenSpkModal(ord.id)}
+                                title="Input Pesanan ke SPK Produksi"
+                                style={{
+                                  width: "26px",
+                                  height: "26px",
+                                  borderRadius: "4px",
+                                  border: "none",
+                                  backgroundColor: "#8b5cf6",
+                                  color: "#ffffff",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  cursor: "pointer",
+                                  transition: "opacity 0.15s ease",
+                                }}
+                                onMouseEnter={(e) =>
+                                  (e.currentTarget.style.opacity = "0.85")
+                                }
+                                onMouseLeave={(e) =>
+                                  (e.currentTarget.style.opacity = "1")
+                                }
+                              >
+                                <ClipboardList size={13} />
+                              </button>
+                            )}
 
                             {/* 3b. Scan Kemasan / Packing Checker Button (Dark Slate / Emerald) */}
                             <button
@@ -6482,33 +6478,31 @@ export default function PenjualanOfflineView({ onNavigate }) {
                 </strong>
               </div>
               <div style={{ display: "flex", gap: "8px" }}>
-                <button
-                  type="button"
-                  onClick={() => handleOpenSpkModal(detailOrder)}
-                  style={{
-                    height: "28px",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "5px",
-                    padding: "0 14px",
-                    borderRadius: "5px",
-                    border: "none",
-                    backgroundColor: "#7c3aed",
-                    color: "#ffffff",
-                    fontSize: "11.5px",
-                    fontWeight: "800",
-                    cursor: "pointer",
-                    boxShadow: "0 2px 4px rgba(124, 58, 237, 0.35)",
-                    transition: "all 0.15s ease",
-                  }}
-                >
-                  <ClipboardList size={13} />
-                  <span>
-                    {detailOrder.no_spk
-                      ? `Update SPK (${detailOrder.no_spk})`
-                      : "Input ke SPK"}
-                  </span>
-                </button>
+                {!detailOrder.no_spk && (
+                  <button
+                    type="button"
+                    onClick={() => handleOpenSpkModal(detailOrder)}
+                    style={{
+                      height: "28px",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "5px",
+                      padding: "0 14px",
+                      borderRadius: "5px",
+                      border: "none",
+                      backgroundColor: "#7c3aed",
+                      color: "#ffffff",
+                      fontSize: "11.5px",
+                      fontWeight: "800",
+                      cursor: "pointer",
+                      boxShadow: "0 2px 4px rgba(124, 58, 237, 0.35)",
+                      transition: "all 0.15s ease",
+                    }}
+                  >
+                    <ClipboardList size={13} />
+                    <span>Input ke SPK</span>
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => handleOpenPaymentModal(detailOrder)}
