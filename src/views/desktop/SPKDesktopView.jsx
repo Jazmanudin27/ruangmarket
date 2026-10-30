@@ -2983,31 +2983,31 @@ export default function SPKView() {
                                     padding: "6px 8px",
                                     fontWeight: "800",
                                     color: "#475569",
-                                    minWidth: "320px",
+                                    width: "35px",
+                                    textAlign: "center",
                                   }}
                                 >
-                                  PRODUK & SKU
+                                  NO
                                 </th>
                                 <th
                                   style={{
                                     padding: "6px 8px",
                                     fontWeight: "800",
                                     color: "#475569",
-                                    width: "110px",
-                                    textAlign: "center",
                                   }}
                                 >
-                                  QTY
+                                  NAMA PRODUK
                                 </th>
                                 <th
                                   style={{
                                     padding: "6px 8px",
                                     fontWeight: "800",
-                                    color: "#0369a1",
-                                    width: "280px",
+                                    color: "#475569",
+                                    width: "95px",
+                                    textAlign: "center",
                                   }}
                                 >
-                                  ESTIMASI KAIN (AUTO DARI MASTER)
+                                  QTY
                                 </th>
                                 <th
                                   style={{
@@ -3098,8 +3098,22 @@ export default function SPKView() {
                                       borderBottom: "1px solid #f1f5f9",
                                     }}
                                   >
-                                    {/* Produk, SKU & Kategori */}
-                                    <td style={{ padding: "6px 8px" }}>
+                                    {/* 1. NO */}
+                                    <td
+                                      style={{
+                                        padding: "8px 6px",
+                                        textAlign: "center",
+                                        fontWeight: "700",
+                                        fontSize: "11px",
+                                        color: "#64748b",
+                                        verticalAlign: "top",
+                                      }}
+                                    >
+                                      {pIdx + 1}
+                                    </td>
+
+                                    {/* 2. NAMA PRODUK, SKU & ESTIMASI KAIN */}
+                                    <td style={{ padding: "8px 8px", verticalAlign: "top" }}>
                                       <SearchableSelect
                                         value={prod.produk_id}
                                         fallbackLabel={prod.nama_produk}
@@ -3155,13 +3169,180 @@ export default function SPKView() {
                                           </span>
                                         )}
                                       </div>
+
+                                      {/* Info Estimasi Kain di bawah Produk */}
+                                      {(Number(prod.panjang_kain_cm) > 0 || prod.kain_nama) && (
+                                        <div
+                                          style={{
+                                            marginTop: "6px",
+                                            display: "flex",
+                                            flexDirection: "column",
+                                            gap: "4px",
+                                            padding: "5px 8px",
+                                            borderRadius: "6px",
+                                            background:
+                                              "linear-gradient(135deg, #f0fdf4 0%, #f0f9ff 100%)",
+                                            border: "1px solid #bae6fd",
+                                          }}
+                                        >
+                                          {/* Micro Dashboard Row */}
+                                          <div
+                                            style={{
+                                              display: "flex",
+                                              alignItems: "center",
+                                              justifyContent: "space-between",
+                                              gap: "4px",
+                                            }}
+                                          >
+                                            <div
+                                              style={{
+                                                display: "flex",
+                                                alignItems: "center",
+                                                gap: "4px",
+                                              }}
+                                            >
+                                              <Scissors
+                                                size={11}
+                                                color="#0284c7"
+                                              />
+                                              <b
+                                                style={{
+                                                  fontSize: "11px",
+                                                  color: "#0f172a",
+                                                }}
+                                              >
+                                                {prod.kain_nama || "Kain"}
+                                              </b>
+                                            </div>
+                                            <span
+                                              style={{
+                                                fontSize: "9.5px",
+                                                fontWeight: "800",
+                                                padding: "1px 6px",
+                                                borderRadius: "3px",
+                                                backgroundColor: "#ffffff",
+                                                color: "#0284c7",
+                                                border: "1px solid #bfdbfe",
+                                              }}
+                                            >
+                                              {prod.panjang_kain_cm || 0} CM / pcs
+                                            </span>
+                                          </div>
+
+                                          {/* Metrics Strip */}
+                                          <div
+                                            style={{
+                                              display: "flex",
+                                              alignItems: "center",
+                                              justifyContent: "space-between",
+                                              backgroundColor: "#ffffff",
+                                              padding: "3px 8px",
+                                              borderRadius: "4px",
+                                              border: "1px solid #e2e8f0",
+                                              fontSize: "10.5px",
+                                            }}
+                                          >
+                                            <div>
+                                              <span
+                                                style={{
+                                                  color: "#64748b",
+                                                  fontSize: "8.5px",
+                                                  display: "block",
+                                                  fontWeight: "800",
+                                                  textTransform: "uppercase",
+                                                }}
+                                              >
+                                                TOTAL KEBUTUHAN
+                                              </span>
+                                              <b
+                                                style={{
+                                                  color: "#0284c7",
+                                                  fontFamily: "monospace",
+                                                  fontSize: "11.5px",
+                                                }}
+                                              >
+                                                {(
+                                                  (Number(
+                                                    prod.panjang_kain_cm,
+                                                  ) || 0) *
+                                                  (Number(prod.qty) || 1)
+                                                ).toLocaleString("id-ID")}{" "}
+                                                CM
+                                              </b>
+                                              <span
+                                                style={{
+                                                  color: "#64748b",
+                                                  fontSize: "9px",
+                                                  marginLeft: "3px",
+                                                  fontWeight: "600",
+                                                }}
+                                              >
+                                                (
+                                                {(
+                                                  ((Number(
+                                                    prod.panjang_kain_cm,
+                                                  ) || 0) *
+                                                    (Number(prod.qty) || 1)) /
+                                                  100
+                                                ).toFixed(1)}
+                                                M)
+                                              </span>
+                                            </div>
+
+                                            <div style={{ textAlign: "right" }}>
+                                              <span
+                                                style={{
+                                                  color: "#065f46",
+                                                  fontSize: "8.5px",
+                                                  display: "block",
+                                                  fontWeight: "800",
+                                                  textTransform: "uppercase",
+                                                }}
+                                              >
+                                                EST. BIAYA KAIN
+                                              </span>
+                                              <b
+                                                style={{
+                                                  color: "#059669",
+                                                  fontSize: "11.5px",
+                                                }}
+                                              >
+                                                Rp{" "}
+                                                {(
+                                                  (Number(
+                                                    prod.panjang_kain_cm,
+                                                  ) || 0) *
+                                                  (Number(prod.qty) || 1) *
+                                                  (Number(
+                                                    prod.harga_kain_cm,
+                                                  ) || 0)
+                                                ).toLocaleString("id-ID")}
+                                              </b>
+                                              <span
+                                                style={{
+                                                  color: "#94a3b8",
+                                                  fontSize: "8.5px",
+                                                  display: "block",
+                                                }}
+                                              >
+                                                @Rp{" "}
+                                                {Number(
+                                                  prod.harga_kain_cm || 0,
+                                                ).toLocaleString("id-ID")}
+                                                /CM
+                                              </span>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      )}
                                     </td>
 
-                                    {/* Qty & Satuan (Gabung) */}
+                                    {/* 3. QTY */}
                                     <td
                                       style={{
-                                        padding: "5px 8px",
+                                        padding: "8px 6px",
                                         textAlign: "center",
+                                        verticalAlign: "top",
                                       }}
                                     >
                                       <div
@@ -3205,202 +3386,12 @@ export default function SPKView() {
                                       </div>
                                     </td>
 
-                                    {/* Estimasi Kain & Keterangan */}
+                                    {/* 4. AKSI */}
                                     <td
                                       style={{
-                                        padding: "6px 8px",
-                                        verticalAlign: "middle",
-                                      }}
-                                    >
-                                      <div
-                                        style={{
-                                          display: "flex",
-                                          flexDirection: "column",
-                                          gap: "4px",
-                                          padding: "5px 8px",
-                                          borderRadius: "6px",
-                                          background:
-                                            "linear-gradient(135deg, #f0fdf4 0%, #f0f9ff 100%)",
-                                          border: "1px solid #bae6fd",
-                                          minWidth: "270px",
-                                        }}
-                                      >
-                                        {/* Micro Dashboard Row */}
-                                        <div
-                                          style={{
-                                            display: "flex",
-                                            alignItems: "center",
-                                            justifyContent: "space-between",
-                                            gap: "4px",
-                                          }}
-                                        >
-                                          <div
-                                            style={{
-                                              display: "flex",
-                                              alignItems: "center",
-                                              gap: "4px",
-                                            }}
-                                          >
-                                            <Scissors
-                                              size={11}
-                                              color="#0284c7"
-                                            />
-                                            <b
-                                              style={{
-                                                fontSize: "11px",
-                                                color: "#0f172a",
-                                              }}
-                                            >
-                                              {prod.kain_nama || "Kain"}
-                                            </b>
-                                          </div>
-                                          <span
-                                            style={{
-                                              fontSize: "9.5px",
-                                              fontWeight: "800",
-                                              padding: "1px 6px",
-                                              borderRadius: "3px",
-                                              backgroundColor: "#ffffff",
-                                              color: "#0284c7",
-                                              border: "1px solid #bfdbfe",
-                                            }}
-                                          >
-                                            {prod.panjang_kain_cm || 0} CM / pcs
-                                          </span>
-                                        </div>
-
-                                        {/* Metrics Strip */}
-                                        <div
-                                          style={{
-                                            display: "flex",
-                                            alignItems: "center",
-                                            justifyContent: "space-between",
-                                            backgroundColor: "#ffffff",
-                                            padding: "3px 8px",
-                                            borderRadius: "4px",
-                                            border: "1px solid #e2e8f0",
-                                            fontSize: "10.5px",
-                                          }}
-                                        >
-                                          <div>
-                                            <span
-                                              style={{
-                                                color: "#64748b",
-                                                fontSize: "8.5px",
-                                                display: "block",
-                                                fontWeight: "800",
-                                                textTransform: "uppercase",
-                                              }}
-                                            >
-                                              TOTAL KEBUTUHAN
-                                            </span>
-                                            <b
-                                              style={{
-                                                color: "#0284c7",
-                                                fontFamily: "monospace",
-                                                fontSize: "11.5px",
-                                              }}
-                                            >
-                                              {(
-                                                (Number(prod.panjang_kain_cm) ||
-                                                  0) * (Number(prod.qty) || 1)
-                                              ).toLocaleString("id-ID")}{" "}
-                                              CM
-                                            </b>
-                                            <span
-                                              style={{
-                                                color: "#64748b",
-                                                fontSize: "9px",
-                                                marginLeft: "3px",
-                                                fontWeight: "600",
-                                              }}
-                                            >
-                                              (
-                                              {(
-                                                ((Number(
-                                                  prod.panjang_kain_cm,
-                                                ) || 0) *
-                                                  (Number(prod.qty) || 1)) /
-                                                100
-                                              ).toFixed(1)}
-                                              M)
-                                            </span>
-                                          </div>
-
-                                          <div style={{ textAlign: "right" }}>
-                                            <span
-                                              style={{
-                                                color: "#065f46",
-                                                fontSize: "8.5px",
-                                                display: "block",
-                                                fontWeight: "800",
-                                                textTransform: "uppercase",
-                                              }}
-                                            >
-                                              EST. BIAYA KAIN
-                                            </span>
-                                            <b
-                                              style={{
-                                                color: "#059669",
-                                                fontSize: "11.5px",
-                                              }}
-                                            >
-                                              Rp{" "}
-                                              {(
-                                                (Number(prod.panjang_kain_cm) ||
-                                                  0) *
-                                                (Number(prod.qty) || 1) *
-                                                (Number(prod.harga_kain_cm) ||
-                                                  0)
-                                              ).toLocaleString("id-ID")}
-                                            </b>
-                                            <span
-                                              style={{
-                                                color: "#94a3b8",
-                                                fontSize: "8.5px",
-                                                display: "block",
-                                              }}
-                                            >
-                                              @Rp{" "}
-                                              {Number(
-                                                prod.harga_kain_cm || 0,
-                                              ).toLocaleString("id-ID")}
-                                              /CM
-                                            </span>
-                                          </div>
-                                        </div>
-
-                                        {/* Editable override / note */}
-                                        <input
-                                          type="text"
-                                          placeholder="Catatan / rincian estimasi kain..."
-                                          value={prod.estimasi_kain || ""}
-                                          onChange={(e) =>
-                                            handleUpdateProductInSPK(
-                                              sIdx,
-                                              pIdx,
-                                              "estimasi_kain",
-                                              e.target.value,
-                                            )
-                                          }
-                                          style={{
-                                            width: "100%",
-                                            padding: "3px 7px",
-                                            borderRadius: "4px",
-                                            border: "1px solid #cbd5e1",
-                                            fontSize: "10px",
-                                            color: "#334155",
-                                            backgroundColor: "#ffffff",
-                                          }}
-                                        />
-                                      </div>
-                                    </td>
-
-                                    {/* Hapus Produk Row */}
-                                    <td
-                                      style={{
-                                        padding: "5px 8px",
+                                        padding: "8px 6px",
                                         textAlign: "center",
+                                        verticalAlign: "top",
                                       }}
                                     >
                                       <button
