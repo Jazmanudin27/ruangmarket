@@ -32,11 +32,12 @@ export default function PesananMasukDesktopView() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState('');
 
-  // Filter States
+  // Filter & Sort States
   const [search, setSearch] = useState('');
   const [filterChannel, setFilterChannel] = useState('Semua');
   const [filterStatus, setFilterStatus] = useState('Semua');
   const [activeFilterTab, setActiveFilterTab] = useState('semua');
+  const [sortByDate, setSortByDate] = useState('desc'); // 'desc' (Terbaru) | 'asc' (Terlama)
 
   // Pagination States
   const [currentPage, setCurrentPage] = useState(1);
@@ -330,9 +331,40 @@ export default function PesananMasukDesktopView() {
     return true;
   });
 
+  // Helper parsing timestamp pesanan untuk pengurutan tanggal yang presisi
+  const getOrderTimestamp = (ord) => {
+    if (ord.rawOrderTime) {
+      const t = new Date(ord.rawOrderTime).getTime();
+      if (!isNaN(t)) return t;
+    }
+    if (ord.orderTime) {
+      // Format orderTime: 'DD/MM/YYYY HH:mm'
+      const parts = String(ord.orderTime).split(' ');
+      if (parts.length >= 2) {
+        const dateParts = parts[0].split('/').map(Number);
+        const timeParts = parts[1].split(':').map(Number);
+        if (dateParts.length === 3) {
+          const dt = new Date(dateParts[2], dateParts[1] - 1, dateParts[0], timeParts[0] || 0, timeParts[1] || 0);
+          if (!isNaN(dt.getTime())) return dt.getTime();
+        }
+      }
+    }
+    return 0;
+  };
+
+  // Urutkan pesanan masuk berdasarkan tanggal (default: terbaru -> terlama)
+  const sortedOrders = [...filteredOrders].sort((a, b) => {
+    const timeA = getOrderTimestamp(a);
+    const timeB = getOrderTimestamp(b);
+    if (sortByDate === 'asc') {
+      return timeA - timeB;
+    }
+    return timeB - timeA;
+  });
+
   // Pagination calculation
-  const totalPages = Math.ceil(filteredOrders.length / entriesPerPage) || 1;
-  const paginatedOrders = filteredOrders.slice((currentPage - 1) * entriesPerPage, currentPage * entriesPerPage);
+  const totalPages = Math.ceil(sortedOrders.length / entriesPerPage) || 1;
+  const paginatedOrders = sortedOrders.slice((currentPage - 1) * entriesPerPage, currentPage * entriesPerPage);
 
   const changeTab = (tab) => {
     setActiveFilterTab(tab);
@@ -647,6 +679,27 @@ export default function PesananMasukDesktopView() {
           <option value={100}>100 Baris</option>
         </select>
 
+        {/* Sort Tanggal */}
+        <select
+          value={sortByDate}
+          onChange={(e) => { setSortByDate(e.target.value); setCurrentPage(1); }}
+          title="Urutkan pesanan berdasarkan tanggal transaksi"
+          style={{
+            padding: '6.5px 10px',
+            borderRadius: '6px',
+            border: '1px solid #0284c7',
+            fontSize: '12px',
+            color: '#0369a1',
+            fontWeight: '700',
+            backgroundColor: '#f0f9ff',
+            cursor: 'pointer',
+            minWidth: '175px'
+          }}
+        >
+          <option value="desc">Urutan: Tanggal Terbaru</option>
+          <option value="asc">Urutan: Tanggal Terlama</option>
+        </select>
+
         {/* Tombol Cetak Resi Masal dari Marketplace Asli */}
         {selectedIds.length > 0 && (
           <button
@@ -708,7 +761,7 @@ export default function PesananMasukDesktopView() {
               </tr>
             </thead>
             <tbody>
-              {filteredOrders.length === 0 ? (
+              {sortedOrders.length === 0 ? (
                 <tr>
                   <td colSpan="8" style={{ padding: '36px 16px', textAlign: 'center', color: '#64748b', border: '1px solid #cbd5e1' }}>
                     <ShoppingBag size={38} color="#cbd5e1" style={{ marginBottom: '8px' }} />
@@ -1082,7 +1135,7 @@ export default function PesananMasukDesktopView() {
           color: '#64748b'
         }}>
           <div>
-            Menampilkan <b>{filteredOrders.length === 0 ? 0 : (currentPage - 1) * entriesPerPage + 1}</b> sampai <b>{Math.min(currentPage * entriesPerPage, filteredOrders.length)}</b> dari <b>{filteredOrders.length}</b> total pesanan
+            Menampilkan <b>{sortedOrders.length === 0 ? 0 : (currentPage - 1) * entriesPerPage + 1}</b> sampai <b>{Math.min(currentPage * entriesPerPage, sortedOrders.length)}</b> dari <b>{sortedOrders.length}</b> total pesanan
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>

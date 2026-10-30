@@ -23,9 +23,10 @@ export async function handleOrdersRoutes(req, res, pathname, urlObj, { pool, lar
           COALESCE(net_amount, total_harga) as net_amount,
           DATE_FORMAT(COALESCE(waktu_pesanan, ditarik_pada), '%d/%m/%Y %H:%i') as orderTime,
           DATE_FORMAT(COALESCE(batas_kirim, DATE_ADD(COALESCE(waktu_pesanan, ditarik_pada), INTERVAL 1 DAY)), '%d/%m/%Y 23:59') as batasKirim,
-          DATE_FORMAT(ditarik_pada, '%d/%m/%Y, %H:%i') as syncedAt
+          DATE_FORMAT(ditarik_pada, '%d/%m/%Y, %H:%i') as syncedAt,
+          COALESCE(waktu_pesanan, ditarik_pada) as rawOrderTime
         FROM pesanan_marketplace
-        ORDER BY ditarik_pada DESC
+        ORDER BY COALESCE(waktu_pesanan, ditarik_pada) DESC, id DESC
       `);
 
       let masterRows = [];
