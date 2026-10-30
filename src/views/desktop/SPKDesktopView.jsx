@@ -53,6 +53,8 @@ function SearchableSelect({
   placeholder = "Pilih...",
   required = false,
   renderItem,
+  fallbackLabel = "",
+  fallbackSku = "",
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -76,7 +78,9 @@ function SearchableSelect({
     }
   }, [isOpen]);
 
-  const filteredOptions = options.filter((opt) => {
+  const safeOptions = Array.isArray(options) ? options : [];
+
+  const filteredOptions = safeOptions.filter((opt) => {
     const text =
       typeof opt === "string"
         ? opt
@@ -84,20 +88,50 @@ function SearchableSelect({
     return text.toLowerCase().includes(searchTerm.toLowerCase());
   });
 
-  const selectedFound = options.find((opt) =>
-    typeof opt === "string" ? opt === value : opt.value === value,
-  );
+  const selectedFound = safeOptions.find((opt) => {
+    if (typeof opt === "string") {
+      return (
+        opt === value ||
+        (value && String(opt).toLowerCase() === String(value).toLowerCase()) ||
+        (fallbackLabel && String(opt).toLowerCase() === String(fallbackLabel).toLowerCase())
+      );
+    }
+    if (value !== undefined && value !== null && value !== "" && String(opt.value) === String(value)) {
+      return true;
+    }
+    if (fallbackSku && opt.sku && String(opt.sku).trim().toLowerCase() === String(fallbackSku).trim().toLowerCase()) {
+      return true;
+    }
+    if (fallbackLabel && (opt.label || opt.nama_produk) && String(opt.label || opt.nama_produk).trim().toLowerCase() === String(fallbackLabel).trim().toLowerCase()) {
+      return true;
+    }
+    return false;
+  });
+
   const selectedDisplay = () => {
-    const found = selectedFound;
-    if (!found) return placeholder;
-    return typeof found === "string"
-      ? found
-      : found.displayLabel || found.label || found.value;
+    if (selectedFound) {
+      if (typeof selectedFound === "string") return selectedFound;
+      return (
+        selectedFound.displayLabel ||
+        selectedFound.label ||
+        selectedFound.nama_produk ||
+        selectedFound.value
+      );
+    }
+    if (fallbackLabel) {
+      return fallbackLabel.length > 40
+        ? fallbackLabel.slice(0, 40).trimEnd() + "..."
+        : fallbackLabel;
+    }
+    return placeholder;
   };
+
   const selectedTitle =
     selectedFound && typeof selectedFound !== "string"
-      ? selectedFound.label || ""
-      : selectedFound || "";
+      ? selectedFound.label || selectedFound.nama_produk || ""
+      : selectedFound || fallbackLabel || "";
+
+  const hasSelected = Boolean(value || fallbackLabel || selectedFound);
 
   return (
     <div style={{ position: "relative", width: "100%" }} ref={wrapperRef}>
@@ -125,7 +159,7 @@ function SearchableSelect({
           border: isOpen ? "1px solid #0284c7" : "1px solid #cbd5e1",
           fontSize: "11px",
           fontWeight: "600",
-          color: value ? "#0f172a" : "#94a3b8",
+          color: hasSelected ? "#0f172a" : "#94a3b8",
           backgroundColor: "#ffffff",
           cursor: "pointer",
           display: "flex",
@@ -230,7 +264,14 @@ function SearchableSelect({
                 const optVal = typeof opt === "string" ? opt : opt.value;
                 const optLabel =
                   typeof opt === "string" ? opt : opt.label || opt.value;
-                const isSelected = optVal === value;
+                const isSelected = selectedFound
+                  ? typeof opt === "string"
+                    ? opt ===
+                      (typeof selectedFound === "string"
+                        ? selectedFound
+                        : selectedFound.value)
+                    : String(opt.value) === String(selectedFound.value)
+                  : optVal === value;
 
                 return (
                   <div
@@ -449,6 +490,52 @@ export default function SPKView() {
     setTahapanOptions(INITIAL_TAHAPAN_DATA);
   };
 
+  const loadProdukList = async () => {
+    try {
+      const res = await fetch(
+        `/api/marketplace/master?limit=2000${activeCompany?.code ? `&kode_perusahaan=${activeCompany.code}` : ""}`,
+      );
+      if (res.ok) {
+        const json = await res.json();
+        const rawData = Array.isArray(json) ? json : json.data || [];
+        if (rawData.length > 0) {
+          const mapped = rawData.map((p) => ({
+            id: p.id,
+            company_code: p.kode_perusahaan || "RSG",
+            nama_produk: p.nama_produk,
+            sku: p.kode_sku || p.sku || "",
+            kategori: p.kategori || "Umum",
+            tipe_set: p.tipe_set || "Single",
+            satuan: p.satuan || "PCS",
+            harga_beli: Number(p.harga_modal || 0),
+            harga_jual: Number(p.harga_jual || 0),
+            sku_kain: p.sku_kain || "",
+            nama_kain: p.nama_kain || "",
+            panjang_kain_cm: (() => {
+              const raw = p.estimasi_kain ?? p.panjang_kain_cm;
+              const num = parseFloat(String(raw ?? "").replace(/[^0-9.]/g, ""));
+              return !isNaN(num) ? Math.round(num) : 200;
+            })(),
+            estimasi_kain: (() => {
+              const raw = p.estimasi_kain ?? p.panjang_kain_cm;
+              const num = parseFloat(String(raw ?? "").replace(/[^0-9.]/g, ""));
+              return !isNaN(num) ? Math.round(num) : 200;
+            })(),
+            harga_kain_cm: Number(p.harga_kain_cm || 150),
+            bundle_items: Array.isArray(p.bundle_items) ? p.bundle_items : [],
+          }));
+          setProdukList(mapped);
+          try {
+            localStorage.setItem(PRODUK_STORAGE_KEY, JSON.stringify(mapped));
+          } catch (e) {}
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn("Gagal load master produk dari API:", err);
+    }
+  };
+
   const [activeCompany, setActiveCompany] = useState(getActiveCompany);
 
   useEffect(() => {
@@ -464,6 +551,7 @@ export default function SPKView() {
     loadSpkData();
     loadPelangganOptions();
     loadTahapanOptions();
+    loadProdukList();
   }, [activeCompany]);
 
   const [search, setSearch] = useState("");
@@ -627,6 +715,8 @@ export default function SPKView() {
   // Open Add New Batch Modal
   const handleOpenAdd = () => {
     loadPelangganOptions();
+    loadTahapanOptions();
+    loadProdukList();
     setEditingId(null);
     const dateStr = new Date().toISOString().slice(0, 7).replace("-", "");
     const nextNum = batchList.length + 1;
@@ -687,6 +777,8 @@ export default function SPKView() {
   // Open Edit Batch Modal
   const handleOpenEdit = (batch) => {
     loadPelangganOptions();
+    loadTahapanOptions();
+    loadProdukList();
     setEditingId(batch.id);
     setFormData({
       kode_produksi: batch.kode_produksi,
@@ -732,10 +824,10 @@ export default function SPKView() {
           id: `item-${Date.now()}-1`,
           no_spk: newSpkId,
           produk_id: pDefault.id,
-          sku: pDefault.sku,
+          sku: pDefault.sku || pDefault.kode_sku || "",
           nama_produk: pDefault.nama_produk,
-          kategori: pDefault.kategori,
-          satuan: pDefault.satuan,
+          kategori: pDefault.kategori || "Umum",
+          satuan: pDefault.satuan || "PCS",
           qty: qty,
           kain_nama: kainNama,
           panjang_kain_cm: cmPerPcs,
@@ -805,10 +897,10 @@ export default function SPKView() {
       id: `item-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       no_spk: targetSpk.id_spk,
       produk_id: pDefault.id,
-      sku: pDefault.sku,
+      sku: pDefault.sku || pDefault.kode_sku || "",
       nama_produk: pDefault.nama_produk,
-      kategori: pDefault.kategori,
-      satuan: pDefault.satuan,
+      kategori: pDefault.kategori || "Umum",
+      satuan: pDefault.satuan || "PCS",
       qty: qty,
       kain_nama: kainNama,
       panjang_kain_cm: cmPerPcs,
@@ -859,10 +951,19 @@ export default function SPKView() {
   };
 
   // When user picks product from master dropdown inside an SPK
-  const handleSelectProductForSPK = (spkIdx, prodIdx, selectedId) => {
+  const handleSelectProductForSPK = (spkIdx, prodIdx, selectedId, selectedOpt) => {
     const prod =
+      (selectedOpt && selectedOpt.nama_produk ? selectedOpt : null) ||
+      produkList.find((p) => String(p.id) === String(selectedId)) ||
       produkList.find((p) => p.id === Number(selectedId)) ||
-      produkList.find((p) => p.id === selectedId);
+      produkList.find((p) => p.id === selectedId) ||
+      produkList.find(
+        (p) =>
+          p.sku &&
+          selectedOpt?.sku &&
+          String(p.sku).trim().toLowerCase() ===
+            String(selectedOpt.sku).trim().toLowerCase(),
+      );
     if (!prod) return;
 
     setFormData((prev) => {
@@ -2935,12 +3036,60 @@ export default function SPKView() {
                                       label: nama,
                                       displayLabel: namaShort,
                                       nama_produk: p.nama_produk,
-                                      sku: p.sku,
+                                      sku: p.sku || p.kode_sku || "",
                                       kategori: p.kategori,
                                       satuan: p.satuan,
+                                      nama_kain: p.nama_kain || p.sku_kain,
+                                      sku_kain: p.sku_kain,
+                                      panjang_kain_cm: p.panjang_kain_cm,
+                                      harga_kain_cm: p.harga_kain_cm,
+                                      bundle_items: p.bundle_items,
                                     };
                                   },
                                 );
+
+                                const hasMatch = productSelectOptions.some(
+                                  (opt) =>
+                                    String(opt.value) === String(prod.produk_id) ||
+                                    (prod.sku &&
+                                      opt.sku &&
+                                      String(opt.sku).trim().toLowerCase() ===
+                                        String(prod.sku).trim().toLowerCase()) ||
+                                    (prod.nama_produk &&
+                                      opt.nama_produk &&
+                                      String(opt.nama_produk).trim().toLowerCase() ===
+                                        String(prod.nama_produk).trim().toLowerCase()),
+                                );
+
+                                const effectiveOptions =
+                                  hasMatch || !prod.nama_produk
+                                    ? productSelectOptions
+                                    : [
+                                        {
+                                          value:
+                                            prod.produk_id ||
+                                            prod.sku ||
+                                            prod.nama_produk,
+                                          label: prod.nama_produk,
+                                          displayLabel:
+                                            prod.nama_produk.length > 40
+                                              ? prod.nama_produk
+                                                  .slice(0, 40)
+                                                  .trimEnd() + "..."
+                                              : prod.nama_produk,
+                                          nama_produk: prod.nama_produk,
+                                          sku: prod.sku || "",
+                                          kategori: prod.kategori || "Umum",
+                                          satuan: prod.satuan || "PCS",
+                                          nama_kain: prod.kain_nama || "",
+                                          panjang_kain_cm:
+                                            prod.panjang_kain_cm || 0,
+                                          harga_kain_cm:
+                                            prod.harga_kain_cm || 150,
+                                          bundle_items: prod.bundle_items || [],
+                                        },
+                                        ...productSelectOptions,
+                                      ];
 
                                 return (
                                   <tr
@@ -2953,13 +3102,16 @@ export default function SPKView() {
                                     <td style={{ padding: "6px 8px" }}>
                                       <SearchableSelect
                                         value={prod.produk_id}
-                                        options={productSelectOptions}
+                                        fallbackLabel={prod.nama_produk}
+                                        fallbackSku={prod.sku}
+                                        options={effectiveOptions}
                                         placeholder="Pilih dari Master..."
-                                        onChange={(val) =>
+                                        onChange={(val, opt) =>
                                           handleSelectProductForSPK(
                                             sIdx,
                                             pIdx,
                                             val,
+                                            opt,
                                           )
                                         }
                                       />
