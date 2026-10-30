@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   ShoppingBag, Search, Plus, X, Eye, CheckCircle2, Truck, Package,
   Calendar, Phone, MapPin, User, ChevronDown, Edit3, Trash2, Send,
-  Maximize2, Minimize2
+  Maximize2, Minimize2, CreditCard, DollarSign, Store, Clock, Tag, FileText
 } from 'lucide-react';
 import SearchableSelect from '../../components/SearchableSelect';
 import { toastSuccess, toastError } from '../../utils/alert.util';
@@ -82,7 +82,7 @@ export default function PenjualanOfflineView({ onNavigate }) {
     no_telp_pengirim_ds: '',
     kurir: '',
     jenis_layanan: '',
-    batas_kirim: '',
+    batas_kirim: new Date().toISOString().slice(0, 10),
     diskon: 0,
     ongkir: 0,
     metode_pembayaran: 'transfer',
@@ -134,7 +134,7 @@ export default function PenjualanOfflineView({ onNavigate }) {
       saluran: 'whatsapp', id_toko: '', nama_toko: '',
       nama_pembeli: '', no_telepon: '', alamat_pengiriman: '', kota: '', provinsi: '', kode_pos: '',
       is_dropship: false, nama_pengirim_ds: '', no_telp_pengirim_ds: '',
-      kurir: '', jenis_layanan: '', batas_kirim: '',
+      kurir: '', jenis_layanan: '', batas_kirim: new Date().toISOString().slice(0, 10),
       diskon: 0, ongkir: 0,
       metode_pembayaran: 'transfer', status_pembayaran: 'belum_bayar', nominal_dp: 0,
       catatan: '', items: []
@@ -723,257 +723,476 @@ export default function PenjualanOfflineView({ onNavigate }) {
 
             {/* Scrollable Form Body */}
             <div style={{
-              flex: 1, overflowY: 'auto', padding: isFullScreen ? '20px 32px' : '18px 24px',
-              backgroundColor: '#f8fafc'
+              flex: 1, overflowY: 'auto', padding: isFullScreen ? '24px 36px' : '20px 24px',
+              backgroundColor: '#f1f5f9'
             }}>
               <div style={{
-                maxWidth: isFullScreen ? '1100px' : '100%',
+                maxWidth: isFullScreen ? '1180px' : '100%',
                 margin: '0 auto',
-                backgroundColor: '#ffffff',
-                padding: '20px',
-                borderRadius: '10px',
-                border: '1px solid #e2e8f0',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+                display: 'grid',
+                gridTemplateColumns: isFullScreen ? '1.1fr 1.3fr' : '1fr',
+                gap: '20px',
+                alignItems: 'start'
               }}>
 
-                {/* ── Saluran & Toko ───────────────────────────────────────── */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.5fr 1fr', gap: '14px', marginBottom: '16px' }}>
-                  <div>
-                    <label style={{ fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '5px', display: 'block' }}>
-                      Saluran Penjualan
-                    </label>
-                    <SearchableSelect
-                      value={form.saluran}
-                      onChange={val => setForm({ ...form, saluran: val })}
-                      options={SALURAN_OPTIONS}
-                      placeholder="Pilih Saluran"
-                    />
-                  </div>
-                  <div>
-                    <label style={{ fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '5px', display: 'block' }}>
-                      Toko / Instansi Asal
-                    </label>
-                    <SearchableSelect
-                      value={form.id_toko}
-                      onChange={val => {
-                        const st = stores.find(s => String(s.id) === String(val));
-                        setForm({ ...form, id_toko: val, nama_toko: st ? st.shopName : '' });
-                      }}
-                      options={[
-                        { value: '', label: '-- Pilih Toko / Instansi --' },
-                        ...stores.map(s => ({
-                          value: String(s.id),
-                          label: s.shopName,
-                          subtitle: s.channel ? `Channel: ${s.channel}` : undefined
-                        }))
-                      ]}
-                      placeholder="Pilih Toko / Instansi"
-                    />
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', paddingTop: '18px' }}>
-                    <label style={{
-                      display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer',
-                      fontSize: '12px', fontWeight: '700', color: '#7c3aed',
-                      padding: '8px 12px', borderRadius: '7px', backgroundColor: '#f5f3ff', border: '1px solid #ddd6fe'
-                    }}>
-                      <input
-                        type="checkbox"
-                        checked={form.is_dropship}
-                        onChange={e => setForm({ ...form, is_dropship: e.target.checked })}
-                        style={{ cursor: 'pointer', width: '15px', height: '15px' }}
-                      />
-                      Mode Dropship
-                    </label>
-                  </div>
-                </div>
+                {/* ═════════════════════════════════════════════════════════ */}
+                {/* KOLOM KIRI: INFO TRANSAKSI & PEMBELI                    */}
+                {/* ═════════════════════════════════════════════════════════ */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
-            {/* ── Dropship fields ──────────────────────────────────────── */}
-            {form.is_dropship && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px',
-                padding: '12px', borderRadius: '8px', backgroundColor: '#f5f3ff', border: '1px solid #ddd6fe' }}>
-                <div>
-                  <label style={{ fontSize: '11px', fontWeight: '700', color: '#6d28d9', marginBottom: '4px', display: 'block' }}>Nama Toko Reseller (di Label)</label>
-                  <input value={form.nama_pengirim_ds} onChange={e => setForm({...form, nama_pengirim_ds: e.target.value})}
-                    placeholder="Nama toko reseller..." style={{ width: '100%', padding: '8px 10px', borderRadius: '7px', border: '1px solid #ddd6fe', fontSize: '12px' }} />
-                </div>
-                <div>
-                  <label style={{ fontSize: '11px', fontWeight: '700', color: '#6d28d9', marginBottom: '4px', display: 'block' }}>No Telp Toko Reseller</label>
-                  <input value={form.no_telp_pengirim_ds} onChange={e => setForm({...form, no_telp_pengirim_ds: e.target.value})}
-                    placeholder="08xx..." style={{ width: '100%', padding: '8px 10px', borderRadius: '7px', border: '1px solid #ddd6fe', fontSize: '12px' }} />
-                </div>
-              </div>
-            )}
-
-            {/* ── Data Pembeli ─────────────────────────────────────────── */}
-            <div style={{ fontSize: '12px', fontWeight: '800', color: '#1e293b', marginBottom: '8px', borderBottom: '1px solid #e2e8f0', paddingBottom: '4px' }}>
-              Data Pembeli
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
-              <div>
-                <label style={{ fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '4px', display: 'block' }}>Nama Pembeli *</label>
-                <input value={form.nama_pembeli} onChange={e => setForm({...form, nama_pembeli: e.target.value})}
-                  placeholder="Nama lengkap..." style={{ width: '100%', padding: '8px 10px', borderRadius: '7px', border: '1px solid #e2e8f0', fontSize: '12px' }} />
-              </div>
-              <div>
-                <label style={{ fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '4px', display: 'block' }}>No Telepon</label>
-                <input value={form.no_telepon} onChange={e => setForm({...form, no_telepon: e.target.value})}
-                  placeholder="08xx..." style={{ width: '100%', padding: '8px 10px', borderRadius: '7px', border: '1px solid #e2e8f0', fontSize: '12px' }} />
-              </div>
-            </div>
-            <div style={{ marginBottom: '16px' }}>
-              <label style={{ fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '4px', display: 'block' }}>Alamat Pengiriman</label>
-              <textarea value={form.alamat_pengiriman} onChange={e => setForm({...form, alamat_pengiriman: e.target.value})}
-                placeholder="Alamat lengkap..." rows={2}
-                style={{ width: '100%', padding: '8px 10px', borderRadius: '7px', border: '1px solid #e2e8f0', fontSize: '12px', resize: 'vertical' }} />
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '16px' }}>
-              <input value={form.kota} onChange={e => setForm({...form, kota: e.target.value})} placeholder="Kota"
-                style={{ padding: '8px 10px', borderRadius: '7px', border: '1px solid #e2e8f0', fontSize: '12px' }} />
-              <input value={form.provinsi} onChange={e => setForm({...form, provinsi: e.target.value})} placeholder="Provinsi"
-                style={{ padding: '8px 10px', borderRadius: '7px', border: '1px solid #e2e8f0', fontSize: '12px' }} />
-              <input value={form.kode_pos} onChange={e => setForm({...form, kode_pos: e.target.value})} placeholder="Kode Pos"
-                style={{ padding: '8px 10px', borderRadius: '7px', border: '1px solid #e2e8f0', fontSize: '12px' }} />
-            </div>
-
-            {/* ── Produk ──────────────────────────────────────────────── */}
-            <div style={{ fontSize: '12px', fontWeight: '800', color: '#1e293b', marginBottom: '8px', borderBottom: '1px solid #e2e8f0', paddingBottom: '4px' }}>
-              Produk Pesanan
-            </div>
-            {/* Autocomplete search */}
-            <div style={{ position: 'relative', marginBottom: '10px' }}>
-              <input value={produkSearch}
-                onChange={e => { setProdukSearch(e.target.value); setShowProdukDropdown(true); }}
-                onFocus={() => produkSearch && setShowProdukDropdown(true)}
-                placeholder="Cari SKU atau nama produk untuk ditambahkan..."
-                style={{ width: '100%', padding: '8px 10px 8px 32px', borderRadius: '7px', border: '1px solid #e2e8f0', fontSize: '12px' }}
-              />
-              <Search size={14} color="#94a3b8" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
-              {showProdukDropdown && filteredProduk.length > 0 && (
-                <div style={{
-                  position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
-                  backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px',
-                  boxShadow: '0 8px 24px rgba(0,0,0,0.12)', maxHeight: '200px', overflowY: 'auto'
-                }}>
-                  {filteredProduk.map((p, i) => (
-                    <div key={i} onClick={() => addItem(p)}
-                      style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid #f1f5f9', fontSize: '12px' }}
-                      onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f8fafc'}
-                      onMouseLeave={e => e.currentTarget.style.backgroundColor = '#fff'}
-                    >
-                      <span style={{ fontWeight: '700', color: '#1e293b' }}>{p.kode_sku}</span>
-                      <span style={{ color: '#64748b' }}> — {p.nama_produk}</span>
-                      <span style={{ color: '#059669', fontWeight: '600', float: 'right' }}>{formatRupiah(p.harga_jual)}</span>
+                  {/* KARTU 1: INFO PESANAN & TANGGAL */}
+                  <div style={{
+                    backgroundColor: '#ffffff', borderRadius: '12px', padding: '18px 20px',
+                    border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px', borderBottom: '1px solid #f1f5f9', paddingBottom: '10px' }}>
+                      <div style={{ width: '26px', height: '26px', borderRadius: '6px', backgroundColor: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2563eb' }}>
+                        <Calendar size={15} />
+                      </div>
+                      <span style={{ fontSize: '13px', fontWeight: '800', color: '#0f172a' }}>Info Transaksi & Jadwal</span>
                     </div>
-                  ))}
+
+                    {/* Baris Tanggal Pesanan & Saluran */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                      <div>
+                        <label style={{ fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '5px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <Clock size={12} color="#0284c7" />
+                          <span>Tanggal Pesanan</span>
+                        </label>
+                        <input
+                          type="date"
+                          value={form.batas_kirim}
+                          onChange={e => setForm({ ...form, batas_kirim: e.target.value })}
+                          style={{
+                            width: '100%', padding: '7px 11px', borderRadius: '7px',
+                            border: '1px solid #cbd5e1', fontSize: '12px', fontWeight: '600', color: '#0f172a',
+                            boxSizing: 'border-box', backgroundColor: '#f8fafc'
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '5px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <Send size={12} color="#25d366" />
+                          <span>Saluran Penjualan</span>
+                        </label>
+                        <SearchableSelect
+                          value={form.saluran}
+                          onChange={val => setForm({ ...form, saluran: val })}
+                          options={SALURAN_OPTIONS}
+                          placeholder="Pilih Saluran"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Toko & Dropship Toggle */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '12px', alignItems: 'end' }}>
+                      <div>
+                        <label style={{ fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '5px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <Store size={12} color="#8b5cf6" />
+                          <span>Toko / Instansi Asal</span>
+                        </label>
+                        <SearchableSelect
+                          value={form.id_toko}
+                          onChange={val => {
+                            const st = stores.find(s => String(s.id) === String(val));
+                            setForm({ ...form, id_toko: val, nama_toko: st ? st.shopName : '' });
+                          }}
+                          options={[
+                            { value: '', label: '-- Pilih Toko / Instansi --' },
+                            ...stores.map(s => ({
+                              value: String(s.id),
+                              label: s.shopName,
+                              subtitle: s.channel ? `Channel: ${s.channel}` : undefined
+                            }))
+                          ]}
+                          placeholder="Pilih Toko"
+                        />
+                      </div>
+                      <div>
+                        <label style={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px', cursor: 'pointer',
+                          fontSize: '11.5px', fontWeight: '700', color: form.is_dropship ? '#6d28d9' : '#64748b',
+                          padding: '7px 10px', borderRadius: '7px',
+                          backgroundColor: form.is_dropship ? '#ede9fe' : '#f8fafc',
+                          border: form.is_dropship ? '1px solid #c4b5fd' : '1px solid #cbd5e1',
+                          height: '36px', boxSizing: 'border-box', transition: 'all 0.15s'
+                        }}>
+                          <input
+                            type="checkbox"
+                            checked={form.is_dropship}
+                            onChange={e => setForm({ ...form, is_dropship: e.target.checked })}
+                            style={{ cursor: 'pointer', width: '15px', height: '15px' }}
+                          />
+                          <span>Mode Dropship</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* Dropship Subform */}
+                    {form.is_dropship && (
+                      <div style={{
+                        marginTop: '12px', padding: '12px 14px', borderRadius: '8px',
+                        backgroundColor: '#faf5ff', border: '1px solid #e9d5ff',
+                        display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px'
+                      }}>
+                        <div>
+                          <label style={{ fontSize: '10.5px', fontWeight: '700', color: '#7e22ce', marginBottom: '4px', display: 'block' }}>
+                            Nama Toko / Pengirim Label
+                          </label>
+                          <input
+                            value={form.nama_pengirim_ds}
+                            onChange={e => setForm({ ...form, nama_pengirim_ds: e.target.value })}
+                            placeholder="Misal: Ruang Dropship"
+                            style={{ width: '100%', padding: '6px 10px', borderRadius: '6px', border: '1px solid #d8b4fe', fontSize: '12px', boxSizing: 'border-box' }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: '10.5px', fontWeight: '700', color: '#7e22ce', marginBottom: '4px', display: 'block' }}>
+                            No HP Pengirim
+                          </label>
+                          <input
+                            value={form.no_telp_pengirim_ds}
+                            onChange={e => setForm({ ...form, no_telp_pengirim_ds: e.target.value })}
+                            placeholder="08xxxxxxxxxx"
+                            style={{ width: '100%', padding: '6px 10px', borderRadius: '6px', border: '1px solid #d8b4fe', fontSize: '12px', boxSizing: 'border-box' }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* KARTU 2: DATA PEMBELI & ALAMAT */}
+                  <div style={{
+                    backgroundColor: '#ffffff', borderRadius: '12px', padding: '18px 20px',
+                    border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px', borderBottom: '1px solid #f1f5f9', paddingBottom: '10px' }}>
+                      <div style={{ width: '26px', height: '26px', borderRadius: '6px', backgroundColor: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#16a34a' }}>
+                        <User size={15} />
+                      </div>
+                      <span style={{ fontSize: '13px', fontWeight: '800', color: '#0f172a' }}>Identitas Pembeli & Alamat</span>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                      <div>
+                        <label style={{ fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '5px', display: 'block' }}>
+                          Nama Pembeli <span style={{ color: '#ef4444' }}>*</span>
+                        </label>
+                        <input
+                          value={form.nama_pembeli}
+                          onChange={e => setForm({ ...form, nama_pembeli: e.target.value })}
+                          placeholder="Masukkan nama lengkap pembeli..."
+                          style={{
+                            width: '100%', padding: '7px 11px', borderRadius: '7px',
+                            border: '1px solid #cbd5e1', fontSize: '12px', boxSizing: 'border-box'
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '5px', display: 'block' }}>
+                          No Telepon / WhatsApp
+                        </label>
+                        <input
+                          value={form.no_telepon}
+                          onChange={e => setForm({ ...form, no_telepon: e.target.value })}
+                          placeholder="08xxxxxxxxxx"
+                          style={{
+                            width: '100%', padding: '7px 11px', borderRadius: '7px',
+                            border: '1px solid #cbd5e1', fontSize: '12px', boxSizing: 'border-box'
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '5px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <MapPin size={12} color="#ef4444" />
+                        <span>Alamat Lengkap Pengiriman</span>
+                      </label>
+                      <textarea
+                        value={form.alamat_pengiriman}
+                        onChange={e => setForm({ ...form, alamat_pengiriman: e.target.value })}
+                        placeholder="Tuliskan nama jalan, no rumah, RT/RW, kelurahan, kecamatan, kota/kab, provinsi & kode pos secara lengkap..."
+                        rows={3}
+                        style={{
+                          width: '100%', padding: '8px 11px', borderRadius: '7px',
+                          border: '1px solid #cbd5e1', fontSize: '12px', resize: 'vertical',
+                          boxSizing: 'border-box', lineHeight: '1.4'
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* KARTU 3: CATATAN TAMBAHAN */}
+                  <div style={{
+                    backgroundColor: '#ffffff', borderRadius: '12px', padding: '16px 20px',
+                    border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)'
+                  }}>
+                    <label style={{ fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <FileText size={13} color="#64748b" />
+                      <span>Catatan Khusus Pesanan</span>
+                    </label>
+                    <textarea
+                      value={form.catatan}
+                      onChange={e => setForm({ ...form, catatan: e.target.value })}
+                      placeholder="Contoh: Titip ke satpam, sertakan kartu ucapan, bordir nama di saku kiri..."
+                      rows={2}
+                      style={{
+                        width: '100%', padding: '7px 11px', borderRadius: '7px',
+                        border: '1px solid #cbd5e1', fontSize: '12px', resize: 'vertical',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                  </div>
+
                 </div>
-              )}
-            </div>
 
-            {/* Item list */}
-            {form.items.length > 0 && (
-              <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '12px', fontSize: '12px' }}>
-                <thead>
-                  <tr style={{ backgroundColor: '#f8fafc', fontSize: '10px', fontWeight: '800', textTransform: 'uppercase', color: '#64748b' }}>
-                    <th style={{ padding: '6px 8px', border: '1px solid #e2e8f0', textAlign: 'left' }}>SKU & PRODUK</th>
-                    <th style={{ padding: '6px 8px', border: '1px solid #e2e8f0', width: '60px', textAlign: 'center' }}>QTY</th>
-                    <th style={{ padding: '6px 8px', border: '1px solid #e2e8f0', width: '100px', textAlign: 'right' }}>HARGA</th>
-                    <th style={{ padding: '6px 8px', border: '1px solid #e2e8f0', width: '80px', textAlign: 'right' }}>SUBTOTAL</th>
-                    <th style={{ padding: '6px 8px', border: '1px solid #e2e8f0', width: '40px' }}></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {form.items.map((it, idx) => (
-                    <tr key={idx}>
-                      <td style={{ padding: '6px 8px', border: '1px solid #e2e8f0' }}>
-                        <div style={{ fontWeight: '600' }}>{it.sku || '-'}</div>
-                        <div style={{ fontSize: '11px', color: '#64748b' }}>{it.nama_produk}</div>
-                      </td>
-                      <td style={{ padding: '6px 8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
-                        <input type="number" value={it.qty} min={1}
-                          onChange={e => updateItem(idx, 'qty', Number(e.target.value))}
-                          style={{ width: '50px', textAlign: 'center', border: '1px solid #e2e8f0', borderRadius: '4px', padding: '2px', fontSize: '12px' }}
+                {/* ═════════════════════════════════════════════════════════ */}
+                {/* KOLOM KANAN: PRODUK & PEMBAYARAN                        */}
+                {/* ═════════════════════════════════════════════════════════ */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+
+                  {/* KARTU 4: PRODUK PESANAN */}
+                  <div style={{
+                    backgroundColor: '#ffffff', borderRadius: '12px', padding: '18px 20px',
+                    border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: '1px solid #f1f5f9', paddingBottom: '10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ width: '26px', height: '26px', borderRadius: '6px', backgroundColor: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#d97706' }}>
+                          <Package size={15} />
+                        </div>
+                        <span style={{ fontSize: '13px', fontWeight: '800', color: '#0f172a' }}>Daftar Produk Pesanan</span>
+                      </div>
+                      <span style={{ fontSize: '11px', fontWeight: '700', padding: '2px 8px', borderRadius: '12px', backgroundColor: '#f1f5f9', color: '#475569' }}>
+                        {form.items.length} Macam Item
+                      </span>
+                    </div>
+
+                    {/* Autocomplete Input */}
+                    <div style={{ position: 'relative', marginBottom: '12px' }}>
+                      <input
+                        value={produkSearch}
+                        onChange={e => { setProdukSearch(e.target.value); setShowProdukDropdown(true); }}
+                        onFocus={() => produkSearch && setShowProdukDropdown(true)}
+                        placeholder="🔍 Ketik SKU atau nama produk untuk menambahkan..."
+                        style={{
+                          width: '100%', padding: '9px 12px 9px 36px', borderRadius: '8px',
+                          border: '1px solid #38bdf8', fontSize: '12px', boxSizing: 'border-box',
+                          outline: 'none', backgroundColor: '#f0f9ff'
+                        }}
+                      />
+                      <Search size={15} color="#0284c7" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+
+                      {showProdukDropdown && filteredProduk.length > 0 && (
+                        <div style={{
+                          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 1000,
+                          backgroundColor: '#fff', border: '1px solid #cbd5e1', borderRadius: '8px',
+                          boxShadow: '0 12px 30px rgba(0,0,0,0.15)', maxHeight: '240px', overflowY: 'auto',
+                          marginTop: '4px'
+                        }}>
+                          {filteredProduk.map((p, i) => (
+                            <div
+                              key={i}
+                              onClick={() => addItem(p)}
+                              style={{
+                                padding: '9px 14px', cursor: 'pointer', borderBottom: '1px solid #f1f5f9',
+                                fontSize: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                              }}
+                              onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f0fdf4'}
+                              onMouseLeave={e => e.currentTarget.style.backgroundColor = '#fff'}
+                            >
+                              <div style={{ overflow: 'hidden', paddingRight: '8px' }}>
+                                <div style={{ fontWeight: '700', color: '#0f172a' }}>{p.kode_sku || 'NO-SKU'}</div>
+                                <div style={{ fontSize: '11px', color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {p.nama_produk}
+                                </div>
+                              </div>
+                              <div style={{ fontWeight: '800', color: '#16a34a', flexShrink: 0 }}>
+                                {formatRupiah(p.harga_jual)}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Table Item List */}
+                    {form.items.length === 0 ? (
+                      <div style={{
+                        padding: '24px 16px', textAlign: 'center', borderRadius: '8px',
+                        border: '2px dashed #cbd5e1', backgroundColor: '#f8fafc', color: '#94a3b8'
+                      }}>
+                        <Package size={28} color="#cbd5e1" style={{ margin: '0 auto 6px auto', display: 'block' }} />
+                        <span style={{ fontSize: '12px', fontWeight: '600' }}>Belum ada produk yang ditambahkan</span>
+                        <div style={{ fontSize: '10.5px', marginTop: '2px' }}>Gunakan kotak pencarian di atas untuk memasukkan barang</div>
+                      </div>
+                    ) : (
+                      <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden', marginBottom: '10px' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11.5px' }}>
+                          <thead>
+                            <tr style={{ backgroundColor: '#f8fafc', color: '#475569', fontSize: '10.5px', fontWeight: '800', textTransform: 'uppercase' }}>
+                              <th style={{ padding: '8px 10px', textAlign: 'left', borderBottom: '1px solid #e2e8f0' }}>Produk</th>
+                              <th style={{ padding: '8px 6px', textAlign: 'center', width: '55px', borderBottom: '1px solid #e2e8f0' }}>Qty</th>
+                              <th style={{ padding: '8px 8px', textAlign: 'right', width: '90px', borderBottom: '1px solid #e2e8f0' }}>Harga</th>
+                              <th style={{ padding: '8px 10px', textAlign: 'right', width: '90px', borderBottom: '1px solid #e2e8f0' }}>Subtotal</th>
+                              <th style={{ padding: '8px 6px', textAlign: 'center', width: '36px', borderBottom: '1px solid #e2e8f0' }}></th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {form.items.map((it, idx) => (
+                              <tr key={idx} style={{ borderBottom: idx < form.items.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
+                                <td style={{ padding: '8px 10px' }}>
+                                  <div style={{ fontWeight: '700', color: '#0f172a' }}>{it.sku || '-'}</div>
+                                  <div style={{ fontSize: '10.5px', color: '#64748b' }}>{it.nama_produk}</div>
+                                </td>
+                                <td style={{ padding: '8px 6px', textAlign: 'center' }}>
+                                  <input
+                                    type="number"
+                                    value={it.qty}
+                                    min={1}
+                                    onChange={e => updateItem(idx, 'qty', Number(e.target.value))}
+                                    style={{
+                                      width: '46px', textAlign: 'center', border: '1px solid #cbd5e1',
+                                      borderRadius: '5px', padding: '3px 0', fontSize: '12px', fontWeight: '700'
+                                    }}
+                                  />
+                                </td>
+                                <td style={{ padding: '8px 8px', textAlign: 'right' }}>
+                                  <input
+                                    type="number"
+                                    value={it.harga_satuan}
+                                    onChange={e => updateItem(idx, 'harga_satuan', Number(e.target.value))}
+                                    style={{
+                                      width: '84px', textAlign: 'right', border: '1px solid #cbd5e1',
+                                      borderRadius: '5px', padding: '3px 4px', fontSize: '11.5px', fontWeight: '600'
+                                    }}
+                                  />
+                                </td>
+                                <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: '800', color: '#0f172a' }}>
+                                  {formatRupiah(it.harga_satuan * it.qty)}
+                                </td>
+                                <td style={{ padding: '8px 6px', textAlign: 'center' }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => removeItem(idx)}
+                                    title="Hapus baris"
+                                    style={{
+                                      background: 'none', border: 'none', cursor: 'pointer',
+                                      color: '#ef4444', padding: '4px', borderRadius: '4px'
+                                    }}
+                                  >
+                                    <Trash2 size={13} />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* KARTU 5: PEMBAYARAN & RINGKASAN BIAYA */}
+                  <div style={{
+                    backgroundColor: '#ffffff', borderRadius: '12px', padding: '18px 20px',
+                    border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px', borderBottom: '1px solid #f1f5f9', paddingBottom: '10px' }}>
+                      <div style={{ width: '26px', height: '26px', borderRadius: '6px', backgroundColor: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#16a34a' }}>
+                        <CreditCard size={15} />
+                      </div>
+                      <span style={{ fontSize: '13px', fontWeight: '800', color: '#0f172a' }}>Metode & Status Pembayaran</span>
+                    </div>
+
+                    {/* Metode & Status Dropdown */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
+                      <div>
+                        <label style={{ fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '5px', display: 'block' }}>
+                          Metode Bayar
+                        </label>
+                        <SearchableSelect
+                          value={form.metode_pembayaran}
+                          onChange={val => setForm({ ...form, metode_pembayaran: val })}
+                          options={BAYAR_OPTIONS}
+                          placeholder="Metode Bayar"
                         />
-                      </td>
-                      <td style={{ padding: '6px 8px', border: '1px solid #e2e8f0', textAlign: 'right' }}>
-                        <input type="number" value={it.harga_satuan}
-                          onChange={e => updateItem(idx, 'harga_satuan', Number(e.target.value))}
-                          style={{ width: '90px', textAlign: 'right', border: '1px solid #e2e8f0', borderRadius: '4px', padding: '2px', fontSize: '12px' }}
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '5px', display: 'block' }}>
+                          Status Pembayaran
+                        </label>
+                        <SearchableSelect
+                          value={form.status_pembayaran}
+                          onChange={val => setForm({ ...form, status_pembayaran: val })}
+                          options={[
+                            { value: 'belum_bayar', label: 'Belum Bayar', color: '#ef4444' },
+                            { value: 'dp', label: 'DP (Uang Muka)', color: '#f59e0b' },
+                            { value: 'lunas', label: 'Lunas', color: '#10b981' }
+                          ]}
+                          placeholder="Status Bayar"
                         />
-                      </td>
-                      <td style={{ padding: '6px 8px', border: '1px solid #e2e8f0', textAlign: 'right', fontWeight: '600' }}>
-                        {formatRupiah(it.harga_satuan * it.qty)}
-                      </td>
-                      <td style={{ padding: '6px 8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
-                        <button onClick={() => removeItem(idx)}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444' }}><Trash2 size={14} /></button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
+                      </div>
+                    </div>
 
-            {/* ── Keuangan & Pembayaran ───────────────────────────────── */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.3fr 1.3fr', gap: '12px', marginBottom: '16px' }}>
-              <div>
-                <label style={{ fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '4px', display: 'block' }}>Diskon</label>
-                <input type="number" value={form.diskon} onChange={e => setForm({...form, diskon: Number(e.target.value)})}
-                  style={{ width: '100%', padding: '8px 10px', borderRadius: '7px', border: '1px solid #e2e8f0', fontSize: '12px', boxSizing: 'border-box' }} />
-              </div>
-              <div>
-                <label style={{ fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '4px', display: 'block' }}>Ongkir</label>
-                <input type="number" value={form.ongkir} onChange={e => setForm({...form, ongkir: Number(e.target.value)})}
-                  style={{ width: '100%', padding: '8px 10px', borderRadius: '7px', border: '1px solid #e2e8f0', fontSize: '12px', boxSizing: 'border-box' }} />
-              </div>
-              <div>
-                <label style={{ fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '4px', display: 'block' }}>Metode Bayar</label>
-                <SearchableSelect
-                  value={form.metode_pembayaran}
-                  onChange={val => setForm({ ...form, metode_pembayaran: val })}
-                  options={BAYAR_OPTIONS}
-                  placeholder="Metode Bayar"
-                />
-              </div>
-              <div>
-                <label style={{ fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '4px', display: 'block' }}>Status Bayar</label>
-                <SearchableSelect
-                  value={form.status_pembayaran}
-                  onChange={val => setForm({ ...form, status_pembayaran: val })}
-                  options={[
-                    { value: 'belum_bayar', label: 'Belum Bayar', color: '#ef4444' },
-                    { value: 'dp', label: 'DP (Uang Muka)', color: '#f59e0b' },
-                    { value: 'lunas', label: 'Lunas', color: '#10b981' }
-                  ]}
-                  placeholder="Status Bayar"
-                />
-              </div>
-            </div>
+                    {/* Diskon & Ongkir (Bila ada) */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+                      <div>
+                        <label style={{ fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '5px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <Tag size={12} color="#f59e0b" />
+                          <span>Potongan Diskon (Rp)</span>
+                        </label>
+                        <input
+                          type="number"
+                          value={form.diskon}
+                          onChange={e => setForm({ ...form, diskon: Number(e.target.value) })}
+                          placeholder="0"
+                          style={{
+                            width: '100%', padding: '7px 11px', borderRadius: '7px',
+                            border: '1px solid #cbd5e1', fontSize: '12px', boxSizing: 'border-box'
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '5px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <Truck size={12} color="#0284c7" />
+                          <span>Ongkos Kirim (Rp)</span>
+                        </label>
+                        <input
+                          type="number"
+                          value={form.ongkir}
+                          onChange={e => setForm({ ...form, ongkir: Number(e.target.value) })}
+                          placeholder="0"
+                          style={{
+                            width: '100%', padding: '7px 11px', borderRadius: '7px',
+                            border: '1px solid #cbd5e1', fontSize: '12px', boxSizing: 'border-box'
+                          }}
+                        />
+                      </div>
+                    </div>
 
-            {/* ── Pengiriman & Catatan ─────────────────────────────────── */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '16px' }}>
-              <input value={form.kurir} onChange={e => setForm({...form, kurir: e.target.value})} placeholder="Kurir (JNE, J&T, dll)"
-                style={{ padding: '8px 10px', borderRadius: '7px', border: '1px solid #e2e8f0', fontSize: '12px' }} />
-              <input value={form.jenis_layanan} onChange={e => setForm({...form, jenis_layanan: e.target.value})} placeholder="Layanan (REG, YES, dll)"
-                style={{ padding: '8px 10px', borderRadius: '7px', border: '1px solid #e2e8f0', fontSize: '12px' }} />
-              <input type="date" value={form.batas_kirim} onChange={e => setForm({...form, batas_kirim: e.target.value})} title="Batas Kirim"
-                style={{ padding: '8px 10px', borderRadius: '7px', border: '1px solid #e2e8f0', fontSize: '12px' }} />
-            </div>
-            <div style={{ marginBottom: '20px' }}>
-              <textarea value={form.catatan} onChange={e => setForm({...form, catatan: e.target.value})}
-                placeholder="Catatan pesanan..." rows={2}
-                style={{ width: '100%', padding: '8px 10px', borderRadius: '7px', border: '1px solid #e2e8f0', fontSize: '12px', resize: 'vertical' }} />
-            </div>
+                    {/* Grand Total Highlight Box */}
+                    <div style={{
+                      padding: '14px 18px', borderRadius: '10px',
+                      background: 'linear-gradient(135deg, #090d16 0%, #0f172a 45%, #1e293b 100%)',
+                      color: '#ffffff', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      boxShadow: '0 4px 14px rgba(0,0,0,0.15)'
+                    }}>
+                      <div>
+                        <div style={{ fontSize: '11px', color: '#94a3b8' }}>
+                          Subtotal {formatRupiah(subtotal)} {Number(form.diskon) > 0 ? ` - Diskon ${formatRupiah(form.diskon)}` : ''} {Number(form.ongkir) > 0 ? ` + Ongkir ${formatRupiah(form.ongkir)}` : ''}
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#38bdf8', fontWeight: '600', marginTop: '2px' }}>
+                          Total Tagihan Pembeli:
+                        </div>
+                      </div>
+                      <div style={{ fontSize: '20px', fontWeight: '900', color: '#4ade80', letterSpacing: '-0.02em' }}>
+                        {formatRupiah(totalHarga)}
+                      </div>
+                    </div>
+                  </div>
 
-            {/* ── Total & Submit ───────────────────────────────────────── */}
-            <div style={{
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              padding: '14px 16px', borderRadius: '10px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', marginBottom: '16px'
-            }}>
-              <div>
-                <div style={{ fontSize: '11px', color: '#64748b' }}>Subtotal: {formatRupiah(subtotal)} | Diskon: {formatRupiah(form.diskon)} | Ongkir: {formatRupiah(form.ongkir)}</div>
-              </div>
-              <div style={{ fontSize: '18px', fontWeight: '800', color: '#059669' }}>{formatRupiah(totalHarga)}</div>
-            </div>
+                </div>
 
               </div>
             </div>
@@ -981,21 +1200,41 @@ export default function PenjualanOfflineView({ onNavigate }) {
             {/* Footer Buttons */}
             <div style={{
               display: 'flex', gap: '10px', justifyContent: 'flex-end',
-              padding: isFullScreen ? '14px 32px' : '14px 24px',
+              padding: isFullScreen ? '14px 36px' : '14px 24px',
               backgroundColor: '#ffffff',
               borderTop: '1px solid #e2e8f0',
               flexShrink: 0
             }}>
-              <button type="button" onClick={() => setShowForm(false)}
-                style={{ padding: '9px 20px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: '#fff', color: '#64748b', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer' }}>
+              <button
+                type="button"
+                onClick={() => setShowForm(false)}
+                style={{
+                  padding: '9px 20px', borderRadius: '8px', border: '1px solid #cbd5e1',
+                  backgroundColor: '#ffffff', color: '#475569', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer'
+                }}
+              >
                 Batal
               </button>
-              <button type="button" onClick={() => handleSubmit(true)}
-                style={{ padding: '9px 20px', borderRadius: '8px', border: '1px solid #94a3b8', backgroundColor: '#f1f5f9', color: '#475569', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer' }}>
+              <button
+                type="button"
+                onClick={() => handleSubmit(true)}
+                style={{
+                  padding: '9px 20px', borderRadius: '8px', border: '1px solid #94a3b8',
+                  backgroundColor: '#f8fafc', color: '#334155', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer'
+                }}
+              >
                 Simpan Draft
               </button>
-              <button type="button" onClick={() => handleSubmit(false)}
-                style={{ padding: '9px 22px', borderRadius: '8px', border: 'none', background: 'linear-gradient(135deg, #16a34a, #15803d)', color: '#fff', fontSize: '12.5px', fontWeight: '800', cursor: 'pointer', boxShadow: '0 2px 8px rgba(22,163,74,0.35)' }}>
+              <button
+                type="button"
+                onClick={() => handleSubmit(false)}
+                style={{
+                  padding: '9px 24px', borderRadius: '8px', border: 'none',
+                  background: 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)',
+                  color: '#ffffff', fontSize: '12.5px', fontWeight: '800', cursor: 'pointer',
+                  boxShadow: '0 2px 10px rgba(22,163,74,0.35)'
+                }}
+              >
                 Konfirmasi Pesanan
               </button>
             </div>
