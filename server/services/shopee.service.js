@@ -566,7 +566,7 @@ export class ShopeeService {
       shop_id: sId,
       sign,
       order_sn_list: orderSnList.join(','),
-      response_optional_fields: 'buyer_user_id,buyer_username,item_list,total_amount,order_status,shipping_carrier,actual_shipping_fee,estimated_shipping_fee,recipient_address,payment_method,escrow_amount,shopee_shipping_rebate,pay_time,create_time,ship_by_date'
+      response_optional_fields: 'buyer_user_id,buyer_username,item_list,total_amount,order_status,shipping_carrier,actual_shipping_fee,estimated_shipping_fee,recipient_address,payment_method,escrow_amount,shopee_shipping_rebate,pay_time,create_time,ship_by_date,package_list'
     });
 
     const url = `${this.baseUrl}${path}?${query.toString()}`;
@@ -680,6 +680,7 @@ export class ShopeeService {
         telepon: d.recipient_address?.phone || '',
         alamat: d.recipient_address?.full_address || '',
         kurir: d.shipping_carrier || 'SPX Express',
+        no_resi: d.package_list?.[0]?.tracking_number || d.tracking_number || '',
         total_harga: subtotalPesanan > 0 ? subtotalPesanan : (Number(d.total_amount) || 0),
         ongkir: shippingFee,
         shipping_fee: shippingFee,
@@ -688,7 +689,15 @@ export class ShopeeService {
         fee_free_shipping: freeShipping,
         fee_service: serviceFee,
         net_amount: netAmount,
-        status_pesanan: d.order_status || 'Perlu Diproses',
+        status_pesanan: (() => {
+          const raw = String(d.order_status || '').toUpperCase();
+          if (raw === 'READY_TO_SHIP' || raw === 'PROCESSED') return 'READY_TO_SHIP';
+          if (raw === 'SHIPPED') return 'TO_CONFIRM_RECEIVE';
+          if (raw === 'COMPLETED') return 'COMPLETED';
+          if (raw === 'CANCELLED' || raw === 'IN_CANCEL') return 'CANCELLED';
+          if (raw === 'UNPAID') return 'UNPAID';
+          return d.order_status || 'Perlu Diproses';
+        })(),
         waktu_pesanan: d.create_time ? new Date(d.create_time * 1000).toISOString() : new Date().toISOString(),
         batas_kirim: d.ship_by_date ? new Date(d.ship_by_date * 1000).toISOString() : null,
         items: items

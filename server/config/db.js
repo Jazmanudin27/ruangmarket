@@ -232,6 +232,9 @@ export async function initDb() {
     try {
       await conn.query(`ALTER TABLE pesanan_marketplace ADD COLUMN net_amount DECIMAL(15,2) DEFAULT 0`);
     } catch (e) {}
+    try {
+      await conn.query(`UPDATE pesanan_marketplace SET status_pesanan = 'READY_TO_SHIP' WHERE status_pesanan = 'PROCESSED'`);
+    } catch (e) {}
 
     // 4b. Tabel Retur Barang (retur_barang)
     await conn.query(`

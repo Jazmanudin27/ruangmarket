@@ -37,6 +37,7 @@ export default function PesananMasukDesktopView() {
   const [filterChannel, setFilterChannel] = useState('Semua');
   const [filterStatus, setFilterStatus] = useState('Semua');
   const [activeFilterTab, setActiveFilterTab] = useState('semua');
+  const [subFilterSiapKirim, setSubFilterSiapKirim] = useState('semua'); // 'semua' | 'belum_diproses' | 'diproses'
   const [sortByDate, setSortByDate] = useState('desc'); // 'desc' (Terbaru) | 'asc' (Terlama)
 
   // Pagination States
@@ -266,12 +267,25 @@ export default function PesananMasukDesktopView() {
     !o.company_code || o.company_code === activeCompany.code
   );
 
+  // Helper cek apakah pesanan tergolong fase Siap Dikirim
+  const isStatusSiapKirim = (status) => {
+    const s = String(status || '').toUpperCase();
+    return ['READY_TO_SHIP', 'TO_SHIP', 'PROCESSED', 'SIAP DIKIRIM', 'PERLU DIPROSES', 'AWAITING_SHIPMENT', 'AWAITING_COLLECTION'].includes(s);
+  };
+
+  // Helper cek apakah pesanan sudah diproses (sudah terbit resi / status PROCESSED / AWAITING_COLLECTION)
+  const isOrderDiproses = (ord) => {
+    const hasResi = Boolean(ord.no_resi && String(ord.no_resi).trim() !== '' && String(ord.no_resi).toLowerCase() !== 'belum ada resi');
+    const rawStatus = String(ord.status || '').toUpperCase();
+    return hasResi || rawStatus === 'PROCESSED' || rawStatus === 'AWAITING_COLLECTION';
+  };
+
   // Summary Counts
   const totalOrders = companyOrders.length;
-  const countPerluKirim = companyOrders.filter(o => {
-    const s = String(o.status || '').toUpperCase();
-    return s === 'READY_TO_SHIP' || s === 'SIAP DIKIRIM' || s === 'PERLU DIPROSES' || s === 'AWAITING_SHIPMENT';
-  }).length;
+  const countPerluKirim = companyOrders.filter(o => isStatusSiapKirim(o.status)).length;
+  const countDiproses = companyOrders.filter(o => isStatusSiapKirim(o.status) && isOrderDiproses(o)).length;
+  const countBelumDiproses = companyOrders.filter(o => isStatusSiapKirim(o.status) && !isOrderDiproses(o)).length;
+
   const countKirim = companyOrders.filter(o => {
     const s = String(o.status || '').toUpperCase();
     return s === 'TO_CONFIRM_RECEIVE' || s === 'SHIPPED' || s === 'DIKIRIM';
@@ -289,8 +303,9 @@ export default function PesananMasukDesktopView() {
 
     // 1. Tab filter
     if (activeFilterTab === 'siap_kirim') {
-      const isSiap = s === 'READY_TO_SHIP' || s === 'SIAP DIKIRIM' || s === 'PERLU DIPROSES' || s === 'AWAITING_SHIPMENT';
-      if (!isSiap) return false;
+      if (!isStatusSiapKirim(ord.status)) return false;
+      if (subFilterSiapKirim === 'belum_diproses' && isOrderDiproses(ord)) return false;
+      if (subFilterSiapKirim === 'diproses' && !isOrderDiproses(ord)) return false;
     }
     if (activeFilterTab === 'dikirim') {
       const isKirim = s === 'TO_CONFIRM_RECEIVE' || s === 'SHIPPED' || s === 'DIKIRIM';
@@ -307,7 +322,7 @@ export default function PesananMasukDesktopView() {
     if (filterChannel !== 'Semua' && ord.channel !== filterChannel) return false;
     if (filterStatus !== 'Semua') {
       const target = filterStatus.toUpperCase();
-      if (target === 'SIAP DIKIRIM' && s !== 'READY_TO_SHIP' && s !== 'SIAP DIKIRIM' && s !== 'PERLU DIPROSES') return false;
+      if (target === 'SIAP DIKIRIM' && !isStatusSiapKirim(s)) return false;
       if (target === 'DALAM PENGIRIMAN' && s !== 'TO_CONFIRM_RECEIVE' && s !== 'SHIPPED' && s !== 'DIKIRIM') return false;
       if (target === 'SELESAI' && s !== 'COMPLETED' && s !== 'SELESAI') return false;
       if (target === 'DIBATALKAN' && s !== 'CANCELLED' && s !== 'DIBATALKAN') return false;
@@ -368,6 +383,9 @@ export default function PesananMasukDesktopView() {
 
   const changeTab = (tab) => {
     setActiveFilterTab(tab);
+    if (tab === 'siap_kirim') {
+      setSubFilterSiapKirim('semua');
+    }
     setCurrentPage(1);
   };
 
@@ -582,6 +600,87 @@ export default function PesananMasukDesktopView() {
           <span>Shopee ({countShopee})</span>
         </button>
       </div>
+
+      {/* SUB-TABS KHUSUS TAB SIAP DIKIRIM (SEMUA / BELUM DIPROSES / DIPROSES) */}
+      {activeFilterTab === 'siap_kirim' && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          marginBottom: '8px',
+          padding: '6px 12px',
+          backgroundColor: '#ffffff',
+          borderRadius: '8px',
+          border: '1px solid #bfdbfe',
+          boxShadow: '0 1px 3px rgba(37, 99, 235, 0.08)',
+          flexWrap: 'wrap'
+        }}>
+          <span style={{ fontSize: '11.5px', fontWeight: '800', color: '#1e40af', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <Filter size={12} color="#2563eb" />
+            Status Siap Kirim:
+          </span>
+
+          {/* Sub-tab: Semua */}
+          <button
+            type="button"
+            onClick={() => { setSubFilterSiapKirim('semua'); setCurrentPage(1); }}
+            style={{
+              height: '24px',
+              padding: '0 10px',
+              borderRadius: '5px',
+              border: subFilterSiapKirim === 'semua' ? '1px solid #2563eb' : '1px solid #cbd5e1',
+              backgroundColor: subFilterSiapKirim === 'semua' ? '#2563eb' : '#f8fafc',
+              color: subFilterSiapKirim === 'semua' ? '#ffffff' : '#475569',
+              fontSize: '11px',
+              fontWeight: '700',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            Semua ({countPerluKirim})
+          </button>
+
+          {/* Sub-tab: Belum Diproses */}
+          <button
+            type="button"
+            onClick={() => { setSubFilterSiapKirim('belum_diproses'); setCurrentPage(1); }}
+            style={{
+              height: '24px',
+              padding: '0 10px',
+              borderRadius: '5px',
+              border: subFilterSiapKirim === 'belum_diproses' ? '1px solid #d97706' : '1px solid #fed7aa',
+              backgroundColor: subFilterSiapKirim === 'belum_diproses' ? '#d97706' : '#fff7ed',
+              color: subFilterSiapKirim === 'belum_diproses' ? '#ffffff' : '#c2410c',
+              fontSize: '11px',
+              fontWeight: '700',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            Belum Diproses ({countBelumDiproses})
+          </button>
+
+          {/* Sub-tab: Diproses */}
+          <button
+            type="button"
+            onClick={() => { setSubFilterSiapKirim('diproses'); setCurrentPage(1); }}
+            style={{
+              height: '24px',
+              padding: '0 10px',
+              borderRadius: '5px',
+              border: subFilterSiapKirim === 'diproses' ? '1px solid #059669' : '1px solid #a7f3d0',
+              backgroundColor: subFilterSiapKirim === 'diproses' ? '#059669' : '#f0fdf4',
+              color: subFilterSiapKirim === 'diproses' ? '#ffffff' : '#047857',
+              fontSize: '11px',
+              fontWeight: '700',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            Diproses ({countDiproses})
+          </button>
+        </div>
+      )}
 
       {/* 3. FILTER CONTROLS BAR */}
       <div style={{
@@ -984,40 +1083,46 @@ export default function PesananMasukDesktopView() {
                       <td style={{ padding: '8px 12px', textAlign: 'center', border: '1px solid #cbd5e1' }}>
                         {(() => {
                           const statusRaw = String(ord.status || 'READY_TO_SHIP').toUpperCase();
-                          
+                          const isSiap = isStatusSiapKirim(statusRaw);
+                          const isSudahKirim = ['SHIPPED', 'IN_TRANSIT', 'TO_RECEIVE', 'DIKIRIM', 'TO_CONFIRM_RECEIVE'].includes(statusRaw);
+                          const isSelesai = ['COMPLETED', 'FINISHED', 'SELESAI', 'DELIVERED'].includes(statusRaw);
+                          const isBatal = ['CANCELLED', 'BATAL', 'IN_CANCEL', 'DIBATALKAN'].includes(statusRaw);
+
                           // Style badge status utama
                           let statusBg = '#fafafa';
                           let statusColor = '#595959';
                           let statusBorder = '#d9d9d9';
-                          let isSiapKirim = false;
-                          let isSudahKirim = false;
+                          let statusLabel = statusRaw.replace(/_/g, ' ');
 
-                          if (['READY_TO_SHIP', 'TO_SHIP', 'PROCESSED', 'SIAP DIKIRIM', 'PERLU DIPROSES', 'AWAITING_SHIPMENT'].includes(statusRaw)) {
+                          if (isSiap) {
                             statusBg = '#fff2e8';
                             statusColor = '#d4380d';
                             statusBorder = '#ffbb96';
-                            isSiapKirim = true;
-                          } else if (['SHIPPED', 'IN_TRANSIT', 'TO_RECEIVE', 'DIKIRIM', 'TO_CONFIRM_RECEIVE'].includes(statusRaw)) {
+                            statusLabel = 'SIAP DIKIRIM';
+                          } else if (isSudahKirim) {
                             statusBg = '#e6f4ff';
                             statusColor = '#096dd9';
                             statusBorder = '#91caff';
-                            isSudahKirim = true;
-                          } else if (['COMPLETED', 'FINISHED', 'SELESAI', 'DELIVERED'].includes(statusRaw)) {
+                            statusLabel = 'DALAM PENGIRIMAN';
+                          } else if (isSelesai) {
                             statusBg = '#f6ffed';
                             statusColor = '#389e0d';
                             statusBorder = '#b7eb8f';
-                          } else if (['CANCELLED', 'BATAL', 'IN_CANCEL', 'DIBATALKAN'].includes(statusRaw)) {
+                            statusLabel = 'SELESAI';
+                          } else if (isBatal) {
                             statusBg = '#fff1f0';
                             statusColor = '#cf1322';
                             statusBorder = '#ffa39e';
+                            statusLabel = 'DIBATALKAN';
                           }
 
-                          // Status Cetak: hanya 'Sudah Print' jika memang sudah dicetak (status_cetak === 'Sudah Print')
+                          // Status Cetak: hanya 'Sudah Print' jika memang sudah dicetak
                           const isPrinted = ord.status_cetak === 'Sudah Print';
+                          const isProcessed = isOrderDiproses(ord);
 
                           return (
                             <>
-                              {/* Main Status Badge */}
+                              {/* Main Status Badge (Seragam SIAP DIKIRIM untuk Shopee & TikTok) */}
                               <div style={{ marginBottom: '3px' }}>
                                 <span style={{
                                   display: 'inline-block',
@@ -1031,9 +1136,27 @@ export default function PesananMasukDesktopView() {
                                   letterSpacing: '0.02em',
                                   textTransform: 'uppercase'
                                 }}>
-                                  {statusRaw.replace(/_/g, ' ')}
+                                  {statusLabel}
                                 </span>
                               </div>
+
+                              {/* Sub-tag Status Proses (Khusus jika Siap Dikirim: Diproses vs Belum Diproses) */}
+                              {isSiap && (
+                                <div style={{ marginBottom: '3px' }}>
+                                  <span style={{
+                                    display: 'inline-block',
+                                    padding: '1px 6px',
+                                    borderRadius: '4px',
+                                    fontSize: '9.5px',
+                                    fontWeight: '800',
+                                    backgroundColor: isProcessed ? '#ecfdf5' : '#fff7ed',
+                                    color: isProcessed ? '#047857' : '#c2410c',
+                                    border: isProcessed ? '1px solid #a7f3d0' : '1px solid #fed7aa'
+                                  }}>
+                                    {isProcessed ? 'Diproses' : 'Belum Diproses'}
+                                  </span>
+                                </div>
+                              )}
 
                               {/* Print Badge */}
                               <div>
@@ -1061,7 +1184,7 @@ export default function PesananMasukDesktopView() {
                       <td style={{ padding: '8px 12px', textAlign: 'center', border: '1px solid #cbd5e1' }}>
                         {(() => {
                           const statusRaw = String(ord.status || 'READY_TO_SHIP').toUpperCase();
-                          const isSiapKirim = ['READY_TO_SHIP', 'TO_SHIP', 'PROCESSED', 'SIAP DIKIRIM', 'PERLU DIPROSES', 'AWAITING_SHIPMENT'].includes(statusRaw);
+                          const isSiapKirim = isStatusSiapKirim(statusRaw);
                           const isSudahKirim = ['SHIPPED', 'IN_TRANSIT', 'TO_RECEIVE', 'DIKIRIM', 'TO_CONFIRM_RECEIVE', 'COMPLETED', 'FINISHED', 'SELESAI', 'DELIVERED'].includes(statusRaw);
 
                           return (
