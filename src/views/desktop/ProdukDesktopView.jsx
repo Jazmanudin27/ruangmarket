@@ -493,7 +493,7 @@ export default function ProdukView() {
     setIsTemplateMenuOpen(false);
     const link = document.createElement('a');
     link.href = `/api/marketplace/master/template?format=xlsx&type=${type}`;
-    link.setAttribute('download', type === 'data' ? 'data_master_produk_aplikasi.xlsx' : 'template_contoh_master_produk.xlsx');
+    link.setAttribute('download', type === 'data' ? 'data_master_produk_single.xlsx' : 'template_contoh_master_produk.xlsx');
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -4530,7 +4530,7 @@ export default function ProdukView() {
                       <button
                         type="button"
                         onClick={() => handleDownloadTemplate('data')}
-                        title="Unduh seluruh data produk master yang ada di aplikasi saat ini untuk diedit/update masal"
+                        title="Unduh seluruh data produk master tipe Single yang ada di aplikasi saat ini untuk diedit/update masal"
                         style={{
                           height: '28px',
                           display: 'inline-flex',
@@ -4551,7 +4551,7 @@ export default function ProdukView() {
                         onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#059669'}
                       >
                         <FileSpreadsheet size={13} />
-                        <span>Unduh Data Sesuai Aplikasi (.xlsx)</span>
+                        <span>Unduh Data Single Aplikasi (.xlsx)</span>
                       </button>
 
                       {/* Opsi 2: Unduh Template Contoh (Sample) */}

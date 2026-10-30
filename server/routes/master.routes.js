@@ -82,6 +82,7 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
             kode_sku, nama_produk, kategori, satuan, harga_jual, harga_modal,
             stok_fisik, status, status_order, tipe_set, sku_kain, estimasi_kain, id_kategori_hpp
           FROM produk_master
+          WHERE LOWER(tipe_set) = 'single'
           ORDER BY id ASC
         `);
         if (appProducts && appProducts.length > 0) {
@@ -106,7 +107,7 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
       if (format === 'csv') {
         const ws = XLSX.utils.json_to_sheet(exportRows, { header: templateHeaders });
         const csvContent = XLSX.utils.sheet_to_csv(ws);
-        const csvName = isFullData ? 'data_master_produk_aplikasi.csv' : 'template_master_produk.csv';
+        const csvName = isFullData ? 'data_master_produk_single.csv' : 'template_master_produk.csv';
         res.writeHead(200, {
           'Content-Type': 'text/csv; charset=utf-8',
           'Content-Disposition': `attachment; filename="${csvName}"`
@@ -184,7 +185,7 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
       XLSX.utils.book_append_sheet(wb, ws5, 'Petunjuk_Pengisian');
 
       const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
-      const excelFileName = isFullData ? 'data_master_produk_aplikasi.xlsx' : 'template_contoh_master_produk.xlsx';
+      const excelFileName = isFullData ? 'data_master_produk_single.xlsx' : 'template_contoh_master_produk.xlsx';
       res.writeHead(200, {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         'Content-Disposition': `attachment; filename="${excelFileName}"`
