@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Boxes, 
   Plus, 
@@ -17,6 +17,7 @@ import {
   Layers, 
   ArrowDownRight, 
   ArrowUpRight, 
+  ArrowDownLeft,
   Calendar, 
   FileText, 
   ChevronRight, 
@@ -28,6 +29,303 @@ import {
 } from 'lucide-react';
 import { showConfirm, toastSuccess, toastError } from '../../utils/alert.util';
 import { getActiveCompany } from '../../utils/tenant.util';
+
+// Bobot ukuran untuk sorting natural (S, M, L, XL, XXL)
+const SIZE_WEIGHTS = {
+  "1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9, "10": 10,
+  "11": 11, "12": 12, "13": 13, "14": 14, "15": 15, "16": 16, "17": 17, "18": 18,
+  "XXS": 90, "2XS": 90,
+  "XS": 105,
+  "S": 110,
+  "M": 115,
+  "L": 120,
+  "XL": 125,
+  "2XL": 130, "XXL": 130,
+  "3XL": 135, "XXXL": 135,
+  "4XL": 140, "XXXXL": 140,
+  "5XL": 145, "XXXXXL": 145,
+  "6XL": 150,
+  "7XL": 155,
+  "8XL": 160,
+  "ALL SIZE": 200, "ALLSIZE": 200, "JUMBO": 210,
+};
+
+function parseItemForSort(item) {
+  const sku = (item.kode_sku || item.sku || "").trim();
+  const name = (item.nama_produk || item.nama || "").trim();
+
+  const skuParts = sku.split(/[-_\s]+/);
+  if (skuParts.length > 1) {
+    const lastSku = skuParts[skuParts.length - 1].toUpperCase();
+    if (SIZE_WEIGHTS[lastSku] !== undefined) {
+      return {
+        base: skuParts.slice(0, -1).join("-").toLowerCase(),
+        weight: SIZE_WEIGHTS[lastSku],
+        rawName: name.toLowerCase(),
+        rawSku: sku.toLowerCase(),
+      };
+    }
+  }
+
+  const nameParts = name.split(/[-_\s]+/);
+  if (nameParts.length > 1) {
+    const lastName = nameParts[nameParts.length - 1].toUpperCase();
+    if (SIZE_WEIGHTS[lastName] !== undefined) {
+      return {
+        base: nameParts.slice(0, -1).join(" ").toLowerCase(),
+        weight: SIZE_WEIGHTS[lastName],
+        rawName: name.toLowerCase(),
+        rawSku: sku.toLowerCase(),
+      };
+    }
+  }
+
+  return {
+    base: (name || sku).toLowerCase(),
+    weight: 999,
+    rawName: name.toLowerCase(),
+    rawSku: sku.toLowerCase(),
+  };
+}
+
+function compareProducts(a, b) {
+  const pA = parseItemForSort(a);
+  const pB = parseItemForSort(b);
+
+  if (pA.base === pB.base && pA.weight !== 999 && pB.weight !== 999) {
+    return pA.weight - pB.weight;
+  }
+
+  const baseCompare = pA.base.localeCompare(pB.base, "id", {
+    numeric: true,
+    sensitivity: "base",
+  });
+  if (baseCompare !== 0) return baseCompare;
+
+  return pA.rawSku.localeCompare(pB.rawSku, "id", {
+    numeric: true,
+    sensitivity: "base",
+  });
+}
+
+// Searchable Select Component with instant search filter
+function SearchableSelect({
+  label,
+  value,
+  onChange,
+  options = [],
+  placeholder = "Pilih...",
+  required = false,
+  renderItem,
+  zIndex = 10005,
+  rightAction = null
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const wrapperRef = useRef(null);
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
+        setIsOpen(false);
+        setSearchTerm("");
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (isOpen && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [isOpen]);
+
+  const safeOptions = Array.isArray(options) ? options : [];
+  const searchTerms = searchTerm.trim().toLowerCase().split(/\s+/).filter(Boolean);
+
+  const filteredOptions = safeOptions.filter((opt) => {
+    if (searchTerms.length === 0) return true;
+    const text = (
+      typeof opt === "string"
+        ? opt
+        : `${opt.label || ""} ${opt.value || ""} ${opt.sku || ""} ${opt.nama_produk || ""}`
+    ).toLowerCase();
+    return searchTerms.every((term) => text.includes(term));
+  });
+
+  const selectedOpt = safeOptions.find((opt) => {
+    if (typeof opt === "string") return opt === value;
+    return opt.value === value || opt.sku === value;
+  });
+
+  const displayText = selectedOpt
+    ? typeof selectedOpt === "string"
+      ? selectedOpt
+      : selectedOpt.label || selectedOpt.nama_produk || selectedOpt.value
+    : "";
+
+  return (
+    <div style={{ position: "relative", width: "100%" }} ref={wrapperRef}>
+      {(label || rightAction) && (
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "3px" }}>
+          {label && (
+            <label style={{ fontSize: "11px", fontWeight: "700", color: "#334155" }}>
+              {label} {required && <span style={{ color: "#ef4444" }}>*</span>}
+            </label>
+          )}
+          {rightAction}
+        </div>
+      )}
+
+      {/* Button trigger */}
+      <div
+        onClick={() => setIsOpen((prev) => !prev)}
+        style={{
+          width: "100%",
+          minHeight: "34px",
+          padding: "6px 10px",
+          borderRadius: "6px",
+          border: isOpen ? "1.5px solid #0284c7" : "1px solid #cbd5e1",
+          fontSize: "12px",
+          fontWeight: "600",
+          color: displayText ? "#0f172a" : "#94a3b8",
+          backgroundColor: "#ffffff",
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "8px",
+          boxSizing: "border-box",
+          boxShadow: isOpen ? "0 0 0 2px rgba(2, 132, 199, 0.15)" : "none",
+          transition: "all 0.15s ease"
+        }}
+      >
+        <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, display: "flex", alignItems: "center", gap: "6px" }}>
+          {selectedOpt && typeof selectedOpt !== "string" && selectedOpt.sku ? (
+            <>
+              <span style={{
+                fontFamily: "monospace",
+                fontSize: "10.5px",
+                fontWeight: "800",
+                backgroundColor: "#e0f2fe",
+                color: "#0369a1",
+                padding: "1px 5px",
+                borderRadius: "3px"
+              }}>
+                {selectedOpt.sku}
+              </span>
+              <span style={{ fontSize: "11.5px", color: "#0f172a" }}>
+                {selectedOpt.nama_produk || selectedOpt.label}
+              </span>
+            </>
+          ) : (
+            <span>{displayText || placeholder}</span>
+          )}
+        </div>
+        <span style={{ fontSize: "10px", color: "#94a3b8", flexShrink: 0 }}>▼</span>
+      </div>
+
+      {/* Dropdown panel */}
+      {isOpen && (
+        <div
+          style={{
+            position: "absolute",
+            top: "calc(100% + 4px)",
+            left: 0,
+            right: 0,
+            backgroundColor: "#ffffff",
+            borderRadius: "7px",
+            border: "1px solid #cbd5e1",
+            boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
+            zIndex,
+            overflow: "hidden"
+          }}
+        >
+          {/* Search box inside dropdown */}
+          <div style={{ padding: "6px 8px", borderBottom: "1px solid #f1f5f9", backgroundColor: "#f8fafc", display: "flex", alignItems: "center", gap: "6px" }}>
+            <Search size={14} color="#64748b" />
+            <input
+              ref={inputRef}
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Ketik untuk mencari..."
+              style={{
+                width: "100%",
+                border: "none",
+                outline: "none",
+                background: "transparent",
+                fontSize: "12px",
+                color: "#0f172a"
+              }}
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm("")}
+                style={{ border: "none", background: "transparent", cursor: "pointer", color: "#94a3b8", padding: 0 }}
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
+
+          {/* List items */}
+          <div style={{ maxHeight: "240px", overflowY: "auto" }}>
+            {filteredOptions.length === 0 ? (
+              <div style={{ padding: "12px", textAlign: "center", fontSize: "11px", color: "#94a3b8" }}>
+                Tidak ada data yang cocok
+              </div>
+            ) : (
+              filteredOptions.map((opt, idx) => {
+                const optVal = typeof opt === "string" ? opt : opt.value;
+                const isSelected = optVal === value;
+
+                return (
+                  <div
+                    key={idx}
+                    onClick={() => {
+                      onChange(optVal, opt);
+                      setIsOpen(false);
+                      setSearchTerm("");
+                    }}
+                    style={{
+                      padding: "8px 10px",
+                      cursor: "pointer",
+                      fontSize: "11.5px",
+                      backgroundColor: isSelected ? "#eff6ff" : "#ffffff",
+                      borderBottom: "1px solid #f8fafc",
+                      color: isSelected ? "#1d4ed8" : "#334155",
+                      fontWeight: isSelected ? "700" : "500",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      transition: "background-color 0.1s ease"
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isSelected) e.currentTarget.style.backgroundColor = "#f1f5f9";
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isSelected) e.currentTarget.style.backgroundColor = "#ffffff";
+                    }}
+                  >
+                    {renderItem ? (
+                      renderItem(opt, isSelected)
+                    ) : (
+                      <span>{typeof opt === "string" ? opt : opt.label || opt.value}</span>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function MutasiBarangDesktopView() {
   const [activeCompany, setActiveCompany] = useState(getActiveCompany);
@@ -162,6 +460,28 @@ export default function MutasiBarangDesktopView() {
     loadMasterProduk();
     loadKategori();
   }, [activeCompany.code]);
+
+  // Sorted & formatted product options for SearchableSelect
+  const productOptions = useMemo(() => {
+    return [...masterProdukList].sort(compareProducts).map(p => ({
+      value: p.sku,
+      label: `${p.sku} — ${p.nama_produk}`,
+      sku: p.sku,
+      nama_produk: p.nama_produk,
+      satuan: p.satuan || 'PCS',
+      stok: p.stok !== undefined ? p.stok : (p.stok_fisik !== undefined ? p.stok_fisik : 0),
+      kategori: p.kategori_nama || p.kategori || ''
+    }));
+  }, [masterProdukList]);
+
+  // Formatted category options for SearchableSelect
+  const kategoriOptions = useMemo(() => {
+    return (kategoriList || []).map(kat => ({
+      value: kat.nama_kategori,
+      label: kat.nama_kategori,
+      jenis: kat.jenis_mutasi
+    }));
+  }, [kategoriList]);
 
   // Handle Search Debounce
   useEffect(() => {
@@ -1275,93 +1595,126 @@ export default function MutasiBarangDesktopView() {
 
       </div>
 
-      {/* ── MODAL FULLSCREEN / 100% WIDTH: TAMBAH / EDIT MUTASI BARANG ── */}
+      {/* ── MODAL FULLSCREEN: TAMBAH / EDIT MUTASI BARANG ── */}
       {isFormModalOpen && (
         <div style={{
           position: 'fixed',
           inset: 0,
-          backgroundColor: 'rgba(15, 23, 42, 0.65)',
-          backdropFilter: 'blur(3px)',
+          backgroundColor: '#0f172a',
+          zIndex: 10001,
           display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 9999,
-          padding: '12px'
+          flexDirection: 'column',
+          overflow: 'hidden'
         }}>
+          {/* Header Fullscreen Compact (42px) */}
           <div style={{
-            backgroundColor: '#ffffff',
-            borderRadius: '10px',
-            width: '100%',
-            maxWidth: '920px',
-            maxHeight: '94vh',
+            height: '42px',
+            padding: '0 16px',
+            background: 'linear-gradient(135deg, #090d16 0%, #0f172a 50%, #1e293b 100%)',
+            borderBottom: '1px solid #334155',
             display: 'flex',
-            flexDirection: 'column',
-            boxShadow: '0 20px 40px rgba(0, 0, 0, 0.25)',
-            border: '1px solid #cbd5e1',
-            overflow: 'hidden'
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            color: '#ffffff',
+            flexShrink: 0
           }}>
-            {/* Header Modal */}
-            <div style={{
-              background: formData.jenis_mutasi === 'masuk'
-                ? 'linear-gradient(135deg, #059669 0%, #047857 100%)'
-                : formData.jenis_mutasi === 'keluar'
-                  ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)'
-                  : 'linear-gradient(135deg, #d97706 0%, #b45309 100%)',
-              padding: '12px 18px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              color: '#ffffff'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Boxes size={18} />
-                <h3 style={{ margin: 0, fontSize: '14.5px', fontWeight: '800' }}>
-                  {editingId ? 'Edit Catatan Mutasi Barang' : `Catat ${formData.jenis_mutasi === 'masuk' ? 'Barang Masuk (BM)' : formData.jenis_mutasi === 'keluar' ? 'Barang Keluar (BK)' : 'Penyesuaian Stok (ADJ)'}`}
-                </h3>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{
+                width: '26px',
+                height: '26px',
+                borderRadius: '6px',
+                backgroundColor: formData.jenis_mutasi === 'masuk' ? 'rgba(16, 185, 129, 0.2)' : formData.jenis_mutasi === 'keluar' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(245, 158, 11, 0.2)',
+                border: formData.jenis_mutasi === 'masuk' ? '1px solid rgba(16, 185, 129, 0.4)' : formData.jenis_mutasi === 'keluar' ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid rgba(245, 158, 11, 0.4)',
+                color: formData.jenis_mutasi === 'masuk' ? '#34d399' : formData.jenis_mutasi === 'keluar' ? '#f87171' : '#fbbf24',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <Boxes size={14} />
               </div>
-              <button
-                type="button"
-                onClick={() => setIsFormModalOpen(false)}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  color: '#ffffff',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center'
-                }}
-              >
-                <X size={18} />
-              </button>
+              <h3 style={{ margin: 0, fontSize: '13px', fontWeight: '800', color: '#ffffff', letterSpacing: '-0.01em' }}>
+                {editingId
+                  ? 'Edit Data Mutasi Barang'
+                  : (formData.jenis_mutasi === 'masuk' ? 'Input Mutasi Barang Masuk (BM)' : formData.jenis_mutasi === 'keluar' ? 'Input Mutasi Barang Keluar (BK)' : 'Input Penyesuaian Stok (ADJ)')}
+              </h3>
+              <span style={{ fontSize: '11px', color: '#64748b' }}>•</span>
+              <span style={{ fontSize: '11px', color: '#94a3b8' }}>
+                Form Pencatatan Arus Stok Gudang & Pembukuan Mutasi ({activeCompany?.code || 'RSG'})
+              </span>
             </div>
 
-            {/* Body Form */}
-            <form onSubmit={handleSaveMutasi} style={{ padding: '16px 20px', overflowY: 'auto', flex: 1 }}>
+            <button
+              type="button"
+              onClick={() => setIsFormModalOpen(false)}
+              style={{
+                width: '26px',
+                height: '26px',
+                borderRadius: '5px',
+                background: 'rgba(255, 255, 255, 0.08)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                color: '#94a3b8',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)';
+                e.currentTarget.style.color = '#f87171';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+                e.currentTarget.style.color = '#94a3b8';
+              }}
+            >
+              <X size={15} />
+            </button>
+          </div>
+
+          {/* Form Body Fullscreen */}
+          <form onSubmit={handleSaveMutasi} style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', backgroundColor: '#f1f5f9' }}>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '16px 24px' }}>
+              
               {/* 1. Toggle Jenis Mutasi */}
-              <div style={{ marginBottom: '14px' }}>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: '800', color: '#475569', marginBottom: '4px', textTransform: 'uppercase' }}>
-                  Pilih Jenis Mutasi <span style={{ color: '#ef4444' }}>*</span>
-                </label>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+              <div style={{
+                backgroundColor: '#ffffff',
+                borderRadius: '8px',
+                border: '1px solid #cbd5e1',
+                padding: '12px 16px',
+                marginBottom: '14px',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <label style={{ fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>
+                    Pilih Jenis Mutasi Barang <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <span style={{ fontSize: '11px', color: '#64748b' }}>
+                    Mode: <b style={{ color: formData.jenis_mutasi === 'masuk' ? '#047857' : formData.jenis_mutasi === 'keluar' ? '#b91c1c' : '#b45309' }}>
+                      {formData.jenis_mutasi === 'masuk' ? 'Penambahan Stok (+)' : formData.jenis_mutasi === 'keluar' ? 'Pengurangan Stok (-)' : 'Koreksi Fisik (Opname)'}
+                    </b>
+                  </span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
                   <button
                     type="button"
                     onClick={() => handleSwitchJenisMutasi('masuk')}
                     style={{
-                      padding: '8px',
+                      padding: '10px',
                       borderRadius: '6px',
                       border: `1.5px solid ${formData.jenis_mutasi === 'masuk' ? '#059669' : '#cbd5e1'}`,
                       backgroundColor: formData.jenis_mutasi === 'masuk' ? '#ecfdf5' : '#ffffff',
                       color: formData.jenis_mutasi === 'masuk' ? '#047857' : '#64748b',
                       fontWeight: '800',
-                      fontSize: '12px',
+                      fontSize: '12.5px',
                       cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      gap: '6px'
+                      gap: '8px',
+                      transition: 'all 0.15s ease'
                     }}
                   >
-                    <ArrowDownRight size={15} />
+                    <ArrowDownRight size={17} />
                     <span>Barang Masuk (BM)</span>
                   </button>
 
@@ -1369,21 +1722,22 @@ export default function MutasiBarangDesktopView() {
                     type="button"
                     onClick={() => handleSwitchJenisMutasi('keluar')}
                     style={{
-                      padding: '8px',
+                      padding: '10px',
                       borderRadius: '6px',
                       border: `1.5px solid ${formData.jenis_mutasi === 'keluar' ? '#dc2626' : '#cbd5e1'}`,
                       backgroundColor: formData.jenis_mutasi === 'keluar' ? '#fef2f2' : '#ffffff',
                       color: formData.jenis_mutasi === 'keluar' ? '#b91c1c' : '#64748b',
                       fontWeight: '800',
-                      fontSize: '12px',
+                      fontSize: '12.5px',
                       cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      gap: '6px'
+                      gap: '8px',
+                      transition: 'all 0.15s ease'
                     }}
                   >
-                    <ArrowUpRight size={15} />
+                    <ArrowUpRight size={17} />
                     <span>Barang Keluar (BK)</span>
                   </button>
 
@@ -1391,33 +1745,64 @@ export default function MutasiBarangDesktopView() {
                     type="button"
                     onClick={() => handleSwitchJenisMutasi('penyesuaian')}
                     style={{
-                      padding: '8px',
+                      padding: '10px',
                       borderRadius: '6px',
                       border: `1.5px solid ${formData.jenis_mutasi === 'penyesuaian' ? '#d97706' : '#cbd5e1'}`,
                       backgroundColor: formData.jenis_mutasi === 'penyesuaian' ? '#fffbeb' : '#ffffff',
                       color: formData.jenis_mutasi === 'penyesuaian' ? '#b45309' : '#64748b',
                       fontWeight: '800',
-                      fontSize: '12px',
+                      fontSize: '12.5px',
                       cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      gap: '6px'
+                      gap: '8px',
+                      transition: 'all 0.15s ease'
                     }}
                   >
-                    <Clock size={15} />
-                    <span>Penyesuaian Opname</span>
+                    <Clock size={17} />
+                    <span>Penyesuaian Opname (ADJ)</span>
                   </button>
                 </div>
               </div>
 
               {/* 2. Grid Dua Kolom Form Info Mutasi & Produk */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '12px' }}>
-                {/* KOLOM KIRI: DOKUMEN & KATEGORI */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: '8px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', alignItems: 'start' }}>
+                
+                {/* CARD KIRI: 1. KLASIFIKASI & DOKUMEN MUTASI */}
+                <div style={{
+                  backgroundColor: '#ffffff',
+                  borderRadius: '8px',
+                  border: '1px solid #cbd5e1',
+                  padding: '16px',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '8px', borderBottom: '1px solid #e2e8f0' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <FileText size={16} color="#0284c7" />
+                      <h4 style={{ margin: 0, fontSize: '13px', fontWeight: '800', color: '#0f172a' }}>
+                        1. KLASIFIKASI & DOKUMEN MUTASI
+                      </h4>
+                    </div>
+                    <span style={{
+                      fontSize: '10px',
+                      fontWeight: '800',
+                      padding: '2px 8px',
+                      borderRadius: '999px',
+                      backgroundColor: formData.jenis_mutasi === 'masuk' ? '#ecfdf5' : formData.jenis_mutasi === 'keluar' ? '#fef2f2' : '#fffbeb',
+                      color: formData.jenis_mutasi === 'masuk' ? '#047857' : formData.jenis_mutasi === 'keluar' ? '#b91c1c' : '#b45309',
+                      textTransform: 'uppercase'
+                    }}>
+                      {formData.jenis_mutasi === 'masuk' ? 'Penerimaan Gudang' : formData.jenis_mutasi === 'keluar' ? 'Pengeluaran Gudang' : 'Koreksi Fisik'}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: '10px' }}>
                     <div>
-                      <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#334155', marginBottom: '2px' }}>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#334155', marginBottom: '3px' }}>
                         Tanggal Transaksi <span style={{ color: '#ef4444' }}>*</span>
                       </label>
                       <input
@@ -1437,7 +1822,7 @@ export default function MutasiBarangDesktopView() {
                       />
                     </div>
                     <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3px' }}>
                         <label style={{ fontSize: '11px', fontWeight: '700', color: '#334155' }}>
                           No. Bukti Mutasi <span style={{ color: '#ef4444' }}>*</span>
                         </label>
@@ -1478,11 +1863,15 @@ export default function MutasiBarangDesktopView() {
                     </div>
                   </div>
 
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
-                      <label style={{ fontSize: '11px', fontWeight: '700', color: '#334155' }}>
-                        Kategori Mutasi <span style={{ color: '#ef4444' }}>*</span>
-                      </label>
+                  {/* Kategori Mutasi dengan SearchableSelect */}
+                  <SearchableSelect
+                    label="Kategori Mutasi"
+                    required
+                    value={formData.kategori}
+                    onChange={(val) => setFormData(prev => ({ ...prev, kategori: val }))}
+                    options={kategoriOptions}
+                    placeholder="Pilih atau cari kategori mutasi..."
+                    rightAction={(
                       <button
                         type="button"
                         onClick={() => setIsKategoriModalOpen(true)}
@@ -1490,36 +1879,42 @@ export default function MutasiBarangDesktopView() {
                           border: 'none',
                           background: 'transparent',
                           color: '#0284c7',
-                          fontSize: '10px',
+                          fontSize: '10.5px',
                           fontWeight: '700',
-                          cursor: 'pointer'
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px'
                         }}
                       >
-                        + Kelola Kategori
+                        <Settings size={12} />
+                        <span>+ Tambah / Edit Kategori</span>
                       </button>
-                    </div>
-                    <select
-                      value={formData.kategori}
-                      onChange={(e) => setFormData({ ...formData, kategori: e.target.value })}
-                      style={{
-                        width: '100%',
-                        padding: '6px 8px',
-                        borderRadius: '5px',
-                        border: '1px solid #cbd5e1',
-                        fontSize: '12px',
-                        color: '#0f172a',
-                        backgroundColor: '#ffffff',
-                        boxSizing: 'border-box'
-                      }}
-                    >
-                      {kategoriList.map((kat) => (
-                        <option key={kat.id} value={kat.nama_kategori}>{kat.nama_kategori}</option>
-                      ))}
-                    </select>
-                  </div>
+                    )}
+                    renderItem={(opt, isSelected) => (
+                      <div style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: '12px', fontWeight: isSelected ? '700' : '500' }}>
+                          {opt.label}
+                        </span>
+                        {opt.jenis && opt.jenis !== 'semua' && (
+                          <span style={{
+                            fontSize: '9.5px',
+                            padding: '1px 6px',
+                            borderRadius: '4px',
+                            backgroundColor: opt.jenis === 'masuk' ? '#ecfdf5' : '#fef2f2',
+                            color: opt.jenis === 'masuk' ? '#047857' : '#b91c1c',
+                            fontWeight: '700',
+                            textTransform: 'uppercase'
+                          }}>
+                            {opt.jenis}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  />
 
                   <div>
-                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#334155', marginBottom: '2px' }}>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#334155', marginBottom: '3px' }}>
                       No. Referensi (SPK / Faktur / Resi / PO)
                     </label>
                     <input
@@ -1539,7 +1934,7 @@ export default function MutasiBarangDesktopView() {
                   </div>
 
                   <div>
-                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#334155', marginBottom: '2px' }}>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#334155', marginBottom: '3px' }}>
                       Pihak Terkait / Rekanan / Sumber / Tujuan
                     </label>
                     <input
@@ -1557,41 +1952,104 @@ export default function MutasiBarangDesktopView() {
                       }}
                     />
                   </div>
-                </div>
 
-                {/* KOLOM KANAN: PILIH PRODUK & JUMLAH STOK */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#334155', marginBottom: '2px' }}>
-                      Pilih Produk dari Master <span style={{ color: '#ef4444' }}>*</span>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#334155', marginBottom: '3px' }}>
+                      Petugas / Penanggung Jawab
                     </label>
-                    <select
-                      value={formData.kode_sku}
-                      onChange={(e) => handleSelectProduct(e.target.value)}
+                    <input
+                      type="text"
+                      value={formData.petugas}
+                      onChange={(e) => setFormData({ ...formData, petugas: e.target.value })}
+                      placeholder="Nama staff gudang..."
                       style={{
                         width: '100%',
                         padding: '6px 8px',
                         borderRadius: '5px',
-                        border: '1px solid #0284c7',
+                        border: '1px solid #cbd5e1',
                         fontSize: '12px',
-                        fontWeight: '700',
-                        color: '#0f172a',
-                        backgroundColor: '#f0f9ff',
                         boxSizing: 'border-box'
                       }}
-                    >
-                      <option value="">-- Pilih Produk Master ({masterProdukList.length} Produk) --</option>
-                      {masterProdukList.map((p) => (
-                        <option key={p.id} value={p.sku}>
-                          {p.sku} — {p.nama_produk} (Stok: {p.stok || p.stok_fisik || 0} {p.satuan || 'PCS'})
-                        </option>
-                      ))}
-                    </select>
+                    />
+                  </div>
+                </div>
+
+                {/* CARD KANAN: 2. PRODUK MASTER & ARUS STOK FISIK */}
+                <div style={{
+                  backgroundColor: '#ffffff',
+                  borderRadius: '8px',
+                  border: '1px solid #cbd5e1',
+                  padding: '16px',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '8px', borderBottom: '1px solid #e2e8f0' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Boxes size={16} color="#059669" />
+                      <h4 style={{ margin: 0, fontSize: '13px', fontWeight: '800', color: '#0f172a' }}>
+                        2. PRODUK MASTER & ESTIMASI ARUS STOK FISIK
+                      </h4>
+                    </div>
+                    <span style={{
+                      fontSize: '10px',
+                      fontWeight: '800',
+                      padding: '2px 8px',
+                      borderRadius: '999px',
+                      backgroundColor: '#e0f2fe',
+                      color: '#0284c7'
+                    }}>
+                      GUDANG UTAMA
+                    </span>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '8px' }}>
+                  {/* Pilih Produk dari Master dengan SearchableSelect */}
+                  <SearchableSelect
+                    label="Pilih Produk dari Master"
+                    required
+                    value={formData.kode_sku}
+                    onChange={(val) => handleSelectProduct(val)}
+                    options={productOptions}
+                    placeholder={`-- Cari dari ${productOptions.length} Produk Master (Ketik SKU, Nama, Ukuran...) --`}
+                    renderItem={(opt, isSelected) => (
+                      <div style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                        <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <span style={{
+                            fontFamily: 'monospace',
+                            fontWeight: '800',
+                            fontSize: '11px',
+                            color: '#0284c7',
+                            backgroundColor: '#e0f2fe',
+                            padding: '2px 6px',
+                            borderRadius: '4px',
+                            marginRight: '6px'
+                          }}>
+                            {opt.sku}
+                          </span>
+                          <span style={{ fontSize: '12px', color: '#1e293b' }}>
+                            {opt.nama_produk}
+                          </span>
+                        </div>
+                        <span style={{
+                          fontSize: '10.5px',
+                          fontWeight: '700',
+                          color: Number(opt.stok) > 0 ? '#16a34a' : '#ef4444',
+                          backgroundColor: Number(opt.stok) > 0 ? '#dcfce7' : '#fee2e2',
+                          padding: '2px 8px',
+                          borderRadius: '999px',
+                          whiteSpace: 'nowrap',
+                          flexShrink: 0
+                        }}>
+                          Stok: {opt.stok} {opt.satuan}
+                        </span>
+                      </div>
+                    )}
+                  />
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '10px' }}>
                     <div>
-                      <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#334155', marginBottom: '2px' }}>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#334155', marginBottom: '3px' }}>
                         Nama Produk
                       </label>
                       <input
@@ -1611,7 +2069,7 @@ export default function MutasiBarangDesktopView() {
                       />
                     </div>
                     <div>
-                      <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#334155', marginBottom: '2px' }}>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#334155', marginBottom: '3px' }}>
                         Satuan
                       </label>
                       <input
@@ -1634,13 +2092,13 @@ export default function MutasiBarangDesktopView() {
                   {/* Input Jumlah & Flow Perubahan Stok */}
                   <div style={{
                     backgroundColor: '#f8fafc',
-                    borderRadius: '7px',
+                    borderRadius: '8px',
                     border: '1px solid #cbd5e1',
-                    padding: '8px 12px'
+                    padding: '12px 14px'
                   }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.8fr', gap: '10px', alignItems: 'center' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.8fr', gap: '14px', alignItems: 'center' }}>
                       <div>
-                        <label style={{ display: 'block', fontSize: '11px', fontWeight: '800', color: formData.jenis_mutasi === 'masuk' ? '#15803d' : '#b91c1c', marginBottom: '2px' }}>
+                        <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '800', color: formData.jenis_mutasi === 'masuk' ? '#15803d' : '#b91c1c', marginBottom: '4px' }}>
                           Jumlah Qty ({formData.jenis_mutasi.toUpperCase()}) <span style={{ color: '#ef4444' }}>*</span>
                         </label>
                         <input
@@ -1651,10 +2109,10 @@ export default function MutasiBarangDesktopView() {
                           onChange={(e) => handleUpdateQty(e.target.value)}
                           style={{
                             width: '100%',
-                            padding: '6px 10px',
-                            borderRadius: '5px',
+                            padding: '8px 12px',
+                            borderRadius: '6px',
                             border: `2px solid ${formData.jenis_mutasi === 'masuk' ? '#16a34a' : '#dc2626'}`,
-                            fontSize: '14px',
+                            fontSize: '16px',
                             fontWeight: '800',
                             textAlign: 'center',
                             backgroundColor: '#ffffff',
@@ -1664,323 +2122,433 @@ export default function MutasiBarangDesktopView() {
                       </div>
 
                       <div>
-                        <div style={{ fontSize: '10px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>
+                        <div style={{ fontSize: '10.5px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>
                           Estimasi Arus Stok Fisik:
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '3px' }}>
-                          <div style={{ textAlign: 'center' }}>
-                            <div style={{ fontSize: '9px', color: '#64748b' }}>Sebelum</div>
-                            <div style={{ fontSize: '13px', fontWeight: '700', color: '#475569' }}>{formData.stok_sebelum}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                          <div style={{ textAlign: 'center', padding: '4px 10px', backgroundColor: '#ffffff', borderRadius: '5px', border: '1px solid #e2e8f0' }}>
+                            <div style={{ fontSize: '9.5px', color: '#64748b' }}>Sebelum</div>
+                            <div style={{ fontSize: '14px', fontWeight: '700', color: '#475569' }}>{formData.stok_sebelum}</div>
                           </div>
-                          <span style={{ fontSize: '14px', color: '#94a3b8' }}>➔</span>
-                          <div style={{ textAlign: 'center' }}>
-                            <div style={{ fontSize: '9px', color: formData.jenis_mutasi === 'masuk' ? '#16a34a' : '#dc2626' }}>Sesudah</div>
-                            <div style={{ fontSize: '14px', fontWeight: '900', color: formData.jenis_mutasi === 'masuk' ? '#15803d' : '#b91c1c' }}>
+                          <span style={{ fontSize: '16px', color: '#94a3b8' }}>➔</span>
+                          <div style={{ textAlign: 'center', padding: '4px 10px', backgroundColor: '#ffffff', borderRadius: '5px', border: `1.5px solid ${formData.jenis_mutasi === 'masuk' ? '#16a34a' : '#dc2626'}` }}>
+                            <div style={{ fontSize: '9.5px', color: formData.jenis_mutasi === 'masuk' ? '#16a34a' : '#dc2626' }}>Sesudah</div>
+                            <div style={{ fontSize: '15px', fontWeight: '900', color: formData.jenis_mutasi === 'masuk' ? '#15803d' : '#b91c1c' }}>
                               {formData.stok_sesudah} {formData.satuan}
                             </div>
                           </div>
                         </div>
                       </div>
                     </div>
+
+                    <div style={{
+                      marginTop: '8px',
+                      padding: '6px 10px',
+                      borderRadius: '5px',
+                      backgroundColor: formData.jenis_mutasi === 'masuk' ? '#ecfdf5' : '#fef2f2',
+                      fontSize: '11px',
+                      color: formData.jenis_mutasi === 'masuk' ? '#065f46' : '#991b1b',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}>
+                      <CheckCircle2 size={13} />
+                      <span>
+                        Transaksi ini akan <b>{formData.jenis_mutasi === 'masuk' ? 'menambah (+)' : 'mengurangi (-)'}</b> stok fisik produk sebanyak <b>{formData.jumlah} {formData.satuan}</b>.
+                      </span>
+                    </div>
                   </div>
 
+                  {/* Keterangan Rincian Mutasi */}
                   <div>
-                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#334155', marginBottom: '2px' }}>
-                      Petugas / Penanggung Jawab
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#334155', marginBottom: '3px' }}>
+                      Keterangan / Deskripsi Rincian Mutasi
                     </label>
-                    <input
-                      type="text"
-                      value={formData.petugas}
-                      onChange={(e) => setFormData({ ...formData, petugas: e.target.value })}
-                      placeholder="Nama staff gudang..."
+                    <textarea
+                      rows={2}
+                      value={formData.keterangan}
+                      onChange={(e) => setFormData({ ...formData, keterangan: e.target.value })}
+                      placeholder="Catatan penerimaan, kendala, hasil inspeksi QC, atau instruksi mutasi..."
                       style={{
                         width: '100%',
                         padding: '6px 8px',
                         borderRadius: '5px',
                         border: '1px solid #cbd5e1',
                         fontSize: '12px',
-                        boxSizing: 'border-box'
+                        boxSizing: 'border-box',
+                        resize: 'vertical'
                       }}
                     />
                   </div>
                 </div>
-              </div>
 
-              {/* 3. Keterangan Lengkap */}
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#334155', marginBottom: '2px' }}>
-                  Keterangan / Deskripsi Rincian Mutasi
-                </label>
-                <textarea
-                  rows={2}
-                  value={formData.keterangan}
-                  onChange={(e) => setFormData({ ...formData, keterangan: e.target.value })}
-                  placeholder="Catatan penerimaan, kendala, hasil inspeksi QC, atau instruksi mutasi..."
-                  style={{
-                    width: '100%',
-                    padding: '6px 8px',
-                    borderRadius: '5px',
-                    border: '1px solid #cbd5e1',
-                    fontSize: '12px',
-                    boxSizing: 'border-box',
-                    resize: 'vertical'
-                  }}
-                />
               </div>
+            </div>
 
-              {/* Footer Buttons */}
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'flex-end',
-                gap: '8px',
-                marginTop: '16px',
-                paddingTop: '12px',
-                borderTop: '1px solid #e2e8f0'
-              }}>
-                <button
-                  type="button"
-                  onClick={() => setIsFormModalOpen(false)}
-                  style={{
-                    padding: '7px 16px',
-                    borderRadius: '6px',
-                    border: '1px solid #cbd5e1',
-                    backgroundColor: '#ffffff',
-                    color: '#64748b',
-                    fontSize: '12px',
-                    fontWeight: '700',
-                    cursor: 'pointer'
-                  }}
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSaving}
-                  style={{
-                    padding: '7px 20px',
-                    borderRadius: '6px',
-                    border: 'none',
-                    backgroundColor: formData.jenis_mutasi === 'masuk' ? '#059669' : formData.jenis_mutasi === 'keluar' ? '#dc2626' : '#d97706',
-                    color: '#ffffff',
-                    fontSize: '12px',
-                    fontWeight: '800',
-                    cursor: isSaving ? 'not-allowed' : 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    boxShadow: '0 2px 5px rgba(0,0,0,0.2)'
-                  }}
-                >
-                  <Save size={13} />
-                  <span>{isSaving ? 'Menyimpan...' : 'Simpan Mutasi Barang'}</span>
-                </button>
-              </div>
-            </form>
-          </div>
+            {/* Sticky Fullscreen Footer */}
+            <div style={{
+              height: '56px',
+              padding: '0 24px',
+              backgroundColor: '#ffffff',
+              borderTop: '1px solid #cbd5e1',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexShrink: 0,
+              boxShadow: '0 -2px 10px rgba(0,0,0,0.05)'
+            }}>
+              <button
+                type="button"
+                onClick={() => setIsFormModalOpen(false)}
+                style={{
+                  padding: '8px 20px',
+                  borderRadius: '6px',
+                  border: '1px solid #cbd5e1',
+                  backgroundColor: '#ffffff',
+                  color: '#64748b',
+                  fontSize: '12.5px',
+                  fontWeight: '700',
+                  cursor: 'pointer'
+                }}
+              >
+                Batal
+              </button>
+              <button
+                type="submit"
+                disabled={isSaving}
+                style={{
+                  padding: '8px 24px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  backgroundColor: formData.jenis_mutasi === 'masuk' ? '#059669' : formData.jenis_mutasi === 'keluar' ? '#dc2626' : '#d97706',
+                  color: '#ffffff',
+                  fontSize: '13px',
+                  fontWeight: '800',
+                  cursor: isSaving ? 'not-allowed' : 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.15)'
+                }}
+              >
+                <Save size={15} />
+                <span>{isSaving ? 'Menyimpan...' : (editingId ? 'Simpan Perubahan Mutasi' : 'Simpan Mutasi Barang')}</span>
+              </button>
+            </div>
+          </form>
         </div>
       )}
 
-      {/* ── MODAL DETAIL / VOUCHER BUKTI MUTASI BARANG ── */}
+      {/* ── MODAL FULLSCREEN: DETAIL / VOUCHER BUKTI MUTASI BARANG ── */}
       {isDetailModalOpen && selectedMutasi && (
         <div style={{
           position: 'fixed',
           inset: 0,
-          backgroundColor: 'rgba(15, 23, 42, 0.65)',
-          backdropFilter: 'blur(3px)',
+          backgroundColor: '#0f172a',
+          zIndex: 10001,
           display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 9999,
-          padding: '12px'
+          flexDirection: 'column',
+          overflow: 'hidden'
         }}>
+          {/* Header Fullscreen Compact (42px) */}
           <div style={{
-            backgroundColor: '#ffffff',
-            borderRadius: '10px',
-            width: '100%',
-            maxWidth: '720px',
-            boxShadow: '0 20px 40px rgba(0, 0, 0, 0.25)',
-            border: '1px solid #cbd5e1',
-            overflow: 'hidden'
+            height: '42px',
+            padding: '0 16px',
+            background: 'linear-gradient(135deg, #090d16 0%, #0f172a 50%, #1e293b 100%)',
+            borderBottom: '1px solid #334155',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            color: '#ffffff',
+            flexShrink: 0
           }}>
-            {/* Header Voucher */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{
+                width: '26px',
+                height: '26px',
+                borderRadius: '6px',
+                backgroundColor: selectedMutasi.jenis_mutasi === 'masuk' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)',
+                border: selectedMutasi.jenis_mutasi === 'masuk' ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(239, 68, 68, 0.4)',
+                color: selectedMutasi.jenis_mutasi === 'masuk' ? '#34d399' : '#f87171',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <FileText size={14} />
+              </div>
+              <h3 style={{ margin: 0, fontSize: '13px', fontWeight: '800', color: '#ffffff', letterSpacing: '-0.01em' }}>
+                Rincian Bukti Mutasi: {selectedMutasi.no_bukti}
+              </h3>
+              <span style={{ fontSize: '11px', color: '#64748b' }}>•</span>
+              <span style={{ fontSize: '11px', color: '#94a3b8' }}>
+                {selectedMutasi.jenis_mutasi === 'masuk' ? 'Barang Masuk (BM)' : selectedMutasi.jenis_mutasi === 'keluar' ? 'Barang Keluar (BK)' : 'Penyesuaian Stok'} — {selectedMutasi.kategori}
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsDetailModalOpen(false);
+                  handleOpenEdit(selectedMutasi);
+                }}
+                style={{
+                  height: '26px',
+                  padding: '0 10px',
+                  borderRadius: '5px',
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  color: '#38bdf8',
+                  fontSize: '11px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}
+              >
+                <Edit3 size={12} />
+                <span>Edit Mutasi</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsDetailModalOpen(false)}
+                style={{
+                  width: '26px',
+                  height: '26px',
+                  borderRadius: '5px',
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  color: '#94a3b8',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                <X size={15} />
+              </button>
+            </div>
+          </div>
+
+          {/* Body Detail Fullscreen */}
+          <div style={{ flex: 1, overflowY: 'auto', backgroundColor: '#f1f5f9', padding: '16px 24px' }}>
+            
+            {/* Hero Voucher Card */}
             <div style={{
               background: selectedMutasi.jenis_mutasi === 'masuk'
                 ? 'linear-gradient(135deg, #059669 0%, #047857 100%)'
                 : selectedMutasi.jenis_mutasi === 'keluar'
                   ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)'
                   : 'linear-gradient(135deg, #d97706 0%, #b45309 100%)',
-              padding: '14px 20px',
+              borderRadius: '8px',
+              padding: '18px 24px',
               color: '#ffffff',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center'
+              boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+              marginBottom: '14px'
             }}>
-              <div>
-                <span style={{
-                  fontSize: '10px',
-                  fontWeight: '800',
-                  padding: '1px 8px',
-                  borderRadius: '999px',
-                  backgroundColor: 'rgba(255, 255, 255, 0.25)',
-                  textTransform: 'uppercase'
-                }}>
-                  BUKTI {selectedMutasi.jenis_mutasi === 'masuk' ? 'BARANG MASUK (BBM)' : selectedMutasi.jenis_mutasi === 'keluar' ? 'BARANG KELUAR (BBK)' : 'PENYESUAIAN STOK'}
-                </span>
-                <div style={{ fontSize: '18px', fontWeight: '900', marginTop: '3px', fontFamily: 'monospace' }}>
-                  {selectedMutasi.no_bukti}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
+                  <span style={{
+                    fontSize: '10.5px',
+                    fontWeight: '800',
+                    padding: '2px 10px',
+                    borderRadius: '999px',
+                    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+                    textTransform: 'uppercase'
+                  }}>
+                    BUKTI {selectedMutasi.jenis_mutasi === 'masuk' ? 'BARANG MASUK (BBM)' : selectedMutasi.jenis_mutasi === 'keluar' ? 'BARANG KELUAR (BBK)' : 'PENYESUAIAN STOK'}
+                  </span>
+                  <div style={{ fontSize: '26px', fontWeight: '900', marginTop: '6px', fontFamily: 'monospace' }}>
+                    {selectedMutasi.jenis_mutasi === 'masuk' ? `+${selectedMutasi.jumlah}` : `-${selectedMutasi.jumlah}`} {selectedMutasi.satuan || 'PCS'}
+                  </div>
+                </div>
+
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: '11px', opacity: 0.9 }}>Nomor Bukti Mutasi:</div>
+                  <div style={{ fontSize: '18px', fontWeight: '900', fontFamily: 'monospace' }}>
+                    {selectedMutasi.no_bukti}
+                  </div>
+                  <div style={{ fontSize: '10.5px', opacity: 0.85, marginTop: '2px' }}>
+                    Perusahaan: <b>{activeCompany?.code || 'RSG'}</b>
+                  </div>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsDetailModalOpen(false)}
-                style={{ background: 'transparent', border: 'none', color: '#ffffff', cursor: 'pointer' }}
-              >
-                <X size={20} />
-              </button>
+
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(4, 1fr)',
+                gap: '12px',
+                marginTop: '16px',
+                paddingTop: '14px',
+                borderTop: '1px solid rgba(255, 255, 255, 0.25)'
+              }}>
+                <div>
+                  <div style={{ fontSize: '10.5px', opacity: 0.85 }}>TANGGAL TRANSAKSI</div>
+                  <div style={{ fontSize: '13px', fontWeight: '800' }}>{selectedMutasi.tanggal}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '10.5px', opacity: 0.85 }}>KATEGORI MUTASI</div>
+                  <div style={{ fontSize: '13px', fontWeight: '800' }}>{selectedMutasi.kategori}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '10.5px', opacity: 0.85 }}>PIHAK / REKANAN</div>
+                  <div style={{ fontSize: '13px', fontWeight: '800' }}>{selectedMutasi.pihak_terkait || '-'}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '10.5px', opacity: 0.85 }}>STATUS TRANSAKSI</div>
+                  <div style={{ fontSize: '12.5px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <CheckCircle2 size={13} />
+                    <span>Tercatat & Terverifikasi</span>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            {/* Isi Rincian Voucher */}
-            <div style={{ padding: '18px 22px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px', paddingBottom: '12px', borderBottom: '1px solid #e2e8f0' }}>
-                <div>
-                  <div style={{ fontSize: '11px', color: '#64748b' }}>Tanggal Transaksi</div>
-                  <div style={{ fontSize: '13px', fontWeight: '800', color: '#0f172a' }}>{selectedMutasi.tanggal}</div>
+            {/* Rincian Produk Card */}
+            <div style={{
+              backgroundColor: '#ffffff',
+              borderRadius: '8px',
+              border: '1px solid #cbd5e1',
+              padding: '16px 20px',
+              marginBottom: '14px',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', paddingBottom: '8px', borderBottom: '1px solid #e2e8f0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Boxes size={16} color="#0284c7" />
+                  <h4 style={{ margin: 0, fontSize: '13px', fontWeight: '800', color: '#0f172a' }}>
+                    RINCIAN BARANG YANG DIMUTASI
+                  </h4>
                 </div>
+                <span style={{ fontSize: '11px', fontFamily: 'monospace', fontWeight: '800', color: '#0284c7', backgroundColor: '#e0f2fe', padding: '2px 8px', borderRadius: '4px' }}>
+                  SKU: {selectedMutasi.kode_sku}
+                </span>
+              </div>
+
+              <div style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', marginBottom: '8px' }}>
+                {selectedMutasi.nama_produk}
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '14px', backgroundColor: '#f8fafc', padding: '12px 16px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
                 <div>
-                  <div style={{ fontSize: '11px', color: '#64748b' }}>Kategori Mutasi</div>
-                  <div style={{ fontSize: '13px', fontWeight: '800', color: '#0f172a' }}>{selectedMutasi.kategori}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: '11px', color: '#64748b' }}>No. Referensi (SPK / Faktur)</div>
-                  <div style={{ fontSize: '13px', fontWeight: '700', color: '#0284c7', fontFamily: 'monospace' }}>
+                  <div style={{ fontSize: '10.5px', color: '#64748b' }}>No. Referensi (SPK / Faktur):</div>
+                  <div style={{ fontSize: '13px', fontWeight: '800', color: '#0284c7', fontFamily: 'monospace' }}>
                     {selectedMutasi.no_referensi || '-'}
                   </div>
                 </div>
+
                 <div>
-                  <div style={{ fontSize: '11px', color: '#64748b' }}>Pihak / Rekanan / Tujuan</div>
+                  <div style={{ fontSize: '10.5px', color: '#64748b' }}>Perubahan Stok Fisik:</div>
+                  <div style={{ fontSize: '13px', fontFamily: 'monospace', fontWeight: '700', color: '#0f172a' }}>
+                    {selectedMutasi.stok_sebelum} ➔ <span style={{ color: selectedMutasi.jenis_mutasi === 'masuk' ? '#16a34a' : '#dc2626', fontWeight: '900' }}>{selectedMutasi.stok_sesudah}</span> {selectedMutasi.satuan || 'PCS'}
+                  </div>
+                </div>
+
+                <div>
+                  <div style={{ fontSize: '10.5px', color: '#64748b' }}>Petugas / Penanggung Jawab:</div>
                   <div style={{ fontSize: '13px', fontWeight: '700', color: '#0f172a' }}>
-                    {selectedMutasi.pihak_terkait || '-'}
+                    {selectedMutasi.petugas || 'Staff Gudang'}
                   </div>
                 </div>
               </div>
+            </div>
 
-              {/* Card Produk */}
-              <div style={{
-                backgroundColor: '#f8fafc',
-                borderRadius: '8px',
+            {/* Keterangan & Catatan Card */}
+            <div style={{
+              backgroundColor: '#ffffff',
+              borderRadius: '8px',
+              border: '1px solid #cbd5e1',
+              padding: '16px 20px',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+                <FileText size={15} color="#64748b" />
+                <h4 style={{ margin: 0, fontSize: '12.5px', fontWeight: '800', color: '#0f172a' }}>
+                  KETERANGAN & CATATAN TRANSAKSI
+                </h4>
+              </div>
+              <div style={{ fontSize: '12.5px', color: '#334155', lineHeight: 1.5, backgroundColor: '#f8fafc', padding: '10px 14px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                {selectedMutasi.keterangan || 'Tidak ada catatan atau instruksi khusus untuk transaksi mutasi ini.'}
+              </div>
+            </div>
+
+          </div>
+
+          {/* Sticky Fullscreen Detail Footer */}
+          <div style={{
+            height: '56px',
+            padding: '0 24px',
+            backgroundColor: '#ffffff',
+            borderTop: '1px solid #cbd5e1',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexShrink: 0,
+            boxShadow: '0 -2px 10px rgba(0,0,0,0.05)'
+          }}>
+            <button
+              type="button"
+              onClick={() => setIsDetailModalOpen(false)}
+              style={{
+                padding: '8px 20px',
+                borderRadius: '6px',
                 border: '1px solid #cbd5e1',
-                padding: '12px 16px',
-                marginBottom: '14px'
-              }}>
-                <div style={{ fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase', marginBottom: '6px' }}>
-                  Rincian Barang yang Dimutasi:
-                </div>
-                <div style={{ fontSize: '14px', fontWeight: '800', color: '#0f172a' }}>
-                  {selectedMutasi.nama_produk}
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '3px' }}>
-                  <span style={{ fontSize: '11px', fontFamily: 'monospace', fontWeight: '800', color: '#0284c7', backgroundColor: '#e0f2fe', padding: '1px 6px', borderRadius: '4px' }}>
-                    SKU: {selectedMutasi.kode_sku}
-                  </span>
-                  {selectedMutasi.varian && (
-                    <span style={{ fontSize: '11px', color: '#64748b' }}>Varian: {selectedMutasi.varian}</span>
-                  )}
-                </div>
+                backgroundColor: '#ffffff',
+                color: '#64748b',
+                fontSize: '12.5px',
+                fontWeight: '700',
+                cursor: 'pointer'
+              }}
+            >
+              Kembali ke Daftar Mutasi
+            </button>
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px', paddingTop: '10px', borderTop: '1px solid #e2e8f0' }}>
-                  <div>
-                    <div style={{ fontSize: '11px', color: '#64748b' }}>Kuantitas Mutasi:</div>
-                    <div style={{ fontSize: '18px', fontWeight: '900', color: selectedMutasi.jenis_mutasi === 'masuk' ? '#15803d' : '#b91c1c' }}>
-                      {selectedMutasi.jenis_mutasi === 'masuk' ? `+${selectedMutasi.jumlah}` : `-${selectedMutasi.jumlah}`} {selectedMutasi.satuan || 'PCS'}
-                    </div>
-                  </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={() => handlePrintBukti(selectedMutasi)}
+                style={{
+                  padding: '8px 18px',
+                  borderRadius: '6px',
+                  border: '1px solid #0f172a',
+                  backgroundColor: '#ffffff',
+                  color: '#0f172a',
+                  fontSize: '12.5px',
+                  fontWeight: '800',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                <Printer size={14} />
+                <span>Cetak Bukti Mutasi</span>
+              </button>
 
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: '11px', color: '#64748b' }}>Posisi Stok:</div>
-                    <div style={{ fontSize: '12px', fontFamily: 'monospace' }}>
-                      Stok Awal: <b>{selectedMutasi.stok_sebelum}</b> ➔ Stok Akhir: <b style={{ color: '#0f172a' }}>{selectedMutasi.stok_sesudah}</b> {selectedMutasi.satuan || 'PCS'}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Keterangan & Petugas */}
-              <div style={{ fontSize: '12px', color: '#475569', marginBottom: '14px' }}>
-                <b>Catatan:</b> {selectedMutasi.keterangan || 'Tidak ada catatan tambahan.'}
-              </div>
-              <div style={{ fontSize: '11.5px', color: '#64748b' }}>
-                Dicatat oleh: <b>{selectedMutasi.petugas || 'Staff Gudang'}</b> pada {selectedMutasi.created_at}
-              </div>
-
-              {/* Action Buttons Detail */}
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginTop: '16px',
-                paddingTop: '12px',
-                borderTop: '1px solid #e2e8f0'
-              }}>
-                <button
-                  type="button"
-                  onClick={() => handlePrintBukti(selectedMutasi)}
-                  style={{
-                    padding: '7px 14px',
-                    borderRadius: '6px',
-                    border: '1px solid #0f172a',
-                    backgroundColor: '#ffffff',
-                    color: '#0f172a',
-                    fontSize: '11.5px',
-                    fontWeight: '800',
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px'
-                  }}
-                >
-                  <Printer size={13} />
-                  <span>Cetak Bukti Mutasi</span>
-                </button>
-
-                <div style={{ display: 'flex', gap: '6px' }}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsDetailModalOpen(false);
-                      handleOpenEdit(selectedMutasi);
-                    }}
-                    style={{
-                      padding: '7px 14px',
-                      borderRadius: '6px',
-                      border: '1px solid #cbd5e1',
-                      backgroundColor: '#f8fafc',
-                      color: '#d97706',
-                      fontSize: '11.5px',
-                      fontWeight: '800',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Edit Mutasi Ini
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setIsDetailModalOpen(false)}
-                    style={{
-                      padding: '7px 16px',
-                      borderRadius: '6px',
-                      border: 'none',
-                      backgroundColor: '#0284c7',
-                      color: '#ffffff',
-                      fontSize: '11.5px',
-                      fontWeight: '800',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Tutup
-                  </button>
-                </div>
-              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsDetailModalOpen(false);
+                  handleOpenEdit(selectedMutasi);
+                }}
+                style={{
+                  padding: '8px 22px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  backgroundColor: '#0284c7',
+                  color: '#ffffff',
+                  fontSize: '12.5px',
+                  fontWeight: '800',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                <Edit3 size={14} />
+                <span>Edit Mutasi Ini</span>
+              </button>
             </div>
           </div>
         </div>

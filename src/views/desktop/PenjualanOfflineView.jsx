@@ -3065,30 +3065,9 @@ export default function PenjualanOfflineView({ onNavigate }) {
                             textAlign: "center",
                           }}
                         >
-                          {editStatusId === ord.id ? (
-                            <div style={{ width: "130px", margin: "0 auto" }}>
-                              <SearchableSelect
-                                value={ord.status_pesanan}
-                                onChange={(val) =>
-                                  handleUpdateStatus(ord.id, val)
-                                }
-                                options={STATUS_LIST.map((s) => ({
-                                  value: s.value,
-                                  label: s.label,
-                                  color: s.color,
-                                }))}
-                                size="sm"
-                              />
-                            </div>
-                          ) : (
-                            <div
-                              style={{ cursor: "pointer" }}
-                              onClick={() => setEditStatusId(ord.id)}
-                              title="Klik untuk ubah status pesanan"
-                            >
-                              {getStatusBadge(ord.status_pesanan)}
-                            </div>
-                          )}
+                          <div>
+                            {getStatusBadge(ord.status_pesanan)}
+                          </div>
                           {ord.no_spk && (
                             <div
                               style={{
