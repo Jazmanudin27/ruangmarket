@@ -548,121 +548,36 @@ export default function KeuanganDesktopView() {
             </div>
           </div>
 
-          {/* Action Buttons */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-            {/* Kelola Kategori Mutasi */}
-            <button
-              type="button"
-              onClick={() => setIsKategoriModalOpen(true)}
-              title="Kelola Master Kategori Mutasi Kas (Tambah, Edit, Hapus)"
-              style={{
-                height: '30px',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '5px',
-                padding: '0 11px',
-                borderRadius: '6px',
-                border: '1px solid rgba(255, 255, 255, 0.3)',
-                backgroundColor: 'rgba(255, 255, 255, 0.15)',
-                color: '#ffffff',
-                fontSize: '12px',
-                fontWeight: '700',
-                cursor: 'pointer',
-                backdropFilter: 'blur(4px)',
-                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.12)',
-                transition: 'all 0.15s ease'
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.25)'}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.15)'}
-            >
-              <Settings size={13} />
-              <span>Kategori Mutasi</span>
-            </button>
-
-            {/* Export Excel */}
-            <button
-              type="button"
-              onClick={handleExportExcel}
-              title="Download rekapan mutasi kas ke format Excel"
-              style={{
-                height: '30px',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px',
-                padding: '0 13px',
-                borderRadius: '6px',
-                border: 'none',
-                backgroundColor: '#059669',
-                color: '#ffffff',
-                fontSize: '12px',
-                fontWeight: '700',
-                cursor: 'pointer',
-                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.15)',
-                transition: 'all 0.15s ease'
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#047857'}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#059669'}
-            >
-              <Download size={13} />
-              <span>Export Excel</span>
-            </button>
-
-            {/* Tombol Tambah Mutasi Kas (Masuk) */}
+          {/* Action Button: Cukup Satu Tombol Catat Kas */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <button
               type="button"
               onClick={() => handleOpenAdd('masuk')}
               style={{
-                height: '30px',
+                height: '32px',
                 display: 'inline-flex',
                 alignItems: 'center',
-                justifyContent: 'center',
-                gap: '5px',
-                padding: '0 12px',
+                gap: '6px',
+                padding: '0 15px',
                 borderRadius: '6px',
                 border: 'none',
-                backgroundColor: '#10b981',
-                color: '#ffffff',
+                backgroundColor: '#ffffff',
+                color: '#0284c7',
                 fontSize: '12px',
                 fontWeight: '800',
                 cursor: 'pointer',
-                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.15)',
+                boxShadow: '0 2px 5px rgba(0, 0, 0, 0.15)',
                 transition: 'all 0.15s ease'
               }}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#059669'}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#10b981'}
-            >
-              <ArrowDownLeft size={14} />
-              <span>+ Kas Masuk</span>
-            </button>
-
-            {/* Tombol Tambah Mutasi Kas (Keluar) */}
-            <button
-              type="button"
-              onClick={() => handleOpenAdd('keluar')}
-              style={{
-                height: '30px',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '5px',
-                padding: '0 12px',
-                borderRadius: '6px',
-                border: 'none',
-                backgroundColor: '#ef4444',
-                color: '#ffffff',
-                fontSize: '12px',
-                fontWeight: '800',
-                cursor: 'pointer',
-                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.15)',
-                transition: 'all 0.15s ease'
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#f0f9ff';
               }}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#dc2626'}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#ef4444'}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = '#ffffff';
+              }}
             >
-              <ArrowUpRight size={14} />
-              <span>+ Kas Keluar</span>
+              <Plus size={15} />
+              <span>+ Catat Kas</span>
             </button>
           </div>
         </div>
