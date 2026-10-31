@@ -57,7 +57,21 @@ const INITIAL_MUTASI = [
   }
 ];
 
+const INITIAL_KATEGORI = [
+  { nama: 'Penjualan Offline', jenis: 'masuk' },
+  { nama: 'Pencairan Marketplace', jenis: 'masuk' },
+  { nama: 'Pelunasan Piutang', jenis: 'masuk' },
+  { nama: 'Pembelian Bahan / Kain', jenis: 'keluar' },
+  { nama: 'Ongkos Produksi / Jahit', jenis: 'keluar' },
+  { nama: 'Operasional & Packing', jenis: 'keluar' },
+  { nama: 'Gaji & Upah Karyawan', jenis: 'keluar' },
+  { nama: 'Sewa & Utilitas (Listrik/Air)', jenis: 'keluar' },
+  { nama: 'Biaya Pengiriman & Logistik', jenis: 'keluar' },
+  { nama: 'Lain-lain', jenis: 'semua' }
+];
+
 async function ensureKeuanganTable(pool) {
+  // 1. Tabel Mutasi Kas
   await pool.query(`
     CREATE TABLE IF NOT EXISTS mutasi_kas (
       id INT AUTO_INCREMENT PRIMARY KEY,
@@ -77,7 +91,7 @@ async function ensureKeuanganTable(pool) {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Mutasi Kas Masuk dan Keluar';
   `);
 
-  // Seed jika tabel kosong
+  // Seed mutasi jika tabel kosong
   const [[countRow]] = await pool.query('SELECT COUNT(*) as total FROM mutasi_kas');
   if (countRow.total === 0) {
     for (const m of INITIAL_MUTASI) {
@@ -88,9 +102,127 @@ async function ensureKeuanganTable(pool) {
       );
     }
   }
+
+  // 2. Tabel Kategori Mutasi Kas
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS kategori_mutasi (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      kode_perusahaan VARCHAR(32) DEFAULT 'RSG',
+      nama_kategori VARCHAR(100) NOT NULL,
+      jenis_mutasi VARCHAR(20) DEFAULT 'semua',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_perusahaan (kode_perusahaan)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Master Kategori Mutasi Kas';
+  `);
+
+  // Seed kategori jika kosong
+  const [[countKat]] = await pool.query('SELECT COUNT(*) as total FROM kategori_mutasi');
+  if (countKat.total === 0) {
+    for (const k of INITIAL_KATEGORI) {
+      await pool.query(
+        `INSERT INTO kategori_mutasi (kode_perusahaan, nama_kategori, jenis_mutasi) VALUES (?, ?, ?)`,
+        ['RSG', k.nama, k.jenis]
+      );
+    }
+  }
 }
 
 export async function handleKeuanganRoutes(req, res, pathname, urlObj, { pool }) {
+  // ─── KATEGORI MUTASI API ENDPOINTS ──────────────────────────────────────────
+
+  // GET /api/keuangan/kategori
+  if (pathname === '/api/keuangan/kategori' && req.method === 'GET') {
+    try {
+      await ensureKeuanganTable(pool).catch(() => {});
+      const kodePerusahaan = urlObj.searchParams.get('kode_perusahaan');
+      let sql = 'SELECT * FROM kategori_mutasi';
+      const params = [];
+      if (kodePerusahaan && kodePerusahaan !== 'ALL') {
+        sql += ' WHERE (kode_perusahaan = ? OR kode_perusahaan = "RSG" OR kode_perusahaan IS NULL)';
+        params.push(kodePerusahaan);
+      }
+      sql += ' ORDER BY id ASC';
+      const [rows] = await pool.query(sql, params);
+      sendJson(res, 200, { status: 'success', data: rows });
+      return true;
+    } catch (err) {
+      console.error('[Keuangan Kategori GET Error]:', err.message);
+      sendJson(res, 500, { status: 'error', message: err.message });
+      return true;
+    }
+  }
+
+  // POST /api/keuangan/kategori (Create or Update)
+  if (pathname === '/api/keuangan/kategori' && req.method === 'POST') {
+    try {
+      await ensureKeuanganTable(pool).catch(() => {});
+      const body = await parseJsonBody(req);
+      if (!body) {
+        sendJson(res, 400, { status: 'error', message: 'Data tidak boleh kosong' });
+        return true;
+      }
+
+      const { id, kode_perusahaan, nama_kategori, jenis_mutasi } = body;
+      const company = kode_perusahaan || 'RSG';
+      const nama = (nama_kategori || '').trim();
+      const jenis = (jenis_mutasi || 'semua').toLowerCase();
+
+      if (!nama) {
+        sendJson(res, 400, { status: 'error', message: 'Nama kategori wajib diisi' });
+        return true;
+      }
+
+      if (id && Number(id) > 0) {
+        // Ambil nama lama untuk cascade update ke mutasi_kas
+        const [[oldRow]] = await pool.query('SELECT nama_kategori FROM kategori_mutasi WHERE id = ?', [id]);
+        await pool.query(
+          `UPDATE kategori_mutasi SET nama_kategori = ?, jenis_mutasi = ? WHERE id = ?`,
+          [nama, jenis, id]
+        );
+        if (oldRow && oldRow.nama_kategori && oldRow.nama_kategori !== nama) {
+          await pool.query(
+            `UPDATE mutasi_kas SET kategori = ? WHERE kategori = ?`,
+            [nama, oldRow.nama_kategori]
+          ).catch(() => {});
+        }
+        sendJson(res, 200, { status: 'success', message: 'Kategori berhasil diperbarui', id: Number(id), data: { id: Number(id), nama_kategori: nama, jenis_mutasi: jenis } });
+        return true;
+      } else {
+        const [result] = await pool.query(
+          `INSERT INTO kategori_mutasi (kode_perusahaan, nama_kategori, jenis_mutasi) VALUES (?, ?, ?)`,
+          [company, nama, jenis]
+        );
+        sendJson(res, 201, { status: 'success', message: 'Kategori berhasil ditambahkan', id: result.insertId, data: { id: result.insertId, nama_kategori: nama, jenis_mutasi: jenis } });
+        return true;
+      }
+    } catch (err) {
+      console.error('[Keuangan Kategori POST Error]:', err.message);
+      sendJson(res, 500, { status: 'error', message: err.message });
+      return true;
+    }
+  }
+
+  // DELETE /api/keuangan/kategori?id=...
+  if (pathname === '/api/keuangan/kategori' && req.method === 'DELETE') {
+    try {
+      const id = urlObj.searchParams.get('id');
+      if (!id) {
+        sendJson(res, 400, { status: 'error', message: 'ID kategori wajib disertakan' });
+        return true;
+      }
+      await pool.query('DELETE FROM kategori_mutasi WHERE id = ?', [id]);
+      sendJson(res, 200, { status: 'success', message: 'Kategori berhasil dihapus' });
+      return true;
+    } catch (err) {
+      console.error('[Keuangan Kategori DELETE Error]:', err.message);
+      sendJson(res, 500, { status: 'error', message: err.message });
+      return true;
+    }
+  }
+
+  // ─── MUTASI KAS API ENDPOINTS ───────────────────────────────────────────────
+
   // 1. GET /api/keuangan/mutasi
   if (pathname === '/api/keuangan/mutasi' && req.method === 'GET') {
     try {
@@ -255,4 +387,3 @@ export async function handleKeuanganRoutes(req, res, pathname, urlObj, { pool })
 
   return false;
 }
-
