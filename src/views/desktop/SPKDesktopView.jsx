@@ -1304,6 +1304,12 @@ export default function SPKView() {
     const rows = [];
     companyBatches.forEach((batch) => {
       const list = batch.spk_list || [];
+      const rawFaktur =
+        batch.no_faktur ||
+        (batch.kode_produksi && String(batch.kode_produksi).startsWith("PRD-OFF-")
+          ? String(batch.kode_produksi).replace(/^PRD-/, "")
+          : "");
+
       if (list.length === 0) {
         rows.push({
           id_spk: `SPK-${batch.kode_produksi?.replace(/[^a-zA-Z0-9]/g, "") || "01"}`,
@@ -1315,6 +1321,7 @@ export default function SPKView() {
           batch_id: batch.id,
           batch_obj: batch,
           kode_produksi: batch.kode_produksi,
+          no_faktur: rawFaktur,
           nama_pelanggan: batch.nama_pelanggan,
           tgl_pesan: batch.tgl_pesan,
           deadline: batch.deadline,
@@ -1328,6 +1335,7 @@ export default function SPKView() {
             batch_id: batch.id,
             batch_obj: batch,
             kode_produksi: batch.kode_produksi,
+            no_faktur: rawFaktur,
             nama_pelanggan: batch.nama_pelanggan,
             tgl_pesan: batch.tgl_pesan,
             deadline: batch.deadline,
@@ -1457,6 +1465,7 @@ export default function SPKView() {
         const matchId = (spk.id_spk || "").toLowerCase().includes(q);
         const matchNama = (spk.nama_spk || "").toLowerCase().includes(q);
         const matchBatch = (spk.kode_produksi || "").toLowerCase().includes(q);
+        const matchFaktur = (spk.no_faktur || "").toLowerCase().includes(q);
         const matchPelanggan = (spk.nama_pelanggan || "")
           .toLowerCase()
           .includes(q);
@@ -1471,6 +1480,7 @@ export default function SPKView() {
           !matchId &&
           !matchNama &&
           !matchBatch &&
+          !matchFaktur &&
           !matchPelanggan &&
           !matchPenjahit &&
           !matchProduk
@@ -1947,7 +1957,7 @@ export default function SPKView() {
                   <th
                     style={{ padding: "5px 8px", border: "1px solid #cbd5e1" }}
                   >
-                    NO SPK & PRODUKSI
+                    NO PRODUKSI & NO FAKTUR
                   </th>
                   <th
                     style={{ padding: "5px 8px", border: "1px solid #cbd5e1" }}
@@ -2078,7 +2088,7 @@ export default function SPKView() {
                           {rowNumber}
                         </td>
 
-                        {/* 2. NO SPK & PRODUKSI */}
+                        {/* 2. NO PRODUKSI & NO FAKTUR */}
                         <td
                           style={{
                             padding: "6px 8px",
@@ -2086,6 +2096,7 @@ export default function SPKView() {
                             verticalAlign: "middle",
                           }}
                         >
+                          {/* No Produksi (Utama) */}
                           <div
                             style={{
                               display: "flex",
@@ -2101,7 +2112,7 @@ export default function SPKView() {
                                 fontSize: "12px",
                               }}
                             >
-                              {spk.id_spk}
+                              {spk.kode_produksi || "-"}
                             </span>
                             {spk.design_img && (
                               <span
@@ -2119,31 +2130,43 @@ export default function SPKView() {
                               </span>
                             )}
                           </div>
+
+                          {/* No Faktur Penjualan Offline (Hanya tampil jika ada, jika langsung SPK maka kosong) */}
+                          {spk.no_faktur ? (
+                            <div
+                              style={{
+                                fontSize: "10px",
+                                color: "#047857",
+                                fontFamily: "monospace",
+                                fontWeight: "700",
+                                backgroundColor: "#ecfdf5",
+                                border: "1px solid #a7f3d0",
+                                borderRadius: "3px",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "3px",
+                                padding: "1px 5px",
+                                marginTop: "2px",
+                              }}
+                              title="No Faktur / Pesanan Penjualan Offline"
+                            >
+                              <FileText size={10} color="#059669" />
+                              <span>{spk.no_faktur}</span>
+                            </div>
+                          ) : null}
+
+                          {/* Sub Info: ID SPK & Nama SPK */}
                           <div
                             style={{
-                              fontSize: "11px",
-                              fontWeight: "700",
-                              color: "#1e293b",
-                              marginTop: "1px",
-                            }}
-                          >
-                            {spk.nama_spk || "SPK Produksi"}
-                          </div>
-                          <div
-                            style={{
-                              fontSize: "9.5px",
-                              color: "#6b21a8",
-                              fontFamily: "monospace",
-                              fontWeight: "700",
-                              backgroundColor: "#faf5ff",
-                              border: "1px solid #f3e8ff",
-                              borderRadius: "3px",
-                              display: "inline-block",
-                              padding: "0 4px",
+                              fontSize: "10px",
+                              color: "#64748b",
                               marginTop: "2px",
                             }}
                           >
-                            {spk.kode_produksi}
+                            <span style={{ fontWeight: "700", color: "#334155" }}>
+                              {spk.id_spk}
+                            </span>
+                            {spk.nama_spk ? ` • ${spk.nama_spk}` : ""}
                           </div>
                         </td>
 

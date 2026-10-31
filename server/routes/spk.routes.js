@@ -4,14 +4,23 @@ export async function handleSPKRoutes(req, res, pathname, urlObj, { pool }) {
   // 1. GET /api/spk - Ambil semua batch SPK dari database MySQL
   if ((pathname === '/api/spk' || pathname === '/api/marketplace/spk') && req.method === 'GET') {
     try {
+      try {
+        await pool.query('ALTER TABLE spk_batch ADD COLUMN no_faktur VARCHAR(60) DEFAULT NULL');
+      } catch (_) {}
+
       const kodePerusahaan = urlObj.searchParams.get('kode_perusahaan');
-      let sql = 'SELECT * FROM spk_batch';
+      let sql = `
+        SELECT b.*, 
+          COALESCE(b.no_faktur, po.no_pesanan, '') as no_faktur
+        FROM spk_batch b
+        LEFT JOIN pesanan_offline po ON po.no_spk = b.kode_produksi
+      `;
       const params = [];
-      if (kodePerusahaan) {
-        sql += ' WHERE kode_perusahaan = ?';
+      if (kodePerusahaan && kodePerusahaan !== 'ALL') {
+        sql += ' WHERE (b.kode_perusahaan = ? OR b.kode_perusahaan = "RSG" OR b.kode_perusahaan IS NULL)';
         params.push(kodePerusahaan);
       }
-      sql += ' ORDER BY id DESC';
+      sql += ' ORDER BY b.id DESC';
       const [rows] = await pool.query(sql, params);
       
       const mapped = rows.map((r) => {
@@ -25,6 +34,7 @@ export async function handleSPKRoutes(req, res, pathname, urlObj, { pool }) {
           id: r.id,
           company_code: r.kode_perusahaan || 'RSG',
           kode_produksi: r.kode_produksi,
+          no_faktur: r.no_faktur || '',
           nama_pelanggan: r.nama_pelanggan,
           no_telepon: r.no_telepon || '',
           instansi: r.instansi || '',
@@ -50,6 +60,10 @@ export async function handleSPKRoutes(req, res, pathname, urlObj, { pool }) {
   // 2. POST /api/spk - Simpan / Update batch SPK ke database MySQL
   if ((pathname === '/api/spk' || pathname === '/api/marketplace/spk') && req.method === 'POST') {
     try {
+      try {
+        await pool.query('ALTER TABLE spk_batch ADD COLUMN no_faktur VARCHAR(60) DEFAULT NULL');
+      } catch (_) {}
+
       const body = await parseJsonBody(req);
       if (!body) {
         sendJson(res, 400, { status: 'error', message: 'Data tidak boleh kosong' });
@@ -60,6 +74,7 @@ export async function handleSPKRoutes(req, res, pathname, urlObj, { pool }) {
         id,
         company_code,
         kode_produksi,
+        no_faktur,
         nama_pelanggan,
         no_telepon,
         instansi,
@@ -72,6 +87,7 @@ export async function handleSPKRoutes(req, res, pathname, urlObj, { pool }) {
 
       const spkJson = typeof spk_list === 'string' ? spk_list : JSON.stringify(spk_list || []);
       const kodePerusahaan = company_code || 'RSG';
+      const noFakturVal = no_faktur || null;
 
       if (id && Number(id) > 0) {
         // UPDATE existing
@@ -79,6 +95,7 @@ export async function handleSPKRoutes(req, res, pathname, urlObj, { pool }) {
           `UPDATE spk_batch SET 
             kode_perusahaan = ?,
             kode_produksi = ?,
+            no_faktur = ?,
             nama_pelanggan = ?,
             no_telepon = ?,
             instansi = ?,
@@ -91,6 +108,7 @@ export async function handleSPKRoutes(req, res, pathname, urlObj, { pool }) {
           [
             kodePerusahaan,
             kode_produksi,
+            noFakturVal,
             nama_pelanggan || '',
             no_telepon || '',
             instansi || '',
@@ -107,12 +125,13 @@ export async function handleSPKRoutes(req, res, pathname, urlObj, { pool }) {
         // INSERT new
         const [result] = await pool.query(
           `INSERT INTO spk_batch (
-            kode_perusahaan, kode_produksi, nama_pelanggan, no_telepon, instansi,
+            kode_perusahaan, kode_produksi, no_faktur, nama_pelanggan, no_telepon, instansi,
             tgl_pesan, deadline, status, catatan, spk_list
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             kodePerusahaan,
             kode_produksi,
+            noFakturVal,
             nama_pelanggan || '',
             no_telepon || '',
             instansi || '',
