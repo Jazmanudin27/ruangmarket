@@ -1837,31 +1837,11 @@ export default function SPKView() {
                     PELANGGAN & DEADLINE
                   </th>
                   <th
-                    style={{ padding: "5px 8px", border: "1px solid #cbd5e1" }}
-                  >
-                    PENJAHIT / MAKLOON
-                  </th>
-                  <th
-                    style={{ padding: "5px 8px", border: "1px solid #cbd5e1" }}
-                  >
-                    RINCIAN PRODUK & KAIN
-                  </th>
-                  <th
                     style={{
                       padding: "5px 8px",
                       border: "1px solid #cbd5e1",
                       textAlign: "center",
-                      width: "95px",
-                    }}
-                  >
-                    TOTAL QTY
-                  </th>
-                  <th
-                    style={{
-                      padding: "5px 8px",
-                      border: "1px solid #cbd5e1",
-                      textAlign: "center",
-                      width: "135px",
+                      width: "140px",
                     }}
                   >
                     STATUS / TAHAPAN
@@ -1882,7 +1862,7 @@ export default function SPKView() {
                 {isLoadingSpk ? (
                   <tr>
                     <td
-                      colSpan="8"
+                      colSpan="5"
                       style={{
                         padding: "48px 16px",
                         textAlign: "center",
@@ -1919,7 +1899,7 @@ export default function SPKView() {
                 ) : paginatedSpkRows.length === 0 ? (
                   <tr>
                     <td
-                      colSpan="8"
+                      colSpan="5"
                       style={{
                         padding: "36px 16px",
                         textAlign: "center",
@@ -2097,153 +2077,7 @@ export default function SPKView() {
                           )}
                         </td>
 
-                        {/* 4. PENJAHIT / MAKLOON */}
-                        <td
-                          style={{
-                            padding: "6px 8px",
-                            border: "1px solid #cbd5e1",
-                            verticalAlign: "middle",
-                          }}
-                        >
-                          <div
-                            style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: "4px",
-                              padding: "2px 6px",
-                              borderRadius: "4px",
-                              backgroundColor: "#f8fafc",
-                              border: "1px solid #e2e8f0",
-                              fontSize: "11px",
-                              fontWeight: "700",
-                              color: "#334155",
-                            }}
-                          >
-                            <User size={11} color="#64748b" />
-                            <span>{spk.penjahit || "Belum Ditentukan"}</span>
-                          </div>
-                        </td>
-
-                        {/* 5. RINCIAN PRODUK & KAIN */}
-                        <td
-                          style={{
-                            padding: "6px 8px",
-                            border: "1px solid #cbd5e1",
-                            verticalAlign: "middle",
-                          }}
-                        >
-                          <div
-                            style={{
-                              fontSize: "11px",
-                              fontWeight: "700",
-                              color: "#0f172a",
-                              marginBottom: "2px",
-                            }}
-                          >
-                            {items.length} SKU Produk ({spkTotalQty} Pcs)
-                          </div>
-                          <div
-                            style={{
-                              display: "flex",
-                              flexDirection: "column",
-                              gap: "2px",
-                              maxHeight: "65px",
-                              overflowY: "auto",
-                            }}
-                          >
-                            {items.slice(0, 3).map((it, iIdx) => (
-                              <div
-                                key={iIdx}
-                                style={{
-                                  fontSize: "10px",
-                                  color: "#475569",
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: "4px",
-                                }}
-                              >
-                                <span style={{ color: "#94a3b8" }}>•</span>
-                                <span
-                                  style={{
-                                    maxWidth: "200px",
-                                    overflow: "hidden",
-                                    textOverflow: "ellipsis",
-                                    whiteSpace: "nowrap",
-                                  }}
-                                  title={it.nama_produk}
-                                >
-                                  {it.nama_produk}
-                                </span>
-                                <b style={{ color: "#0284c7" }}>({it.qty})</b>
-                              </div>
-                            ))}
-                            {items.length > 3 && (
-                              <div
-                                style={{
-                                  fontSize: "9.5px",
-                                  color: "#0284c7",
-                                  fontWeight: "700",
-                                }}
-                              >
-                                +{items.length - 3} produk lainnya...
-                              </div>
-                            )}
-                          </div>
-                          {firstKainItem && (
-                            <div
-                              style={{
-                                marginTop: "3px",
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: "3px",
-                                fontSize: "9px",
-                                padding: "1px 5px",
-                                borderRadius: "3px",
-                                backgroundColor: "#f0fdf4",
-                                color: "#166534",
-                                border: "1px solid #bbf7d0",
-                              }}
-                            >
-                              <Scissors size={9} color="#16a34a" />
-                              <span>{firstKainItem.kain_nama || "Kain"}</span>
-                              <span>•</span>
-                              <span>
-                                {(
-                                  (Number(firstKainItem.panjang_kain_cm) || 0) *
-                                  (Number(firstKainItem.qty) || 1)
-                                ).toLocaleString("id-ID")}{" "}
-                                cm
-                              </span>
-                            </div>
-                          )}
-                        </td>
-
-                        {/* 6. TOTAL QTY */}
-                        <td
-                          style={{
-                            padding: "6px 8px",
-                            border: "1px solid #cbd5e1",
-                            textAlign: "center",
-                            verticalAlign: "middle",
-                          }}
-                        >
-                          <span
-                            style={{
-                              display: "inline-block",
-                              padding: "2px 8px",
-                              borderRadius: "4px",
-                              backgroundColor: "#f1f5f9",
-                              border: "1px solid #cbd5e1",
-                              fontSize: "11px",
-                              fontWeight: "800",
-                              color: "#0f172a",
-                            }}
-                          >
-                            {spkTotalQty} PCS
-                          </span>
-                        </td>
-
-                        {/* 7. STATUS / TAHAPAN */}
+                        {/* 4. STATUS / TAHAPAN */}
                         <td
                           style={{
                             padding: "6px 8px",

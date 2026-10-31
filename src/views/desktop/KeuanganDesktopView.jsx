@@ -1537,7 +1537,7 @@ export default function KeuanganDesktopView() {
             padding: '14px 18px 40px 18px',
             backgroundColor: '#f1f5f9'
           }}>
-            <form onSubmit={handleSubmitForm} style={{ maxWidth: '1100px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <form onSubmit={handleSubmitForm} style={{ width: '100%', margin: '0', display: 'flex', flexDirection: 'column', gap: '12px' }}>
               
               <div style={{
                 display: 'grid',
@@ -2098,7 +2098,7 @@ export default function KeuanganDesktopView() {
             padding: '16px 20px 40px 20px',
             backgroundColor: '#f1f5f9'
           }}>
-            <div style={{ maxWidth: '900px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <div style={{ width: '100%', margin: '0', display: 'flex', flexDirection: 'column', gap: '14px' }}>
               
               {/* VOUCHER / KUITANSI BANNER CARD */}
               <div style={{
