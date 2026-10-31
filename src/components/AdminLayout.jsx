@@ -27,7 +27,8 @@ import {
   Check,
   Megaphone,
   Calculator,
-  Send
+  Send,
+  DollarSign
 } from 'lucide-react';
 import { getCompanies, getActiveCompany, setActiveCompanyCode } from '../utils/tenant.util';
 import { useDeviceType } from '../hooks/useDeviceType';
@@ -49,6 +50,7 @@ import ReturBarangDesktopView from '../views/desktop/ReturBarangDesktopView';
 import PenjualanOfflineView from '../views/desktop/PenjualanOfflineView';
 import BlankTemplateDesktopView from '../views/desktop/BlankTemplateDesktopView';
 import KainDesktopView from '../views/desktop/KainDesktopView';
+import KeuanganDesktopView from '../views/desktop/KeuanganDesktopView';
 
 // Mobile Views
 import MarketplaceMobileView from '../views/mobile/MarketplaceMobileView';
@@ -269,6 +271,10 @@ export default function AdminLayout() {
       case 'penjualan_offline':
       case 'offline':
         return <PenjualanOfflineView onNavigate={changeTab} />;
+      case 'keuangan':
+      case 'mutasi_kas':
+      case 'kas':
+        return <KeuanganDesktopView />;
       case 'blank':
         return <BlankTemplateDesktopView />;
       default:
@@ -1297,6 +1303,48 @@ export default function AdminLayout() {
               )}
             </div>
 
+            {/* 5. Keuangan (Mutasi Kas Masuk & Keluar) */}
+            <button
+              type="button"
+              onClick={() => changeTab('keuangan')}
+              style={{
+                height: '24px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '4px',
+                padding: '0 8px',
+                borderRadius: '5px',
+                border: (activeTab === 'keuangan' || activeTab === 'mutasi_kas') ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.08)',
+                backgroundColor: (activeTab === 'keuangan' || activeTab === 'mutasi_kas') ? '#0284c7' : 'rgba(255, 255, 255, 0.05)',
+                color: (activeTab === 'keuangan' || activeTab === 'mutasi_kas') ? '#ffffff' : '#cbd5e1',
+                fontSize: '11px',
+                fontWeight: (activeTab === 'keuangan' || activeTab === 'mutasi_kas') ? '800' : '600',
+                lineHeight: 1,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+                whiteSpace: 'nowrap',
+                boxShadow: (activeTab === 'keuangan' || activeTab === 'mutasi_kas') ? '0 0 10px rgba(2, 132, 199, 0.5)' : 'none'
+              }}
+              onMouseEnter={(e) => {
+                if (activeTab !== 'keuangan' && activeTab !== 'mutasi_kas') {
+                  e.currentTarget.style.backgroundColor = 'rgba(56, 189, 248, 0.15)';
+                  e.currentTarget.style.borderColor = 'rgba(56, 189, 248, 0.3)';
+                  e.currentTarget.style.color = '#ffffff';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (activeTab !== 'keuangan' && activeTab !== 'mutasi_kas') {
+                  e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
+                  e.currentTarget.style.color = '#cbd5e1';
+                }
+              }}
+            >
+              <DollarSign size={13} color={(activeTab === 'keuangan' || activeTab === 'mutasi_kas') ? '#ffffff' : '#38bdf8'} style={{ flexShrink: 0 }} />
+              <span>Keuangan</span>
+            </button>
+
           </nav>
 
           {/* RIGHT SIDE ACTIONS (DARK MODE) */}
@@ -1820,6 +1868,38 @@ export default function AdminLayout() {
             >
               <Store size={15} color={(activeTab === 'marketplace' || activeTab === 'toko') ? '#ffffff' : '#38bdf8'} />
               <span>Tambah Toko Marketplace</span>
+            </button>
+
+            {/* 5. Keuangan Section Mobile */}
+            <div style={{
+              fontSize: '10px',
+              fontWeight: '700',
+              color: '#94a3b8',
+              padding: '8px 12px 2px 12px',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em'
+            }}>
+              Keuangan
+            </div>
+            <button
+              onClick={() => changeTab('keuangan')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '8px 12px 8px 20px',
+                borderRadius: '6px',
+                border: (activeTab === 'keuangan' || activeTab === 'mutasi_kas') ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.08)',
+                backgroundColor: (activeTab === 'keuangan' || activeTab === 'mutasi_kas') ? '#0284c7' : 'rgba(255, 255, 255, 0.05)',
+                color: '#ffffff',
+                fontSize: '12px',
+                fontWeight: (activeTab === 'keuangan' || activeTab === 'mutasi_kas') ? '800' : '600',
+                cursor: 'pointer',
+                textAlign: 'left'
+              }}
+            >
+              <DollarSign size={15} color={(activeTab === 'keuangan' || activeTab === 'mutasi_kas') ? '#ffffff' : '#38bdf8'} />
+              <span>Mutasi Kas Masuk & Keluar</span>
             </button>
           </div>
         )}
