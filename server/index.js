@@ -20,6 +20,7 @@ import { handleOfflineOrdersRoutes } from './routes/offline-orders.routes.js';
 import { handleBankRoutes } from './routes/bank.routes.js';
 import { handleKeuanganRoutes } from './routes/keuangan.routes.js';
 import { handleMutasiBarangRoutes } from './routes/mutasi-barang.routes.js';
+import { handlePenitipanBarangRoutes } from './routes/penitipan-barang.routes.js';
 
 import './config/env.js';
 
@@ -77,6 +78,7 @@ const server = http.createServer(async (req, res) => {
     if (await handleBankRoutes(req, res, pathname, urlObj, context)) return;
     if (await handleKeuanganRoutes(req, res, pathname, urlObj, context)) return;
     if (await handleMutasiBarangRoutes(req, res, pathname, urlObj, context)) return;
+    if (await handlePenitipanBarangRoutes(req, res, pathname, urlObj, context)) return;
 
     // 404 Not Found
     sendJson(res, 404, { error: 'Endpoint tidak ditemukan' });

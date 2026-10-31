@@ -28,7 +28,8 @@ import {
   Megaphone,
   Calculator,
   Send,
-  DollarSign
+  DollarSign,
+  Warehouse
 } from 'lucide-react';
 import { getCompanies, getActiveCompany, setActiveCompanyCode } from '../utils/tenant.util';
 import { useDeviceType } from '../hooks/useDeviceType';
@@ -52,6 +53,7 @@ import BlankTemplateDesktopView from '../views/desktop/BlankTemplateDesktopView'
 import KainDesktopView from '../views/desktop/KainDesktopView';
 import KeuanganDesktopView from '../views/desktop/KeuanganDesktopView';
 import MutasiBarangDesktopView from '../views/desktop/MutasiBarangDesktopView';
+import PenitipanBarangDesktopView from '../views/desktop/PenitipanBarangDesktopView';
 
 // Mobile Views
 import MarketplaceMobileView from '../views/mobile/MarketplaceMobileView';
@@ -280,6 +282,10 @@ export default function AdminLayout() {
       case 'mutasi_stok':
       case 'mutasi':
         return <MutasiBarangDesktopView />;
+      case 'penitipan_barang':
+      case 'penitipan':
+      case 'konsinyasi':
+        return <PenitipanBarangDesktopView />;
       case 'blank':
         return <BlankTemplateDesktopView />;
       default:
@@ -896,6 +902,42 @@ export default function AdminLayout() {
                     <Boxes size={14} color={(activeTab === 'mutasi_barang' || activeTab === 'mutasi_stok') ? '#38bdf8' : '#94a3b8'} style={{ flexShrink: 0 }} />
                     <span style={{ textAlign: 'left', flex: 1 }}>Mutasi Barang Masuk & Keluar</span>
                   </button>
+
+                  {/* Submenu 9: Penitipan Barang (Konsinyasi) */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      changeTab('penitipan_barang');
+                      setIsDataMasterOpen(false);
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'flex-start',
+                      gap: '8px',
+                      width: '100%',
+                      padding: '7px 10px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      backgroundColor: (activeTab === 'penitipan_barang' || activeTab === 'penitipan') ? 'rgba(2, 132, 199, 0.2)' : 'transparent',
+                      color: (activeTab === 'penitipan_barang' || activeTab === 'penitipan') ? '#38bdf8' : '#cbd5e1',
+                      fontSize: '11.5px',
+                      fontWeight: (activeTab === 'penitipan_barang' || activeTab === 'penitipan') ? '800' : '600',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'background-color 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (activeTab !== 'penitipan_barang' && activeTab !== 'penitipan') e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (activeTab !== 'penitipan_barang' && activeTab !== 'penitipan') e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
+                  >
+                    <Warehouse size={14} color={(activeTab === 'penitipan_barang' || activeTab === 'penitipan') ? '#38bdf8' : '#94a3b8'} style={{ flexShrink: 0 }} />
+                    <span style={{ textAlign: 'left', flex: 1 }}>Penitipan Barang (Konsinyasi)</span>
+                  </button>
                 </div>
               )}
             </div>
@@ -1426,6 +1468,48 @@ export default function AdminLayout() {
             >
               <Boxes size={13} color={(activeTab === 'mutasi_barang' || activeTab === 'mutasi_stok') ? '#ffffff' : '#38bdf8'} style={{ flexShrink: 0 }} />
               <span>Mutasi Barang</span>
+            </button>
+
+            {/* 7. Penitipan Barang (Konsinyasi) */}
+            <button
+              type="button"
+              onClick={() => changeTab('penitipan_barang')}
+              style={{
+                height: '24px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '4px',
+                padding: '0 8px',
+                borderRadius: '5px',
+                border: (activeTab === 'penitipan_barang' || activeTab === 'penitipan') ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.08)',
+                backgroundColor: (activeTab === 'penitipan_barang' || activeTab === 'penitipan') ? '#0284c7' : 'rgba(255, 255, 255, 0.05)',
+                color: (activeTab === 'penitipan_barang' || activeTab === 'penitipan') ? '#ffffff' : '#cbd5e1',
+                fontSize: '11px',
+                fontWeight: (activeTab === 'penitipan_barang' || activeTab === 'penitipan') ? '800' : '600',
+                lineHeight: 1,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+                whiteSpace: 'nowrap',
+                boxShadow: (activeTab === 'penitipan_barang' || activeTab === 'penitipan') ? '0 0 10px rgba(2, 132, 199, 0.5)' : 'none'
+              }}
+              onMouseEnter={(e) => {
+                if (activeTab !== 'penitipan_barang' && activeTab !== 'penitipan') {
+                  e.currentTarget.style.backgroundColor = 'rgba(56, 189, 248, 0.15)';
+                  e.currentTarget.style.borderColor = 'rgba(56, 189, 248, 0.3)';
+                  e.currentTarget.style.color = '#ffffff';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (activeTab !== 'penitipan_barang' && activeTab !== 'penitipan') {
+                  e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
+                  e.currentTarget.style.color = '#cbd5e1';
+                }
+              }}
+            >
+              <Warehouse size={13} color={(activeTab === 'penitipan_barang' || activeTab === 'penitipan') ? '#ffffff' : '#38bdf8'} style={{ flexShrink: 0 }} />
+              <span>Penitipan Barang</span>
             </button>
 
           </nav>
@@ -1983,6 +2067,50 @@ export default function AdminLayout() {
             >
               <DollarSign size={15} color={(activeTab === 'keuangan' || activeTab === 'mutasi_kas') ? '#ffffff' : '#38bdf8'} />
               <span>Mutasi Kas Masuk & Keluar</span>
+            </button>
+
+            {/* 6. Mutasi Barang Mobile */}
+            <button
+              onClick={() => changeTab('mutasi_barang')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '8px 12px 8px 20px',
+                borderRadius: '6px',
+                border: (activeTab === 'mutasi_barang' || activeTab === 'mutasi_stok') ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.08)',
+                backgroundColor: (activeTab === 'mutasi_barang' || activeTab === 'mutasi_stok') ? '#0284c7' : 'rgba(255, 255, 255, 0.05)',
+                color: '#ffffff',
+                fontSize: '12px',
+                fontWeight: (activeTab === 'mutasi_barang' || activeTab === 'mutasi_stok') ? '800' : '600',
+                cursor: 'pointer',
+                textAlign: 'left'
+              }}
+            >
+              <Boxes size={15} color={(activeTab === 'mutasi_barang' || activeTab === 'mutasi_stok') ? '#ffffff' : '#38bdf8'} />
+              <span>Mutasi Barang Masuk & Keluar</span>
+            </button>
+
+            {/* 7. Penitipan Barang Mobile */}
+            <button
+              onClick={() => changeTab('penitipan_barang')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '8px 12px 8px 20px',
+                borderRadius: '6px',
+                border: (activeTab === 'penitipan_barang' || activeTab === 'penitipan') ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.08)',
+                backgroundColor: (activeTab === 'penitipan_barang' || activeTab === 'penitipan') ? '#0284c7' : 'rgba(255, 255, 255, 0.05)',
+                color: '#ffffff',
+                fontSize: '12px',
+                fontWeight: (activeTab === 'penitipan_barang' || activeTab === 'penitipan') ? '800' : '600',
+                cursor: 'pointer',
+                textAlign: 'left'
+              }}
+            >
+              <Warehouse size={15} color={(activeTab === 'penitipan_barang' || activeTab === 'penitipan') ? '#ffffff' : '#38bdf8'} />
+              <span>Penitipan Barang (Konsinyasi)</span>
             </button>
           </div>
         )}
