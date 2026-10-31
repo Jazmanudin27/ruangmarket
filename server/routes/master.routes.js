@@ -651,8 +651,8 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
       const whereClauses = [];
       const whereParams = [];
 
-      if (kodePerusahaan) {
-        whereClauses.push('p.kode_perusahaan = ?');
+      if (kodePerusahaan && kodePerusahaan !== 'ALL') {
+        whereClauses.push('(p.kode_perusahaan = ? OR p.kode_perusahaan IS NULL OR p.kode_perusahaan = "" OR p.kode_perusahaan = "RSG")');
         whereParams.push(kodePerusahaan);
       }
       if (kategori && kategori !== 'Semua') {
@@ -715,8 +715,8 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
       if (isPaginated) {
         const baseWhereClauses = [];
         const baseWhereParams = [];
-        if (kodePerusahaan) {
-          baseWhereClauses.push('p.kode_perusahaan = ?');
+        if (kodePerusahaan && kodePerusahaan !== 'ALL') {
+          baseWhereClauses.push('(p.kode_perusahaan = ? OR p.kode_perusahaan IS NULL OR p.kode_perusahaan = "" OR p.kode_perusahaan = "RSG")');
           baseWhereParams.push(kodePerusahaan);
         }
         if (kategori && kategori !== 'Semua') {

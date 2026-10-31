@@ -44,6 +44,84 @@ import CetakSPKModal from "../../components/CetakSPKModal";
 export const SPK_STORAGE_KEY = "ruangmarket_spk_v2"; // version bump for new nested structure
 const PRODUK_STORAGE_KEY = "ruangmarket_produk_gamis_v4";
 
+// Bobot ukuran untuk sorting natural (S, M, L, XL, XXL)
+const SIZE_WEIGHTS = {
+  "1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9, "10": 10,
+  "11": 11, "12": 12, "13": 13, "14": 14, "15": 15, "16": 16, "17": 17, "18": 18,
+  "XXS": 90, "2XS": 90,
+  "XS": 105,
+  "S": 110,
+  "M": 115,
+  "L": 120,
+  "XL": 125,
+  "2XL": 130, "XXL": 130,
+  "3XL": 135, "XXXL": 135,
+  "4XL": 140, "XXXXL": 140,
+  "5XL": 145, "XXXXXL": 145,
+  "6XL": 150,
+  "7XL": 155,
+  "8XL": 160,
+  "ALL SIZE": 200, "ALLSIZE": 200, "JUMBO": 210,
+};
+
+function parseItemForSort(item) {
+  const sku = (item.kode_sku || item.sku || "").trim();
+  const name = (item.nama_produk || item.nama || "").trim();
+
+  const skuParts = sku.split(/[-_\s]+/);
+  if (skuParts.length > 1) {
+    const lastSku = skuParts[skuParts.length - 1].toUpperCase();
+    if (SIZE_WEIGHTS[lastSku] !== undefined) {
+      return {
+        base: skuParts.slice(0, -1).join("-").toLowerCase(),
+        weight: SIZE_WEIGHTS[lastSku],
+        rawName: name.toLowerCase(),
+        rawSku: sku.toLowerCase(),
+      };
+    }
+  }
+
+  const nameParts = name.split(/[-_\s]+/);
+  if (nameParts.length > 1) {
+    const lastName = nameParts[nameParts.length - 1].toUpperCase();
+    if (SIZE_WEIGHTS[lastName] !== undefined) {
+      return {
+        base: nameParts.slice(0, -1).join(" ").toLowerCase(),
+        weight: SIZE_WEIGHTS[lastName],
+        rawName: name.toLowerCase(),
+        rawSku: sku.toLowerCase(),
+      };
+    }
+  }
+
+  return {
+    base: (name || sku).toLowerCase(),
+    weight: 999,
+    rawName: name.toLowerCase(),
+    rawSku: sku.toLowerCase(),
+  };
+}
+
+function compareProducts(a, b) {
+  const pA = parseItemForSort(a);
+  const pB = parseItemForSort(b);
+
+  if (pA.base === pB.base && pA.weight !== 999 && pB.weight !== 999) {
+    return pA.weight - pB.weight;
+  }
+
+  const baseCompare = pA.base.localeCompare(pB.base, "id", {
+    numeric: true,
+    sensitivity: "base",
+  });
+  if (baseCompare !== 0) return baseCompare;
+
+  return pA.rawSku.localeCompare(pB.rawSku, "id", {
+    numeric: true,
+    sensitivity: "base",
+  });
+}
+
 // Searchable Select Component with instant search filter
 function SearchableSelect({
   label,
@@ -80,12 +158,15 @@ function SearchableSelect({
 
   const safeOptions = Array.isArray(options) ? options : [];
 
+  const searchTerms = searchTerm.trim().toLowerCase().split(/\s+/).filter(Boolean);
   const filteredOptions = safeOptions.filter((opt) => {
-    const text =
+    if (searchTerms.length === 0) return true;
+    const text = (
       typeof opt === "string"
         ? opt
-        : `${opt.label || opt.value || opt.nama_produk || opt.nama || ""} ${opt.sku || ""} ${opt.kategori || ""}`;
-    return text.toLowerCase().includes(searchTerm.toLowerCase());
+        : `${opt.label || opt.value || opt.nama_produk || opt.nama || ""} ${opt.sku || ""} ${opt.kategori || ""} ${opt.nama_kain || opt.sku_kain || ""}`
+    ).toLowerCase();
+    return searchTerms.every((term) => text.includes(term));
   });
 
   const selectedFound = safeOptions.find((opt) => {
@@ -204,8 +285,8 @@ function SearchableSelect({
             borderRadius: "6px",
             border: "1px solid #cbd5e1",
             boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.25)",
-            zIndex: 3000,
-            maxHeight: "220px",
+            zIndex: 9999,
+            maxHeight: "280px",
             display: "flex",
             flexDirection: "column",
             overflow: "hidden",
@@ -233,7 +314,7 @@ function SearchableSelect({
               <input
                 ref={inputRef}
                 type="text"
-                placeholder="Ketik untuk mencari..."
+                placeholder="Ketik untuk mencari produk / SKU..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 style={{
@@ -244,6 +325,23 @@ function SearchableSelect({
                   color: "#0f172a",
                 }}
               />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm("")}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    padding: 0,
+                    cursor: "pointer",
+                    color: "#94a3b8",
+                    display: "flex",
+                    alignItems: "center",
+                  }}
+                >
+                  <X size={12} />
+                </button>
+              )}
             </div>
           </div>
 
@@ -493,7 +591,7 @@ export default function SPKView() {
   const loadProdukList = async () => {
     try {
       const res = await fetch(
-        `/api/marketplace/master?limit=2000${activeCompany?.code ? `&kode_perusahaan=${activeCompany.code}` : ""}`,
+        `/api/marketplace/master?limit=5000&sort=nama_produk${activeCompany?.code ? `&kode_perusahaan=${activeCompany.code}` : ""}`,
       );
       if (res.ok) {
         const json = await res.json();
@@ -524,6 +622,26 @@ export default function SPKView() {
             harga_kain_cm: Number(p.harga_kain_cm || 150),
             bundle_items: Array.isArray(p.bundle_items) ? p.bundle_items : [],
           }));
+
+          // Merge produk initial jika belum ada di database untuk kelengkapan katalog
+          const existingSkus = new Set(mapped.map((p) => String(p.sku).trim().toUpperCase()));
+          INITIAL_PRODUK_DATA.forEach((initP) => {
+            const initSku = String(initP.sku || initP.kode_sku || "").trim().toUpperCase();
+            if (initSku && !existingSkus.has(initSku)) {
+              mapped.push({
+                ...initP,
+                sku: initP.sku || initP.kode_sku || "",
+                panjang_kain_cm: Number(initP.panjang_kain_cm || 200),
+                estimasi_kain: Number(initP.panjang_kain_cm || 200),
+                harga_kain_cm: Number(initP.harga_kain_cm || 150),
+              });
+              existingSkus.add(initSku);
+            }
+          });
+
+          // Urutkan natural berdasarkan nama & size
+          mapped.sort(compareProducts);
+
           setProdukList(mapped);
           try {
             localStorage.setItem(PRODUK_STORAGE_KEY, JSON.stringify(mapped));
@@ -3390,7 +3508,7 @@ export default function SPKView() {
                           style={{
                             border: "1px solid #e2e8f0",
                             borderRadius: "5px",
-                            overflowX: "auto",
+                            overflow: "visible",
                           }}
                         >
                           <table
