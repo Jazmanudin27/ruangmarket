@@ -51,6 +51,7 @@ import PenjualanOfflineView from '../views/desktop/PenjualanOfflineView';
 import BlankTemplateDesktopView from '../views/desktop/BlankTemplateDesktopView';
 import KainDesktopView from '../views/desktop/KainDesktopView';
 import KeuanganDesktopView from '../views/desktop/KeuanganDesktopView';
+import MutasiBarangDesktopView from '../views/desktop/MutasiBarangDesktopView';
 
 // Mobile Views
 import MarketplaceMobileView from '../views/mobile/MarketplaceMobileView';
@@ -275,6 +276,10 @@ export default function AdminLayout() {
       case 'mutasi_kas':
       case 'kas':
         return <KeuanganDesktopView />;
+      case 'mutasi_barang':
+      case 'mutasi_stok':
+      case 'mutasi':
+        return <MutasiBarangDesktopView />;
       case 'blank':
         return <BlankTemplateDesktopView />;
       default:
@@ -855,6 +860,42 @@ export default function AdminLayout() {
                     <Calculator size={14} color={activeTab === 'hpp_produk' ? '#38bdf8' : '#94a3b8'} style={{ flexShrink: 0 }} />
                     <span style={{ textAlign: 'left', flex: 1 }}>Master HPP Produk</span>
                   </button>
+
+                  {/* Submenu 8: Mutasi Barang Masuk & Keluar */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      changeTab('mutasi_barang');
+                      setIsDataMasterOpen(false);
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'flex-start',
+                      gap: '8px',
+                      width: '100%',
+                      padding: '7px 10px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      backgroundColor: (activeTab === 'mutasi_barang' || activeTab === 'mutasi_stok') ? 'rgba(2, 132, 199, 0.2)' : 'transparent',
+                      color: (activeTab === 'mutasi_barang' || activeTab === 'mutasi_stok') ? '#38bdf8' : '#cbd5e1',
+                      fontSize: '11.5px',
+                      fontWeight: (activeTab === 'mutasi_barang' || activeTab === 'mutasi_stok') ? '800' : '600',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'background-color 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (activeTab !== 'mutasi_barang' && activeTab !== 'mutasi_stok') e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (activeTab !== 'mutasi_barang' && activeTab !== 'mutasi_stok') e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
+                  >
+                    <Boxes size={14} color={(activeTab === 'mutasi_barang' || activeTab === 'mutasi_stok') ? '#38bdf8' : '#94a3b8'} style={{ flexShrink: 0 }} />
+                    <span style={{ textAlign: 'left', flex: 1 }}>Mutasi Barang Masuk & Keluar</span>
+                  </button>
                 </div>
               )}
             </div>
@@ -1343,6 +1384,48 @@ export default function AdminLayout() {
             >
               <DollarSign size={13} color={(activeTab === 'keuangan' || activeTab === 'mutasi_kas') ? '#ffffff' : '#38bdf8'} style={{ flexShrink: 0 }} />
               <span>Keuangan</span>
+            </button>
+
+            {/* 6. Mutasi Barang (Masuk & Keluar) */}
+            <button
+              type="button"
+              onClick={() => changeTab('mutasi_barang')}
+              style={{
+                height: '24px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '4px',
+                padding: '0 8px',
+                borderRadius: '5px',
+                border: (activeTab === 'mutasi_barang' || activeTab === 'mutasi_stok') ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.08)',
+                backgroundColor: (activeTab === 'mutasi_barang' || activeTab === 'mutasi_stok') ? '#0284c7' : 'rgba(255, 255, 255, 0.05)',
+                color: (activeTab === 'mutasi_barang' || activeTab === 'mutasi_stok') ? '#ffffff' : '#cbd5e1',
+                fontSize: '11px',
+                fontWeight: (activeTab === 'mutasi_barang' || activeTab === 'mutasi_stok') ? '800' : '600',
+                lineHeight: 1,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+                whiteSpace: 'nowrap',
+                boxShadow: (activeTab === 'mutasi_barang' || activeTab === 'mutasi_stok') ? '0 0 10px rgba(2, 132, 199, 0.5)' : 'none'
+              }}
+              onMouseEnter={(e) => {
+                if (activeTab !== 'mutasi_barang' && activeTab !== 'mutasi_stok') {
+                  e.currentTarget.style.backgroundColor = 'rgba(56, 189, 248, 0.15)';
+                  e.currentTarget.style.borderColor = 'rgba(56, 189, 248, 0.3)';
+                  e.currentTarget.style.color = '#ffffff';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (activeTab !== 'mutasi_barang' && activeTab !== 'mutasi_stok') {
+                  e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
+                  e.currentTarget.style.color = '#cbd5e1';
+                }
+              }}
+            >
+              <Boxes size={13} color={(activeTab === 'mutasi_barang' || activeTab === 'mutasi_stok') ? '#ffffff' : '#38bdf8'} style={{ flexShrink: 0 }} />
+              <span>Mutasi Barang</span>
             </button>
 
           </nav>
