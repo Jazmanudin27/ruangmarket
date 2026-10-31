@@ -235,6 +235,18 @@ export async function initDb() {
     try {
       await conn.query(`UPDATE pesanan_marketplace SET status_pesanan = 'READY_TO_SHIP' WHERE status_pesanan = 'PROCESSED'`);
     } catch (e) {}
+    try {
+      await conn.query(`ALTER TABLE pesanan_marketplace ADD COLUMN status_kemas VARCHAR(32) DEFAULT 'belum_dikemas'`);
+    } catch (e) {}
+    try {
+      await conn.query(`ALTER TABLE pesanan_marketplace ADD COLUMN waktu_kemas DATETIME`);
+    } catch (e) {}
+    try {
+      await conn.query(`ALTER TABLE pesanan_marketplace ADD COLUMN dikemas_oleh VARCHAR(100)`);
+    } catch (e) {}
+    try {
+      await conn.query(`ALTER TABLE pesanan_marketplace ADD COLUMN catatan_kemas TEXT`);
+    } catch (e) {}
 
     // 4b. Tabel Retur Barang (retur_barang)
     await conn.query(`

@@ -2,6 +2,20 @@ import { PDFDocument } from 'pdf-lib';
 import { sendJson, parseJsonBody } from '../utils/response.js';
 
 export async function handleOrdersRoutes(req, res, pathname, urlObj, { pool, laravelPool, shopeeService, tiktokService }) {
+  // Pastikan kolom status_kemas dkk tersedia di tabel pesanan_marketplace
+  try {
+    await pool.query("ALTER TABLE pesanan_marketplace ADD COLUMN status_kemas VARCHAR(32) DEFAULT 'belum_dikemas'");
+  } catch (e) {}
+  try {
+    await pool.query("ALTER TABLE pesanan_marketplace ADD COLUMN waktu_kemas DATETIME");
+  } catch (e) {}
+  try {
+    await pool.query("ALTER TABLE pesanan_marketplace ADD COLUMN dikemas_oleh VARCHAR(100)");
+  } catch (e) {}
+  try {
+    await pool.query("ALTER TABLE pesanan_marketplace ADD COLUMN catatan_kemas TEXT");
+  } catch (e) {}
+
   // 1. API Ambil Data Pesanan Marketplace dari MySQL (Terhubung ke ERP Aspartech)
   if (pathname === '/api/marketplace/orders' && req.method === 'GET') {
     try {
@@ -12,6 +26,10 @@ export async function handleOrdersRoutes(req, res, pathname, urlObj, { pool, lar
           status_pesanan as status, no_spk, rincian_item, kurir, no_resi,
           COALESCE(status_cetak, 'Belum Print') as status_cetak,
           COALESCE(status_verifikasi, 'Verified') as status_verifikasi,
+          COALESCE(status_kemas, 'belum_dikemas') as status_kemas,
+          DATE_FORMAT(waktu_kemas, '%d/%m/%Y %H:%i') as waktu_kemas,
+          COALESCE(dikemas_oleh, '') as dikemas_oleh,
+          COALESCE(catatan_kemas, '') as catatan_kemas,
           COALESCE(alamat, '') as alamat,
           COALESCE(no_telepon, '') as telepon,
           COALESCE(metode_bayar, 'Cash on Delivery') as metode_bayar,
@@ -105,6 +123,7 @@ export async function handleOrdersRoutes(req, res, pathname, urlObj, { pool, lar
           }
 
           const qty = Number(it.qty || it.quantity || 1);
+          const qtyDikemas = Number(it.qty_dikemas !== undefined ? it.qty_dikemas : (r.status_kemas === 'sudah_dikemas' ? qty : 0));
           const price = Number(it.harga || it.price || 0);
           const subtotal = Number(it.subtotal || (price * qty));
           const hppSubtotal = Number(it.hpp_subtotal || (hpp * qty));
@@ -112,6 +131,8 @@ export async function handleOrdersRoutes(req, res, pathname, urlObj, { pool, lar
           return {
             ...it,
             sku: finalSku || it.sku || '-',
+            qty,
+            qty_dikemas: qtyDikemas,
             hpp,
             cost_price: hpp,
             hpp_subtotal: hppSubtotal,
@@ -225,6 +246,168 @@ export async function handleOrdersRoutes(req, res, pathname, urlObj, { pool, lar
       return true;
     } catch (err) {
       console.error('[Update SPK Error]:', err.message);
+      sendJson(res, 500, { status: 'error', message: err.message });
+      return true;
+    }
+  }
+
+  // 3b. Scan Kemasan - Lookup Pesanan Marketplace by Barcode (No Pesanan / No Resi / No SPK / ID)
+  if (pathname === '/api/marketplace/orders/scan-lookup' && req.method === 'POST') {
+    try {
+      const body = await parseJsonBody(req);
+      const queryStr = String(body.keyword || body.query || '').trim();
+      if (!queryStr) {
+        sendJson(res, 400, { status: 'error', message: 'Barcode / Nomor Pesanan tidak boleh kosong' });
+        return true;
+      }
+
+      // Query pesanan_marketplace exact match
+      let [rows] = await pool.query(`
+        SELECT 
+          id, kode_perusahaan as company_code, no_pesanan, saluran as channel,
+          nama_toko as shopName, nama_pembeli as customerName, total_harga as totalPrice,
+          status_pesanan as status, no_spk, rincian_item, kurir, no_resi,
+          COALESCE(status_cetak, 'Belum Print') as status_cetak,
+          COALESCE(status_verifikasi, 'Verified') as status_verifikasi,
+          COALESCE(status_kemas, 'belum_dikemas') as status_kemas,
+          DATE_FORMAT(waktu_kemas, '%d/%m/%Y %H:%i') as waktu_kemas,
+          COALESCE(dikemas_oleh, '') as dikemas_oleh,
+          COALESCE(catatan_kemas, '') as catatan_kemas,
+          COALESCE(alamat, '') as alamat,
+          COALESCE(no_telepon, '') as telepon,
+          COALESCE(metode_bayar, 'Cash on Delivery') as metode_bayar,
+          DATE_FORMAT(COALESCE(waktu_pesanan, ditarik_pada), '%d/%m/%Y %H:%i') as orderTime
+        FROM pesanan_marketplace
+        WHERE no_pesanan = ? OR no_resi = ? OR no_spk = ? OR id = ?
+        LIMIT 1
+      `, [queryStr, queryStr, queryStr, queryStr]);
+
+      if (!rows || rows.length === 0) {
+        // Fallback: search with wildcards
+        [rows] = await pool.query(`
+          SELECT 
+            id, kode_perusahaan as company_code, no_pesanan, saluran as channel,
+            nama_toko as shopName, nama_pembeli as customerName, total_harga as totalPrice,
+            status_pesanan as status, no_spk, rincian_item, kurir, no_resi,
+            COALESCE(status_cetak, 'Belum Print') as status_cetak,
+            COALESCE(status_verifikasi, 'Verified') as status_verifikasi,
+            COALESCE(status_kemas, 'belum_dikemas') as status_kemas,
+            DATE_FORMAT(waktu_kemas, '%d/%m/%Y %H:%i') as waktu_kemas,
+            COALESCE(dikemas_oleh, '') as dikemas_oleh,
+            COALESCE(catatan_kemas, '') as catatan_kemas,
+            COALESCE(alamat, '') as alamat,
+            COALESCE(no_telepon, '') as telepon,
+            COALESCE(metode_bayar, 'Cash on Delivery') as metode_bayar,
+            DATE_FORMAT(COALESCE(waktu_pesanan, ditarik_pada), '%d/%m/%Y %H:%i') as orderTime
+          FROM pesanan_marketplace
+          WHERE no_pesanan LIKE ? OR no_resi LIKE ? OR no_spk LIKE ?
+          ORDER BY id DESC
+          LIMIT 1
+        `, [`%${queryStr}%`, `%${queryStr}%`, `%${queryStr}%`]);
+      }
+
+      if (!rows || rows.length === 0) {
+        sendJson(res, 404, { 
+          status: 'not_found', 
+          message: `Pesanan dengan barcode/nomor "${queryStr}" tidak ditemukan di pesanan marketplace.` 
+        });
+        return true;
+      }
+
+      const order = rows[0];
+      let items = [];
+      try {
+        if (order.rincian_item) {
+          items = typeof order.rincian_item === 'string' ? JSON.parse(order.rincian_item) : order.rincian_item;
+        }
+      } catch (e) {
+        items = [];
+      }
+
+      const parsedItems = (Array.isArray(items) ? items : []).map(it => {
+        const finalSku = String(it.sku || it.kode_sku || it.item_sku || it.model_sku || it.seller_sku || it.sku_marketplace || it.varian || '').trim();
+        const qty = Number(it.qty || it.quantity || 1);
+        const qtyDikemas = Number(it.qty_dikemas !== undefined ? it.qty_dikemas : (order.status_kemas === 'sudah_dikemas' ? qty : 0));
+        return {
+          ...it,
+          sku: finalSku || it.sku || '-',
+          qty,
+          qty_dikemas: qtyDikemas
+        };
+      });
+
+      sendJson(res, 200, {
+        status: 'success',
+        data: {
+          ...order,
+          items: parsedItems
+        }
+      });
+      return true;
+    } catch (err) {
+      console.error('[Scan Lookup Error]:', err.message);
+      sendJson(res, 500, { status: 'error', message: err.message });
+      return true;
+    }
+  }
+
+  // 3c. Scan Kemasan - Simpan Verifikasi & Status Kemas
+  if (pathname === '/api/marketplace/orders/save-pack' && req.method === 'POST') {
+    try {
+      const body = await parseJsonBody(req);
+      const { id, no_pesanan, items, status_kemas, dikemas_oleh, catatan_kemas, kurir, no_resi, status_pesanan } = body;
+      
+      const targetId = id || no_pesanan;
+      if (!targetId) {
+        sendJson(res, 400, { status: 'error', message: 'ID atau No Pesanan wajib diisi' });
+        return true;
+      }
+
+      const itemsJson = JSON.stringify(Array.isArray(items) ? items : []);
+      const finalStatusKemas = status_kemas || 'sudah_dikemas';
+      const sets = [
+        'rincian_item = ?',
+        'status_kemas = ?',
+        'waktu_kemas = CURRENT_TIMESTAMP',
+        'dikemas_oleh = ?',
+        'catatan_kemas = ?'
+      ];
+      const params = [itemsJson, finalStatusKemas, dikemas_oleh || 'Staff Packing', catatan_kemas || ''];
+
+      if (kurir) {
+        sets.push('kurir = ?');
+        params.push(kurir);
+      }
+      if (no_resi) {
+        sets.push('no_resi = ?');
+        params.push(no_resi);
+      }
+      if (status_pesanan) {
+        sets.push('status_pesanan = ?');
+        params.push(status_pesanan);
+      } else if (finalStatusKemas === 'sudah_dikemas') {
+        // Otomatis ubah status pesanan menjadi 'Siap Kirim' jika sebelumnya 'Perlu Diproses'
+        sets.push("status_pesanan = CASE WHEN status_pesanan = 'Perlu Diproses' THEN 'Siap Kirim' ELSE status_pesanan END");
+      }
+
+      params.push(targetId, targetId);
+      await pool.query(
+        `UPDATE pesanan_marketplace SET ${sets.join(', ')} WHERE id = ? OR no_pesanan = ?`,
+        params
+      );
+
+      sendJson(res, 200, {
+        status: 'success',
+        message: 'Status kemasan & verifikasi packing berhasil disimpan!',
+        data: {
+          id: targetId,
+          status_kemas: finalStatusKemas,
+          dikemas_oleh: dikemas_oleh || 'Staff Packing'
+        }
+      });
+      return true;
+    } catch (err) {
+      console.error('[Save Pack Error]:', err.message);
       sendJson(res, 500, { status: 'error', message: err.message });
       return true;
     }

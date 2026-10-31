@@ -18,7 +18,12 @@ import {
   TrendingUp,
   ExternalLink,
   Filter,
-  Send
+  Send,
+  QrCode,
+  XCircle,
+  Save,
+  User,
+  Clock
 } from 'lucide-react';
 import { toastSuccess, toastError } from '../../utils/alert.util';
 import { getActiveCompany } from '../../utils/tenant.util';
@@ -56,6 +61,353 @@ export default function PesananMasukDesktopView({ onNavigate }) {
   const [selectedIds, setSelectedIds] = useState([]);
   const [detailOrder, setDetailOrder] = useState(null);
   const [isFullScreen, setIsFullScreen] = useState(false);
+
+  // ── Scan Kemasan & Verifikasi Packing Pesanan Online Marketplace ──
+  const [isScanModalOpen, setIsScanModalOpen] = useState(false);
+  const [scanOrderInput, setScanOrderInput] = useState('');
+  const [scanSkuInput, setScanSkuInput] = useState('');
+  const [activeScanOrder, setActiveScanOrder] = useState(null);
+  const [scanItems, setScanItems] = useState([]);
+  const [scanKurir, setScanKurir] = useState('');
+  const [scanResi, setScanResi] = useState('');
+  const [scanPic, setScanPic] = useState('Staff Packing');
+  const [scanCatatan, setScanCatatan] = useState('');
+  const [scanFeedback, setScanFeedback] = useState(null); // { type: 'success'|'warning'|'error', text: string }
+  const [isSavingPack, setIsSavingPack] = useState(false);
+  const [isLookingUpScan, setIsLookingUpScan] = useState(false);
+
+  const playScanBeep = (type = 'success') => {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      if (type === 'success') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(1046.5, ctx.currentTime); // C6 beep
+        gain.gain.setValueAtTime(0.15, ctx.currentTime);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.11);
+      } else {
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(220, ctx.currentTime); // Error buzz
+        gain.gain.setValueAtTime(0.2, ctx.currentTime);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.25);
+      }
+    } catch {
+      // ignore audio error
+    }
+  };
+
+  const applyActiveScanOrderData = (ord) => {
+    setActiveScanOrder(ord);
+    const itemsList = Array.isArray(ord.items) ? ord.items : [];
+    setScanItems(
+      itemsList.map((it, idx) => ({
+        ...it,
+        _idx: idx,
+        qty: Number(it.qty || it.quantity || 1),
+        qty_dikemas: Math.min(
+          Number(it.qty || it.quantity || 1),
+          Math.max(0, Number(it.qty_dikemas !== undefined ? it.qty_dikemas : (ord.status_kemas === 'sudah_dikemas' ? (it.qty || 1) : 0)))
+        ),
+      }))
+    );
+    setScanKurir(ord.kurir || '');
+    setScanResi(ord.no_resi || '');
+    setScanPic(ord.dikemas_oleh || 'Staff Packing');
+    setScanCatatan(ord.catatan_kemas || '');
+    setScanSkuInput('');
+  };
+
+  const handleOpenScanKemasan = async (orderOrId = null) => {
+    setIsScanModalOpen(true);
+    setScanFeedback(null);
+    setScanOrderInput('');
+    setScanSkuInput('');
+
+    const targetCandidate =
+      orderOrId ||
+      orders.find(
+        (o) =>
+          !['CANCELLED', 'BATAL', 'DIBATALKAN'].includes(String(o.status || '').toUpperCase()) &&
+          o.status_kemas !== 'sudah_dikemas'
+      ) ||
+      orders[0] ||
+      null;
+
+    if (targetCandidate) {
+      const orderSn = typeof targetCandidate === 'object' ? (targetCandidate.no_pesanan || targetCandidate.id) : targetCandidate;
+      try {
+        setIsLookingUpScan(true);
+        const res = await fetch('/api/marketplace/orders/scan-lookup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ keyword: orderSn })
+        });
+        const json = await res.json();
+        if (res.ok && json.data) {
+          applyActiveScanOrderData(json.data);
+          setScanFeedback({
+            type: 'success',
+            text: `Pesanan ${json.data.no_pesanan} (${json.data.nama_pembeli || json.data.customerName || '-'}) siap diverifikasi & dikemas.`
+          });
+        } else if (typeof targetCandidate === 'object') {
+          applyActiveScanOrderData(targetCandidate);
+        }
+      } catch (err) {
+        if (typeof targetCandidate === 'object') {
+          applyActiveScanOrderData(targetCandidate);
+        } else {
+          toastError(err.message);
+        }
+      } finally {
+        setIsLookingUpScan(false);
+      }
+    } else {
+      setActiveScanOrder(null);
+      setScanItems([]);
+    }
+  };
+
+  const handleScanOrderLookup = async (e, manualKeyword = null) => {
+    if (e && e.preventDefault) e.preventDefault();
+    const kw = (manualKeyword !== null ? manualKeyword : scanOrderInput).trim();
+    if (!kw) {
+      toastError('Scan atau ketik No. Pesanan / No. Resi terlebih dahulu.');
+      return;
+    }
+
+    setIsLookingUpScan(true);
+    try {
+      const res = await fetch('/api/marketplace/orders/scan-lookup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keyword: kw })
+      });
+      const json = await res.json();
+      if (!res.ok || json.status === 'error' || !json.data) {
+        playScanBeep('error');
+        setScanFeedback({
+          type: 'error',
+          text: json.message || `Barcode "${kw}" tidak ditemukan di database pesanan marketplace.`
+        });
+        return;
+      }
+
+      playScanBeep('success');
+      applyActiveScanOrderData(json.data);
+      setScanOrderInput('');
+      setScanFeedback({
+        type: 'success',
+        text: `Berhasil memuat pesanan ${json.data.no_pesanan} — ${json.data.nama_pembeli || json.data.customerName || '-'} (${(json.data.items || []).length} item produk). Silakan scan barcode SKU produk!`
+      });
+    } catch (err) {
+      playScanBeep('error');
+      toastError(err.message);
+    } finally {
+      setIsLookingUpScan(false);
+    }
+  };
+
+  const handleScanSkuSubmit = (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!activeScanOrder) {
+      playScanBeep('error');
+      setScanFeedback({
+        type: 'error',
+        text: 'Belum ada pesanan aktif. Scan nomor pesanan terlebih dahulu!'
+      });
+      return;
+    }
+
+    const code = scanSkuInput.trim();
+    if (!code) return;
+    const upper = code.toUpperCase();
+
+    // 1. Cari exact match SKU / Varian / Barcode / Nama Produk yang belum full
+    let matchIdx = scanItems.findIndex(
+      (it) =>
+        (String(it.sku || '').toUpperCase() === upper ||
+         String(it.kode_sku || '').toUpperCase() === upper ||
+         String(it.sku_marketplace || '').toUpperCase() === upper ||
+         String(it.nama_produk || '').toUpperCase() === upper) &&
+        Number(it.qty_dikemas || 0) < Number(it.qty || 0)
+    );
+
+    // 2. Jika tidak ada, coba partial match SKU
+    if (matchIdx === -1) {
+      matchIdx = scanItems.findIndex(
+        (it) =>
+          (String(it.sku || '').toUpperCase().includes(upper) ||
+           String(it.kode_sku || '').toUpperCase().includes(upper) ||
+           String(it.nama_produk || '').toUpperCase().includes(upper)) &&
+          Number(it.qty_dikemas || 0) < Number(it.qty || 0)
+      );
+    }
+
+    // 3. Cek over-scan
+    if (matchIdx === -1) {
+      const alreadyFullIdx = scanItems.findIndex(
+        (it) =>
+          String(it.sku || '').toUpperCase() === upper ||
+          String(it.sku || '').toUpperCase().includes(upper) ||
+          String(it.nama_produk || '').toUpperCase().includes(upper)
+      );
+      if (alreadyFullIdx !== -1) {
+        const fullItem = scanItems[alreadyFullIdx];
+        playScanBeep('error');
+        setScanFeedback({
+          type: 'warning',
+          text: `PERINGATAN OVER-SCAN: Produk "${fullItem.nama_produk}" (${fullItem.sku || '-'}) sudah lengkap ter-scan (${fullItem.qty_dikemas}/${fullItem.qty} pcs)!`
+        });
+        setScanSkuInput('');
+        return;
+      }
+
+      playScanBeep('error');
+      setScanFeedback({
+        type: 'error',
+        text: `SKU TIDAK COCOK! Barcode "${code}" tidak ada dalam daftar produk pesanan ${activeScanOrder.no_pesanan}.`
+      });
+      setScanSkuInput('');
+      return;
+    }
+
+    // Increment qty_dikemas + 1
+    playScanBeep('success');
+    const targetItem = scanItems[matchIdx];
+    const nextQty = Math.min(
+      Number(targetItem.qty || 0),
+      Number(targetItem.qty_dikemas || 0) + 1
+    );
+
+    setScanItems((prev) =>
+      prev.map((it, idx) =>
+        idx === matchIdx ? { ...it, qty_dikemas: nextQty } : it
+      )
+    );
+    setScanFeedback({
+      type: 'success',
+      text: `SCAN SKU OK: ${targetItem.sku || 'TANPA-SKU'} — ${targetItem.nama_produk} (${nextQty}/${targetItem.qty} pcs)`
+    });
+    setScanSkuInput('');
+  };
+
+  const handleAdjustScanItemQty = (idx, nextVal) => {
+    setScanItems((prev) =>
+      prev.map((it, i) => {
+        if (i !== idx) return it;
+        const clamped = Math.max(
+          0,
+          Math.min(Number(it.qty || 0), Number(nextVal || 0))
+        );
+        return { ...it, qty_dikemas: clamped };
+      })
+    );
+  };
+
+  const handleCheckAllScanItems = () => {
+    if (!scanItems.length) return;
+    playScanBeep('success');
+    setScanItems((prev) =>
+      prev.map((it) => ({ ...it, qty_dikemas: Number(it.qty || 0) }))
+    );
+    setScanFeedback({
+      type: 'success',
+      text: `Semua produk (${scanItems.length} item) ditandai lengkap terverifikasi & siap dikemas.`
+    });
+  };
+
+  const handleResetScanItems = () => {
+    setScanItems((prev) => prev.map((it) => ({ ...it, qty_dikemas: 0 })));
+    setScanFeedback({
+      type: 'warning',
+      text: 'Hitungan scan item di-reset ke 0.'
+    });
+  };
+
+  const handleSaveScanKemasan = async (targetStatusKemas = 'sudah_dikemas') => {
+    if (!activeScanOrder) return;
+
+    const totalOrdered = scanItems.reduce((sum, it) => sum + Number(it.qty || 0), 0);
+    const totalPacked = scanItems.reduce((sum, it) => sum + Number(it.qty_dikemas || 0), 0);
+
+    if (targetStatusKemas === 'sudah_dikemas' && totalPacked < totalOrdered) {
+      if (!window.confirm(`Baru ter-scan ${totalPacked} dari ${totalOrdered} pcs produk. Apakah Anda yakin tetap menyelesaikan kemasan ini?`)) {
+        return;
+      }
+    }
+
+    setIsSavingPack(true);
+    try {
+      const payload = {
+        id: activeScanOrder.id,
+        no_pesanan: activeScanOrder.no_pesanan,
+        items: scanItems,
+        status_kemas: targetStatusKemas === 'tetap' ? (totalPacked >= totalOrdered ? 'sudah_dikemas' : totalPacked > 0 ? 'sedang_dikemas' : 'belum_dikemas') : targetStatusKemas,
+        dikemas_oleh: scanPic || 'Staff Packing',
+        catatan_kemas: scanCatatan || '',
+        kurir: scanKurir || activeScanOrder.kurir,
+        no_resi: scanResi || activeScanOrder.no_resi
+      };
+
+      const res = await fetch('/api/marketplace/orders/save-pack', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const json = await res.json();
+      if (!res.ok || json.status === 'error') {
+        throw new Error(json.message || 'Gagal menyimpan status kemasan');
+      }
+
+      toastSuccess(json.message || 'Kemasan pesanan berhasil disimpan!');
+      playScanBeep('success');
+
+      // Update state orders lokal
+      setOrders((prev) =>
+        prev.map((o) =>
+          o.id === activeScanOrder.id || o.no_pesanan === activeScanOrder.no_pesanan
+            ? {
+                ...o,
+                status_kemas: payload.status_kemas,
+                dikemas_oleh: payload.dikemas_oleh,
+                catatan_kemas: payload.catatan_kemas,
+                items: scanItems,
+                status: payload.status_kemas === 'sudah_dikemas' && o.status === 'Perlu Diproses' ? 'Siap Kirim' : o.status
+              }
+            : o
+        )
+      );
+
+      // Jika sudah selesai dikemas, cari antrean pesanan berikutnya otomatis
+      if (targetStatusKemas === 'sudah_dikemas') {
+        const remainingQueue = orders.filter(
+          (o) =>
+            o.id !== activeScanOrder.id &&
+            !['CANCELLED', 'BATAL', 'DIBATALKAN'].includes(String(o.status || '').toUpperCase()) &&
+            o.status_kemas !== 'sudah_dikemas'
+        );
+        if (remainingQueue.length > 0) {
+          handleOpenScanKemasan(remainingQueue[0]);
+        } else {
+          setScanFeedback({
+            type: 'success',
+            text: `Pesanan ${activeScanOrder.no_pesanan} selesai dikemas! Semua pesanan dalam daftar telah selesai dipacking.`
+          });
+        }
+      }
+    } catch (err) {
+      toastError(err.message);
+    } finally {
+      setIsSavingPack(false);
+    }
+  };
 
   // Helper Cetak Resi / Label Pengiriman Langsung dari Marketplace Resmi (PDF Asli)
   const handlePrintResi = (ord) => {
@@ -522,6 +874,34 @@ export default function PesananMasukDesktopView({ onNavigate }) {
           >
             <Calendar size={13} />
             <span>Tarik Pesanan Historical</span>
+          </button>
+
+          {/* Tombol Scan Kemasan Online */}
+          <button
+            type="button"
+            id="btn-scan-kemasan-online"
+            onClick={() => handleOpenScanKemasan()}
+            style={{
+              padding: '7px 14px',
+              borderRadius: '7px',
+              border: '1px solid rgba(16, 185, 129, 0.5)',
+              backgroundColor: 'rgba(16, 185, 129, 0.18)',
+              color: '#34d399',
+              fontSize: '12px',
+              fontWeight: '800',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              cursor: 'pointer',
+              transition: 'all 0.15s',
+              boxShadow: '0 2px 8px rgba(16, 185, 129, 0.2)'
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(16, 185, 129, 0.32)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(16, 185, 129, 0.18)'; }}
+            title="Buka Layar Scan Barcode Kemasan & Verifikasi Packing Pesanan Marketplace"
+          >
+            <Package size={14} />
+            <span>Scan Kemasan</span>
           </button>
 
           {/* Shortcut: Penjualan Offline */}
@@ -1248,7 +1628,7 @@ export default function PesananMasukDesktopView({ onNavigate }) {
                               )}
 
                               {/* Print Badge */}
-                              <div>
+                              <div style={{ marginBottom: '2px' }}>
                                 <span style={{
                                   display: 'inline-flex',
                                   alignItems: 'center',
@@ -1262,6 +1642,24 @@ export default function PesananMasukDesktopView({ onNavigate }) {
                                   border: isPrinted ? '1px solid #bbf7d0' : '1px solid #dddddd'
                                 }}>
                                   <Printer size={10} /> {isPrinted ? 'Sudah Print' : 'Belum Print'}
+                                </span>
+                              </div>
+
+                              {/* Status Kemasan Badge */}
+                              <div>
+                                <span style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '3px',
+                                  padding: '1px 6px',
+                                  borderRadius: '4px',
+                                  fontSize: '9.5px',
+                                  fontWeight: '800',
+                                  backgroundColor: ord.status_kemas === 'sudah_dikemas' ? '#ecfdf5' : ord.status_kemas === 'sedang_dikemas' ? '#fef3c7' : '#f8fafc',
+                                  color: ord.status_kemas === 'sudah_dikemas' ? '#047857' : ord.status_kemas === 'sedang_dikemas' ? '#b45309' : '#64748b',
+                                  border: `1px solid ${ord.status_kemas === 'sudah_dikemas' ? '#a7f3d0' : ord.status_kemas === 'sedang_dikemas' ? '#fde68a' : '#cbd5e1'}`
+                                }}>
+                                  <Package size={9} /> {ord.status_kemas === 'sudah_dikemas' ? 'Terkemas ✓' : ord.status_kemas === 'sedang_dikemas' ? 'Sedang Dikemas' : 'Belum Dikemas'}
                                 </span>
                               </div>
                             </>
@@ -1278,6 +1676,30 @@ export default function PesananMasukDesktopView({ onNavigate }) {
 
                           return (
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                              {/* Tombol Scan Kemasan Satuan */}
+                              <button
+                                type="button"
+                                onClick={() => handleOpenScanKemasan(ord)}
+                                title="Buka Layar Scan Barcode Kemasan untuk Pesanan ini"
+                                style={{
+                                  height: '24px',
+                                  padding: '0 8px',
+                                  borderRadius: '4px',
+                                  border: `1px solid ${ord.status_kemas === 'sudah_dikemas' ? '#10b981' : '#059669'}`,
+                                  backgroundColor: ord.status_kemas === 'sudah_dikemas' ? '#f0fdf4' : '#ecfdf5',
+                                  color: '#047857',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  cursor: 'pointer',
+                                  fontSize: '10.5px',
+                                  fontWeight: '800'
+                                }}
+                              >
+                                <Package size={11} color="#059669" />
+                                <span>{ord.status_kemas === 'sudah_dikemas' ? 'Cek Kemasan' : 'Scan Kemas'}</span>
+                              </button>
+
                               {/* Tombol Cetak Resi (Hanya muncul jika Siap Dikirim) */}
                               {isSiapKirim && (
                                 <button
@@ -2270,6 +2692,830 @@ export default function PesananMasukDesktopView({ onNavigate }) {
           </div>
         </div>
       )}
+
+      {/* ── MODAL FULLSCREEN: SCAN KEMASAN & VERIFIKASI PACKING PESANAN MARKETPLACE ── */}
+      {isScanModalOpen && (() => {
+        const totalOrderedPcs = scanItems.reduce((sum, it) => sum + Number(it.qty || it.quantity || 1), 0);
+        const totalScannedPcs = scanItems.reduce((sum, it) => sum + Number(it.qty_dikemas || 0), 0);
+        const isAllComplete = scanItems.length > 0 && totalOrderedPcs > 0 && totalScannedPcs >= totalOrderedPcs;
+        const progressPct = totalOrderedPcs > 0 ? Math.min(100, Math.round((totalScannedPcs / totalOrderedPcs) * 100)) : 0;
+
+        // Antrean pesanan marketplace yang siap dikemas
+        const packingQueue = orders.filter(
+          (o) => !['CANCELLED', 'BATAL', 'DIBATALKAN'].includes(String(o.status || '').toUpperCase())
+        );
+
+        return (
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              backgroundColor: '#f1f5f9',
+              zIndex: 10002,
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden'
+            }}
+          >
+            {/* TOP HEADER BAR */}
+            <div
+              style={{
+                background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 55%, #047857 100%)',
+                padding: '8px 18px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                color: '#ffffff',
+                flexShrink: 0,
+                boxShadow: '0 2px 6px rgba(15, 23, 42, 0.25)'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div
+                  style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '7px',
+                    backgroundColor: 'rgba(16, 185, 129, 0.25)',
+                    border: '1px solid rgba(16, 185, 129, 0.5)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#34d399'
+                  }}
+                >
+                  <Package size={17} />
+                </div>
+                <div>
+                  <div style={{ fontSize: '14px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span>Scan Kemasan & Verifikasi Outbound Pesanan Online</span>
+                    <span
+                      style={{
+                        fontSize: '10px',
+                        backgroundColor: '#10b981',
+                        color: '#ffffff',
+                        padding: '1px 7px',
+                        borderRadius: '999px',
+                        fontWeight: '800'
+                      }}
+                    >
+                      MARKETPLACE PACKING CHECKER
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '11px', opacity: 0.85 }}>
+                    Scan Barcode Resi / No. Pesanan ➔ Scan SKU Produk ➔ Verifikasi Qty ➔ Cetak Resi Resmi
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsScanModalOpen(false)}
+                  style={{
+                    width: '28px',
+                    height: '28px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    backgroundColor: 'rgba(255,255,255,0.18)',
+                    color: '#fff',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                  title="Tutup Layar Scan Kemasan"
+                >
+                  <X size={15} />
+                </button>
+              </div>
+            </div>
+
+            {/* MAIN WORKSPACE BODY */}
+            <div
+              style={{
+                padding: '12px 18px',
+                overflowY: 'auto',
+                flex: 1
+              }}
+            >
+              {/* BANNER FEEDBACK HASIL SCAN */}
+              {scanFeedback && (
+                <div
+                  style={{
+                    marginBottom: '10px',
+                    padding: '8px 14px',
+                    borderRadius: '7px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    backgroundColor:
+                      scanFeedback.type === 'success'
+                        ? '#dcfce7'
+                        : scanFeedback.type === 'warning'
+                          ? '#fef3c7'
+                          : '#fee2e2',
+                    border: `1.5px solid ${
+                      scanFeedback.type === 'success'
+                        ? '#22c55e'
+                        : scanFeedback.type === 'warning'
+                          ? '#f59e0b'
+                          : '#ef4444'
+                    }`,
+                    color:
+                      scanFeedback.type === 'success'
+                        ? '#14532d'
+                        : scanFeedback.type === 'warning'
+                          ? '#78350f'
+                          : '#7f1d1d',
+                    fontSize: '12px',
+                    fontWeight: '800'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    {scanFeedback.type === 'success' ? (
+                      <CheckCircle2 size={16} color="#16a34a" />
+                    ) : (
+                      <XCircle
+                        size={16}
+                        color={scanFeedback.type === 'warning' ? '#d97706' : '#dc2626'}
+                      />
+                    )}
+                    <span>{scanFeedback.text}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setScanFeedback(null)}
+                    style={{
+                      border: 'none',
+                      background: 'transparent',
+                      cursor: 'pointer',
+                      color: 'inherit',
+                      fontWeight: '800'
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+              )}
+
+              {/* BAR INPUT BARCODE NOMOR PESANAN / NO RESI / NO SPK */}
+              <div
+                style={{
+                  backgroundColor: '#ffffff',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '8px',
+                  padding: '10px 14px',
+                  marginBottom: '10px',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  flexWrap: 'wrap'
+                }}
+              >
+                <form
+                  onSubmit={handleScanOrderLookup}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    flex: 1,
+                    minWidth: '320px'
+                  }}
+                >
+                  <div style={{ fontSize: '11px', fontWeight: '800', color: '#0369a1', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <QrCode size={14} color="#0284c7" />
+                    <span>SCAN PESANAN / RESI:</span>
+                  </div>
+                  <input
+                    type="text"
+                    value={scanOrderInput}
+                    onChange={(e) => setScanOrderInput(e.target.value)}
+                    placeholder="Scan No. Pesanan / Resi Marketplace / SPK lalu tekan Enter..."
+                    style={{
+                      flex: 1,
+                      padding: '6px 10px',
+                      borderRadius: '5px',
+                      border: '2px solid #0284c7',
+                      fontSize: '12px',
+                      fontWeight: '700',
+                      color: '#0f172a',
+                      outline: 'none'
+                    }}
+                  />
+                  <button
+                    type="submit"
+                    disabled={isLookingUpScan}
+                    style={{
+                      padding: '6px 14px',
+                      borderRadius: '5px',
+                      border: 'none',
+                      backgroundColor: '#0284c7',
+                      color: '#ffffff',
+                      fontSize: '11.5px',
+                      fontWeight: '800',
+                      cursor: isLookingUpScan ? 'not-allowed' : 'pointer'
+                    }}
+                  >
+                    {isLookingUpScan ? 'Mencari...' : 'Cari / Scan'}
+                  </button>
+                </form>
+
+                {/* Dropdown Cepat Pilih dari Daftar Antrean Pesanan */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748b' }}>Pilih Antrean:</span>
+                  <select
+                    value={activeScanOrder?.no_pesanan || ''}
+                    onChange={(e) => {
+                      const target = packingQueue.find((o) => (o.no_pesanan || o.id) === e.target.value);
+                      if (target) handleOpenScanKemasan(target);
+                    }}
+                    style={{
+                      padding: '5px 8px',
+                      borderRadius: '5px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '11.5px',
+                      fontWeight: '700',
+                      color: '#0f172a',
+                      backgroundColor: '#ffffff',
+                      maxWidth: '280px'
+                    }}
+                  >
+                    <option value="">-- Pilih Pesanan ({packingQueue.length} Order) --</option>
+                    {packingQueue.map((o) => (
+                      <option key={o.id} value={o.no_pesanan || o.id}>
+                        {o.no_pesanan} — {o.nama_pembeli || o.customerName || '-'} ({o.saluran || o.channel}) {o.status_kemas === 'sudah_dikemas' ? '✓' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* CARD UTAMA VERIFIKASI ITEM PRODUK */}
+              <div
+                style={{
+                  backgroundColor: '#ffffff',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '8px',
+                  padding: '14px 16px',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
+                }}
+              >
+                {!activeScanOrder ? (
+                  <div style={{ padding: '60px 20px', textAlign: 'center', color: '#64748b' }}>
+                    <Package size={44} color="#94a3b8" style={{ margin: '0 auto 10px' }} />
+                    <div style={{ fontSize: '14px', fontWeight: '800', color: '#334155' }}>
+                      Belum Ada Pesanan yang Dipilih
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>
+                      Scan barcode nomor pesanan / nomor resi di atas atau pilih dari daftar antrean.
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {/* Header Detail Pesanan Aktif + Progress Bar */}
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        flexWrap: 'wrap',
+                        gap: '10px',
+                        paddingBottom: '10px',
+                        borderBottom: '1px solid #e2e8f0',
+                        marginBottom: '12px'
+                      }}
+                    >
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span
+                            style={{
+                              fontSize: '16px',
+                              fontWeight: '900',
+                              color: '#0f172a',
+                              fontFamily: 'monospace'
+                            }}
+                          >
+                            {activeScanOrder.no_pesanan}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: '10px',
+                              fontWeight: '800',
+                              padding: '2px 8px',
+                              borderRadius: '4px',
+                              backgroundColor: String(activeScanOrder.saluran || activeScanOrder.channel).toLowerCase() === 'shopee' ? '#fee2e2' : '#f1f5f9',
+                              color: String(activeScanOrder.saluran || activeScanOrder.channel).toLowerCase() === 'shopee' ? '#dc2626' : '#0f172a',
+                              border: '1px solid #cbd5e1',
+                              textTransform: 'uppercase'
+                            }}
+                          >
+                            {activeScanOrder.saluran || activeScanOrder.channel || 'Marketplace'}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: '10px',
+                              fontWeight: '800',
+                              padding: '2px 8px',
+                              borderRadius: '4px',
+                              backgroundColor: '#e0f2fe',
+                              color: '#0369a1',
+                              border: '1px solid #bae6fd'
+                            }}
+                          >
+                            {activeScanOrder.shopName || activeScanOrder.nama_toko || '-'}
+                          </span>
+                          {activeScanOrder.no_spk && (
+                            <span
+                              style={{
+                                fontSize: '10px',
+                                fontWeight: '800',
+                                backgroundColor: '#ede9fe',
+                                color: '#6d28d9',
+                                padding: '2px 8px',
+                                borderRadius: '4px'
+                              }}
+                            >
+                              SPK: {activeScanOrder.no_spk}
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#334155', marginTop: '4px' }}>
+                          Pembeli: <b>{activeScanOrder.nama_pembeli || activeScanOrder.customerName || '-'}</b> (
+                          {activeScanOrder.telepon || '-'}) • Kurir: <b>{activeScanOrder.kurir || '-'}</b> (Resi: <code style={{ color: '#0284c7', fontWeight: '800' }}>{activeScanOrder.no_resi || 'Belum Ada'}</code>)
+                        </div>
+                      </div>
+
+                      {/* Indikator Progress Kemasan */}
+                      <div
+                        style={{
+                          minWidth: '240px',
+                          backgroundColor: isAllComplete ? '#f0fdf4' : '#f8fafc',
+                          border: `1.5px solid ${isAllComplete ? '#22c55e' : '#cbd5e1'}`,
+                          borderRadius: '8px',
+                          padding: '7px 12px'
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            fontSize: '11px',
+                            fontWeight: '800',
+                            color: isAllComplete ? '#15803d' : '#334155',
+                            marginBottom: '4px'
+                          }}
+                        >
+                          <span>PROGRES VERIFIKASI ITEM</span>
+                          <span>
+                            {totalScannedPcs} / {totalOrderedPcs} Pcs ({progressPct}%)
+                          </span>
+                        </div>
+                        <div
+                          style={{
+                            height: '7px',
+                            borderRadius: '999px',
+                            backgroundColor: '#e2e8f0',
+                            overflow: 'hidden'
+                          }}
+                        >
+                          <div
+                            style={{
+                              width: `${progressPct}%`,
+                              height: '100%',
+                              backgroundColor: isAllComplete ? '#16a34a' : '#0284c7',
+                              transition: 'width 0.2s ease'
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Bar Scan Barcode SKU Produk + Tombol Cepat */}
+                    <div
+                      style={{
+                        backgroundColor: '#f8fafc',
+                        border: '1.5px solid #93c5fd',
+                        borderRadius: '8px',
+                        padding: '10px 12px',
+                        marginBottom: '12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '10px',
+                        flexWrap: 'wrap'
+                      }}
+                    >
+                      <form
+                        onSubmit={handleScanSkuSubmit}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          flex: 1,
+                          minWidth: '280px'
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: '11px',
+                            fontWeight: '800',
+                            color: '#1e3a8a',
+                            whiteSpace: 'nowrap',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '5px'
+                          }}
+                        >
+                          <QrCode size={14} color="#2563eb" />
+                          <span>SCAN SKU PRODUK:</span>
+                        </div>
+                        <input
+                          type="text"
+                          autoFocus
+                          value={scanSkuInput}
+                          onChange={(e) => setScanSkuInput(e.target.value)}
+                          placeholder="Scan barcode SKU / ketik kode SKU lalu tekan Enter..."
+                          style={{
+                            flex: 1,
+                            padding: '6px 10px',
+                            borderRadius: '6px',
+                            border: '2px solid #2563eb',
+                            backgroundColor: '#ffffff',
+                            fontSize: '12px',
+                            fontWeight: '700',
+                            color: '#0f172a',
+                            outline: 'none'
+                          }}
+                        />
+                        <button
+                          type="submit"
+                          style={{
+                            padding: '6px 12px',
+                            borderRadius: '6px',
+                            border: 'none',
+                            backgroundColor: '#2563eb',
+                            color: '#ffffff',
+                            fontSize: '11.5px',
+                            fontWeight: '800',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          + Scan SKU
+                        </button>
+                      </form>
+
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        <button
+                          type="button"
+                          onClick={handleCheckAllScanItems}
+                          style={{
+                            padding: '6px 11px',
+                            borderRadius: '6px',
+                            border: '1px solid #16a34a',
+                            backgroundColor: '#dcfce7',
+                            color: '#15803d',
+                            fontSize: '11px',
+                            fontWeight: '800',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          ✓ Check Semua Lengkap
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleResetScanItems}
+                          style={{
+                            padding: '6px 10px',
+                            borderRadius: '6px',
+                            border: '1px solid #cbd5e1',
+                            backgroundColor: '#ffffff',
+                            color: '#475569',
+                            fontSize: '11px',
+                            fontWeight: '700',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Reset (0)
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Tabel Checker Item Produk */}
+                    <div
+                      style={{
+                        border: '1px solid #cbd5e1',
+                        borderRadius: '7px',
+                        overflow: 'hidden',
+                        marginBottom: '12px'
+                      }}
+                    >
+                      <table
+                        style={{
+                          width: '100%',
+                          borderCollapse: 'collapse',
+                          fontSize: '11.5px'
+                        }}
+                      >
+                        <thead>
+                          <tr
+                            style={{
+                              backgroundColor: '#f8fafc',
+                              borderBottom: '1px solid #cbd5e1',
+                              color: '#475569',
+                              fontSize: '10.5px',
+                              fontWeight: '800',
+                              textTransform: 'uppercase'
+                            }}
+                          >
+                            <th style={{ padding: '7px 8px', width: '34px', textAlign: 'center' }}>No</th>
+                            <th style={{ padding: '7px 10px', textAlign: 'left' }}>SKU & Nama Produk</th>
+                            <th style={{ padding: '7px 8px', width: '90px', textAlign: 'center' }}>Qty Pesan</th>
+                            <th style={{ padding: '7px 8px', width: '155px', textAlign: 'center' }}>Qty Ter-Scan (Kemas)</th>
+                            <th style={{ padding: '7px 10px', width: '130px', textAlign: 'center' }}>Status Cek</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {scanItems.map((it, idx) => {
+                            const ordered = Number(it.qty || it.quantity || 1);
+                            const scanned = Number(it.qty_dikemas || 0);
+                            const isDone = scanned >= ordered && ordered > 0;
+                            return (
+                              <tr
+                                key={it.id || idx}
+                                style={{
+                                  borderBottom: idx < scanItems.length - 1 ? '1px solid #e2e8f0' : 'none',
+                                  backgroundColor: isDone ? '#f0fdf4' : scanned > 0 ? '#fffbeb' : '#ffffff'
+                                }}
+                              >
+                                <td style={{ padding: '8px', textAlign: 'center', fontWeight: '700', color: '#64748b' }}>
+                                  {idx + 1}
+                                </td>
+                                <td style={{ padding: '8px 10px' }}>
+                                  <div style={{ fontWeight: '700', color: '#1e293b' }}>
+                                    {it.nama_produk || it.name || it.item_name || 'Produk Marketplace'}
+                                  </div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px' }}>
+                                    <span
+                                      style={{
+                                        fontSize: '10.5px',
+                                        color: '#0284c7',
+                                        fontFamily: 'monospace',
+                                        fontWeight: '800',
+                                        backgroundColor: '#e0f2fe',
+                                        padding: '1px 6px',
+                                        borderRadius: '4px'
+                                      }}
+                                    >
+                                      SKU: {it.sku || it.kode_sku || it.sku_marketplace || it.seller_sku || '-'}
+                                    </span>
+                                    {it.varian && (
+                                      <span style={{ fontSize: '10px', color: '#64748b' }}>
+                                        Varian: {it.varian}
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+                                <td style={{ padding: '8px', textAlign: 'center', fontWeight: '800', fontSize: '13px', color: '#0f172a' }}>
+                                  {ordered}
+                                </td>
+                                <td style={{ padding: '8px', textAlign: 'center' }}>
+                                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleAdjustScanItemQty(idx, scanned - 1)}
+                                      style={{
+                                        width: '24px',
+                                        height: '24px',
+                                        borderRadius: '4px',
+                                        border: '1px solid #cbd5e1',
+                                        backgroundColor: '#fff',
+                                        fontWeight: '800',
+                                        cursor: 'pointer'
+                                      }}
+                                    >
+                                      -
+                                    </button>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      max={ordered}
+                                      value={scanned}
+                                      onChange={(e) => handleAdjustScanItemQty(idx, e.target.value)}
+                                      style={{
+                                        width: '52px',
+                                        padding: '3px 4px',
+                                        textAlign: 'center',
+                                        borderRadius: '5px',
+                                        border: `1.5px solid ${isDone ? '#16a34a' : '#cbd5e1'}`,
+                                        fontWeight: '800',
+                                        fontSize: '12px'
+                                      }}
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => handleAdjustScanItemQty(idx, scanned + 1)}
+                                      style={{
+                                        width: '24px',
+                                        height: '24px',
+                                        borderRadius: '4px',
+                                        border: '1px solid #0284c7',
+                                        backgroundColor: '#e0f2fe',
+                                        color: '#0369a1',
+                                        fontWeight: '800',
+                                        cursor: 'pointer'
+                                      }}
+                                    >
+                                      +
+                                    </button>
+                                  </div>
+                                </td>
+                                <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                                  {isDone ? (
+                                    <span
+                                      style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        padding: '3px 8px',
+                                        borderRadius: '999px',
+                                        backgroundColor: '#dcfce7',
+                                        color: '#15803d',
+                                        fontSize: '10.5px',
+                                        fontWeight: '800'
+                                      }}
+                                    >
+                                      ✓ Lengkap ({scanned}/{ordered})
+                                    </span>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleAdjustScanItemQty(idx, ordered)}
+                                      style={{
+                                        padding: '3px 8px',
+                                        borderRadius: '999px',
+                                        border: '1px solid #f59e0b',
+                                        backgroundColor: '#fef3c7',
+                                        color: '#b45309',
+                                        fontSize: '10px',
+                                        fontWeight: '800',
+                                        cursor: 'pointer'
+                                      }}
+                                      title="Klik untuk langsung menandai item ini lengkap"
+                                    >
+                                      Kurang {ordered - scanned} Pcs (Klik Penuh)
+                                    </button>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Form Staff Packing & Catatan */}
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '1fr 2fr',
+                        gap: '10px',
+                        marginBottom: '12px',
+                        padding: '10px 12px',
+                        backgroundColor: '#f8fafc',
+                        borderRadius: '7px',
+                        border: '1px solid #cbd5e1'
+                      }}
+                    >
+                      <div>
+                        <label style={{ display: 'block', fontSize: '10.5px', fontWeight: '700', color: '#475569', marginBottom: '3px' }}>
+                          Petugas / Staff Packing:
+                        </label>
+                        <input
+                          type="text"
+                          value={scanPic}
+                          onChange={(e) => setScanPic(e.target.value)}
+                          placeholder="Nama operator packing..."
+                          style={{
+                            width: '100%',
+                            padding: '5px 8px',
+                            borderRadius: '5px',
+                            border: '1px solid #cbd5e1',
+                            fontSize: '11.5px',
+                            fontWeight: '600',
+                            backgroundColor: '#ffffff',
+                            boxSizing: 'border-box'
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '10.5px', fontWeight: '700', color: '#475569', marginBottom: '3px' }}>
+                          Catatan Kemas / Kendala (Opsional):
+                        </label>
+                        <input
+                          type="text"
+                          value={scanCatatan}
+                          onChange={(e) => setScanCatatan(e.target.value)}
+                          placeholder="Misal: Dus kardus double layer, lakban fragile ekstra..."
+                          style={{
+                            width: '100%',
+                            padding: '5px 8px',
+                            borderRadius: '5px',
+                            border: '1px solid #cbd5e1',
+                            fontSize: '11.5px',
+                            backgroundColor: '#ffffff',
+                            boxSizing: 'border-box'
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Tombol Aksi Selesaikan Kemasan */}
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        flexWrap: 'wrap',
+                        gap: '8px',
+                        paddingTop: '10px',
+                        borderTop: '1px solid #e2e8f0'
+                      }}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => handlePrintResi(activeScanOrder)}
+                        style={{
+                          padding: '7px 14px',
+                          borderRadius: '6px',
+                          border: '1px solid #0f172a',
+                          backgroundColor: '#ffffff',
+                          color: '#0f172a',
+                          fontSize: '11.5px',
+                          fontWeight: '800',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px'
+                        }}
+                      >
+                        <Printer size={13} />
+                        <span>Cetak Resi Marketplace (PDF Asli)</span>
+                      </button>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        <button
+                          type="button"
+                          disabled={isSavingPack}
+                          onClick={() => handleSaveScanKemasan('tetap')}
+                          style={{
+                            padding: '7px 13px',
+                            borderRadius: '6px',
+                            border: '1px solid #cbd5e1',
+                            backgroundColor: '#f8fafc',
+                            color: '#334155',
+                            fontSize: '11.5px',
+                            fontWeight: '700',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Simpan Progres Cek
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={isSavingPack}
+                          onClick={() => handleSaveScanKemasan('sudah_dikemas')}
+                          style={{
+                            padding: '7px 18px',
+                            borderRadius: '6px',
+                            border: 'none',
+                            backgroundColor: isAllComplete ? '#16a34a' : '#059669',
+                            color: '#ffffff',
+                            fontSize: '12px',
+                            fontWeight: '800',
+                            cursor: isSavingPack ? 'not-allowed' : 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            boxShadow: '0 2px 5px rgba(22, 163, 74, 0.35)'
+                          }}
+                        >
+                          <CheckCircle2 size={14} />
+                          <span>
+                            {isSavingPack ? 'Menyimpan...' : 'Selesai Kemas & Siap Kirim ✓'}
+                          </span>
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
     </div>
 
