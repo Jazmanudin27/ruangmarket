@@ -32,7 +32,11 @@ import {
   ChevronRight,
   ArrowLeft,
   CheckCircle,
-  ExternalLink
+  ExternalLink,
+  QrCode,
+  Volume2,
+  VolumeX,
+  RefreshCw
 } from 'lucide-react';
 import { showConfirm, toastSuccess, toastError } from '../../utils/alert.util';
 import { getActiveCompany } from '../../utils/tenant.util';
@@ -361,6 +365,8 @@ function SearchableSelect({
 }
 
 export default function PenitipanBarangDesktopView() {
+
+export default function PenitipanBarangDesktopView() {
   const [activeCompany] = useState(getActiveCompany);
 
   // Master Data States
@@ -416,6 +422,18 @@ export default function PenitipanBarangDesktopView() {
 
   const [isBayarModalOpen, setIsBayarModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  // ── SCAN STOCK OPNAME TITIPAN BARANG ──
+  const [isOpnameModalOpen, setIsOpnameModalOpen] = useState(false);
+  const [opnameScannerInput, setOpnameScannerInput] = useState('');
+  const [opnameMitraFilter, setOpnameMitraFilter] = useState('Semua');
+  const [opnamePetugas, setOpnamePetugas] = useState('Staff Gudang Konsinyasi');
+  const [opnameCatatan, setOpnameCatatan] = useState('Penyesuaian Stok Hasil Scan Opname Fisik');
+  const [opnameItems, setOpnameItems] = useState([]);
+  const [isOpnameBeepOn, setIsOpnameBeepOn] = useState(true);
+  const [opnameFeedback, setOpnameFeedback] = useState(null);
+  const [isSavingOpname, setIsSavingOpname] = useState(false);
+  const opnameInputRef = useRef(null);
 
   // Form State: Mitra Penitip
   const initialMitraForm = {
@@ -911,6 +929,261 @@ export default function PenitipanBarangDesktopView() {
   };
 
   // =========================================================================
+  // ACTIONS: SCAN STOCK OPNAME TITIPAN BARANG
+  // =========================================================================
+  const playOpnameBeep = (type = 'success') => {
+    if (!isOpnameBeepOn) return;
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      if (type === 'success') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(1046.5, ctx.currentTime); // C6 beep
+        gain.gain.setValueAtTime(0.18, ctx.currentTime);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.12);
+      } else if (type === 'warning') {
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
+        gain.gain.setValueAtTime(0.2, ctx.currentTime);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.15);
+      } else {
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(220, ctx.currentTime); // Error buzz
+        gain.gain.setValueAtTime(0.22, ctx.currentTime);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.25);
+      }
+    } catch (e) {
+      // Audio error ignored
+    }
+  };
+
+  const handleOpenScanOpname = (mitra = null) => {
+    const filterTarget = mitra ? mitra.nama_mitra : 'Semua';
+    setOpnameMitraFilter(filterTarget);
+    setOpnameScannerInput('');
+    setOpnameFeedback(null);
+
+    // Ambil list titipan sesuai mitra
+    const available = penitipanList.filter(p => {
+      if (filterTarget !== 'Semua' && p.nama_penitip !== filterTarget) return false;
+      return true;
+    });
+
+    // Inisialisasi daftar opname item:
+    // Stok sistem = sisa_stok saat ini
+    // Stok fisik default = 0 (karena belum discan)
+    const initialItems = available.map(p => {
+      const sisa = Number(p.sisa_stok !== undefined ? p.sisa_stok : (Number(p.qty_titip) - Number(p.qty_terjual) - Number(p.qty_retur)));
+      return {
+        id: p.id,
+        no_titipan: p.no_titipan,
+        kode_sku: p.kode_sku,
+        nama_produk: p.nama_produk,
+        nama_penitip: p.nama_penitip,
+        varian: p.varian || '',
+        satuan: p.satuan || 'PCS',
+        harga_titip: Number(p.harga_titip || 0),
+        stok_sistem: sisa,
+        stok_fisik: 0,
+        selisih: 0 - sisa,
+        selisih_rp: (0 - sisa) * Number(p.harga_titip || 0),
+        keterangan: 'Belum di-scan fisik'
+      };
+    });
+
+    setOpnameItems(initialItems);
+    setIsOpnameModalOpen(true);
+    setTimeout(() => {
+      if (opnameInputRef.current) opnameInputRef.current.focus();
+    }, 150);
+  };
+
+  const handleScanBarcode = (barcodeVal) => {
+    const code = (barcodeVal || opnameScannerInput || '').trim();
+    if (!code) return;
+
+    const lower = code.toLowerCase();
+
+    // 1. Cari apakah sudah ada di opnameItems
+    const matchIdx = opnameItems.findIndex(it => 
+      it.kode_sku?.toLowerCase() === lower ||
+      it.no_titipan?.toLowerCase() === lower ||
+      it.nama_produk?.toLowerCase() === lower
+    );
+
+    if (matchIdx !== -1) {
+      // Ditemukan di opname items: tambah stok fisik + 1
+      playOpnameBeep('success');
+      setOpnameItems(prev => prev.map((it, idx) => {
+        if (idx !== matchIdx) return it;
+        const nextFisik = Number(it.stok_fisik || 0) + 1;
+        const nextSelisih = nextFisik - Number(it.stok_sistem);
+        const nextSelisihRp = nextSelisih * Number(it.harga_titip || 0);
+        return {
+          ...it,
+          stok_fisik: nextFisik,
+          selisih: nextSelisih,
+          selisih_rp: nextSelisihRp,
+          keterangan: nextSelisih === 0 ? 'Sesuai (Cocok)' : (nextSelisih < 0 ? `Kurang ${Math.abs(nextSelisih)} pcs` : `Lebih +${nextSelisih} pcs`)
+        };
+      }));
+
+      const target = opnameItems[matchIdx];
+      const nextCount = Number(target.stok_fisik || 0) + 1;
+      const diff = nextCount - Number(target.stok_sistem);
+      setOpnameFeedback({
+        type: 'success',
+        text: `✓ SCAN OK: [${target.kode_sku}] ${target.nama_produk} (+1 pcs) ➔ Fisik: ${nextCount} | Sistem: ${target.stok_sistem} | Selisih: ${diff > 0 ? '+' + diff : diff}`
+      });
+      setOpnameScannerInput('');
+      return;
+    }
+
+    // 2. Jika belum ada di list opname (misal list difilter), cari di master penitipanList
+    const foundInPool = penitipanList.find(p => 
+      p.kode_sku?.toLowerCase() === lower ||
+      p.no_titipan?.toLowerCase() === lower ||
+      p.nama_produk?.toLowerCase() === lower
+    );
+
+    if (foundInPool) {
+      playOpnameBeep('success');
+      const sisa = Number(foundInPool.sisa_stok !== undefined ? foundInPool.sisa_stok : (Number(foundInPool.qty_titip) - Number(foundInPool.qty_terjual) - Number(foundInPool.qty_retur)));
+      const nextFisik = 1;
+      const nextSelisih = nextFisik - sisa;
+      const nextSelisihRp = nextSelisih * Number(foundInPool.harga_titip || 0);
+
+      const newItem = {
+        id: foundInPool.id,
+        no_titipan: foundInPool.no_titipan,
+        kode_sku: foundInPool.kode_sku,
+        nama_produk: foundInPool.nama_produk,
+        nama_penitip: foundInPool.nama_penitip,
+        varian: foundInPool.varian || '',
+        satuan: foundInPool.satuan || 'PCS',
+        harga_titip: Number(foundInPool.harga_titip || 0),
+        stok_sistem: sisa,
+        stok_fisik: nextFisik,
+        selisih: nextSelisih,
+        selisih_rp: nextSelisihRp,
+        keterangan: nextSelisih === 0 ? 'Sesuai (Cocok)' : (nextSelisih < 0 ? `Kurang ${Math.abs(nextSelisih)} pcs` : `Lebih +${nextSelisih} pcs`)
+      };
+
+      setOpnameItems(prev => [newItem, ...prev]);
+      setOpnameFeedback({
+        type: 'success',
+        text: `✓ SCAN BARU OK: [${newItem.kode_sku}] ${newItem.nama_produk} ➔ Fisik: 1 | Sistem: ${sisa} | Selisih: ${nextSelisih > 0 ? '+' + nextSelisih : nextSelisih}`
+      });
+      setOpnameScannerInput('');
+      return;
+    }
+
+    // 3. Tidak ditemukan
+    playOpnameBeep('error');
+    setOpnameFeedback({
+      type: 'error',
+      text: `✗ KODE TIDAK DITEMUKAN: Barcode/SKU "${code}" tidak terdaftar dalam penitipan barang!`
+    });
+    setOpnameScannerInput('');
+  };
+
+  const handleUpdateItemFisik = (itemId, val) => {
+    const nextFisik = Math.max(0, parseInt(val, 10) || 0);
+    setOpnameItems(prev => prev.map(it => {
+      if (it.id !== itemId) return it;
+      const selisih = nextFisik - Number(it.stok_sistem);
+      const selisihRp = selisih * Number(it.harga_titip || 0);
+      return {
+        ...it,
+        stok_fisik: nextFisik,
+        selisih,
+        selisih_rp: selisihRp,
+        keterangan: selisih === 0 ? 'Sesuai (Cocok)' : (selisih < 0 ? `Kurang ${Math.abs(selisih)} pcs` : `Lebih +${selisih} pcs`)
+      };
+    }));
+  };
+
+  const handleResetFisikAll = (mode = 'zero') => {
+    setOpnameItems(prev => prev.map(it => {
+      const nextFisik = mode === 'match' ? Number(it.stok_sistem) : 0;
+      const selisih = nextFisik - Number(it.stok_sistem);
+      const selisihRp = selisih * Number(it.harga_titip || 0);
+      return {
+        ...it,
+        stok_fisik: nextFisik,
+        selisih,
+        selisih_rp: selisihRp,
+        keterangan: selisih === 0 ? 'Sesuai (Cocok)' : (selisih < 0 ? `Kurang ${Math.abs(selisih)} pcs` : `Lebih +${selisih} pcs`)
+      };
+    }));
+    playOpnameBeep('warning');
+    setOpnameFeedback({
+      type: 'warning',
+      text: mode === 'match' ? 'Semua stok fisik disamakan dengan stok sistem.' : 'Semua hitungan scan fisik di-reset ke 0.'
+    });
+  };
+
+  const handleRemoveOpnameItem = (itemId) => {
+    setOpnameItems(prev => prev.filter(it => it.id !== itemId));
+  };
+
+  const handleSimpanOpname = async () => {
+    if (opnameItems.length === 0) {
+      toastError('Belum ada barang di daftar opname.');
+      return;
+    }
+
+    const ok = await showConfirm(
+      `Terapkan Penyesuaian Opname untuk ${opnameItems.length} produk titipan?`,
+      'Stok di sistem akan langsung diperbarui mengikuti jumlah scan fisik di gudang! Selisih akan dicatat otomatis.'
+    );
+    if (!ok) return;
+
+    setIsSavingOpname(true);
+    try {
+      const payload = {
+        kode_perusahaan: activeCompany?.code || 'RSG',
+        tanggal: new Date().toISOString().slice(0, 10),
+        petugas: opnamePetugas || 'Staff Gudang Konsinyasi',
+        mitra_id: selectedMitra?.id || null,
+        nama_mitra: opnameMitraFilter !== 'Semua' ? opnameMitraFilter : (selectedMitra?.nama_mitra || 'Semua Mitra'),
+        catatan: opnameCatatan || 'Penyesuaian stok hasil scan opname fisik',
+        items: opnameItems
+      };
+
+      const res = await fetch('/api/penitipan-barang/opname', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const resJson = await res.json();
+      if (res.ok) {
+        playOpnameBeep('success');
+        toastSuccess(resJson.message || 'Stok berhasil disesuaikan mengikuti hasil scan opname fisik!');
+        setIsOpnameModalOpen(false);
+        loadData();
+      } else {
+        playOpnameBeep('error');
+        toastError(resJson.message || 'Gagal menyimpan penyesuaian opname.');
+      }
+    } catch (err) {
+      console.error(err);
+      toastError('Terjadi kesalahan jaringan.');
+    } finally {
+      setIsSavingOpname(false);
+    }
+  };
+
+  // =========================================================================
   // ACTIONS: DETAIL / SHOW MODAL
   // =========================================================================
   const handleOpenDetail = (item, e) => {
@@ -1037,6 +1310,33 @@ export default function PenitipanBarangDesktopView() {
                 <span>Kembali ke Daftar Mitra</span>
               </button>
             )}
+
+            {/* Tombol Scan Opname Stok Titipan */}
+            <button
+              type="button"
+              onClick={() => handleOpenScanOpname(selectedMitra)}
+              style={{
+                height: '32px',
+                padding: '0 12px',
+                borderRadius: '6px',
+                border: '1px solid #7c3aed',
+                backgroundColor: '#8b5cf6',
+                color: '#ffffff',
+                fontSize: '11.5px',
+                fontWeight: '800',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                cursor: 'pointer',
+                boxShadow: '0 2px 4px rgba(139, 92, 246, 0.25)',
+                transition: 'all 0.15s ease'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#7c3aed'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#8b5cf6'}
+            >
+              <QrCode size={14} />
+              <span>Scan Opname Stok</span>
+            </button>
 
             {/* Tombol Tambah Mitra */}
             <button
@@ -1866,6 +2166,29 @@ export default function PenitipanBarangDesktopView() {
 
             {/* Quick Actions Mitra */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <button
+                type="button"
+                onClick={() => handleOpenScanOpname(selectedMitra)}
+                style={{
+                  height: '30px',
+                  padding: '0 10px',
+                  borderRadius: '5px',
+                  border: '1px solid #7c3aed',
+                  backgroundColor: '#8b5cf6',
+                  color: '#ffffff',
+                  fontSize: '11px',
+                  fontWeight: '700',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  cursor: 'pointer',
+                  boxShadow: '0 1px 3px rgba(139, 92, 246, 0.25)'
+                }}
+              >
+                <QrCode size={13} />
+                <span>Scan Opname Mitra Ini</span>
+              </button>
+
               <button
                 type="button"
                 onClick={() => handleOpenTambahBarang(selectedMitra)}
@@ -4101,6 +4424,832 @@ export default function PenitipanBarangDesktopView() {
               <Printer size={13} />
               <span>Cetak Bukti Penitipan</span>
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* =================================================================== */}
+      {/* MODAL 6: SCAN STOCK OPNAME TITIPAN BARANG (FULLSCREEN WIDE)         */}
+      {/* =================================================================== */}
+      {isOpnameModalOpen && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: '#0f172a',
+          zIndex: 10002,
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden'
+        }}>
+          {/* Header Fullscreen Opname */}
+          <div style={{
+            height: '46px',
+            padding: '0 20px',
+            background: 'linear-gradient(135deg, #090d16 0%, #1e1b4b 50%, #31104b 100%)',
+            borderBottom: '1px solid #334155',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            color: '#ffffff',
+            flexShrink: 0
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{
+                width: '30px',
+                height: '30px',
+                borderRadius: '6px',
+                backgroundColor: 'rgba(139, 92, 246, 0.25)',
+                border: '1px solid rgba(167, 139, 250, 0.4)',
+                color: '#c4b5fd',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <QrCode size={17} />
+              </div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <h3 style={{ margin: 0, fontSize: '13.5px', fontWeight: '800', color: '#ffffff', letterSpacing: '-0.01em' }}>
+                    Scan & Opname Stok Titipan Barang (Konsinyasi)
+                  </h3>
+                  <span style={{
+                    fontSize: '10px',
+                    fontWeight: '800',
+                    padding: '2px 8px',
+                    borderRadius: '999px',
+                    backgroundColor: 'rgba(139, 92, 246, 0.3)',
+                    color: '#ddd6fe',
+                    border: '1px solid rgba(167, 139, 250, 0.3)'
+                  }}>
+                    {opnameMitraFilter !== 'Semua' ? opnameMitraFilter : 'Semua Mitra'}
+                  </span>
+                </div>
+                <div style={{ fontSize: '11px', color: '#94a3b8' }}>
+                  Scan barcode produk di gudang ➔ sistem hitung selisih ➔ sesuaikan sisa stok otomatis ke database
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              {/* Sound Beep Toggle */}
+              <button
+                type="button"
+                onClick={() => setIsOpnameBeepOn(!isOpnameBeepOn)}
+                style={{
+                  height: '28px',
+                  padding: '0 10px',
+                  borderRadius: '5px',
+                  border: isOpnameBeepOn ? '1px solid #8b5cf6' : '1px solid #475569',
+                  backgroundColor: isOpnameBeepOn ? 'rgba(139, 92, 246, 0.25)' : 'rgba(255, 255, 255, 0.05)',
+                  color: isOpnameBeepOn ? '#c4b5fd' : '#94a3b8',
+                  fontSize: '11px',
+                  fontWeight: '700',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  cursor: 'pointer'
+                }}
+                title={isOpnameBeepOn ? 'Suara Beep Aktif' : 'Suara Beep Dimatikan'}
+              >
+                {isOpnameBeepOn ? <Volume2 size={13} /> : <VolumeX size={13} />}
+                <span>Beep: {isOpnameBeepOn ? 'ON' : 'OFF'}</span>
+              </button>
+
+              {/* Close Button */}
+              <button
+                type="button"
+                onClick={() => setIsOpnameModalOpen(false)}
+                style={{
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '5px',
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  color: '#94a3b8',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'rgba(239, 68, 68, 0.25)';
+                  e.currentTarget.style.color = '#f87171';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+                  e.currentTarget.style.color = '#94a3b8';
+                }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+          </div>
+
+          {/* Main Body */}
+          <div style={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+            backgroundColor: '#f1f5f9',
+            padding: '12px 18px',
+            gap: '10px'
+          }}>
+
+            {/* 1. Barcode Scanner Gun Input Card (Prominent & Auto-focused) */}
+            <div style={{
+              backgroundColor: '#ffffff',
+              borderRadius: '8px',
+              border: '1.5px solid #8b5cf6',
+              boxShadow: '0 4px 12px rgba(139, 92, 246, 0.12)',
+              padding: '12px 16px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <QrCode size={16} color="#7c3aed" />
+                  <span style={{ fontSize: '12px', fontWeight: '800', color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                    Input Barcode Scanner (USB / Wireless Gun / Ketik SKU)
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {/* Quick Action: Set Semua Fisik = Sistem */}
+                  <button
+                    type="button"
+                    onClick={() => handleResetFisikAll('match')}
+                    style={{
+                      padding: '4px 9px',
+                      borderRadius: '5px',
+                      border: '1px solid #cbd5e1',
+                      backgroundColor: '#f8fafc',
+                      color: '#475569',
+                      fontSize: '11px',
+                      fontWeight: '700',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}
+                    title="Set nilai stok fisik sama persis dengan sistem saat ini"
+                  >
+                    <span>✓ Samakan Fisik = Sistem</span>
+                  </button>
+
+                  {/* Quick Action: Reset 0 */}
+                  <button
+                    type="button"
+                    onClick={() => handleResetFisikAll('zero')}
+                    style={{
+                      padding: '4px 9px',
+                      borderRadius: '5px',
+                      border: '1px solid #fecdd3',
+                      backgroundColor: '#fff1f2',
+                      color: '#be123c',
+                      fontSize: '11px',
+                      fontWeight: '700',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}
+                    title="Reset semua hitungan scan fisik ke 0"
+                  >
+                    <span>↺ Reset Fisik ke 0</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Barcode Form Form Input */}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleScanBarcode();
+                }}
+                style={{ display: 'flex', gap: '8px', alignItems: 'center' }}
+              >
+                <div style={{ flex: 1, position: 'relative' }}>
+                  <input
+                    ref={opnameInputRef}
+                    type="text"
+                    value={opnameScannerInput}
+                    onChange={(e) => setOpnameScannerInput(e.target.value)}
+                    placeholder="Arahkan barcode scanner gun ke produk atau ketik SKU / Nama / No Titipan lalu tekan Enter..."
+                    style={{
+                      width: '100%',
+                      height: '40px',
+                      padding: '0 14px',
+                      borderRadius: '6px',
+                      border: '2px solid #8b5cf6',
+                      backgroundColor: '#faf5ff',
+                      color: '#0f172a',
+                      fontSize: '13px',
+                      fontWeight: '700',
+                      fontFamily: 'monospace',
+                      boxSizing: 'border-box',
+                      outline: 'none',
+                      boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.05)'
+                    }}
+                    autoFocus
+                  />
+                  {opnameScannerInput && (
+                    <button
+                      type="button"
+                      onClick={() => setOpnameScannerInput('')}
+                      style={{
+                        position: 'absolute',
+                        right: '10px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#94a3b8',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        fontWeight: 'bold'
+                      }}
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+
+                <button
+                  type="submit"
+                  style={{
+                    height: '40px',
+                    padding: '0 18px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    backgroundColor: '#7c3aed',
+                    color: '#ffffff',
+                    fontSize: '12px',
+                    fontWeight: '800',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    boxShadow: '0 2px 6px rgba(124, 58, 237, 0.3)',
+                    transition: 'all 0.15s ease',
+                    flexShrink: 0
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#6d28d9'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#7c3aed'}
+                >
+                  <Plus size={15} />
+                  <span>Scan / Tambah (+1)</span>
+                </button>
+              </form>
+
+              {/* Feedback Banner */}
+              {opnameFeedback && (
+                <div style={{
+                  padding: '8px 12px',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  fontWeight: '700',
+                  backgroundColor: opnameFeedback.type === 'success' ? '#ecfdf5' : opnameFeedback.type === 'warning' ? '#fffbeb' : '#fef2f2',
+                  color: opnameFeedback.type === 'success' ? '#047857' : opnameFeedback.type === 'warning' ? '#b45309' : '#b91c1c',
+                  border: `1px solid ${opnameFeedback.type === 'success' ? '#a7f3d0' : opnameFeedback.type === 'warning' ? '#fde68a' : '#fecdd3'}`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}>
+                  {opnameFeedback.type === 'success' ? <CheckCircle2 size={15} /> : <AlertTriangle size={15} />}
+                  <span>{opnameFeedback.text}</span>
+                </div>
+              )}
+
+              {/* Meta Config: Mitra Filter, Petugas, Catatan */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: '1.2fr 1.2fr 2fr',
+                gap: '10px',
+                paddingTop: '6px',
+                borderTop: '1px dashed #e2e8f0',
+                fontSize: '11px'
+              }}>
+                <div>
+                  <label style={{ display: 'block', fontWeight: '700', color: '#475569', marginBottom: '2px' }}>
+                    Filter Mitra Penitip:
+                  </label>
+                  <select
+                    value={opnameMitraFilter}
+                    onChange={(e) => handleOpenScanOpname(mitraList.find(m => m.nama_mitra === e.target.value) || null)}
+                    style={{
+                      width: '100%',
+                      padding: '5px 8px',
+                      borderRadius: '5px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '11.5px',
+                      fontWeight: '600',
+                      backgroundColor: '#ffffff'
+                    }}
+                  >
+                    <option value="Semua">-- Semua Mitra ({mitraList.length} Mitra) --</option>
+                    {mitraList.map(m => (
+                      <option key={m.id} value={m.nama_mitra}>{m.nama_mitra}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontWeight: '700', color: '#475569', marginBottom: '2px' }}>
+                    Petugas / Penanggung Jawab Opname:
+                  </label>
+                  <input
+                    type="text"
+                    value={opnamePetugas}
+                    onChange={(e) => setOpnamePetugas(e.target.value)}
+                    placeholder="Nama staff gudang..."
+                    style={{
+                      width: '100%',
+                      padding: '5px 8px',
+                      borderRadius: '5px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '11.5px',
+                      fontWeight: '600',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontWeight: '700', color: '#475569', marginBottom: '2px' }}>
+                    Catatan Sesi Opname:
+                  </label>
+                  <input
+                    type="text"
+                    value={opnameCatatan}
+                    onChange={(e) => setOpnameCatatan(e.target.value)}
+                    placeholder="Contoh: Opname akhir pekan / penyesuaian fisik gudang..."
+                    style={{
+                      width: '100%',
+                      padding: '5px 8px',
+                      borderRadius: '5px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '11.5px',
+                      fontWeight: '600',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* 2. Realtime KPI Summary Cards */}
+            {(() => {
+              const totalItems = opnameItems.length;
+              const totalFisik = opnameItems.reduce((acc, it) => acc + Number(it.stok_fisik || 0), 0);
+              const totalSistem = opnameItems.reduce((acc, it) => acc + Number(it.stok_sistem || 0), 0);
+              const totalSelisih = totalFisik - totalSistem;
+              const totalSelisihRp = opnameItems.reduce((acc, it) => acc + Number(it.selisih_rp || 0), 0);
+
+              return (
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(5, 1fr)',
+                  gap: '8px'
+                }}>
+                  {/* Card 1: Total Item */}
+                  <div style={{
+                    backgroundColor: '#ffffff',
+                    borderRadius: '7px',
+                    border: '1px solid #cbd5e1',
+                    padding: '8px 12px',
+                    display: 'flex',
+                    flexDirection: 'column'
+                  }}>
+                    <span style={{ fontSize: '10px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase' }}>
+                      Item Di-Opname
+                    </span>
+                    <span style={{ fontSize: '16px', fontWeight: '900', color: '#0f172a', marginTop: '2px' }}>
+                      {totalItems} Produk
+                    </span>
+                  </div>
+
+                  {/* Card 2: Stok Fisik (Scan) */}
+                  <div style={{
+                    backgroundColor: '#faf5ff',
+                    borderRadius: '7px',
+                    border: '1px solid #d8b4fe',
+                    padding: '8px 12px',
+                    display: 'flex',
+                    flexDirection: 'column'
+                  }}>
+                    <span style={{ fontSize: '10px', fontWeight: '800', color: '#7c3aed', textTransform: 'uppercase' }}>
+                      Total Fisik (Hasil Scan)
+                    </span>
+                    <span style={{ fontSize: '16px', fontWeight: '900', color: '#6d28d9', marginTop: '2px' }}>
+                      {totalFisik} PCS
+                    </span>
+                  </div>
+
+                  {/* Card 3: Stok Sistem (Awal) */}
+                  <div style={{
+                    backgroundColor: '#f0f9ff',
+                    borderRadius: '7px',
+                    border: '1px solid #bae6fd',
+                    padding: '8px 12px',
+                    display: 'flex',
+                    flexDirection: 'column'
+                  }}>
+                    <span style={{ fontSize: '10px', fontWeight: '800', color: '#0369a1', textTransform: 'uppercase' }}>
+                      Stok Sistem (Awal)
+                    </span>
+                    <span style={{ fontSize: '16px', fontWeight: '900', color: '#0284c7', marginTop: '2px' }}>
+                      {totalSistem} PCS
+                    </span>
+                  </div>
+
+                  {/* Card 4: Selisih Qty */}
+                  <div style={{
+                    backgroundColor: totalSelisih === 0 ? '#f0fdf4' : (totalSelisih < 0 ? '#fff1f2' : '#eff6ff'),
+                    borderRadius: '7px',
+                    border: `1px solid ${totalSelisih === 0 ? '#bbf7d0' : (totalSelisih < 0 ? '#fecdd3' : '#bfdbfe')}`,
+                    padding: '8px 12px',
+                    display: 'flex',
+                    flexDirection: 'column'
+                  }}>
+                    <span style={{
+                      fontSize: '10px',
+                      fontWeight: '800',
+                      color: totalSelisih === 0 ? '#15803d' : (totalSelisih < 0 ? '#be123c' : '#1d4ed8'),
+                      textTransform: 'uppercase'
+                    }}>
+                      Selisih Fisik vs Sistem
+                    </span>
+                    <span style={{
+                      fontSize: '16px',
+                      fontWeight: '900',
+                      color: totalSelisih === 0 ? '#16a34a' : (totalSelisih < 0 ? '#e11d48' : '#2563eb'),
+                      marginTop: '2px'
+                    }}>
+                      {totalSelisih === 0 ? '0 (Sesuai 100%)' : (totalSelisih > 0 ? `+${totalSelisih} PCS (Lebih)` : `${totalSelisih} PCS (Kurang)`)}
+                    </span>
+                  </div>
+
+                  {/* Card 5: Selisih Nilai Rp */}
+                  <div style={{
+                    backgroundColor: totalSelisihRp === 0 ? '#f8fafc' : (totalSelisihRp < 0 ? '#fff1f2' : '#eff6ff'),
+                    borderRadius: '7px',
+                    border: `1px solid ${totalSelisihRp === 0 ? '#cbd5e1' : (totalSelisihRp < 0 ? '#fecdd3' : '#bfdbfe')}`,
+                    padding: '8px 12px',
+                    display: 'flex',
+                    flexDirection: 'column'
+                  }}>
+                    <span style={{
+                      fontSize: '10px',
+                      fontWeight: '800',
+                      color: totalSelisihRp === 0 ? '#475569' : (totalSelisihRp < 0 ? '#be123c' : '#1d4ed8'),
+                      textTransform: 'uppercase'
+                    }}>
+                      Selisih Rupiah (Modal Titip)
+                    </span>
+                    <span style={{
+                      fontSize: '16px',
+                      fontWeight: '900',
+                      color: totalSelisihRp === 0 ? '#334155' : (totalSelisihRp < 0 ? '#e11d48' : '#2563eb'),
+                      marginTop: '2px'
+                    }}>
+                      {totalSelisihRp > 0 ? `+${formatRp(totalSelisihRp)}` : formatRp(totalSelisihRp)}
+                    </span>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* 3. Comparison Table (Gaya Master Produk) */}
+            <div style={{
+              flex: 1,
+              backgroundColor: '#ffffff',
+              borderRadius: '8px',
+              border: '1px solid #cbd5e1',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column'
+            }}>
+              <div style={{ flex: 1, overflowY: 'auto' }}>
+                <table style={{
+                  width: '100%',
+                  borderCollapse: 'collapse',
+                  textAlign: 'left',
+                  fontSize: '12px'
+                }}>
+                  <thead style={{
+                    position: 'sticky',
+                    top: 0,
+                    backgroundColor: '#f8fafc',
+                    zIndex: 10,
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                  }}>
+                    <tr style={{
+                      color: '#475569',
+                      fontSize: '11px',
+                      fontWeight: '800',
+                      letterSpacing: '0.04em',
+                      textTransform: 'uppercase'
+                    }}>
+                      <th style={{ padding: '6px 8px', border: '1px solid #cbd5e1', textAlign: 'center', width: '40px' }}>NO</th>
+                      <th style={{ padding: '6px 8px', border: '1px solid #cbd5e1', width: '130px' }}>SKU & NO TITIPAN</th>
+                      <th style={{ padding: '6px 8px', border: '1px solid #cbd5e1' }}>NAMA PRODUK & MITRA</th>
+                      <th style={{ padding: '6px 8px', border: '1px solid #cbd5e1', textAlign: 'right', width: '100px' }}>HARGA TITIP</th>
+                      <th style={{ padding: '6px 8px', border: '1px solid #cbd5e1', textAlign: 'center', backgroundColor: '#f0f9ff', width: '90px' }}>STOK SISTEM</th>
+                      <th style={{ padding: '6px 8px', border: '1px solid #cbd5e1', textAlign: 'center', backgroundColor: '#faf5ff', width: '130px' }}>SCAN FISIK (NYATA)</th>
+                      <th style={{ padding: '6px 8px', border: '1px solid #cbd5e1', textAlign: 'center', width: '110px' }}>SELISIH</th>
+                      <th style={{ padding: '6px 8px', border: '1px solid #cbd5e1', textAlign: 'right', width: '110px' }}>SELISIH (RP)</th>
+                      <th style={{ padding: '6px 8px', border: '1px solid #cbd5e1' }}>KETERANGAN</th>
+                      <th style={{ padding: '6px 8px', border: '1px solid #cbd5e1', textAlign: 'center', width: '45px' }}>AKSI</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {opnameItems.length === 0 ? (
+                      <tr>
+                        <td colSpan="10" style={{ padding: '36px 16px', textAlign: 'center', color: '#64748b', border: '1px solid #cbd5e1' }}>
+                          <QrCode size={36} color="#cbd5e1" style={{ marginBottom: '8px' }} />
+                          <div style={{ fontSize: '13px', fontWeight: '700', color: '#334155' }}>
+                            Belum ada barang di daftar opname
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>
+                            Scan barcode menggunakan scanner gun atau pilih filter mitra untuk memuat produk.
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      opnameItems.map((it, idx) => {
+                        const selisih = Number(it.selisih || 0);
+                        const isMatch = selisih === 0;
+                        const isMinus = selisih < 0;
+
+                        return (
+                          <tr
+                            key={it.id || idx}
+                            style={{
+                              backgroundColor: idx % 2 === 0 ? '#ffffff' : '#fcfcfd',
+                              transition: 'background-color 0.1s ease'
+                            }}
+                          >
+                            {/* 1. NO */}
+                            <td style={{ padding: '6px 8px', textAlign: 'center', border: '1px solid #cbd5e1', fontWeight: '700', color: '#64748b' }}>
+                              {idx + 1}
+                            </td>
+
+                            {/* 2. SKU & NO TITIPAN */}
+                            <td style={{ padding: '6px 8px', border: '1px solid #cbd5e1' }}>
+                              <div style={{ fontFamily: 'monospace', fontWeight: '800', color: '#0284c7', fontSize: '11px' }}>
+                                {it.kode_sku}
+                              </div>
+                              <div style={{ fontSize: '10px', color: '#64748b', marginTop: '1px' }}>
+                                {it.no_titipan}
+                              </div>
+                            </td>
+
+                            {/* 3. NAMA PRODUK & MITRA */}
+                            <td style={{ padding: '6px 8px', border: '1px solid #cbd5e1' }}>
+                              <div style={{ fontWeight: '700', color: '#0f172a' }}>
+                                {it.nama_produk}
+                              </div>
+                              <div style={{ fontSize: '10px', color: '#64748b', marginTop: '1px', display: 'flex', gap: '6px', alignItems: 'center' }}>
+                                <span style={{ fontWeight: '700', color: '#0284c7' }}>Mitra: {it.nama_penitip}</span>
+                                {it.varian && <span>• Varian: {it.varian}</span>}
+                              </div>
+                            </td>
+
+                            {/* 4. HARGA TITIP */}
+                            <td style={{ padding: '6px 8px', textAlign: 'right', border: '1px solid #cbd5e1' }}>
+                              <div style={{ fontWeight: '800', color: '#0f172a', fontSize: '11.5px' }}>
+                                {formatRp(it.harga_titip)}
+                              </div>
+                              <div style={{ fontSize: '9.5px', color: '#64748b' }}>/{it.satuan}</div>
+                            </td>
+
+                            {/* 5. STOK SISTEM (AWAL) */}
+                            <td style={{ padding: '6px 8px', textAlign: 'center', backgroundColor: '#f0f9ff', border: '1px solid #cbd5e1' }}>
+                              <div style={{ fontSize: '13px', fontWeight: '900', color: '#0369a1' }}>
+                                {it.stok_sistem} <span style={{ fontSize: '10px', fontWeight: '700' }}>{it.satuan}</span>
+                              </div>
+                            </td>
+
+                            {/* 6. SCAN FISIK (NYATA) with [-] [+] buttons */}
+                            <td style={{ padding: '6px 8px', textAlign: 'center', backgroundColor: '#faf5ff', border: '1px solid #cbd5e1' }}>
+                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateItemFisik(it.id, Math.max(0, Number(it.stok_fisik || 0) - 1))}
+                                  style={{
+                                    width: '24px',
+                                    height: '24px',
+                                    borderRadius: '4px',
+                                    border: '1px solid #d8b4fe',
+                                    backgroundColor: '#ffffff',
+                                    color: '#7c3aed',
+                                    fontWeight: '900',
+                                    fontSize: '12px',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center'
+                                  }}
+                                  title="Kurangi 1 pcs"
+                                >
+                                  -
+                                </button>
+
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={it.stok_fisik}
+                                  onChange={(e) => handleUpdateItemFisik(it.id, e.target.value)}
+                                  style={{
+                                    width: '50px',
+                                    height: '24px',
+                                    textAlign: 'center',
+                                    fontSize: '13px',
+                                    fontWeight: '900',
+                                    color: '#6d28d9',
+                                    border: '1.5px solid #8b5cf6',
+                                    borderRadius: '4px',
+                                    backgroundColor: '#ffffff',
+                                    boxSizing: 'border-box'
+                                  }}
+                                />
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateItemFisik(it.id, Number(it.stok_fisik || 0) + 1)}
+                                  style={{
+                                    width: '24px',
+                                    height: '24px',
+                                    borderRadius: '4px',
+                                    border: '1px solid #d8b4fe',
+                                    backgroundColor: '#ffffff',
+                                    color: '#7c3aed',
+                                    fontWeight: '900',
+                                    fontSize: '12px',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center'
+                                  }}
+                                  title="Tambah 1 pcs (sama seperti discan)"
+                                >
+                                  +
+                                </button>
+                              </div>
+                            </td>
+
+                            {/* 7. SELISIH (FISIK - SISTEM) */}
+                            <td style={{ padding: '6px 8px', textAlign: 'center', border: '1px solid #cbd5e1' }}>
+                              <span style={{
+                                display: 'inline-block',
+                                padding: '2px 8px',
+                                borderRadius: '999px',
+                                fontSize: '11px',
+                                fontWeight: '900',
+                                backgroundColor: isMatch ? '#dcfce7' : (isMinus ? '#fee2e2' : '#dbeafe'),
+                                color: isMatch ? '#15803d' : (isMinus ? '#b91c1c' : '#1d4ed8')
+                              }}>
+                                {isMatch ? '✓ Cocok (0)' : (selisih > 0 ? `+${selisih} (Lebih)` : `${selisih} (Kurang)`)}
+                              </span>
+                            </td>
+
+                            {/* 8. SELISIH (RP) */}
+                            <td style={{ padding: '6px 8px', textAlign: 'right', border: '1px solid #cbd5e1' }}>
+                              <span style={{
+                                fontWeight: '800',
+                                fontSize: '11.5px',
+                                color: isMatch ? '#64748b' : (isMinus ? '#be123c' : '#1d4ed8')
+                              }}>
+                                {selisih > 0 ? `+${formatRp(it.selisih_rp)}` : formatRp(it.selisih_rp)}
+                              </span>
+                            </td>
+
+                            {/* 9. KETERANGAN */}
+                            <td style={{ padding: '6px 8px', border: '1px solid #cbd5e1' }}>
+                              <input
+                                type="text"
+                                value={it.keterangan || ''}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setOpnameItems(prev => prev.map(item => item.id === it.id ? { ...item, keterangan: val } : item));
+                                }}
+                                placeholder="Keterangan fisik..."
+                                style={{
+                                  width: '100%',
+                                  padding: '3px 6px',
+                                  borderRadius: '4px',
+                                  border: '1px solid #cbd5e1',
+                                  fontSize: '11px',
+                                  boxSizing: 'border-box'
+                                }}
+                              />
+                            </td>
+
+                            {/* 10. AKSI (HAPUS BARIS OPNAME) */}
+                            <td style={{ padding: '6px 8px', textAlign: 'center', border: '1px solid #cbd5e1' }}>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveOpnameItem(it.id)}
+                                title="Hapus dari daftar opname sesi ini"
+                                style={{
+                                  width: '24px',
+                                  height: '24px',
+                                  borderRadius: '4px',
+                                  border: 'none',
+                                  backgroundColor: '#fee2e2',
+                                  color: '#dc2626',
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center'
+                                }}
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+          </div>
+
+          {/* Sticky Footer Action Bar */}
+          <div style={{
+            height: '52px',
+            padding: '0 20px',
+            backgroundColor: '#ffffff',
+            borderTop: '1px solid #cbd5e1',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexShrink: 0
+          }}>
+            <div style={{ fontSize: '11.5px', color: '#64748b' }}>
+              Pastikan seluruh barang fisik di gudang telah selesai di-scan sebelum menekan tombol sinkronisasi.
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={() => setIsOpnameModalOpen(false)}
+                style={{
+                  height: '34px',
+                  padding: '0 16px',
+                  borderRadius: '6px',
+                  border: '1px solid #cbd5e1',
+                  backgroundColor: '#ffffff',
+                  color: '#475569',
+                  fontSize: '12px',
+                  fontWeight: '700',
+                  cursor: 'pointer'
+                }}
+              >
+                Batal
+              </button>
+
+              <button
+                type="button"
+                disabled={isSavingOpname || opnameItems.length === 0}
+                onClick={handleSimpanOpname}
+                style={{
+                  height: '34px',
+                  padding: '0 20px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  backgroundColor: isSavingOpname || opnameItems.length === 0 ? '#94a3b8' : '#059669',
+                  color: '#ffffff',
+                  fontSize: '12.5px',
+                  fontWeight: '800',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  cursor: isSavingOpname || opnameItems.length === 0 ? 'not-allowed' : 'pointer',
+                  boxShadow: '0 2px 6px rgba(5, 150, 105, 0.3)',
+                  transition: 'all 0.15s ease'
+                }}
+                onMouseEnter={(e) => {
+                  if (!isSavingOpname && opnameItems.length > 0) {
+                    e.currentTarget.style.backgroundColor = '#047857';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isSavingOpname && opnameItems.length > 0) {
+                    e.currentTarget.style.backgroundColor = '#059669';
+                  }
+                }}
+              >
+                <CheckCircle2 size={16} />
+                <span>{isSavingOpname ? 'Menyesuaikan Stok Sistem...' : 'Sesuaikan & Terapkan Opname ke Sistem'}</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -250,6 +250,47 @@ async function ensureAllTables(pool) {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Histori Pembayaran Titipan ke Mitra';
   `);
 
+  // 4. Tabel Sesi Stock Opname Penitipan
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS opname_penitipan (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      kode_perusahaan VARCHAR(32) DEFAULT 'RSG',
+      no_opname VARCHAR(60) NOT NULL,
+      tanggal DATE NOT NULL,
+      mitra_id INT NULL,
+      nama_mitra VARCHAR(150) DEFAULT '',
+      petugas VARCHAR(100) DEFAULT 'Staff Gudang',
+      total_item INT NOT NULL DEFAULT 0,
+      total_selisih_qty INT NOT NULL DEFAULT 0,
+      total_selisih_rp DECIMAL(15,2) NOT NULL DEFAULT 0,
+      catatan TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_perusahaan (kode_perusahaan),
+      INDEX idx_no_opname (no_opname)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Header Sesi Stock Opname Titipan Barang';
+  `);
+
+  // 5. Tabel Detail Item Sesi Stock Opname Penitipan
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS opname_penitipan_detail (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      opname_id INT NOT NULL,
+      penitipan_id INT NOT NULL,
+      kode_sku VARCHAR(100) NOT NULL,
+      nama_produk VARCHAR(255) NOT NULL,
+      nama_penitip VARCHAR(150) NOT NULL,
+      harga_titip DECIMAL(15,2) NOT NULL DEFAULT 0,
+      stok_sistem INT NOT NULL DEFAULT 0,
+      stok_fisik INT NOT NULL DEFAULT 0,
+      selisih_qty INT NOT NULL DEFAULT 0,
+      selisih_rp DECIMAL(15,2) NOT NULL DEFAULT 0,
+      keterangan TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_opname (opname_id),
+      INDEX idx_penitipan (penitipan_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Detail Item Opname Titipan Barang';
+  `);
+
   // Seed Penitipan Barang jika kosong
   const [[pCount]] = await pool.query('SELECT COUNT(*) as total FROM penitipan_barang');
   if (pCount.total === 0) {
@@ -590,6 +631,152 @@ export async function handlePenitipanBarangRoutes(req, res, pathname, urlObj, co
       });
     } catch (err) {
       console.error('[DELETE /api/penitipan-barang/pembayaran Error]:', err);
+      return sendJson(res, 500, { status: 'error', message: err.message });
+    }
+  }
+
+  // =========================================================================
+  // OPNAME PENITIPAN ROUTES (/api/penitipan-barang/opname)
+  // =========================================================================
+
+  // GET /api/penitipan-barang/opname - List Riwayat Stock Opname Titipan
+  if (req.method === 'GET' && pathname === '/api/penitipan-barang/opname') {
+    try {
+      const company = urlObj.searchParams.get('company') || 'RSG';
+      const [rows] = await pool.query(
+        `SELECT 
+          id, kode_perusahaan, no_opname, 
+          DATE_FORMAT(tanggal, '%Y-%m-%d') as tanggal,
+          mitra_id, nama_mitra, petugas, total_item, total_selisih_qty,
+          CAST(total_selisih_rp AS DOUBLE) as total_selisih_rp,
+          catatan, DATE_FORMAT(created_at, '%Y-%m-%d %H:%i') as created_at
+        FROM opname_penitipan
+        WHERE (kode_perusahaan = ? OR kode_perusahaan IS NULL OR ? = '')
+        ORDER BY id DESC`,
+        [company, company]
+      );
+      return sendJson(res, 200, { status: 'success', data: rows });
+    } catch (err) {
+      console.error('[GET /api/penitipan-barang/opname Error]:', err);
+      return sendJson(res, 500, { status: 'error', message: err.message });
+    }
+  }
+
+  // GET /api/penitipan-barang/opname/:id - Detail Sesi Opname beserta barangnya
+  if (req.method === 'GET' && pathname.startsWith('/api/penitipan-barang/opname/')) {
+    const id = pathname.split('/')[4];
+    try {
+      const [[header]] = await pool.query('SELECT * FROM opname_penitipan WHERE id = ?', [id]);
+      if (!header) {
+        return sendJson(res, 404, { status: 'error', message: 'Sesi opname tidak ditemukan.' });
+      }
+      const [details] = await pool.query('SELECT * FROM opname_penitipan_detail WHERE opname_id = ? ORDER BY id ASC', [id]);
+      return sendJson(res, 200, { status: 'success', data: { header, details } });
+    } catch (err) {
+      console.error('[GET /api/penitipan-barang/opname/:id Error]:', err);
+      return sendJson(res, 500, { status: 'error', message: err.message });
+    }
+  }
+
+  // POST /api/penitipan-barang/opname - Terapkan Hasil Scan Opname Fisik & Sesuaikan Stok Sistem
+  if (req.method === 'POST' && pathname === '/api/penitipan-barang/opname') {
+    try {
+      const body = await parseJsonBody(req);
+      const {
+        kode_perusahaan = 'RSG',
+        tanggal = new Date().toISOString().slice(0, 10),
+        petugas = 'Staff Gudang',
+        mitra_id = null,
+        nama_mitra = '',
+        catatan = 'Stock Opname Scan Fisik Gudang',
+        items = []
+      } = body;
+
+      if (!items || items.length === 0) {
+        return sendJson(res, 400, { status: 'error', message: 'Daftar item hasil scan opname tidak boleh kosong!' });
+      }
+
+      const noOpname = `OPN-TTP-${tanggal.replace(/-/g, '')}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+
+      let totalItem = items.length;
+      let totalSelisihQty = 0;
+      let totalSelisihRp = 0;
+
+      items.forEach(it => {
+        const selisih = Number(it.selisih || (Number(it.stok_fisik) - Number(it.stok_sistem)));
+        const selisihRp = selisih * Number(it.harga_titip || 0);
+        totalSelisihQty += selisih;
+        totalSelisihRp += selisihRp;
+      });
+
+      // 1. Simpan Header Opname
+      const [headerRes] = await pool.query(
+        `INSERT INTO opname_penitipan (
+          kode_perusahaan, no_opname, tanggal, mitra_id, nama_mitra, petugas,
+          total_item, total_selisih_qty, total_selisih_rp, catatan
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [kode_perusahaan, noOpname, tanggal, mitra_id, nama_mitra, petugas, totalItem, totalSelisihQty, totalSelisihRp, catatan]
+      );
+      const opnameId = headerRes.insertId;
+
+      // 2. Simpan Detail & Terapkan Penyesuaian ke penitipan_barang
+      for (const it of items) {
+        const pId = it.id;
+        const targetFisik = Math.max(0, Number(it.stok_fisik));
+        const stokAwal = Number(it.stok_sistem);
+        const selisih = targetFisik - stokAwal;
+        const selisihRp = selisih * Number(it.harga_titip || 0);
+
+        // Catat detail
+        await pool.query(
+          `INSERT INTO opname_penitipan_detail (
+            opname_id, penitipan_id, kode_sku, nama_produk, nama_penitip,
+            harga_titip, stok_sistem, stok_fisik, selisih_qty, selisih_rp, keterangan
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            opnameId, pId, it.kode_sku || '', it.nama_produk || '', it.nama_penitip || '',
+            Number(it.harga_titip || 0), stokAwal, targetFisik, selisih, selisihRp, it.keterangan || ''
+          ]
+        );
+
+        // Ambil data penitipan barang saat ini
+        const [[currentP]] = await pool.query('SELECT qty_titip, qty_terjual, qty_retur, keterangan FROM penitipan_barang WHERE id = ?', [pId]);
+        if (currentP) {
+          const qtyTerjual = Number(currentP.qty_terjual || 0);
+          const qtyRetur = Number(currentP.qty_retur || 0);
+
+          // Penyesuaian: agar (qty_titip - qty_terjual - qty_retur) == targetFisik
+          // maka new qty_titip = targetFisik + qtyTerjual + qtyRetur
+          const newQtyTitip = targetFisik + qtyTerjual + qtyRetur;
+          const statusNew = targetFisik <= 0 ? 'Selesai' : 'Aktif';
+
+          const noteUpdate = ` [Opname ${tanggal} (${noOpname}): Fisik ${targetFisik}, Selisih ${selisih > 0 ? '+' + selisih : selisih}]`;
+          const currentKet = currentP.keterangan || '';
+          const newKet = (currentKet + noteUpdate).slice(0, 1000);
+
+          await pool.query(
+            `UPDATE penitipan_barang SET
+              qty_titip = ?,
+              status = ?,
+              keterangan = ?
+            WHERE id = ?`,
+            [newQtyTitip, statusNew, newKet, pId]
+          );
+        }
+      }
+
+      return sendJson(res, 201, {
+        status: 'success',
+        message: `Stok berhasil disesuaikan mengikuti hasil scan fisik (${noOpname})! Total ${totalItem} barang disinkronkan.`,
+        data: {
+          no_opname: noOpname,
+          total_item: totalItem,
+          total_selisih_qty: totalSelisihQty,
+          total_selisih_rp: totalSelisihRp
+        }
+      });
+    } catch (err) {
+      console.error('[POST /api/penitipan-barang/opname Error]:', err);
       return sendJson(res, 500, { status: 'error', message: err.message });
     }
   }

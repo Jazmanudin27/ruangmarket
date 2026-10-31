@@ -1383,69 +1383,78 @@ export default function MutasiBarangDesktopView() {
                       </td>
 
                       {/* 11. AKSI */}
-                      <td style={{ padding: '8px 6px', textAlign: 'center' }}>
+                      <td style={{ padding: '5px 8px', textAlign: 'center', verticalAlign: 'middle' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px' }}>
-                          {/* Detail */}
+                          {/* 1. Detail View Button (Cyan) */}
                           <button
                             type="button"
                             onClick={() => handleOpenDetail(m)}
-                            title="Lihat Rincian Bukti Mutasi"
+                            title="Lihat Detail Mutasi"
                             style={{
-                              width: '24px',
-                              height: '24px',
+                              width: '26px',
+                              height: '26px',
                               borderRadius: '4px',
-                              border: '1px solid #cbd5e1',
-                              backgroundColor: '#ffffff',
-                              color: '#0284c7',
-                              cursor: 'pointer',
+                              border: 'none',
+                              backgroundColor: '#06b6d4',
+                              color: '#ffffff',
                               display: 'flex',
                               alignItems: 'center',
-                              justifyContent: 'center'
+                              justifyContent: 'center',
+                              cursor: 'pointer',
+                              transition: 'opacity 0.15s ease'
                             }}
+                            onMouseEnter={(e) => e.currentTarget.style.opacity = '0.85'}
+                            onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
                           >
-                            <Eye size={12} />
+                            <Eye size={13} />
                           </button>
 
-                          {/* Edit */}
+                          {/* 2. Edit Button (Blue) */}
                           <button
                             type="button"
                             onClick={() => handleOpenEdit(m)}
                             title="Edit Data Mutasi"
                             style={{
-                              width: '24px',
-                              height: '24px',
+                              width: '26px',
+                              height: '26px',
                               borderRadius: '4px',
-                              border: '1px solid #cbd5e1',
-                              backgroundColor: '#ffffff',
-                              color: '#d97706',
-                              cursor: 'pointer',
+                              border: 'none',
+                              backgroundColor: '#0284c7',
+                              color: '#ffffff',
                               display: 'flex',
                               alignItems: 'center',
-                              justifyContent: 'center'
+                              justifyContent: 'center',
+                              cursor: 'pointer',
+                              transition: 'opacity 0.15s ease'
                             }}
+                            onMouseEnter={(e) => e.currentTarget.style.opacity = '0.85'}
+                            onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
                           >
-                            <Edit3 size={12} />
+                            <Edit3 size={13} />
                           </button>
 
-                          {/* Hapus */}
+                          {/* 3. Delete Trash Button (Red) */}
                           <button
                             type="button"
                             onClick={() => handleDelete(m)}
                             title="Hapus Catatan Mutasi"
                             style={{
-                              width: '24px',
-                              height: '24px',
+                              width: '26px',
+                              height: '26px',
                               borderRadius: '4px',
-                              border: '1px solid #cbd5e1',
-                              backgroundColor: '#ffffff',
-                              color: '#dc2626',
-                              cursor: 'pointer',
+                              border: 'none',
+                              backgroundColor: '#ef4444',
+                              color: '#ffffff',
                               display: 'flex',
                               alignItems: 'center',
-                              justifyContent: 'center'
+                              justifyContent: 'center',
+                              cursor: 'pointer',
+                              transition: 'opacity 0.15s ease'
                             }}
+                            onMouseEnter={(e) => e.currentTarget.style.opacity = '0.85'}
+                            onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
                           >
-                            <Trash2 size={12} />
+                            <Trash2 size={13} />
                           </button>
                         </div>
                       </td>
