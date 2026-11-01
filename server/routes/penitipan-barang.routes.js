@@ -184,7 +184,7 @@ async function ensureTablesOnce(pool) {
 export async function handlePenitipanBarangRoutes(req, res, pathname, urlObj, context) {
   const { pool } = context;
 
-  if (!pathname.startsWith('/api/penitipan-barang')) {
+  if (!pathname.startsWith('/api/penitipan-barang') && !pathname.startsWith('/api/laporan')) {
     return false;
   }
 
@@ -192,6 +192,111 @@ export async function handlePenitipanBarangRoutes(req, res, pathname, urlObj, co
     await ensureTablesOnce(pool);
   } catch (err) {
     // ignore
+  }
+
+  // =========================================================================
+  // LAPORAN STOK BARANG GABUNGAN (GUDANG & TITIPAN) (/api/laporan/stok-barang)
+  // =========================================================================
+  if (req.method === 'GET' && (pathname === '/api/laporan/stok-barang' || pathname === '/api/penitipan-barang/laporan-stok')) {
+    try {
+      const company = urlObj.searchParams.get('company') || 'RSG';
+      const search = (urlObj.searchParams.get('search') || '').trim();
+      const kategori = urlObj.searchParams.get('kategori') || 'Semua';
+      const filterStok = urlObj.searchParams.get('filter_stok') || 'Semua';
+
+      let query = `
+        SELECT 
+          COALESCE(pm.id, pb_agg.min_id) as id,
+          COALESCE(pm.kode_perusahaan, pb_agg.kode_perusahaan, 'RSG') as kode_perusahaan,
+          COALESCE(pm.kode_sku, pb_agg.kode_sku) as kode_sku,
+          COALESCE(pm.nama_produk, pb_agg.nama_produk) as nama_produk,
+          COALESCE(pm.kategori, 'Umum') as kategori,
+          COALESCE(pm.varian, pb_agg.varian, 'Standard') as varian,
+          COALESCE(pm.satuan, pb_agg.satuan, 'PCS') as satuan,
+          CAST(COALESCE(pm.stok_fisik, 0) AS SIGNED) as stok_gudang,
+          CAST(COALESCE(pb_agg.stok_titipan, 0) AS SIGNED) as stok_titipan,
+          CAST(COALESCE(pm.stok_fisik, 0) + COALESCE(pb_agg.stok_titipan, 0) AS SIGNED) as jumlah_stok,
+          CAST(COALESCE(pm.harga_modal, 0) AS DOUBLE) as hpp_gudang,
+          CAST(COALESCE(pb_agg.harga_titip, 0) AS DOUBLE) as hpp_titipan,
+          CAST(COALESCE(pm.harga_jual, 0) AS DOUBLE) as harga_jual,
+          CAST(COALESCE(pm.harga_jual, 0) - COALESCE(pm.harga_modal, 0) AS DOUBLE) as margin_gudang,
+          CAST(COALESCE(pm.harga_jual, 0) - COALESCE(pb_agg.harga_titip, 0) AS DOUBLE) as margin_titipan,
+          CASE 
+            WHEN COALESCE(pm.harga_jual, 0) > 0 THEN ROUND(((pm.harga_jual - COALESCE(pm.harga_modal, 0)) / pm.harga_jual) * 100, 1)
+            ELSE 0
+          END as margin_gudang_persen,
+          CASE 
+            WHEN COALESCE(pm.harga_jual, 0) > 0 AND COALESCE(pb_agg.harga_titip, 0) > 0 THEN ROUND(((pm.harga_jual - COALESCE(pb_agg.harga_titip, 0)) / pm.harga_jual) * 100, 1)
+            ELSE 0
+          END as margin_titipan_persen
+        FROM produk_master pm
+        LEFT JOIN (
+          SELECT 
+            MIN(id) as min_id,
+            kode_perusahaan,
+            kode_sku,
+            MAX(nama_produk) as nama_produk,
+            MAX(varian) as varian,
+            MAX(satuan) as satuan,
+            SUM(GREATEST(0, qty_titip - qty_terjual - qty_retur)) as stok_titipan,
+            MAX(harga_titip) as harga_titip
+          FROM penitipan_barang
+          WHERE (qty_titip - qty_terjual - qty_retur) > 0
+          GROUP BY kode_sku, kode_perusahaan
+        ) pb_agg ON pb_agg.kode_sku = pm.kode_sku
+        WHERE (pm.kode_perusahaan = ? OR pm.kode_perusahaan IS NULL OR ? = '' OR pm.kode_perusahaan = 'RSG')
+      `;
+      const params = [company, company];
+
+      if (kategori && kategori !== 'Semua') {
+        query += ` AND pm.kategori = ?`;
+        params.push(kategori);
+      }
+
+      if (search) {
+        query += ` AND (pm.kode_sku LIKE ? OR pm.nama_produk LIKE ? OR pm.kategori LIKE ? OR pm.varian LIKE ?)`;
+        const s = `%${search}%`;
+        params.push(s, s, s, s);
+      }
+
+      query += ` ORDER BY jumlah_stok DESC, pm.id ASC`;
+
+      const [rows] = await pool.query(query, params);
+
+      // Filter in-memory jika ada filter status stok khusus
+      let filtered = rows;
+      if (filterStok === 'tersedia') {
+        filtered = rows.filter(r => r.jumlah_stok > 0);
+      } else if (filterStok === 'habis') {
+        filtered = rows.filter(r => r.jumlah_stok <= 0);
+      } else if (filterStok === 'hanya_gudang') {
+        filtered = rows.filter(r => r.stok_gudang > 0 && r.stok_titipan <= 0);
+      } else if (filterStok === 'hanya_titipan') {
+        filtered = rows.filter(r => r.stok_titipan > 0 && r.stok_gudang <= 0);
+      } else if (filterStok === 'gabungan') {
+        filtered = rows.filter(r => r.stok_gudang > 0 && r.stok_titipan > 0);
+      }
+
+      const summary = {
+        total_sku: filtered.length,
+        total_stok_gudang: filtered.reduce((acc, r) => acc + Number(r.stok_gudang || 0), 0),
+        total_stok_titipan: filtered.reduce((acc, r) => acc + Number(r.stok_titipan || 0), 0),
+        total_jumlah_stok: filtered.reduce((acc, r) => acc + Number(r.jumlah_stok || 0), 0),
+        total_nilai_hpp_gudang: filtered.reduce((acc, r) => acc + (Number(r.stok_gudang || 0) * Number(r.hpp_gudang || 0)), 0),
+        total_nilai_hpp_titipan: filtered.reduce((acc, r) => acc + (Number(r.stok_titipan || 0) * Number(r.hpp_titipan || 0)), 0),
+        avg_margin_gudang_persen: filtered.length > 0 ? (filtered.reduce((acc, r) => acc + Number(r.margin_gudang_persen || 0), 0) / filtered.length).toFixed(1) : 0,
+        avg_margin_titipan_persen: filtered.length > 0 ? (filtered.reduce((acc, r) => acc + Number(r.margin_titipan_persen || 0), 0) / filtered.length).toFixed(1) : 0,
+      };
+
+      return sendJson(res, 200, {
+        status: 'success',
+        data: filtered,
+        summary
+      });
+    } catch (err) {
+      console.error('[GET /api/laporan/stok-barang Error]:', err);
+      return sendJson(res, 500, { status: 'error', message: err.message });
+    }
   }
 
   // =========================================================================
@@ -979,4 +1084,107 @@ export async function handlePenitipanBarangRoutes(req, res, pathname, urlObj, co
   }
 
   return false;
+}
+
+// =========================================================================
+// HELPER DEDUCT WAREHOUSE STOCK (GUDANG UTAMA VS TITIPAN KONSINYASI)
+// =========================================================================
+export async function deductWarehouseStock(pool, { sku, qty, source = 'gudang', noRef = '', keterangan = '', petugas = 'Staff Packing' }) {
+  const numQty = Math.max(1, Number(qty || 1));
+  const cleanSku = String(sku || '').trim();
+  if (!cleanSku) return false;
+
+  const today = new Date().toISOString().slice(0, 10);
+  const noBukti = `BK-${today.replace(/-/g, '')}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+
+  if (source === 'titipan') {
+    // 1. Ambil data penitipan_barang aktif
+    const [rows] = await pool.query(
+      `SELECT id, nama_produk, varian, satuan, qty_titip, qty_terjual, qty_retur, (qty_titip - qty_terjual - qty_retur) as sisa
+       FROM penitipan_barang 
+       WHERE kode_sku = ? AND (qty_titip - qty_terjual - qty_retur) > 0
+       ORDER BY id ASC LIMIT 1`,
+      [cleanSku]
+    );
+
+    if (rows && rows.length > 0) {
+      const target = rows[0];
+      const sisaAwal = Number(target.sisa || 0);
+      const deductAmt = Math.min(numQty, sisaAwal);
+      const sisaAkhir = Math.max(0, sisaAwal - deductAmt);
+
+      await pool.query(
+        `UPDATE penitipan_barang SET 
+          qty_terjual = qty_terjual + ?,
+          status = CASE WHEN (qty_titip - (qty_terjual + ?) - qty_retur) <= 0 THEN 'Selesai' ELSE 'Aktif' END
+         WHERE id = ?`,
+        [deductAmt, deductAmt, target.id]
+      );
+
+      // Catat mutasi barang keluar
+      await pool.query(
+        `INSERT INTO mutasi_barang (
+          kode_perusahaan, tanggal, no_bukti, jenis_mutasi, kategori,
+          kode_sku, nama_produk, varian, satuan, jumlah,
+          stok_sebelum, stok_sesudah, no_referensi, pihak_terkait, petugas, keterangan
+        ) VALUES (?, ?, ?, 'keluar', 'Penjualan / Fulfillment', ?, ?, ?, ?, ?, ?, ?, ?, 'Gudang Titipan Konsinyasi', ?, ?)`,
+        [
+          'RSG', today, noBukti, cleanSku, target.nama_produk || cleanSku, target.varian || '', target.satuan || 'PCS',
+          deductAmt, sisaAwal, sisaAkhir, noRef, petugas, keterangan || 'Pengurangan stok hasil scan QR Code Titipan'
+        ]
+      ).catch(() => {});
+
+      // Sinkronkan total stok di produk_marketplace
+      try {
+        const [[prodGdg]] = await pool.query('SELECT stok_fisik FROM produk_master WHERE kode_sku = ?', [cleanSku]);
+        const [[titipanSum]] = await pool.query(
+          `SELECT SUM(qty_titip - qty_terjual - qty_retur) as sisa_titipan FROM penitipan_barang WHERE kode_sku = ? AND (qty_titip - qty_terjual - qty_retur) > 0`,
+          [cleanSku]
+        );
+        const totalGabungan = Number(prodGdg?.stok_fisik || 0) + Number(titipanSum?.sisa_titipan || 0);
+        await pool.query(`UPDATE produk_marketplace SET stok_marketplace = ? WHERE sku_marketplace = ?`, [totalGabungan, cleanSku]);
+      } catch (eSync) {}
+
+      return { success: true, source: 'titipan', deducted: deductAmt };
+    }
+  }
+
+  // 2. Default / source === 'gudang': Kurangi dari produk_master
+  const [[prod]] = await pool.query(
+    `SELECT id, nama_produk, varian, satuan, stok_fisik FROM produk_master WHERE kode_sku = ? LIMIT 1`,
+    [cleanSku]
+  );
+
+  const stokAwal = Number(prod?.stok_fisik || 0);
+  const stokAkhir = Math.max(0, stokAwal - numQty);
+
+  await pool.query(
+    `UPDATE produk_master SET stok_fisik = GREATEST(0, stok_fisik - ?) WHERE kode_sku = ?`,
+    [numQty, cleanSku]
+  );
+
+  // Catat mutasi barang keluar
+  await pool.query(
+    `INSERT INTO mutasi_barang (
+      kode_perusahaan, tanggal, no_bukti, jenis_mutasi, kategori,
+      kode_sku, nama_produk, varian, satuan, jumlah,
+      stok_sebelum, stok_sesudah, no_referensi, pihak_terkait, petugas, keterangan
+    ) VALUES (?, ?, ?, 'keluar', 'Penjualan / Fulfillment', ?, ?, ?, ?, ?, ?, ?, ?, 'Gudang Utama Sendiri', ?, ?)`,
+    [
+      'RSG', today, noBukti, cleanSku, prod?.nama_produk || cleanSku, prod?.varian || '', prod?.satuan || 'PCS',
+      numQty, stokAwal, stokAkhir, noRef, petugas, keterangan || 'Pengurangan stok hasil scan QR Code Gudang'
+    ]
+  ).catch(() => {});
+
+  // Update stok gabungan di produk_marketplace
+  try {
+    const [[titipanSum]] = await pool.query(
+      `SELECT SUM(qty_titip - qty_terjual - qty_retur) as sisa_titipan FROM penitipan_barang WHERE kode_sku = ? AND (qty_titip - qty_terjual - qty_retur) > 0`,
+      [cleanSku]
+    );
+    const totalGabungan = stokAkhir + Number(titipanSum?.sisa_titipan || 0);
+    await pool.query(`UPDATE produk_marketplace SET stok_marketplace = ? WHERE sku_marketplace = ?`, [totalGabungan, cleanSku]);
+  } catch (eSync) {}
+
+  return { success: true, source: 'gudang', deducted: numQty };
 }

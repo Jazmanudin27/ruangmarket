@@ -1,5 +1,6 @@
 import { PDFDocument } from 'pdf-lib';
 import { sendJson, parseJsonBody } from '../utils/response.js';
+import { deductWarehouseStock } from './penitipan-barang.routes.js';
 
 export async function handleOrdersRoutes(req, res, pathname, urlObj, { pool, laravelPool, shopeeService, tiktokService }) {
   // Pastikan kolom status_kemas dkk tersedia di tabel pesanan_marketplace
@@ -540,6 +541,29 @@ export async function handleOrdersRoutes(req, res, pathname, urlObj, { pool, lar
         `UPDATE pesanan_marketplace SET ${sets.join(', ')} WHERE id = ? OR no_pesanan = ?`,
         params
       );
+
+      // Potong stok real-time sesuai sumber QR Code yang discan (Gudang Utama vs Titipan Konsinyasi)
+      if (finalStatusKemas === 'sudah_dikemas' && Array.isArray(items)) {
+        for (const it of items) {
+          const sku = it.sku || it.kode_sku || it.sku_marketplace || it.seller_sku;
+          const qty = Number(it.qty_dikemas !== undefined ? it.qty_dikemas : (it.qty || 1));
+          const source = it.asal_stok === 'titipan' ? 'titipan' : 'gudang';
+          if (sku && qty > 0) {
+            try {
+              await deductWarehouseStock(pool, {
+                sku,
+                qty,
+                source,
+                noRef: no_pesanan || targetId,
+                keterangan: `Fulfillment Pesanan Marketplace ${no_pesanan || targetId} (${source === 'titipan' ? 'QR Code Titipan' : 'QR Code Gudang'})`,
+                petugas: dikemas_oleh || 'Staff Packing'
+              });
+            } catch (errDeduct) {
+              console.warn(`[Stock Deduct Warning on ${sku}]:`, errDeduct.message);
+            }
+          }
+        }
+      }
 
       sendJson(res, 200, {
         status: 'success',

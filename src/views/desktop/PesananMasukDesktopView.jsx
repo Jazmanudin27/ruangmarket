@@ -78,6 +78,7 @@ export default function PesananMasukDesktopView({ onNavigate }) {
   const [isScanModalOpen, setIsScanModalOpen] = useState(false);
   const [scanOrderInput, setScanOrderInput] = useState("");
   const [scanSkuInput, setScanSkuInput] = useState("");
+  const [scanSourceMode, setScanSourceMode] = useState("auto"); // 'auto' | 'gudang' | 'titipan'
   const [activeScanOrder, setActiveScanOrder] = useState(null);
   const [scanItems, setScanItems] = useState([]);
   const [scanKurir, setScanKurir] = useState("");
@@ -256,13 +257,32 @@ export default function PesananMasukDesktopView({ onNavigate }) {
     if (!code) return;
     const upper = code.toUpperCase();
 
+    // Deteksi Sumber Gudang: prefix TTP- / TITIP- / KONS- vs GDG- / GUDANG-
+    let detectedSource = scanSourceMode !== "auto" ? scanSourceMode : "gudang";
+    let cleanCode = code;
+
+    if (
+      upper.startsWith("TTP-") ||
+      upper.startsWith("TITIPAN-") ||
+      upper.startsWith("TITIP-") ||
+      upper.startsWith("KONS-")
+    ) {
+      detectedSource = "titipan";
+      cleanCode = code.replace(/^(TTP-|TITIPAN-|TITIP-|KONS-)/i, "").trim();
+    } else if (upper.startsWith("GDG-") || upper.startsWith("GUDANG-")) {
+      detectedSource = "gudang";
+      cleanCode = code.replace(/^(GDG-|GUDANG-)/i, "").trim();
+    }
+    const cleanUpper = cleanCode.toUpperCase();
+
     // 1. Cari exact match SKU / Varian / Barcode / Nama Produk yang belum full
     let matchIdx = scanItems.findIndex(
       (it) =>
-        (String(it.sku || "").toUpperCase() === upper ||
-          String(it.kode_sku || "").toUpperCase() === upper ||
-          String(it.sku_marketplace || "").toUpperCase() === upper ||
-          String(it.nama_produk || "").toUpperCase() === upper) &&
+        (String(it.sku || "").toUpperCase() === cleanUpper ||
+          String(it.sku || "").toUpperCase() === upper ||
+          String(it.kode_sku || "").toUpperCase() === cleanUpper ||
+          String(it.sku_marketplace || "").toUpperCase() === cleanUpper ||
+          String(it.nama_produk || "").toUpperCase() === cleanUpper) &&
         Number(it.qty_dikemas || 0) < Number(it.qty || 0),
     );
 
@@ -272,13 +292,13 @@ export default function PesananMasukDesktopView({ onNavigate }) {
         (it) =>
           (String(it.sku || "")
             .toUpperCase()
-            .includes(upper) ||
+            .includes(cleanUpper) ||
             String(it.kode_sku || "")
               .toUpperCase()
-              .includes(upper) ||
+              .includes(cleanUpper) ||
             String(it.nama_produk || "")
               .toUpperCase()
-              .includes(upper)) &&
+              .includes(cleanUpper)) &&
           Number(it.qty_dikemas || 0) < Number(it.qty || 0),
       );
     }
@@ -287,13 +307,14 @@ export default function PesananMasukDesktopView({ onNavigate }) {
     if (matchIdx === -1) {
       const alreadyFullIdx = scanItems.findIndex(
         (it) =>
+          String(it.sku || "").toUpperCase() === cleanUpper ||
           String(it.sku || "").toUpperCase() === upper ||
           String(it.sku || "")
             .toUpperCase()
-            .includes(upper) ||
+            .includes(cleanUpper) ||
           String(it.nama_produk || "")
             .toUpperCase()
-            .includes(upper),
+            .includes(cleanUpper),
       );
       if (alreadyFullIdx !== -1) {
         const fullItem = scanItems[alreadyFullIdx];
@@ -315,22 +336,37 @@ export default function PesananMasukDesktopView({ onNavigate }) {
       return;
     }
 
-    // Increment qty_dikemas + 1
+    // Increment qty_dikemas + 1 & lacak sumber gudang
     playScanBeep("success");
     const targetItem = scanItems[matchIdx];
     const nextQty = Math.min(
       Number(targetItem.qty || 0),
       Number(targetItem.qty_dikemas || 0) + 1,
     );
+    const curGudang =
+      Number(targetItem.scanned_gudang || 0) +
+      (detectedSource === "gudang" ? 1 : 0);
+    const curTitipan =
+      Number(targetItem.scanned_titipan || 0) +
+      (detectedSource === "titipan" ? 1 : 0);
+    const primarySource = curTitipan > curGudang ? "titipan" : "gudang";
 
     setScanItems((prev) =>
       prev.map((it, idx) =>
-        idx === matchIdx ? { ...it, qty_dikemas: nextQty } : it,
+        idx === matchIdx
+          ? {
+              ...it,
+              qty_dikemas: nextQty,
+              scanned_gudang: curGudang,
+              scanned_titipan: curTitipan,
+              asal_stok: primarySource,
+            }
+          : it,
       ),
     );
     setScanFeedback({
       type: "success",
-      text: `SCAN SKU OK: ${targetItem.sku || "TANPA-SKU"} — ${targetItem.nama_produk} (${nextQty}/${targetItem.qty} pcs)`,
+      text: `SCAN QR OK: [${detectedSource === "titipan" ? "🏬 GUDANG TITIPAN" : "📦 GUDANG UTAMA"}] — ${targetItem.sku || targetItem.nama_produk} (${nextQty}/${targetItem.qty} pcs) [Gudang: ${curGudang} | Titipan: ${curTitipan}]`,
     });
     setScanSkuInput("");
   };
@@ -4464,70 +4500,186 @@ return (
                         padding: "10px 12px",
                         marginBottom: "12px",
                         display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        gap: "10px",
-                        flexWrap: "wrap",
+                        flexDirection: "column",
+                        gap: "8px",
                       }}
                     >
-                      <form
-                        onSubmit={handleScanSkuSubmit}
+                      {/* Pilihan Sumber Stok (Gudang vs Titipan) */}
+                      <div
                         style={{
                           display: "flex",
                           alignItems: "center",
-                          gap: "8px",
-                          flex: 1,
-                          minWidth: "280px",
+                          gap: "6px",
+                          flexWrap: "wrap",
                         }}
                       >
-                        <div
+                        <span
                           style={{
-                            fontSize: "11px",
+                            fontSize: "10.5px",
                             fontWeight: "800",
-                            color: "#1e3a8a",
-                            whiteSpace: "nowrap",
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "5px",
+                            color: "#334155",
                           }}
                         >
-                          <QrCode size={14} color="#2563eb" />
-                          <span>SCAN SKU PRODUK:</span>
-                        </div>
-                        <input
-                          type="text"
-                          autoFocus
-                          value={scanSkuInput}
-                          onChange={(e) => setScanSkuInput(e.target.value)}
-                          placeholder="Scan barcode SKU / ketik kode SKU lalu tekan Enter..."
-                          style={{
-                            flex: 1,
-                            padding: "6px 10px",
-                            borderRadius: "6px",
-                            border: "2px solid #2563eb",
-                            backgroundColor: "#ffffff",
-                            fontSize: "12px",
-                            fontWeight: "700",
-                            color: "#0f172a",
-                            outline: "none",
-                          }}
-                        />
+                          Sumber Scan Stok:
+                        </span>
                         <button
-                          type="submit"
+                          type="button"
+                          onClick={() => setScanSourceMode("auto")}
                           style={{
-                            padding: "6px 12px",
-                            borderRadius: "6px",
-                            border: "none",
-                            backgroundColor: "#2563eb",
-                            color: "#ffffff",
-                            fontSize: "11.5px",
+                            padding: "2px 8px",
+                            borderRadius: "4px",
+                            fontSize: "10.5px",
                             fontWeight: "800",
                             cursor: "pointer",
+                            border:
+                              scanSourceMode === "auto"
+                                ? "1.5px solid #2563eb"
+                                : "1px solid #cbd5e1",
+                            backgroundColor:
+                              scanSourceMode === "auto" ? "#eff6ff" : "#ffffff",
+                            color:
+                              scanSourceMode === "auto" ? "#1d4ed8" : "#64748b",
                           }}
                         >
-                          + Scan SKU
+                          ⚡ Auto (Prefix TTP- / GDG-)
                         </button>
-                      </form>
+                        <button
+                          type="button"
+                          onClick={() => setScanSourceMode("gudang")}
+                          style={{
+                            padding: "2px 8px",
+                            borderRadius: "4px",
+                            fontSize: "10.5px",
+                            fontWeight: "800",
+                            cursor: "pointer",
+                            border:
+                              scanSourceMode === "gudang"
+                                ? "1.5px solid #0284c7"
+                                : "1px solid #cbd5e1",
+                            backgroundColor:
+                              scanSourceMode === "gudang"
+                                ? "#e0f2fe"
+                                : "#ffffff",
+                            color:
+                              scanSourceMode === "gudang"
+                                ? "#0369a1"
+                                : "#64748b",
+                          }}
+                        >
+                          📦 QR Code Gudang Utama
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setScanSourceMode("titipan")}
+                          style={{
+                            padding: "2px 8px",
+                            borderRadius: "4px",
+                            fontSize: "10.5px",
+                            fontWeight: "800",
+                            cursor: "pointer",
+                            border:
+                              scanSourceMode === "titipan"
+                                ? "1.5px solid #d97706"
+                                : "1px solid #cbd5e1",
+                            backgroundColor:
+                              scanSourceMode === "titipan"
+                                ? "#fef3c7"
+                                : "#ffffff",
+                            color:
+                              scanSourceMode === "titipan"
+                                ? "#b45309"
+                                : "#64748b",
+                          }}
+                        >
+                          🏬 QR Code Gudang Titipan (Konsinyasi)
+                        </button>
+                      </div>
+
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: "10px",
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <form
+                          onSubmit={handleScanSkuSubmit}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "8px",
+                            flex: 1,
+                            minWidth: "280px",
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontSize: "11px",
+                              fontWeight: "800",
+                              color: "#1e3a8a",
+                              whiteSpace: "nowrap",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "5px",
+                            }}
+                          >
+                            <QrCode size={14} color="#2563eb" />
+                            <span>
+                              {scanSourceMode === "titipan"
+                                ? "SCAN TITIPAN:"
+                                : scanSourceMode === "gudang"
+                                  ? "SCAN GUDANG:"
+                                  : "SCAN SKU / QR:"}
+                            </span>
+                          </div>
+                          <input
+                            type="text"
+                            autoFocus
+                            value={scanSkuInput}
+                            onChange={(e) => setScanSkuInput(e.target.value)}
+                            placeholder={
+                              scanSourceMode === "titipan"
+                                ? "Scan QR Code Titipan (atau kode SKU)..."
+                                : scanSourceMode === "gudang"
+                                  ? "Scan QR Code Gudang (atau kode SKU)..."
+                                  : "Scan barcode SKU / QR Code (bisa GDG- atau TTP-)..."
+                            }
+                            style={{
+                              flex: 1,
+                              padding: "6px 10px",
+                              borderRadius: "6px",
+                              border:
+                                scanSourceMode === "titipan"
+                                  ? "2px solid #d97706"
+                                  : "2px solid #2563eb",
+                              backgroundColor: "#ffffff",
+                              fontSize: "12px",
+                              fontWeight: "700",
+                              color: "#0f172a",
+                              outline: "none",
+                            }}
+                          />
+                          <button
+                            type="submit"
+                            style={{
+                              padding: "6px 12px",
+                              borderRadius: "6px",
+                              border: "none",
+                              backgroundColor:
+                                scanSourceMode === "titipan"
+                                  ? "#d97706"
+                                  : "#2563eb",
+                              color: "#ffffff",
+                              fontSize: "11.5px",
+                              fontWeight: "800",
+                              cursor: "pointer",
+                            }}
+                          >
+                            + Scan SKU
+                          </button>
+                        </form>
 
                       <div style={{ display: "flex", gap: "6px" }}>
                         <button
@@ -4713,6 +4865,72 @@ return (
                                         Varian: {it.varian}
                                       </span>
                                     )}
+                                  </div>
+                                  {/* Asal Gudang Ter-scan */}
+                                  <div
+                                    style={{
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: "5px",
+                                      marginTop: "4px",
+                                    }}
+                                  >
+                                    <span
+                                      style={{
+                                        fontSize: "9.5px",
+                                        fontWeight: "800",
+                                        padding: "1px 6px",
+                                        borderRadius: "3px",
+                                        backgroundColor:
+                                          (it.scanned_gudang || 0) > 0
+                                            ? "#eff6ff"
+                                            : "#f8fafc",
+                                        color:
+                                          (it.scanned_gudang || 0) > 0
+                                            ? "#1d4ed8"
+                                            : "#94a3b8",
+                                        border:
+                                          (it.scanned_gudang || 0) > 0
+                                            ? "1px solid #bfdbfe"
+                                            : "1px solid #e2e8f0",
+                                      }}
+                                    >
+                                      📦 Gudang:{" "}
+                                      {it.scanned_gudang !== undefined
+                                        ? it.scanned_gudang
+                                        : it.asal_stok === "titipan"
+                                          ? 0
+                                          : it.qty_dikemas || 0}{" "}
+                                      Pcs
+                                    </span>
+                                    <span
+                                      style={{
+                                        fontSize: "9.5px",
+                                        fontWeight: "800",
+                                        padding: "1px 6px",
+                                        borderRadius: "3px",
+                                        backgroundColor:
+                                          (it.scanned_titipan || 0) > 0
+                                            ? "#fef3c7"
+                                            : "#f8fafc",
+                                        color:
+                                          (it.scanned_titipan || 0) > 0
+                                            ? "#b45309"
+                                            : "#94a3b8",
+                                        border:
+                                          (it.scanned_titipan || 0) > 0
+                                            ? "1px solid #fde68a"
+                                            : "1px solid #e2e8f0",
+                                      }}
+                                    >
+                                      🏬 Titipan:{" "}
+                                      {it.scanned_titipan !== undefined
+                                        ? it.scanned_titipan
+                                        : it.asal_stok === "titipan"
+                                          ? it.qty_dikemas || 0
+                                          : 0}{" "}
+                                      Pcs
+                                    </span>
                                   </div>
                                 </td>
                                 <td

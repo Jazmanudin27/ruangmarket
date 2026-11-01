@@ -837,76 +837,16 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool, lar
             pmParams.push(namaList);
           }
 
-          const [pmRows] = await pool.query(pmSql, pmParams);
-          const allPmRows = [...pmRows];
+          const [pmRows] = await pool.query(pmSql, pmParams).catch(() => [[]]);
+          const allPmRows = Array.isArray(pmRows) ? [...pmRows] : [];
 
           if (laravelPool) {
             try {
-              // 1. Coba dari tabel produk_marketplace di database Laravel jika ada
               const [lpmRows] = await laravelPool.query(pmSql, pmParams).catch(() => [[]]);
               if (Array.isArray(lpmRows) && lpmRows.length > 0) {
                 allPmRows.push(...lpmRows);
               }
             } catch (e1) {}
-
-            try {
-              // 2. Coba auto-scan tabel-tabel di database Laravel
-              const [tblRows] = await laravelPool.query('SHOW TABLES').catch(() => [[]]);
-              const tableNames = (tblRows || []).map(t => Object.values(t)[0]);
-
-              for (const tbl of tableNames) {
-                const lower = tbl.toLowerCase();
-                if (lower === 'produk_marketplace') continue;
-
-                if (lower.includes('marketplace') || lower.includes('mapping') || lower.includes('product') || lower.includes('produk') || lower.includes('shop') || lower.includes('toko')) {
-                  try {
-                    const [cols] = await laravelPool.query(`DESCRIBE \`${tbl}\``).catch(() => [[]]);
-                    if (!cols || cols.length === 0) continue;
-                    const cMap = {};
-                    cols.forEach(c => { cMap[c.Field.toLowerCase()] = c.Field; });
-
-                    const skuCol = cMap['sku_marketplace'] || cMap['sku'] || cMap['seller_sku'] || cMap['item_sku'] || cMap['kode_sku'];
-                    if (!skuCol) continue;
-
-                    const nameCol = cMap['nama_produk'] || cMap['product_name'] || cMap['title'] || cMap['nama'];
-                    const shopCol = cMap['nama_toko'] || cMap['shop_name'] || cMap['store_name'] || cMap['toko'] || cMap['shop_title'];
-                    const chanCol = cMap['saluran'] || cMap['channel'] || cMap['marketplace'] || cMap['platform'];
-                    const chanNameCol = cMap['nama_saluran'] || cMap['channel_name'] || cMap['platform_name'];
-                    const stockCol = cMap['stok_marketplace'] || cMap['stok'] || cMap['stock'] || cMap['qty'];
-                    const priceCol = cMap['harga_jual'] || cMap['harga'] || cMap['price'];
-                    const idCol = cMap['id_produk_marketplace'] || cMap['item_id'] || cMap['product_id'] || cMap['id'];
-                    const shopIdCol = cMap['id_toko'] || cMap['shop_id'] || cMap['store_id'];
-
-                    if (shopCol || chanCol) {
-                      let scanSql = `SELECT * FROM \`${tbl}\` WHERE \`${skuCol}\` IN (?)`;
-                      let scanParams = [allSearchSkus];
-                      if (nameCol && namaList.length > 0) {
-                        scanSql += ` OR \`${nameCol}\` IN (?)`;
-                        scanParams.push(namaList);
-                      }
-                      const [scanned] = await laravelPool.query(scanSql, scanParams).catch(() => [[]]);
-                      for (const r of (scanned || [])) {
-                        const rawChan = String(r[chanCol] || r[chanNameCol] || '').toLowerCase();
-                        const finalChan = rawChan.includes('tiktok') ? 'tiktok' : (rawChan.includes('shopee') ? 'shopee' : (rawChan || 'marketplace'));
-                        const finalChanName = r[chanNameCol] || (finalChan === 'tiktok' ? 'TikTok Shop' : 'Shopee Marketplace');
-                        const finalShop = r[shopCol] || (finalChan === 'tiktok' ? 'TikTok Store' : 'Shopee Store');
-                        allPmRows.push({
-                          sku_marketplace: r[skuCol] || '',
-                          nama_produk: r[nameCol] || '',
-                          saluran: finalChan,
-                          nama_saluran: finalChanName,
-                          nama_toko: finalShop,
-                          id_toko: r[shopIdCol] || '',
-                          stok_marketplace: Number(r[stockCol] || 0),
-                          harga_jual: Number(r[priceCol] || 0),
-                          id_produk_marketplace: r[idCol] || ''
-                        });
-                      }
-                    }
-                  } catch (eScan) {}
-                }
-              }
-            } catch (e2) {}
           }
 
           const addStoreEntry = (key, entry) => {

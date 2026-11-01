@@ -1,4 +1,5 @@
 import { sendJson, parseJsonBody } from '../utils/response.js';
+import { deductWarehouseStock } from './penitipan-barang.routes.js';
 
 // ─── Helper: generate no pesanan offline ─────────────────────────────────────
 function generateNoPesanan() {
@@ -396,6 +397,23 @@ export async function handleOfflineOrdersRoutes(req, res, pathname, urlObj, { po
           INSERT INTO pesanan_offline_item (id_pesanan, sku, nama_produk, varian, qty, harga_satuan, diskon_item, subtotal, catatan_item)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         `, [id, it.sku || null, it.nama_produk, it.varian || null, Number(it.qty), Number(it.harga_satuan), Number(it.diskon_item || 0), itSubtotal, it.catatan_item || null]);
+
+        // Potong stok real-time (Gudang Utama vs Titipan Konsinyasi)
+        if (it.sku && Number(it.qty) > 0) {
+          try {
+            const src = it.asal_stok === 'titipan' ? 'titipan' : 'gudang';
+            await deductWarehouseStock(pool, {
+              sku: it.sku,
+              qty: Number(it.qty),
+              source: src,
+              noRef: no_pesanan,
+              keterangan: `Penjualan Offline ${no_pesanan} (${src === 'titipan' ? 'QR Code Titipan' : 'QR Code Gudang'})`,
+              petugas: dibuat_oleh || 'Staff POS Offline'
+            });
+          } catch (eDeduct) {
+            console.warn('[Offline Stock Deduct Warning]:', eDeduct.message);
+          }
+        }
       }
 
       sendJson(res, 201, { status: 'success', message: 'Pesanan berhasil dibuat', id, no_pesanan });
