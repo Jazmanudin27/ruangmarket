@@ -412,7 +412,7 @@ export async function handlePenitipanBarangRoutes(req, res, pathname, urlObj, co
 
       if (mitraId) {
         query += ` AND (mitra_id = ? OR nama_mitra = ?)`;
-        params.push(mitraId, namaMitra);
+        params.push(mitraId, namaMitra || '');
       } else if (namaMitra) {
         query += ` AND nama_mitra = ?`;
         params.push(namaMitra);
@@ -691,7 +691,7 @@ export async function handlePenitipanBarangRoutes(req, res, pathname, urlObj, co
 
       if (mitraId) {
         query += ` AND (mitra_id = ? OR nama_penitip = ?)`;
-        params.push(mitraId, penitip);
+        params.push(mitraId, penitip || '');
       } else if (penitip && penitip !== 'Semua') {
         query += ` AND nama_penitip = ?`;
         params.push(penitip);

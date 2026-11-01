@@ -138,6 +138,7 @@ export default function PenitipanBarangDesktopView() {
   });
 
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingDetail, setIsLoadingDetail] = useState(false);
 
   // DRILL-DOWN NAVIGATION:
   // selectedMitra === null -> Level 1 (Tampilan Awal: Daftar Mitra Penitip)
@@ -277,42 +278,32 @@ export default function PenitipanBarangDesktopView() {
     setShowProdukDropdown(false);
   };
 
-  // 1. Fetch All Data
+  // 1. Fetch Ringan: HANYA DAFTAR MITRA saat buka menu Index (< 30ms)
   const loadData = async () => {
     setIsLoading(true);
     try {
       const comp = activeCompany?.code || 'RSG';
 
-      // Load Mitra
+      // Load Mitra Saja
       const resMitra = await fetch(`/api/penitipan-barang/mitra?company=${comp}`);
       if (resMitra.ok) {
         const jsonMitra = await resMitra.json();
-        setMitraList(jsonMitra.data || []);
-      }
+        const list = jsonMitra.data || [];
+        setMitraList(list);
 
-      // Load Penitipan Barang
-      const resPenitipan = await fetch(`/api/penitipan-barang?company=${comp}`);
-      if (resPenitipan.ok) {
-        const jsonP = await resPenitipan.json();
-        setPenitipanList(jsonP.data || []);
-        if (jsonP.summary) {
-          setSummary(jsonP.summary);
-        }
-      }
-
-      // Load Pembayaran
-      const resBayar = await fetch(`/api/penitipan-barang/pembayaran?company=${comp}`);
-      if (resBayar.ok) {
-        const jsonB = await resBayar.json();
-        setPembayaranList(jsonB.data || []);
-      }
-
-      // Load Master Produk untuk autocomplete select
-      const resProd = await fetch(`/api/marketplace/master?limit=5000&sort=nama_produk&kode_perusahaan=${comp}`);
-      if (resProd.ok) {
-        const jsonProd = await resProd.json();
-        const list = Array.isArray(jsonProd.data) ? [...jsonProd.data].sort(compareProducts) : [];
-        setMasterProdukList(list);
+        // Agregasi kartu ringkasan KPI langsung dari 5 mitra tanpa query berat
+        setSummary({
+          total_transaksi: list.reduce((acc, m) => acc + Number(m.total_titipan || 0), 0),
+          stok_di_gudang: list.reduce((acc, m) => acc + Number(m.stok_masuk || 0), 0),
+          rp_di_gudang: list.reduce((acc, m) => acc + Number(m.total_nilai_titip || 0), 0),
+          stok_terjual: list.reduce((acc, m) => acc + Number(m.stok_terjual || 0), 0),
+          rp_terjual_modal: list.reduce((acc, m) => acc + Number(m.total_kewajiban_bayar || 0), 0),
+          sisa_stok: list.reduce((acc, m) => acc + Number(m.sisa_stok || 0), 0),
+          rp_sisa_stok: list.reduce((acc, m) => acc + Number(m.total_nilai_sisa || 0), 0),
+          total_kewajiban: list.reduce((acc, m) => acc + Number(m.total_kewajiban_bayar || 0), 0),
+          total_sudah_dibayar: list.reduce((acc, m) => acc + Number(m.total_sudah_dibayar || 0), 0),
+          sisa_hutang: list.reduce((acc, m) => acc + Number(m.sisa_hutang || 0), 0)
+        });
       }
     } catch (err) {
       console.error('Error fetching penitipan data:', err);
@@ -321,9 +312,57 @@ export default function PenitipanBarangDesktopView() {
     }
   };
 
+  // 2. Fetch Detail: HANYA JALAN SAAT MITRA DI-KLIK SHOW / DETAIL
+  const loadDetailForMitra = async (mitra) => {
+    if (!mitra) return;
+    setIsLoadingDetail(true);
+    try {
+      const comp = activeCompany?.code || 'RSG';
+      const [resP, resB] = await Promise.all([
+        fetch(`/api/penitipan-barang?company=${comp}&mitra_id=${mitra.id}&penitip=${encodeURIComponent(mitra.nama_mitra)}`),
+        fetch(`/api/penitipan-barang/pembayaran?company=${comp}&mitra_id=${mitra.id}&nama_mitra=${encodeURIComponent(mitra.nama_mitra)}`)
+      ]);
+      if (resP.ok) {
+        const jsonP = await resP.json();
+        setPenitipanList(jsonP.data || []);
+      }
+      if (resB.ok) {
+        const jsonB = await resB.json();
+        setPembayaranList(jsonB.data || []);
+      }
+    } catch (err) {
+      console.error('Error loading detail mitra:', err);
+    } finally {
+      setIsLoadingDetail(false);
+    }
+  };
+
+  // 3. Lazy Load Master Produk HANYA saat dibutuhkan (Buka modal input / scan)
+  const ensureMasterProdukLoaded = async () => {
+    if (masterProdukList.length > 0) return;
+    try {
+      const comp = activeCompany?.code || 'RSG';
+      const resProd = await fetch(`/api/marketplace/master?limit=1000&sort=nama_produk&kode_perusahaan=${comp}`);
+      if (resProd.ok) {
+        const jsonProd = await resProd.json();
+        const list = Array.isArray(jsonProd.data) ? [...jsonProd.data].sort(compareProducts) : [];
+        setMasterProdukList(list);
+      }
+    } catch (err) {
+      console.error('Error fetching master produk:', err);
+    }
+  };
+
   useEffect(() => {
     loadData();
   }, [activeCompany]);
+
+  // Saat selectedMitra aktif, otomatis muat detail histori barang & pembayaran mitra tsb
+  useEffect(() => {
+    if (selectedMitra) {
+      loadDetailForMitra(selectedMitra);
+    }
+  }, [selectedMitra?.id]);
 
   // Keep selectedMitra in sync with updated data
   useEffect(() => {
@@ -536,6 +575,7 @@ export default function PenitipanBarangDesktopView() {
   // ACTIONS: PENITIPAN BARANG (CRUD)
   // =========================================================================
   const handleOpenTambahBarang = (forMitra = null) => {
+    ensureMasterProdukLoaded();
     const targetMitra = forMitra || selectedMitra;
     const now = new Date();
     const dateStr = now.toISOString().slice(0, 10);
@@ -556,6 +596,7 @@ export default function PenitipanBarangDesktopView() {
 
   const handleOpenEditBarang = (item, e) => {
     if (e) e.stopPropagation();
+    ensureMasterProdukLoaded();
     setFormData({
       tanggal: item.tanggal,
       mitra_id: item.mitra_id || null,
@@ -606,6 +647,7 @@ export default function PenitipanBarangDesktopView() {
         toastSuccess(resJson.message || 'Data penitipan barang berhasil disimpan!');
         setIsFormModalOpen(false);
         loadData();
+        if (selectedMitra) loadDetailForMitra(selectedMitra);
       } else {
         toastError(resJson.message || 'Gagal menyimpan penitipan barang.');
       }
@@ -631,9 +673,11 @@ export default function PenitipanBarangDesktopView() {
       if (res.ok) {
         toastSuccess('Data penitipan barang berhasil dihapus.');
         loadData();
+        if (selectedMitra) loadDetailForMitra(selectedMitra);
       } else {
         toastError(resJson.message || 'Gagal menghapus data.');
         loadData();
+        if (selectedMitra) loadDetailForMitra(selectedMitra);
       }
     } catch (err) {
       console.error(err);
@@ -680,6 +724,7 @@ export default function PenitipanBarangDesktopView() {
         toastSuccess(resJson.message || `Berhasil mencatat ${qty} ${selectedItem.satuan} laku terjual!`);
         setIsJualModalOpen(false);
         loadData();
+        if (selectedMitra) loadDetailForMitra(selectedMitra);
       } else {
         toastError(resJson.message || 'Gagal mencatat penjualan.');
       }
@@ -741,6 +786,7 @@ export default function PenitipanBarangDesktopView() {
         toastSuccess(resJson.message || 'Pembayaran berhasil dicatat!');
         setIsBayarModalOpen(false);
         loadData();
+        if (selectedMitra) loadDetailForMitra(selectedMitra);
       } else {
         toastError(resJson.message || 'Gagal menyimpan pembayaran.');
       }
@@ -766,9 +812,11 @@ export default function PenitipanBarangDesktopView() {
       if (res.ok) {
         toastSuccess('Catatan pembayaran berhasil dihapus.');
         loadData();
+        if (selectedMitra) loadDetailForMitra(selectedMitra);
       } else {
         toastError(resJson.message || 'Gagal menghapus pembayaran.');
         loadData();
+        if (selectedMitra) loadDetailForMitra(selectedMitra);
       }
     } catch (err) {
       console.error(err);
@@ -819,6 +867,16 @@ export default function PenitipanBarangDesktopView() {
     setOpnameMitraFilter(filterTarget);
     setOpnameScannerInput('');
     setOpnameFeedback(null);
+
+    if (penitipanList.length === 0) {
+      const comp = activeCompany?.code || 'RSG';
+      fetch(`/api/penitipan-barang?company=${comp}`)
+        .then(r => r.json())
+        .then(res => {
+          if (res.data) setPenitipanList(res.data);
+        })
+        .catch(() => {});
+    }
 
     // Ambil list titipan sesuai mitra
     const available = penitipanList.filter(p => {
@@ -2195,7 +2253,14 @@ export default function PenitipanBarangDesktopView() {
                     </tr>
                   </thead>
                   <tbody>
-                    {paginatedTitipan.length === 0 ? (
+                    {isLoadingDetail ? (
+                      <tr>
+                        <td colSpan={9} style={{ padding: '30px', textAlign: 'center', color: '#0284c7', border: '1px solid #cbd5e1' }}>
+                          <RotateCw size={22} style={{ margin: '0 auto 6px' }} />
+                          <div style={{ fontSize: '12px', fontWeight: '700' }}>Memuat data titipan {selectedMitra?.nama_mitra}...</div>
+                        </td>
+                      </tr>
+                    ) : paginatedTitipan.length === 0 ? (
                       <tr>
                         <td colSpan={9} style={{ padding: '30px', textAlign: 'center', color: '#94a3b8', border: '1px solid #cbd5e1' }}>
                           <Warehouse size={28} style={{ margin: '0 auto 6px', opacity: 0.5 }} />
@@ -2554,7 +2619,14 @@ export default function PenitipanBarangDesktopView() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredPembayaranForMitra.length === 0 ? (
+                    {isLoadingDetail ? (
+                      <tr>
+                        <td colSpan={8} style={{ padding: '30px', textAlign: 'center', color: '#0284c7', border: '1px solid #cbd5e1' }}>
+                          <RotateCw size={22} style={{ margin: '0 auto 6px' }} />
+                          <div style={{ fontSize: '12px', fontWeight: '700' }}>Memuat histori pembayaran {selectedMitra?.nama_mitra}...</div>
+                        </td>
+                      </tr>
+                    ) : filteredPembayaranForMitra.length === 0 ? (
                       <tr>
                         <td colSpan={8} style={{ padding: '30px', textAlign: 'center', color: '#94a3b8', border: '1px solid #cbd5e1' }}>
                           <DollarSign size={28} style={{ margin: '0 auto 6px', opacity: 0.5 }} />
