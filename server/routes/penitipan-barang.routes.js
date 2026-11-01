@@ -1,168 +1,7 @@
 import { sendJson, parseJsonBody } from '../utils/response.js';
 
-const INITIAL_MITRA_LIST = [
-  {
-    nama_mitra: 'Konveksi Berkah Mandiri (Pak Joko)',
-    kontak: '0812-3456-7890',
-    alamat: 'Jl. Raya Cigondewah No. 45, Bandung',
-    bank_nama: 'BCA',
-    bank_rekening: '7820192837',
-    bank_atas_nama: 'Joko Susanto',
-    keterangan: 'Spesialis mukena silk premium dan gamis katun.'
-  },
-  {
-    nama_mitra: 'CV Al-Fath Textile Bandung',
-    kontak: '0857-1122-3344',
-    alamat: 'Kawasan Tekstil Terpadu Majalaya Blok B-12, Bandung',
-    bank_nama: 'Mandiri',
-    bank_rekening: '1310098765432',
-    bank_atas_nama: 'CV Al-Fath Textile',
-    keterangan: 'Pabrikan sarung tenun dobby dan kain celana santri.'
-  },
-  {
-    nama_mitra: 'Hijab House Solo (Ibu Nur)',
-    kontak: '0813-9876-5432',
-    alamat: 'Pasar Klewer Sayap Barat Lantai 2 No. 12, Solo',
-    bank_nama: 'BSI',
-    bank_rekening: '7145678901',
-    bank_atas_nama: 'Nur Hidayati',
-    keterangan: 'Pashmina, jilbab segiempat, dan pashmina ceruty.'
-  },
-  {
-    nama_mitra: 'Batik Danar Gallery',
-    kontak: '0811-2233-4455',
-    alamat: 'Jl. Slamet Riyadi No. 102, Surakarta',
-    bank_nama: 'BCA',
-    bank_rekening: '0158877665',
-    bank_atas_nama: 'Danar Kusuma',
-    keterangan: 'Kain batik cap dan semi-tulis motif tradisional dan modern.'
-  },
-  {
-    nama_mitra: 'Koko Santri Prima Tasikmalaya',
-    kontak: '0878-4455-6677',
-    alamat: 'Sentra Industri Bordir Kawalu No. 88, Tasikmalaya',
-    bank_nama: 'BRI',
-    bank_rekening: '002101004567501',
-    bank_atas_nama: 'H. Ridwan Tasik',
-    keterangan: 'Produsen baju koko haibat, kurta, dan busana santri pria.'
-  }
-];
-
-const INITIAL_PENITIPAN_BARANG = [
-  {
-    tanggal: '2026-10-25',
-    no_titipan: 'TTP-20261025-001',
-    nama_penitip: 'Konveksi Berkah Mandiri (Pak Joko)',
-    kontak_penitip: '0812-3456-7890',
-    kode_sku: 'TITIP-MUKENA-SILK-01',
-    nama_produk: 'Mukena Silk Premium Renda Bordir Mewah',
-    varian: 'Dusty Pink / All Size',
-    satuan: 'PCS',
-    harga_titip: 120000,
-    qty_titip: 100,
-    qty_terjual: 65,
-    qty_retur: 0,
-    status: 'Aktif',
-    lokasi_rak: 'Rak Konsinyasi A-01',
-    petugas: 'Ahmad Gudang',
-    keterangan: 'Titipan mukena silk menjelang promo akbar. Sistem pembayaran konsinyasi tempo.'
-  },
-  {
-    tanggal: '2026-10-26',
-    no_titipan: 'TTP-20261026-002',
-    nama_penitip: 'CV Al-Fath Textile Bandung',
-    kontak_penitip: '0857-1122-3344',
-    kode_sku: 'TITIP-SARUNG-DOBBY-02',
-    nama_produk: 'Sarung Tenun Dobby Polos Elegan',
-    varian: 'Hitam / Standar',
-    satuan: 'PCS',
-    harga_titip: 65000,
-    qty_titip: 150,
-    qty_terjual: 90,
-    qty_retur: 0,
-    status: 'Aktif',
-    lokasi_rak: 'Rak Konsinyasi B-03',
-    petugas: 'Siti Logistik',
-    keterangan: 'Konsinyasi sarung santri grade A.'
-  },
-  {
-    tanggal: '2026-10-28',
-    no_titipan: 'TTP-20261028-003',
-    nama_penitip: 'Hijab House Solo (Ibu Nur)',
-    kontak_penitip: '0813-9876-5432',
-    kode_sku: 'TITIP-PASHMINA-CERUTY-03',
-    nama_produk: 'Pashmina Ceruty Baby Doll Polos',
-    varian: 'Sage Green',
-    satuan: 'PCS',
-    harga_titip: 25000,
-    qty_titip: 200,
-    qty_terjual: 140,
-    qty_retur: 10,
-    status: 'Aktif',
-    lokasi_rak: 'Rak Konsinyasi C-02',
-    petugas: 'Ahmad Gudang',
-    keterangan: 'Retur 10 pcs reject bahan cacat dari pabrik.'
-  },
-  {
-    tanggal: '2026-10-29',
-    no_titipan: 'TTP-20261029-004',
-    nama_penitip: 'Batik Danar Gallery',
-    kontak_penitip: '0811-2233-4455',
-    kode_sku: 'TITIP-BATIK-KATUN-PRADA',
-    nama_produk: 'Kain Batik Katun Halus Motif Prada Modern',
-    varian: 'Coklat Emas / 2.2 Meter',
-    satuan: 'Lembar',
-    harga_titip: 85000,
-    qty_titip: 80,
-    qty_terjual: 30,
-    qty_retur: 0,
-    status: 'Aktif',
-    lokasi_rak: 'Gudang Bahan Konsinyasi',
-    petugas: 'Hendra Admin',
-    keterangan: 'Titipan kain batik semi-tulis untuk pesanan seragam.'
-  },
-  {
-    tanggal: '2026-10-30',
-    no_titipan: 'TTP-20261030-005',
-    nama_penitip: 'Koko Santri Prima Tasikmalaya',
-    kontak_penitip: '0878-4455-6677',
-    kode_sku: 'TITIP-KOKO-HAIBAT-L',
-    nama_produk: 'Baju Koko Haibat Kerah Mandarin Katun Madinah L',
-    varian: 'Putih Bersih / L',
-    satuan: 'PCS',
-    harga_titip: 75000,
-    qty_titip: 120,
-    qty_terjual: 50,
-    qty_retur: 0,
-    status: 'Aktif',
-    lokasi_rak: 'Rak Konsinyasi A-02',
-    petugas: 'Siti Logistik',
-    keterangan: 'Konsinyasi baju koko santri pria eksklusif.'
-  }
-];
-
-const INITIAL_PEMBAYARAN_LIST = [
-  {
-    nama_mitra: 'Konveksi Berkah Mandiri (Pak Joko)',
-    no_pembayaran: 'BYR-20261028-001',
-    tanggal: '2026-10-28',
-    nominal: 5000000,
-    metode_pembayaran: 'Transfer Bank BCA',
-    no_referensi: 'TRF-BCA-9928192',
-    petugas: 'Finance Titipan',
-    catatan: 'Pembayaran termin 1 untuk laku 40 pcs Mukena Silk.'
-  },
-  {
-    nama_mitra: 'Hijab House Solo (Ibu Nur)',
-    no_pembayaran: 'BYR-20261030-002',
-    tanggal: '2026-10-30',
-    nominal: 2500000,
-    metode_pembayaran: 'Transfer Bank BSI',
-    no_referensi: 'TRF-BSI-1102938',
-    petugas: 'Finance Titipan',
-    catatan: 'Pelunasan sebagian barang terjual 100 pcs Pashmina.'
-  }
-];
+let isTablesEnsured = false;
+let ensureTablesPromise = null;
 
 async function safeAddColumn(pool, table, column, definition) {
   try {
@@ -200,18 +39,6 @@ async function ensureAllTables(pool) {
   await safeAddColumn(pool, 'mitra_penitip', 'bank_rekening', "VARCHAR(60) DEFAULT ''");
   await safeAddColumn(pool, 'mitra_penitip', 'bank_atas_nama', "VARCHAR(100) DEFAULT ''");
   await safeAddColumn(pool, 'mitra_penitip', 'keterangan', "TEXT NULL");
-
-  // Seed Mitra jika kosong
-  const [[mCount]] = await pool.query('SELECT COUNT(*) as total FROM mitra_penitip');
-  if (mCount.total === 0) {
-    for (const m of INITIAL_MITRA_LIST) {
-      await pool.query(
-        `INSERT INTO mitra_penitip (kode_perusahaan, nama_mitra, kontak, alamat, bank_nama, bank_rekening, bank_atas_nama, keterangan)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        ['RSG', m.nama_mitra, m.kontak, m.alamat, m.bank_nama, m.bank_rekening, m.bank_atas_nama, m.keterangan]
-      );
-    }
-  }
 
   // 2. Tabel Penitipan Barang
   await pool.query(`
@@ -338,43 +165,20 @@ async function ensureAllTables(pool) {
       INDEX idx_penitipan (penitipan_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Detail Item Opname Titipan Barang';
   `);
+}
 
-  // Seed Penitipan Barang jika kosong
-  const [[pCount]] = await pool.query('SELECT COUNT(*) as total FROM penitipan_barang');
-  if (pCount.total === 0) {
-    for (const item of INITIAL_PENITIPAN_BARANG) {
-      // Hubungkan mitra_id bila ada
-      const [[mRow]] = await pool.query('SELECT id FROM mitra_penitip WHERE nama_mitra = ? LIMIT 1', [item.nama_penitip]);
-      const mId = mRow ? mRow.id : null;
-
-      await pool.query(
-        `INSERT INTO penitipan_barang (
-          kode_perusahaan, mitra_id, no_titipan, tanggal, nama_penitip, kontak_penitip,
-          kode_sku, nama_produk, varian, satuan, harga_titip,
-          qty_titip, qty_terjual, qty_retur, status, lokasi_rak, petugas, keterangan
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          'RSG', mId, item.no_titipan, item.tanggal, item.nama_penitip, item.kontak_penitip,
-          item.kode_sku, item.nama_produk, item.varian, item.satuan, item.harga_titip,
-          item.qty_titip, item.qty_terjual, item.qty_retur, item.status, item.lokasi_rak, item.petugas, item.keterangan
-        ]
-      );
-    }
+async function ensureTablesOnce(pool) {
+  if (isTablesEnsured) return;
+  if (!ensureTablesPromise) {
+    ensureTablesPromise = (async () => {
+      await ensureAllTables(pool);
+      isTablesEnsured = true;
+    })().catch(err => {
+      ensureTablesPromise = null;
+      console.error('[Penitipan Tables Init Error]:', err.message);
+    });
   }
-
-  // Seed Pembayaran jika kosong
-  const [[byrCount]] = await pool.query('SELECT COUNT(*) as total FROM pembayaran_penitip');
-  if (byrCount.total === 0) {
-    for (const b of INITIAL_PEMBAYARAN_LIST) {
-      const [[mRow]] = await pool.query('SELECT id FROM mitra_penitip WHERE nama_mitra = ? LIMIT 1', [b.nama_mitra]);
-      const mId = mRow ? mRow.id : null;
-      await pool.query(
-        `INSERT INTO pembayaran_penitip (kode_perusahaan, mitra_id, nama_mitra, no_pembayaran, tanggal, nominal, metode_pembayaran, no_referensi, petugas, catatan)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        ['RSG', mId, b.nama_mitra, b.no_pembayaran, b.tanggal, b.nominal, b.metode_pembayaran, b.no_referensi, b.petugas, b.catatan]
-      );
-    }
-  }
+  return ensureTablesPromise;
 }
 
 export async function handlePenitipanBarangRoutes(req, res, pathname, urlObj, context) {
@@ -385,9 +189,9 @@ export async function handlePenitipanBarangRoutes(req, res, pathname, urlObj, co
   }
 
   try {
-    await ensureAllTables(pool);
+    await ensureTablesOnce(pool);
   } catch (err) {
-    console.error('[Penitipan Tables Init Error]:', err.message);
+    // ignore
   }
 
   // =========================================================================

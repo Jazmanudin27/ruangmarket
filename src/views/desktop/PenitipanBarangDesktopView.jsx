@@ -509,21 +509,26 @@ export default function PenitipanBarangDesktopView() {
     const ok = await showConfirm(`Yakin ingin menghapus mitra "${mitra.nama_mitra}"? Histori titipan dan pembayarannya akan ikut terpengaruh.`);
     if (!ok) return;
 
+    // Optimistic UI update: hapus instan dari tampilan
+    setMitraList(prev => prev.filter(m => m.id !== mitra.id));
+    if (selectedMitra && selectedMitra.id === mitra.id) {
+      setSelectedMitra(null);
+    }
+
     try {
       const res = await fetch(`/api/penitipan-barang/mitra/${mitra.id}`, { method: 'DELETE' });
       const resJson = await res.json();
       if (res.ok) {
         toastSuccess('Mitra berhasil dihapus.');
-        if (selectedMitra && selectedMitra.id === mitra.id) {
-          setSelectedMitra(null);
-        }
         loadData();
       } else {
         toastError(resJson.message || 'Gagal menghapus mitra.');
+        loadData();
       }
     } catch (err) {
       console.error(err);
       toastError('Terjadi kesalahan jaringan.');
+      loadData();
     }
   };
 
@@ -617,6 +622,9 @@ export default function PenitipanBarangDesktopView() {
     const ok = await showConfirm(`Hapus data penitipan "${item.nama_produk}" (${item.no_titipan})?`);
     if (!ok) return;
 
+    // Optimistic UI update: langsung hapus dari list lokal agar cepat tanpa jeda
+    setPenitipanList(prev => prev.filter(p => p.id !== item.id));
+
     try {
       const res = await fetch(`/api/penitipan-barang/${item.id}`, { method: 'DELETE' });
       const resJson = await res.json();
@@ -625,10 +633,12 @@ export default function PenitipanBarangDesktopView() {
         loadData();
       } else {
         toastError(resJson.message || 'Gagal menghapus data.');
+        loadData();
       }
     } catch (err) {
       console.error(err);
       toastError('Terjadi kesalahan jaringan.');
+      loadData();
     }
   };
 
@@ -747,6 +757,9 @@ export default function PenitipanBarangDesktopView() {
     const ok = await showConfirm(`Hapus histori pembayaran "${bayar.no_pembayaran}" (${formatRp(bayar.nominal)})?`);
     if (!ok) return;
 
+    // Optimistic UI update: hapus instan dari state lokal
+    setPembayaranList(prev => prev.filter(b => b.id !== bayar.id));
+
     try {
       const res = await fetch(`/api/penitipan-barang/pembayaran/${bayar.id}`, { method: 'DELETE' });
       const resJson = await res.json();
@@ -755,10 +768,12 @@ export default function PenitipanBarangDesktopView() {
         loadData();
       } else {
         toastError(resJson.message || 'Gagal menghapus pembayaran.');
+        loadData();
       }
     } catch (err) {
       console.error(err);
       toastError('Terjadi kesalahan jaringan.');
+      loadData();
     }
   };
 
