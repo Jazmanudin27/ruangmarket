@@ -34,7 +34,8 @@ import {
   FileText,
   CheckCircle2,
   HelpCircle,
-  RefreshCw
+  RefreshCw,
+  ExternalLink
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { showConfirm, toastSuccess, toastError } from '../../utils/alert.util';
@@ -350,6 +351,15 @@ export default function ProdukView() {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
+
+  // Modal Detail Integrasi Toko Marketplace (Persis Tampilan Laravel ERP)
+  const [selectedIntegrasiProduk, setSelectedIntegrasiProduk] = useState(null);
+  const [isIntegrasiModalOpen, setIsIntegrasiModalOpen] = useState(false);
+
+  const handleOpenIntegrasi = (item) => {
+    setSelectedIntegrasiProduk(item);
+    setIsIntegrasiModalOpen(true);
+  };
 
   // Import Modal & Template state
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -2195,13 +2205,14 @@ export default function ProdukView() {
                 <th style={{ padding: '5px 8px', textAlign: 'center', border: '1px solid #cbd5e1' }}>JUMLAH STOK TERSEDIA</th>
                 <th style={{ padding: '5px 8px', textAlign: 'right', border: '1px solid #cbd5e1' }}>HARGA HPP</th>
                 <th style={{ padding: '5px 8px', textAlign: 'right', border: '1px solid #cbd5e1' }}>HARGA JUAL</th>
+                <th style={{ padding: '5px 8px', textAlign: 'center', width: '130px', border: '1px solid #cbd5e1' }}>TOKO MARKETPLACE</th>
                 <th style={{ padding: '5px 8px', textAlign: 'center', width: '140px', border: '1px solid #cbd5e1' }}>AKSI</th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan="9" style={{ padding: '48px 16px', textAlign: 'center', backgroundColor: '#fbfcfe', border: '1px solid #cbd5e1' }}>
+                  <td colSpan="10" style={{ padding: '48px 16px', textAlign: 'center', backgroundColor: '#fbfcfe', border: '1px solid #cbd5e1' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
                       <div style={{
                         width: '46px',
@@ -2228,7 +2239,7 @@ export default function ProdukView() {
                 </tr>
               ) : paginatedList.length === 0 ? (
                 <tr>
-                  <td colSpan="9" style={{ padding: '24px 16px', textAlign: 'center', color: '#64748b', border: '1px solid #cbd5e1' }}>
+                  <td colSpan="10" style={{ padding: '24px 16px', textAlign: 'center', color: '#64748b', border: '1px solid #cbd5e1' }}>
                     <Package size={32} color="#cbd5e1" style={{ marginBottom: '6px' }} />
                     <div style={{ fontWeight: '700', fontSize: '13px', color: '#334155' }}>Tidak ada produk ditemukan</div>
                     <div style={{ fontSize: '11px', marginTop: '2px' }}>Coba ubah kata kunci pencarian atau reset filter.</div>
@@ -2543,6 +2554,51 @@ export default function ProdukView() {
                       {/* HARGA JUAL */}
                       <td style={{ padding: '5px 8px', textAlign: 'right', fontWeight: '800', color: '#059669', fontSize: '12px', whiteSpace: 'nowrap', border: '1px solid #cbd5e1' }}>
                         {formatRupiah(item.harga_jual)}
+                      </td>
+
+                      {/* TOKO MARKETPLACE (PERSIS TAMPILAN LARAVEL ERP) */}
+                      <td style={{ padding: '5px 8px', textAlign: 'center', border: '1px solid #cbd5e1' }}>
+                        {item.toko_terhubung && item.toko_terhubung.length > 0 ? (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenIntegrasi(item)}
+                            title="Klik untuk melihat Detail Integrasi Toko Marketplace"
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              padding: '3px 8px',
+                              borderRadius: '5px',
+                              border: 'none',
+                              backgroundColor: '#059669',
+                              color: '#ffffff',
+                              fontSize: '11px',
+                              fontWeight: '800',
+                              cursor: 'pointer',
+                              boxShadow: '0 1px 2px rgba(5, 150, 105, 0.3)',
+                              transition: 'all 0.15s ease'
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#047857'}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#059669'}
+                          >
+                            <Store size={12} />
+                            <span>{item.toko_terhubung.length} Toko</span>
+                          </button>
+                        ) : (
+                          <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            padding: '2px 6px',
+                            borderRadius: '4px',
+                            fontSize: '10px',
+                            fontWeight: '700',
+                            backgroundColor: '#f8fafc',
+                            color: '#94a3b8',
+                            border: '1px dashed #cbd5e1'
+                          }}>
+                            Belum Terhubung
+                          </span>
+                        )}
                       </td>
 
                       {/* ACTION BUTTONS (Detail, Edit, Hapus) */}
@@ -4467,19 +4523,43 @@ export default function ProdukView() {
                         6. Integrasi Marketplace & Toko Terhubung
                       </span>
                     </div>
-                    <span style={{
-                      fontSize: '10px',
-                      fontWeight: '800',
-                      padding: '1px 8px',
-                      borderRadius: '4px',
-                      backgroundColor: (selectedProduk.toko_terhubung && selectedProduk.toko_terhubung.length > 0) ? '#f0fdf4' : '#f8fafc',
-                      color: (selectedProduk.toko_terhubung && selectedProduk.toko_terhubung.length > 0) ? '#16a34a' : '#64748b',
-                      border: (selectedProduk.toko_terhubung && selectedProduk.toko_terhubung.length > 0) ? '1px solid #bbf7d0' : '1px solid #cbd5e1'
-                    }}>
-                      {selectedProduk.toko_terhubung && selectedProduk.toko_terhubung.length > 0
-                        ? `${selectedProduk.toko_terhubung.length} Toko Terhubung`
-                        : 'Belum Terhubung'}
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      {selectedProduk.toko_terhubung && selectedProduk.toko_terhubung.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenIntegrasi(selectedProduk)}
+                          style={{
+                            fontSize: '10px',
+                            fontWeight: '800',
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            backgroundColor: '#0284c7',
+                            color: '#ffffff',
+                            border: 'none',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}
+                        >
+                          <ExternalLink size={10} />
+                          Lihat Tabel Integrasi
+                        </button>
+                      )}
+                      <span style={{
+                        fontSize: '10px',
+                        fontWeight: '800',
+                        padding: '1px 8px',
+                        borderRadius: '4px',
+                        backgroundColor: (selectedProduk.toko_terhubung && selectedProduk.toko_terhubung.length > 0) ? '#f0fdf4' : '#f8fafc',
+                        color: (selectedProduk.toko_terhubung && selectedProduk.toko_terhubung.length > 0) ? '#16a34a' : '#64748b',
+                        border: (selectedProduk.toko_terhubung && selectedProduk.toko_terhubung.length > 0) ? '1px solid #bbf7d0' : '1px solid #cbd5e1'
+                      }}>
+                        {selectedProduk.toko_terhubung && selectedProduk.toko_terhubung.length > 0
+                          ? `${selectedProduk.toko_terhubung.length} Toko Terhubung`
+                          : 'Belum Terhubung'}
+                      </span>
+                    </div>
                   </div>
 
                   {selectedProduk.toko_terhubung && selectedProduk.toko_terhubung.length > 0 ? (
@@ -4539,6 +4619,184 @@ export default function ProdukView() {
                 </div>
 
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DETAIL INTEGRASI TOKO MARKETPLACE (PERSIS TAMPILAN LARAVEL ERP) */}
+      {isIntegrasiModalOpen && selectedIntegrasiProduk && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: 'rgba(15, 23, 42, 0.65)',
+          backdropFilter: 'blur(4px)',
+          zIndex: 3700,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '16px',
+          boxSizing: 'border-box'
+        }}>
+          <div style={{
+            backgroundColor: '#ffffff',
+            borderRadius: '10px',
+            width: '100%',
+            maxWidth: '820px',
+            maxHeight: '90vh',
+            display: 'flex',
+            flexDirection: 'column',
+            boxShadow: '0 20px 40px rgba(0, 0, 0, 0.25)',
+            border: '1px solid #cbd5e1',
+            overflow: 'hidden'
+          }}>
+            {/* Modal Header */}
+            <div style={{
+              padding: '12px 18px',
+              borderBottom: '1px solid #e2e8f0',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              backgroundColor: '#ffffff'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Store size={18} color="#0284c7" />
+                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '800', color: '#0f172a' }}>
+                  Detail Integrasi Toko Marketplace
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsIntegrasiModalOpen(false)}
+                style={{
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '6px',
+                  border: '1px solid #e2e8f0',
+                  backgroundColor: '#f8fafc',
+                  color: '#64748b',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer'
+                }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Modal Subheader (Info Produk) */}
+            <div style={{ padding: '12px 18px', borderBottom: '1px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
+              <div style={{ fontSize: '13px', fontWeight: '800', color: '#0284c7', lineHeight: 1.4, marginBottom: '4px' }}>
+                {selectedIntegrasiProduk.nama_produk}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#64748b' }}>
+                <span>SKU Master:</span>
+                <span style={{
+                  padding: '2px 8px',
+                  borderRadius: '4px',
+                  backgroundColor: '#e0f2fe',
+                  color: '#0369a1',
+                  fontFamily: 'monospace',
+                  fontWeight: '700'
+                }}>
+                  {selectedIntegrasiProduk.sku}
+                </span>
+              </div>
+            </div>
+
+            {/* Table Content */}
+            <div style={{ padding: '12px 18px', overflowY: 'auto', flex: 1 }}>
+              {selectedIntegrasiProduk.toko_terhubung && selectedIntegrasiProduk.toko_terhubung.length > 0 ? (
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', textAlign: 'left' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '2px solid #e2e8f0', color: '#64748b', fontSize: '11px', fontWeight: '800', textTransform: 'uppercase' }}>
+                      <th style={{ padding: '8px 10px' }}>TOKO MARKETPLACE</th>
+                      <th style={{ padding: '8px 10px' }}>CHANNEL</th>
+                      <th style={{ padding: '8px 10px' }}>SKU MARKETPLACE</th>
+                      <th style={{ padding: '8px 10px', textAlign: 'center' }}>STATUS INTEGRASI</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedIntegrasiProduk.toko_terhubung.map((tk, tkIdx) => {
+                      const isShopee = (tk.saluran || '').toLowerCase().includes('shopee');
+                      const isTiktok = (tk.saluran || '').toLowerCase().includes('tiktok');
+                      return (
+                        <tr key={tkIdx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                          <td style={{ padding: '10px 10px', fontWeight: '800', color: '#0f172a', fontSize: '12px' }}>
+                            {tk.nama_toko}
+                          </td>
+                          <td style={{ padding: '10px 10px' }}>
+                            <span style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '5px',
+                              padding: '3px 8px',
+                              borderRadius: '4px',
+                              fontSize: '10.5px',
+                              fontWeight: '700',
+                              backgroundColor: isTiktok ? '#0f172a' : (isShopee ? '#dc2626' : '#0284c7'),
+                              color: '#ffffff'
+                            }}>
+                              <span>{isTiktok ? 'TikTok Shop' : (isShopee ? 'Shopee' : (tk.nama_saluran || tk.saluran))}</span>
+                            </span>
+                          </td>
+                          <td style={{ padding: '10px 10px', color: '#0284c7', fontFamily: 'monospace', fontWeight: '700', fontSize: '11px' }}>
+                            {tk.sku_marketplace || selectedIntegrasiProduk.sku}
+                          </td>
+                          <td style={{ padding: '10px 10px', textAlign: 'center' }}>
+                            <span style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              padding: '2px 8px',
+                              borderRadius: '4px',
+                              fontSize: '11px',
+                              fontWeight: '700',
+                              backgroundColor: '#dcfce7',
+                              color: '#15803d',
+                              border: '1px solid #bbf7d0'
+                            }}>
+                              <CheckCircle size={12} color="#15803d" />
+                              <span>Connected</span>
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              ) : (
+                <div style={{ padding: '30px', textAlign: 'center', color: '#64748b', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1' }}>
+                  Belum ada toko marketplace yang terhubung dengan SKU produk ini.
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{
+              padding: '12px 18px',
+              borderTop: '1px solid #e2e8f0',
+              display: 'flex',
+              justifyContent: 'center',
+              backgroundColor: '#f8fafc'
+            }}>
+              <button
+                type="button"
+                onClick={() => setIsIntegrasiModalOpen(false)}
+                style={{
+                  padding: '7px 24px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  backgroundColor: '#334155',
+                  color: '#ffffff',
+                  fontSize: '12px',
+                  fontWeight: '700',
+                  cursor: 'pointer'
+                }}
+              >
+                Tutup Modal
+              </button>
             </div>
           </div>
         </div>

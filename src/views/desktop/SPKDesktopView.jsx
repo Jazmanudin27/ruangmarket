@@ -476,6 +476,15 @@ function SearchableSelect({
   );
 }
 
+const DEFAULT_KAIN_OPTIONS = [
+  { id: 1, kode_sku_kain: "KB-TH-MERAH", nama_kain: "Kain Batik Tunas Harapan Merah", harga_per_meter: 15000 },
+  { id: 2, kode_sku_kain: "KB-BR-ABU", nama_kain: "Kain Batik Bunga Rampai Abu", harga_per_meter: 25000 },
+  { id: 3, kode_sku_kain: "KN-DRILL-NGT", nama_kain: "Kain Drill Nagata", harga_per_meter: 28000 },
+  { id: 4, kode_sku_kain: "KN-TOYOBO", nama_kain: "Kain Katun Toyobo Fodu", harga_per_meter: 32000 },
+  { id: 5, kode_sku_kain: "KN-MADINAH", nama_kain: "Kain Katun Madinah", harga_per_meter: 24000 },
+  { id: 6, kode_sku_kain: "KN-RAYON-TWL", nama_kain: "Kain Rayon Twill Premium", harga_per_meter: 22000 },
+];
+
 export default function SPKView() {
   const [batchList, setBatchList] = useState([]);
   const [isLoadingSpk, setIsLoadingSpk] = useState(false);
@@ -654,6 +663,34 @@ export default function SPKView() {
     }
   };
 
+  const [kainOptions, setKainOptions] = useState(() => {
+    try {
+      const saved = localStorage.getItem("ruangmarket_kain_master_v1");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return DEFAULT_KAIN_OPTIONS;
+  });
+
+  const loadKainOptions = async () => {
+    try {
+      const res = await fetch(`/api/kain/master`);
+      if (res.ok) {
+        const json = await res.json();
+        const data = Array.isArray(json) ? json : json.data || [];
+        if (data.length > 0) {
+          setKainOptions(data);
+          try {
+            localStorage.setItem("ruangmarket_kain_master_v1", JSON.stringify(data));
+          } catch (e) {}
+          return;
+        }
+      }
+    } catch (e) {}
+  };
+
   const [activeCompany, setActiveCompany] = useState(getActiveCompany);
 
   useEffect(() => {
@@ -670,6 +707,7 @@ export default function SPKView() {
     loadPelangganOptions();
     loadTahapanOptions();
     loadProdukList();
+    loadKainOptions();
   }, [activeCompany]);
 
   const [search, setSearch] = useState("");
@@ -4752,18 +4790,40 @@ export default function SPKView() {
                     marginBottom: "4px",
                   }}
                 >
-                  Nama / Kode Jenis Kain
+                  Pilih Kain (Dari Master Kain)
                 </label>
-                <input
-                  type="text"
-                  value={editKainModal.kain_nama}
-                  onChange={(e) =>
-                    setEditKainModal({
-                      ...editKainModal,
-                      kain_nama: e.target.value,
-                    })
+                <select
+                  value={
+                    kainOptions.find(
+                      (k) =>
+                        (k.kode_sku_kain || "").trim().toLowerCase() === (editKainModal.kain_nama || "").trim().toLowerCase() ||
+                        (k.nama_kain || "").trim().toLowerCase() === (editKainModal.kain_nama || "").trim().toLowerCase()
+                    )?.kode_sku_kain || (editKainModal.kain_nama || "")
                   }
-                  placeholder="Contoh: KB-TH-MERAH atau Katun Batik"
+                  onChange={(e) => {
+                    const selectedVal = e.target.value;
+                    const found = kainOptions.find(
+                      (k) =>
+                        k.kode_sku_kain === selectedVal ||
+                        k.nama_kain === selectedVal ||
+                        String(k.id) === selectedVal
+                    );
+                    if (found) {
+                      const hargaCm = found.harga_per_meter
+                        ? Math.round(Number(found.harga_per_meter) / 100)
+                        : editKainModal.harga_kain_cm;
+                      setEditKainModal({
+                        ...editKainModal,
+                        kain_nama: found.kode_sku_kain || found.nama_kain,
+                        harga_kain_cm: hargaCm > 0 ? hargaCm : editKainModal.harga_kain_cm,
+                      });
+                    } else {
+                      setEditKainModal({
+                        ...editKainModal,
+                        kain_nama: selectedVal,
+                      });
+                    }
+                  }}
                   style={{
                     width: "100%",
                     padding: "7px 10px",
@@ -4771,8 +4831,63 @@ export default function SPKView() {
                     border: "1px solid #cbd5e1",
                     fontSize: "12px",
                     boxSizing: "border-box",
+                    backgroundColor: "#ffffff",
+                    color: "#0f172a",
+                    fontWeight: "600",
+                    cursor: "pointer",
                   }}
-                />
+                >
+                  <option value="">-- Pilih Kain dari Master Kain --</option>
+                  {kainOptions.map((k, idx) => {
+                    const val = k.kode_sku_kain || k.nama_kain;
+                    const hargaCm = k.harga_per_meter
+                      ? Math.round(Number(k.harga_per_meter) / 100)
+                      : 0;
+                    return (
+                      <option key={k.id || idx} value={val}>
+                        {k.kode_sku_kain ? `[${k.kode_sku_kain}] ` : ""}
+                        {k.nama_kain || val}
+                        {hargaCm > 0
+                          ? ` (@Rp ${hargaCm}/cm - Rp ${Number(k.harga_per_meter).toLocaleString("id-ID")}/m)`
+                          : ""}
+                      </option>
+                    );
+                  })}
+                  {editKainModal.kain_nama &&
+                    !kainOptions.some(
+                      (k) =>
+                        (k.kode_sku_kain || "").trim().toLowerCase() === (editKainModal.kain_nama || "").trim().toLowerCase() ||
+                        (k.nama_kain || "").trim().toLowerCase() === (editKainModal.kain_nama || "").trim().toLowerCase()
+                    ) && (
+                      <option value={editKainModal.kain_nama}>
+                        {editKainModal.kain_nama} (Kustom / Saat Ini)
+                      </option>
+                    )}
+                </select>
+
+                <div style={{ marginTop: "5px" }}>
+                  <input
+                    type="text"
+                    value={editKainModal.kain_nama || ""}
+                    onChange={(e) =>
+                      setEditKainModal({
+                        ...editKainModal,
+                        kain_nama: e.target.value,
+                      })
+                    }
+                    placeholder="Atau ketik nama / kode kain manual..."
+                    style={{
+                      width: "100%",
+                      padding: "5px 8px",
+                      borderRadius: "4px",
+                      border: "1px dashed #cbd5e1",
+                      fontSize: "11px",
+                      boxSizing: "border-box",
+                      color: "#475569",
+                      backgroundColor: "#f8fafc",
+                    }}
+                  />
+                </div>
               </div>
 
               <div
