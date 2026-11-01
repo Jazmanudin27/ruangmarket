@@ -1676,30 +1676,6 @@ export default function PesananMasukDesktopView({ onNavigate }) {
 
                           return (
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-                              {/* Tombol Scan Kemasan Satuan */}
-                              <button
-                                type="button"
-                                onClick={() => handleOpenScanKemasan(ord)}
-                                title="Buka Layar Scan Barcode Kemasan untuk Pesanan ini"
-                                style={{
-                                  height: '24px',
-                                  padding: '0 8px',
-                                  borderRadius: '4px',
-                                  border: `1px solid ${ord.status_kemas === 'sudah_dikemas' ? '#10b981' : '#059669'}`,
-                                  backgroundColor: ord.status_kemas === 'sudah_dikemas' ? '#f0fdf4' : '#ecfdf5',
-                                  color: '#047857',
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '4px',
-                                  cursor: 'pointer',
-                                  fontSize: '10.5px',
-                                  fontWeight: '800'
-                                }}
-                              >
-                                <Package size={11} color="#059669" />
-                                <span>{ord.status_kemas === 'sudah_dikemas' ? 'Cek Kemasan' : 'Scan Kemas'}</span>
-                              </button>
-
                               {/* Tombol Cetak Resi (Hanya muncul jika Siap Dikirim) */}
                               {isSiapKirim && (
                                 <button
@@ -1742,6 +1718,10 @@ export default function PesananMasukDesktopView({ onNavigate }) {
                                 }}>
                                   <CheckCircle2 size={11} color="#16a34a" /> Sudah Kirim
                                 </span>
+                              )}
+
+                              {!isSiapKirim && !isSudahKirim && (
+                                <span style={{ color: '#94a3b8', fontSize: '11px' }}>-</span>
                               )}
                             </div>
                           );

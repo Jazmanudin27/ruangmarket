@@ -232,6 +232,51 @@ export default function PenitipanBarangDesktopView() {
   };
   const [bayarForm, setBayarForm] = useState(initialBayarForm);
 
+  // Autocomplete Master Produk (Persis Penjualan Offline)
+  const [produkSearch, setProdukSearch] = useState('');
+  const [showProdukDropdown, setShowProdukDropdown] = useState(false);
+  const [filterSingleOnly, setFilterSingleOnly] = useState(true);
+
+  const isSingleProduct = (p) => {
+    const sku = (p.kode_sku || p.sku || '').toUpperCase();
+    const tipe = (p.tipe_set || '').toLowerCase();
+    if (tipe === 'single') return true;
+    if (sku.startsWith('SET-') || sku.startsWith('SET_') || tipe.includes('set') || tipe.includes('bundle')) return false;
+    return true;
+  };
+
+  const filteredProduk = useMemo(() => {
+    if (!masterProdukList.length) return [];
+    let pool = masterProdukList;
+    if (filterSingleOnly) {
+      pool = pool.filter(isSingleProduct);
+    }
+    if (!produkSearch.trim()) {
+      return [...pool].sort(compareProducts).slice(0, 30);
+    }
+    const s = produkSearch.toLowerCase();
+    return pool.filter(p => {
+      return (
+        (p.nama_produk || p.nama || '').toLowerCase().includes(s) ||
+        (p.kode_sku || p.sku || '').toLowerCase().includes(s)
+      );
+    }).sort(compareProducts).slice(0, 40);
+  }, [masterProdukList, produkSearch, filterSingleOnly]);
+
+  const handleSelectMasterProduk = (p) => {
+    setFormData(prev => ({
+      ...prev,
+      produk_id: p.id || null,
+      kode_sku: p.kode_sku || p.sku || '',
+      nama_produk: p.nama_produk || p.nama || '',
+      varian: p.varian || '',
+      satuan: p.satuan || 'PCS',
+      harga_titip: Number(p.harga_beli || p.harga_modal || p.hpp || p.harga_jual || 0)
+    }));
+    setProdukSearch('');
+    setShowProdukDropdown(false);
+  };
+
   // 1. Fetch All Data
   const loadData = async () => {
     setIsLoading(true);
@@ -263,10 +308,11 @@ export default function PenitipanBarangDesktopView() {
       }
 
       // Load Master Produk untuk autocomplete select
-      const resProd = await fetch('/api/marketplace/produk');
+      const resProd = await fetch(`/api/marketplace/master?limit=5000&sort=nama_produk&kode_perusahaan=${comp}`);
       if (resProd.ok) {
         const jsonProd = await resProd.json();
-        setMasterProdukList(jsonProd.data || []);
+        const list = Array.isArray(jsonProd.data) ? [...jsonProd.data].sort(compareProducts) : [];
+        setMasterProdukList(list);
       }
     } catch (err) {
       console.error('Error fetching penitipan data:', err);
@@ -978,20 +1024,6 @@ export default function PenitipanBarangDesktopView() {
     if (e) e.stopPropagation();
     setSelectedItem(item);
     setIsDetailModalOpen(true);
-  };
-
-  // Helper sync master produk saat dipilih di form barang
-  const handleSelectMasterProduk = (val, opt) => {
-    if (!opt) return;
-    setFormData(prev => ({
-      ...prev,
-      produk_id: opt.id || null,
-      kode_sku: opt.sku || prev.kode_sku,
-      nama_produk: opt.nama_produk || opt.label || prev.nama_produk,
-      varian: opt.varian || prev.varian,
-      satuan: opt.satuan || prev.satuan || 'PCS',
-      harga_titip: Number(opt.harga_beli || opt.hpp_total || prev.harga_titip || 0)
-    }));
   };
 
   // Preview Realtime Calculation di Form Barang (Murni Harga Titip)
@@ -3441,24 +3473,164 @@ export default function PenitipanBarangDesktopView() {
                     </h4>
                   </div>
 
-                  {/* Autocomplete dari Master Produk */}
-                  {masterProdukList.length > 0 && (
-                    <SearchableSelect
-                      label="Cari dari Master Produk (Opsional Autocomplete):"
-                      value={formData.kode_sku}
-                      options={masterProdukList.map(p => ({
-                        value: p.sku,
-                        sku: p.sku,
-                        label: `${p.sku} - ${p.nama_produk}`,
-                        nama_produk: p.nama_produk,
-                        varian: p.varian,
-                        satuan: p.satuan || 'PCS',
-                        harga_beli: p.harga_beli || 0
-                      }))}
-                      placeholder="-- Ketik SKU / Nama Produk Master --"
-                      onChange={handleSelectMasterProduk}
-                    />
-                  )}
+                  {/* Autocomplete Input persis Penjualan Offline */}
+                  <div style={{ position: "relative" }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                      <label style={{ fontSize: '11px', fontWeight: '800', color: '#0284c7' }}>
+                        Cari & Pilih Produk dari Master:
+                      </label>
+                      <label style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        fontSize: '10.5px',
+                        fontWeight: '700',
+                        color: filterSingleOnly ? '#0369a1' : '#64748b',
+                        cursor: 'pointer',
+                        backgroundColor: filterSingleOnly ? '#e0f2fe' : '#f1f5f9',
+                        padding: '1px 6px',
+                        borderRadius: '4px',
+                        border: `1px solid ${filterSingleOnly ? '#7dd3fc' : '#cbd5e1'}`
+                      }}>
+                        <input
+                          type="checkbox"
+                          checked={filterSingleOnly}
+                          onChange={(e) => setFilterSingleOnly(e.target.checked)}
+                          style={{ cursor: 'pointer', margin: 0, width: '12px', height: '12px' }}
+                        />
+                        <span>Hanya Single</span>
+                      </label>
+                    </div>
+
+                    <div style={{ position: 'relative' }}>
+                      <Search
+                        size={13}
+                        color="#0284c7"
+                        style={{
+                          position: "absolute",
+                          left: "9px",
+                          top: "50%",
+                          transform: "translateY(-50%)",
+                        }}
+                      />
+                      <input
+                        value={produkSearch}
+                        onChange={(e) => {
+                          setProdukSearch(e.target.value);
+                          setShowProdukDropdown(true);
+                        }}
+                        onFocus={() => setShowProdukDropdown(true)}
+                        placeholder={
+                          filterSingleOnly
+                            ? "Cari SKU / nama produk Single (contoh: BB-TH-BIRU)..."
+                            : "Cari SKU / nama produk (Semua: Single & Bundle)..."
+                        }
+                        style={{
+                          width: "100%",
+                          padding: "7px 28px 7px 28px",
+                          borderRadius: "5px",
+                          border: "1.5px solid #0284c7",
+                          fontSize: "12px",
+                          fontWeight: "600",
+                          backgroundColor: "#f0f9ff",
+                          outline: "none",
+                          boxSizing: "border-box",
+                        }}
+                      />
+                      {produkSearch && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setProdukSearch("");
+                            setShowProdukDropdown(false);
+                          }}
+                          style={{
+                            position: "absolute",
+                            right: "8px",
+                            top: "50%",
+                            transform: "translateY(-50%)",
+                            background: "none",
+                            border: "none",
+                            cursor: "pointer",
+                            color: "#94a3b8",
+                            padding: "2px",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                          title="Hapus pencarian"
+                        >
+                          <X size={12} />
+                        </button>
+                      )}
+                    </div>
+
+                    {showProdukDropdown && filteredProduk.length > 0 && (
+                      <div
+                        style={{
+                          position: "absolute",
+                          top: "100%",
+                          left: 0,
+                          right: 0,
+                          zIndex: 3500,
+                          backgroundColor: "#ffffff",
+                          border: "1px solid #cbd5e1",
+                          borderRadius: "6px",
+                          boxShadow: "0 12px 24px -4px rgba(0, 0, 0, 0.22)",
+                          maxHeight: "220px",
+                          overflowY: "auto",
+                          marginTop: "4px",
+                        }}
+                      >
+                        {filteredProduk.map((p, i) => (
+                          <div
+                            key={i}
+                            onClick={() => handleSelectMasterProduk(p)}
+                            style={{
+                              padding: "7px 10px",
+                              cursor: "pointer",
+                              borderBottom: "1px solid #f1f5f9",
+                              fontSize: "11.5px",
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              transition: "background-color 0.1s",
+                            }}
+                            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#f0f9ff")}
+                            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "#ffffff")}
+                          >
+                            <div style={{ overflow: "hidden", paddingRight: "8px" }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                                <span style={{ fontWeight: "700", color: "#0284c7", fontFamily: "monospace" }}>
+                                  {p.kode_sku || p.sku || "NO-SKU"}
+                                </span>
+                                <span style={{
+                                  fontSize: "9px",
+                                  fontWeight: "700",
+                                  padding: "1px 5px",
+                                  borderRadius: "3px",
+                                  backgroundColor: isSingleProduct(p) ? "#f0fdf4" : "#f5f3ff",
+                                  color: isSingleProduct(p) ? "#16a34a" : "#7c3aed",
+                                  border: `1px solid ${isSingleProduct(p) ? "#bbf7d0" : "#ddd6fe"}`,
+                                }}>
+                                  {isSingleProduct(p) ? "Single" : "Bundle"}
+                                </span>
+                              </div>
+                              <div style={{ fontSize: "11px", color: "#475569", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                {p.nama_produk || p.nama}
+                              </div>
+                            </div>
+                            <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                              <div style={{ fontSize: '10px', color: '#64748b' }}>Stok: {p.stok || p.stok_fisik || 0}</div>
+                              <div style={{ fontWeight: "800", color: "#16a34a" }}>
+                                {formatRp(p.harga_beli || p.harga_modal || p.hpp || p.harga_jual || 0)}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '10px' }}>
                     <div>

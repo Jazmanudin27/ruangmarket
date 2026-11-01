@@ -164,6 +164,14 @@ const INITIAL_PEMBAYARAN_LIST = [
   }
 ];
 
+async function safeAddColumn(pool, table, column, definition) {
+  try {
+    await pool.query(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  } catch (err) {
+    // Ignore duplicate column error (1060 / ER_DUP_FIELDNAME)
+  }
+}
+
 async function ensureAllTables(pool) {
   // 1. Tabel Mitra Penitip
   await pool.query(`
@@ -183,6 +191,15 @@ async function ensureAllTables(pool) {
       INDEX idx_nama (nama_mitra)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Master Mitra Penitip Barang';
   `);
+
+  await safeAddColumn(pool, 'mitra_penitip', 'kode_perusahaan', "VARCHAR(32) DEFAULT 'RSG'");
+  await safeAddColumn(pool, 'mitra_penitip', 'nama_mitra', "VARCHAR(150) NOT NULL DEFAULT ''");
+  await safeAddColumn(pool, 'mitra_penitip', 'kontak', "VARCHAR(60) DEFAULT ''");
+  await safeAddColumn(pool, 'mitra_penitip', 'alamat', "TEXT NULL");
+  await safeAddColumn(pool, 'mitra_penitip', 'bank_nama', "VARCHAR(60) DEFAULT ''");
+  await safeAddColumn(pool, 'mitra_penitip', 'bank_rekening', "VARCHAR(60) DEFAULT ''");
+  await safeAddColumn(pool, 'mitra_penitip', 'bank_atas_nama', "VARCHAR(100) DEFAULT ''");
+  await safeAddColumn(pool, 'mitra_penitip', 'keterangan', "TEXT NULL");
 
   // Seed Mitra jika kosong
   const [[mCount]] = await pool.query('SELECT COUNT(*) as total FROM mitra_penitip');
@@ -229,6 +246,26 @@ async function ensureAllTables(pool) {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Pencatatan Penitipan / Konsinyasi Barang';
   `);
 
+  await safeAddColumn(pool, 'penitipan_barang', 'kode_perusahaan', "VARCHAR(32) DEFAULT 'RSG'");
+  await safeAddColumn(pool, 'penitipan_barang', 'mitra_id', "INT NULL");
+  await safeAddColumn(pool, 'penitipan_barang', 'produk_id', "INT NULL");
+  await safeAddColumn(pool, 'penitipan_barang', 'no_titipan', "VARCHAR(60) DEFAULT ''");
+  await safeAddColumn(pool, 'penitipan_barang', 'tanggal', "DATE NULL");
+  await safeAddColumn(pool, 'penitipan_barang', 'nama_penitip', "VARCHAR(150) DEFAULT ''");
+  await safeAddColumn(pool, 'penitipan_barang', 'kontak_penitip', "VARCHAR(60) DEFAULT ''");
+  await safeAddColumn(pool, 'penitipan_barang', 'kode_sku', "VARCHAR(100) DEFAULT ''");
+  await safeAddColumn(pool, 'penitipan_barang', 'nama_produk', "VARCHAR(255) DEFAULT ''");
+  await safeAddColumn(pool, 'penitipan_barang', 'varian', "VARCHAR(100) DEFAULT ''");
+  await safeAddColumn(pool, 'penitipan_barang', 'satuan', "VARCHAR(32) DEFAULT 'PCS'");
+  await safeAddColumn(pool, 'penitipan_barang', 'harga_titip', "DECIMAL(15,2) DEFAULT 0");
+  await safeAddColumn(pool, 'penitipan_barang', 'qty_titip', "INT DEFAULT 0");
+  await safeAddColumn(pool, 'penitipan_barang', 'qty_terjual', "INT DEFAULT 0");
+  await safeAddColumn(pool, 'penitipan_barang', 'qty_retur', "INT DEFAULT 0");
+  await safeAddColumn(pool, 'penitipan_barang', 'status', "VARCHAR(32) DEFAULT 'Aktif'");
+  await safeAddColumn(pool, 'penitipan_barang', 'lokasi_rak', "VARCHAR(60) DEFAULT 'Gudang Konsinyasi'");
+  await safeAddColumn(pool, 'penitipan_barang', 'petugas', "VARCHAR(100) DEFAULT 'Staff Gudang'");
+  await safeAddColumn(pool, 'penitipan_barang', 'keterangan', "TEXT NULL");
+
   // 3. Tabel Pembayaran Penitip
   await pool.query(`
     CREATE TABLE IF NOT EXISTS pembayaran_penitip (
@@ -249,6 +286,17 @@ async function ensureAllTables(pool) {
       INDEX idx_nama_mitra (nama_mitra)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Histori Pembayaran Titipan ke Mitra';
   `);
+
+  await safeAddColumn(pool, 'pembayaran_penitip', 'kode_perusahaan', "VARCHAR(32) DEFAULT 'RSG'");
+  await safeAddColumn(pool, 'pembayaran_penitip', 'mitra_id', "INT NULL");
+  await safeAddColumn(pool, 'pembayaran_penitip', 'nama_mitra', "VARCHAR(150) DEFAULT ''");
+  await safeAddColumn(pool, 'pembayaran_penitip', 'no_pembayaran', "VARCHAR(60) DEFAULT ''");
+  await safeAddColumn(pool, 'pembayaran_penitip', 'tanggal', "DATE NULL");
+  await safeAddColumn(pool, 'pembayaran_penitip', 'nominal', "DECIMAL(15,2) DEFAULT 0");
+  await safeAddColumn(pool, 'pembayaran_penitip', 'metode_pembayaran', "VARCHAR(50) DEFAULT 'Transfer Bank'");
+  await safeAddColumn(pool, 'pembayaran_penitip', 'no_referensi', "VARCHAR(100) DEFAULT ''");
+  await safeAddColumn(pool, 'pembayaran_penitip', 'petugas', "VARCHAR(100) DEFAULT 'Finance Titipan'");
+  await safeAddColumn(pool, 'pembayaran_penitip', 'catatan', "TEXT NULL");
 
   // 4. Tabel Sesi Stock Opname Penitipan
   await pool.query(`
@@ -901,7 +949,7 @@ export async function handlePenitipanBarangRoutes(req, res, pathname, urlObj, co
 
       // Ambil total seluruh pembayaran yang sudah dilakukan
       const [[byrTotalRow]] = await pool.query(
-        `SELECT CAST(COALESCE(SUM(nominal), 0) AS DOUBLE) as total_dibayar FROM pembayaran_penitip WHERE (kode_perusahaan = ? OR ? = '')`,
+        `SELECT CAST(COALESCE(SUM(nominal), 0) AS DOUBLE) as total_dibayar FROM pembayaran_penitip WHERE (kode_perusahaan = ? OR ? = '' OR kode_perusahaan IS NULL)`,
         [company, company]
       );
       summary.total_sudah_dibayar = Number(byrTotalRow?.total_dibayar || 0);
@@ -909,7 +957,7 @@ export async function handlePenitipanBarangRoutes(req, res, pathname, urlObj, co
 
       // Ambil daftar unik nama penitip untuk filter dropdown
       const [penitipRows] = await pool.query(
-        `SELECT DISTINCT nama_penitip FROM penitipan_barang WHERE (kode_perusahaan = ? OR ? = '') ORDER BY nama_penitip ASC`,
+        `SELECT DISTINCT nama_penitip FROM penitipan_barang WHERE (kode_perusahaan = ? OR ? = '' OR kode_perusahaan IS NULL) ORDER BY nama_penitip ASC`,
         [company, company]
       );
       const penitipList = penitipRows.map(p => p.nama_penitip).filter(Boolean);
