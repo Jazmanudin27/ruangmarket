@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { showConfirm, toastSuccess, toastError } from '../../utils/alert.util';
 import { getActiveCompany } from '../../utils/tenant.util';
+import SearchableSelect from '../../components/SearchableSelect';
 
 // Bobot ukuran untuk sorting natural (S, M, L, XL, XXL)
 const SIZE_WEIGHTS = {
@@ -106,225 +107,6 @@ function compareProducts(a, b) {
     numeric: true,
     sensitivity: "base",
   });
-}
-
-// Searchable Select Component with instant search filter
-function SearchableSelect({
-  label,
-  value,
-  onChange,
-  options = [],
-  placeholder = "Pilih...",
-  required = false,
-  renderItem,
-  zIndex = 10005,
-  rightAction = null
-}) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const wrapperRef = useRef(null);
-  const inputRef = useRef(null);
-
-  useEffect(() => {
-    function handleClickOutside(e) {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
-        setIsOpen(false);
-        setSearchTerm("");
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  useEffect(() => {
-    if (isOpen && inputRef.current) {
-      inputRef.current.focus();
-    }
-  }, [isOpen]);
-
-  const safeOptions = Array.isArray(options) ? options : [];
-  const searchTerms = searchTerm.trim().toLowerCase().split(/\s+/).filter(Boolean);
-
-  const filteredOptions = safeOptions.filter((opt) => {
-    if (searchTerms.length === 0) return true;
-    const text = (
-      typeof opt === "string"
-        ? opt
-        : `${opt.label || ""} ${opt.value || ""} ${opt.sku || ""} ${opt.nama_produk || ""}`
-    ).toLowerCase();
-    return searchTerms.every((term) => text.includes(term));
-  });
-
-  const selectedOpt = safeOptions.find((opt) => {
-    if (typeof opt === "string") return opt === value;
-    return opt.value === value || opt.sku === value;
-  });
-
-  const displayText = selectedOpt
-    ? typeof selectedOpt === "string"
-      ? selectedOpt
-      : selectedOpt.label || selectedOpt.nama_produk || selectedOpt.value
-    : "";
-
-  return (
-    <div style={{ position: "relative", width: "100%" }} ref={wrapperRef}>
-      {(label || rightAction) && (
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "3px" }}>
-          {label && (
-            <label style={{ fontSize: "11px", fontWeight: "700", color: "#334155" }}>
-              {label} {required && <span style={{ color: "#ef4444" }}>*</span>}
-            </label>
-          )}
-          {rightAction}
-        </div>
-      )}
-
-      {/* Button trigger */}
-      <div
-        onClick={() => setIsOpen((prev) => !prev)}
-        style={{
-          width: "100%",
-          minHeight: "34px",
-          padding: "6px 10px",
-          borderRadius: "6px",
-          border: isOpen ? "1.5px solid #0284c7" : "1px solid #cbd5e1",
-          fontSize: "12px",
-          fontWeight: "600",
-          color: displayText ? "#0f172a" : "#94a3b8",
-          backgroundColor: "#ffffff",
-          cursor: "pointer",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: "8px",
-          boxSizing: "border-box",
-          boxShadow: isOpen ? "0 0 0 2px rgba(2, 132, 199, 0.15)" : "none",
-          transition: "all 0.15s ease"
-        }}
-      >
-        <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, display: "flex", alignItems: "center", gap: "6px" }}>
-          {selectedOpt && typeof selectedOpt !== "string" && selectedOpt.sku ? (
-            <>
-              <span style={{
-                fontFamily: "monospace",
-                fontSize: "10.5px",
-                fontWeight: "800",
-                backgroundColor: "#e0f2fe",
-                color: "#0369a1",
-                padding: "1px 5px",
-                borderRadius: "3px"
-              }}>
-                {selectedOpt.sku}
-              </span>
-              <span style={{ fontSize: "11.5px", color: "#0f172a" }}>
-                {selectedOpt.nama_produk || selectedOpt.label}
-              </span>
-            </>
-          ) : (
-            <span>{displayText || placeholder}</span>
-          )}
-        </div>
-        <span style={{ fontSize: "10px", color: "#94a3b8", flexShrink: 0 }}>▼</span>
-      </div>
-
-      {/* Dropdown panel */}
-      {isOpen && (
-        <div
-          style={{
-            position: "absolute",
-            top: "calc(100% + 4px)",
-            left: 0,
-            right: 0,
-            backgroundColor: "#ffffff",
-            borderRadius: "7px",
-            border: "1px solid #cbd5e1",
-            boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
-            zIndex,
-            overflow: "hidden"
-          }}
-        >
-          {/* Search box inside dropdown */}
-          <div style={{ padding: "6px 8px", borderBottom: "1px solid #f1f5f9", backgroundColor: "#f8fafc", display: "flex", alignItems: "center", gap: "6px" }}>
-            <Search size={14} color="#64748b" />
-            <input
-              ref={inputRef}
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Ketik untuk mencari..."
-              style={{
-                width: "100%",
-                border: "none",
-                outline: "none",
-                background: "transparent",
-                fontSize: "12px",
-                color: "#0f172a"
-              }}
-            />
-            {searchTerm && (
-              <button
-                type="button"
-                onClick={() => setSearchTerm("")}
-                style={{ border: "none", background: "transparent", cursor: "pointer", color: "#94a3b8", padding: 0 }}
-              >
-                <X size={12} />
-              </button>
-            )}
-          </div>
-
-          {/* List items */}
-          <div style={{ maxHeight: "240px", overflowY: "auto" }}>
-            {filteredOptions.length === 0 ? (
-              <div style={{ padding: "12px", textAlign: "center", fontSize: "11px", color: "#94a3b8" }}>
-                Tidak ada data yang cocok
-              </div>
-            ) : (
-              filteredOptions.map((opt, idx) => {
-                const optVal = typeof opt === "string" ? opt : opt.value;
-                const isSelected = optVal === value;
-
-                return (
-                  <div
-                    key={idx}
-                    onClick={() => {
-                      onChange(optVal, opt);
-                      setIsOpen(false);
-                      setSearchTerm("");
-                    }}
-                    style={{
-                      padding: "8px 10px",
-                      cursor: "pointer",
-                      fontSize: "11.5px",
-                      backgroundColor: isSelected ? "#eff6ff" : "#ffffff",
-                      borderBottom: "1px solid #f8fafc",
-                      color: isSelected ? "#1d4ed8" : "#334155",
-                      fontWeight: isSelected ? "700" : "500",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      transition: "background-color 0.1s ease"
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!isSelected) e.currentTarget.style.backgroundColor = "#f1f5f9";
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!isSelected) e.currentTarget.style.backgroundColor = "#ffffff";
-                    }}
-                  >
-                    {renderItem ? (
-                      renderItem(opt, isSelected)
-                    ) : (
-                      <span>{typeof opt === "string" ? opt : opt.label || opt.value}</span>
-                    )}
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
 }
 
 export default function MutasiBarangDesktopView() {
@@ -1046,25 +828,18 @@ export default function MutasiBarangDesktopView() {
           </div>
 
           {/* Select Kategori */}
-          <select
-            value={filterKategori}
-            onChange={(e) => { setFilterKategori(e.target.value); setCurrentPage(1); }}
-            style={{
-              padding: '6px 10px',
-              borderRadius: '6px',
-              border: '1px solid #cbd5e1',
-              fontSize: '12px',
-              color: '#334155',
-              backgroundColor: '#ffffff',
-              cursor: 'pointer',
-              minWidth: '140px'
-            }}
-          >
-            <option value="Semua">Semua Kategori</option>
-            {kategoriList.map((kat) => (
-              <option key={kat.id} value={kat.nama_kategori}>{kat.nama_kategori}</option>
-            ))}
-          </select>
+          <div style={{ minWidth: '160px' }}>
+            <SearchableSelect
+              size="sm"
+              value={filterKategori}
+              onChange={(val) => { setFilterKategori(val); setCurrentPage(1); }}
+              options={[
+                { value: 'Semua', label: 'Semua Kategori' },
+                ...kategoriList.map((kat) => ({ value: kat.nama_kategori, label: kat.nama_kategori }))
+              ]}
+              placeholder="Semua Kategori"
+            />
+          </div>
 
           {/* Filter Tanggal */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -1098,23 +873,19 @@ export default function MutasiBarangDesktopView() {
           </div>
 
           {/* Entries per page */}
-          <select
-            value={entriesPerPage}
-            onChange={(e) => { setEntriesPerPage(Number(e.target.value)); setCurrentPage(1); }}
-            style={{
-              padding: '6px 8px',
-              borderRadius: '6px',
-              border: '1px solid #cbd5e1',
-              fontSize: '12px',
-              color: '#334155',
-              backgroundColor: '#ffffff',
-              cursor: 'pointer'
-            }}
-          >
-            <option value={25}>25 Baris</option>
-            <option value={50}>50 Baris</option>
-            <option value={100}>100 Baris</option>
-          </select>
+          <div style={{ width: '110px' }}>
+            <SearchableSelect
+              size="sm"
+              value={String(entriesPerPage)}
+              onChange={(val) => { setEntriesPerPage(Number(val)); setCurrentPage(1); }}
+              options={[
+                { value: '25', label: '25 Baris' },
+                { value: '50', label: '50 Baris' },
+                { value: '100', label: '100 Baris' }
+              ]}
+              placeholder="25 Baris"
+            />
+          </div>
 
           {/* Refresh Button */}
           <button
@@ -1568,7 +1339,7 @@ export default function MutasiBarangDesktopView() {
               <h3 style={{ margin: 0, fontSize: '13px', fontWeight: '800', color: '#ffffff', letterSpacing: '-0.01em' }}>
                 {editingId
                   ? 'Edit Data Mutasi Barang'
-                  : (formData.jenis_mutasi === 'masuk' ? 'Input Mutasi Barang Masuk (BM)' : formData.jenis_mutasi === 'keluar' ? 'Input Mutasi Barang Keluar (BK)' : 'Input Penyesuaian Stok (ADJ)')}
+                  : (formData.jenis_mutasi === 'masuk' ? 'Catat Barang Masuk (BM)' : formData.jenis_mutasi === 'keluar' ? 'Catat Barang Keluar (BK)' : 'Catat Penyesuaian Stok (ADJ)')}
               </h3>
               <span style={{ fontSize: '11px', color: '#64748b' }}>•</span>
               <span style={{ fontSize: '11px', color: '#94a3b8' }}>
@@ -2549,20 +2320,18 @@ export default function MutasiBarangDesktopView() {
                     fontSize: '12px'
                   }}
                 />
-                <select
-                  value={kategoriForm.jenis_mutasi}
-                  onChange={(e) => setKategoriForm({ ...kategoriForm, jenis_mutasi: e.target.value })}
-                  style={{
-                    padding: '6px 8px',
-                    borderRadius: '5px',
-                    border: '1px solid #cbd5e1',
-                    fontSize: '12px'
-                  }}
-                >
-                  <option value="semua">Semua Jenis</option>
-                  <option value="masuk">Barang Masuk</option>
-                  <option value="keluar">Barang Keluar</option>
-                </select>
+                <div style={{ width: '140px' }}>
+                  <SearchableSelect
+                    size="sm"
+                    value={kategoriForm.jenis_mutasi}
+                    onChange={(val) => setKategoriForm({ ...kategoriForm, jenis_mutasi: val })}
+                    options={[
+                      { value: 'semua', label: 'Semua Jenis' },
+                      { value: 'masuk', label: 'Barang Masuk' },
+                      { value: 'keluar', label: 'Barang Keluar' }
+                    ]}
+                  />
+                </div>
                 <button
                   type="submit"
                   style={{

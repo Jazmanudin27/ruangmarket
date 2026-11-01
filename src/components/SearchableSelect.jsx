@@ -16,11 +16,25 @@ export default function SearchableSelect({
   dropUp = false,
   size = "md",
   id,
+  label,
+  required = false,
+  renderItem,
+  rightAction,
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
   const containerRef = useRef(null);
   const searchInputRef = useRef(null);
+
+  // Normalize options to support strings, numbers, or objects
+  const normalizedOptions = React.useMemo(() => {
+    return (options || []).map((o) => {
+      if (typeof o === "string" || typeof o === "number") {
+        return { value: String(o), label: String(o) };
+      }
+      return o;
+    });
+  }, [options]);
 
   // Close on outside click
   useEffect(() => {
@@ -48,15 +62,25 @@ export default function SearchableSelect({
     }
   }, [isOpen]);
 
-  const selectedOption = options.find((o) => String(o.value) === String(value));
+  const selectedOption = normalizedOptions.find(
+    (o) => String(o.value) === String(value)
+  );
 
-  const filteredOptions = options.filter((o) => {
+  const filteredOptions = normalizedOptions.filter((o) => {
     if (!search.trim()) return true;
     const s = search.toLowerCase();
     const l = String(o.label || "").toLowerCase();
     const sub = String(o.subtitle || "").toLowerCase();
     const v = String(o.value || "").toLowerCase();
-    return l.includes(s) || sub.includes(s) || v.includes(s);
+    const sku = String(o.sku || "").toLowerCase();
+    const prodName = String(o.nama_produk || "").toLowerCase();
+    return (
+      l.includes(s) ||
+      sub.includes(s) ||
+      v.includes(s) ||
+      sku.includes(s) ||
+      prodName.includes(s)
+    );
   });
 
   const isSmall = size === "sm";
@@ -72,6 +96,29 @@ export default function SearchableSelect({
         ...style,
       }}
     >
+      {label && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: "3px",
+          }}
+        >
+          <label
+            style={{
+              display: "block",
+              fontSize: "11px",
+              fontWeight: "700",
+              color: "#334155",
+            }}
+          >
+            {label} {required && <span style={{ color: "#ef4444" }}>*</span>}
+          </label>
+          {rightAction}
+        </div>
+      )}
+
       {/* Trigger Button */}
       <div
         onClick={() => {
@@ -277,50 +324,61 @@ export default function SearchableSelect({
                         e.currentTarget.style.backgroundColor = "transparent";
                     }}
                   >
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "8px",
-                        overflow: "hidden",
-                      }}
-                    >
-                      {opt.color && (
-                        <span
-                          style={{
-                            width: "8px",
-                            height: "8px",
-                            borderRadius: "50%",
-                            backgroundColor: opt.color,
-                            flexShrink: 0,
-                          }}
-                        />
-                      )}
-                      <div>
+                    {renderItem ? (
+                      renderItem(opt, isSelected)
+                    ) : (
+                      <>
                         <div
                           style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "8px",
                             overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
                           }}
                         >
-                          {opt.label}
-                        </div>
-                        {opt.subtitle && (
-                          <div
-                            style={{
-                              fontSize: "10px",
-                              color: "#94a3b8",
-                              fontWeight: "normal",
-                            }}
-                          >
-                            {opt.subtitle}
+                          {opt.color && (
+                            <span
+                              style={{
+                                width: "8px",
+                                height: "8px",
+                                borderRadius: "50%",
+                                backgroundColor: opt.color,
+                                flexShrink: 0,
+                              }}
+                            />
+                          )}
+                          <div>
+                            <div
+                              style={{
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              {opt.label}
+                            </div>
+                            {opt.subtitle && (
+                              <div
+                                style={{
+                                  fontSize: "10px",
+                                  color: "#94a3b8",
+                                  fontWeight: "normal",
+                                }}
+                              >
+                                {opt.subtitle}
+                              </div>
+                            )}
                           </div>
+                        </div>
+                        {isSelected && (
+                          <Check
+                            size={14}
+                            color="#2563eb"
+                            style={{ flexShrink: 0 }}
+                          />
                         )}
-                      </div>
-                    </div>
-                    {isSelected && (
-                      <Check
+                      </>
+                    )}
                         size={14}
                         color="#2563eb"
                         style={{ flexShrink: 0 }}

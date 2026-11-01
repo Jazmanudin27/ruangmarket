@@ -379,7 +379,7 @@ export async function handlePenitipanBarangRoutes(req, res, pathname, urlObj, co
           ), 0) AS DOUBLE) as total_sudah_dibayar
         FROM mitra_penitip m
         LEFT JOIN penitipan_barang p ON (p.mitra_id = m.id OR p.nama_penitip = m.nama_mitra)
-        WHERE (m.kode_perusahaan = ? OR m.kode_perusahaan IS NULL OR ? = '')
+        WHERE (m.kode_perusahaan = ? OR m.kode_perusahaan IS NULL OR ? = '' OR m.kode_perusahaan = 'RSG')
       `;
       const params = [company, company];
 
@@ -389,7 +389,7 @@ export async function handlePenitipanBarangRoutes(req, res, pathname, urlObj, co
         params.push(s, s, s, s);
       }
 
-      query += ` GROUP BY m.id ORDER BY m.nama_mitra ASC`;
+      query += ` GROUP BY m.id ORDER BY m.id DESC`;
 
       const [rows] = await pool.query(query, params);
 
@@ -440,10 +440,21 @@ export async function handlePenitipanBarangRoutes(req, res, pathname, urlObj, co
         [kode_perusahaan, nama_mitra.trim(), kontak.trim(), alamat.trim(), bank_nama.trim(), bank_rekening.trim(), bank_atas_nama.trim(), keterangan.trim()]
       );
 
+      const [[createdMitra]] = await pool.query(
+        `SELECT 
+          m.id, m.kode_perusahaan, m.nama_mitra, m.kontak, m.alamat, m.bank_nama, m.bank_rekening, m.bank_atas_nama, m.keterangan,
+          DATE_FORMAT(m.created_at, '%Y-%m-%d') as created_at,
+          0 as total_titipan, 0 as total_produk, 0 as stok_masuk, 0 as stok_terjual, 0 as sisa_stok,
+          0 as total_nilai_titip, 0 as total_kewajiban_bayar, 0 as total_nilai_sisa, 0 as total_sudah_dibayar,
+          0 as sisa_hutang, 'Belum Ada Penjualan' as status_pembayaran
+        FROM mitra_penitip m WHERE m.id = ?`,
+        [resInsert.insertId]
+      );
+
       return sendJson(res, 201, {
         status: 'success',
         message: 'Mitra Penitip berhasil ditambahkan!',
-        data: { id: resInsert.insertId, nama_mitra }
+        data: createdMitra || { id: resInsert.insertId, nama_mitra }
       });
     } catch (err) {
       console.error('[POST /api/penitipan-barang/mitra Error]:', err);

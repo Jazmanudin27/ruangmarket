@@ -2473,78 +2473,59 @@ export default function PenjualanOfflineView({ onNavigate }) {
           </div>
 
           {/* Select Toko / Instansi */}
-          <select
-            value={filterToko}
-            onChange={(e) => {
-              setFilterToko(e.target.value);
-              setCurrentPage(1);
-            }}
-            style={{
-              padding: "6px 10px",
-              borderRadius: "6px",
-              border: "1px solid #cbd5e1",
-              fontSize: "12px",
-              color: "#334155",
-              backgroundColor: "#ffffff",
-              cursor: "pointer",
-              minWidth: "135px",
-            }}
-          >
-            <option value="Semua">Semua Toko / Instansi</option>
-            {tokoFilterOptions.map((tk, idx) => (
-              <option key={idx} value={tk}>
-                {tk}
-              </option>
-            ))}
-          </select>
+          <div style={{ minWidth: '150px' }}>
+            <SearchableSelect
+              size="sm"
+              value={filterToko}
+              onChange={(val) => {
+                setFilterToko(val);
+                setCurrentPage(1);
+              }}
+              options={[
+                { value: "Semua", label: "Semua Toko / Instansi" },
+                ...tokoFilterOptions.map((tk) => ({ value: tk, label: tk }))
+              ]}
+              placeholder="Semua Toko"
+            />
+          </div>
 
           {/* Select Status Pembayaran */}
-          <select
-            value={filterPembayaran}
-            onChange={(e) => {
-              setFilterPembayaran(e.target.value);
-              setCurrentPage(1);
-            }}
-            style={{
-              padding: "6px 10px",
-              borderRadius: "6px",
-              border: "1px solid #cbd5e1",
-              fontSize: "12px",
-              color: "#334155",
-              backgroundColor: "#ffffff",
-              cursor: "pointer",
-              minWidth: "130px",
-            }}
-          >
-            <option value="Semua">Semua Pembayaran</option>
-            <option value="lunas">Lunas</option>
-            <option value="dp">DP (Down Payment)</option>
-            <option value="belum_bayar">Belum Bayar</option>
-          </select>
+          <div style={{ minWidth: '145px' }}>
+            <SearchableSelect
+              size="sm"
+              value={filterPembayaran}
+              onChange={(val) => {
+                setFilterPembayaran(val);
+                setCurrentPage(1);
+              }}
+              options={[
+                { value: "Semua", label: "Semua Pembayaran" },
+                { value: "lunas", label: "Lunas" },
+                { value: "dp", label: "DP (Down Payment)" },
+                { value: "belum_bayar", label: "Belum Bayar" }
+              ]}
+              placeholder="Status Bayar"
+            />
+          </div>
 
           {/* Select Baris Per Halaman (Paging) */}
-          <select
-            value={entriesPerPage}
-            onChange={(e) => {
-              setEntriesPerPage(Number(e.target.value));
-              setCurrentPage(1);
-            }}
-            style={{
-              padding: "6px 10px",
-              borderRadius: "6px",
-              border: "1px solid #cbd5e1",
-              fontSize: "12px",
-              color: "#334155",
-              backgroundColor: "#ffffff",
-              cursor: "pointer",
-              minWidth: "105px",
-            }}
-          >
-            <option value={10}>10 Baris</option>
-            <option value={25}>25 Baris</option>
-            <option value={50}>50 Baris</option>
-            <option value={100}>100 Baris</option>
-          </select>
+          <div style={{ width: '105px' }}>
+            <SearchableSelect
+              size="sm"
+              value={String(entriesPerPage)}
+              onChange={(val) => {
+                setEntriesPerPage(Number(val));
+                setCurrentPage(1);
+              }}
+              options={[
+                { value: "10", label: "10 Baris" },
+                { value: "25", label: "25 Baris" },
+                { value: "50", label: "50 Baris" },
+                { value: "100", label: "100 Baris" }
+              ]}
+              placeholder="25 Baris"
+            />
+          </div>
 
           {/* Refresh Button */}
           <button

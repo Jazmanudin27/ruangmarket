@@ -40,6 +40,7 @@ import {
 } from 'lucide-react';
 import { showConfirm, toastSuccess, toastError } from '../../utils/alert.util';
 import { getActiveCompany } from '../../utils/tenant.util';
+import SearchableSelect from '../../components/SearchableSelect';
 
 // Bobot ukuran untuk sorting natural (S, M, L, XL, XXL)
 const SIZE_WEIGHTS = {
@@ -112,259 +113,6 @@ function compareProducts(a, b) {
 function formatRp(val) {
   return 'Rp ' + Number(val || 0).toLocaleString('id-ID');
 }
-
-// Searchable Select Component with instant search filter
-function SearchableSelect({
-  label,
-  value,
-  onChange,
-  options = [],
-  placeholder = "-- Pilih --",
-  required = false,
-  zIndex = 1050
-}) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const dropdownRef = useRef(null);
-  const searchInputRef = useRef(null);
-
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setIsOpen(false);
-        setSearchTerm("");
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  useEffect(() => {
-    if (isOpen && searchInputRef.current) {
-      searchInputRef.current.focus();
-    }
-  }, [isOpen]);
-
-  const sortedOptions = useMemo(() => {
-    return [...options].sort(compareProducts);
-  }, [options]);
-
-  const filteredOptions = useMemo(() => {
-    if (!searchTerm.trim()) return sortedOptions;
-    const q = searchTerm.toLowerCase();
-    return sortedOptions.filter((opt) => {
-      const valStr = typeof opt === "string" ? opt : (opt.label || opt.value || "");
-      const skuStr = typeof opt === "object" && opt.sku ? opt.sku : "";
-      const namaStr = typeof opt === "object" && opt.nama_produk ? opt.nama_produk : "";
-      return (
-        valStr.toLowerCase().includes(q) ||
-        skuStr.toLowerCase().includes(q) ||
-        namaStr.toLowerCase().includes(q)
-      );
-    });
-  }, [sortedOptions, searchTerm]);
-
-  const selectedOpt = options.find((opt) => {
-    const val = typeof opt === "string" ? opt : opt.value;
-    return String(val) === String(value);
-  });
-
-  const displayText = selectedOpt
-    ? typeof selectedOpt === "string"
-      ? selectedOpt
-      : selectedOpt.label || selectedOpt.value
-    : "";
-
-  return (
-    <div style={{ position: "relative", width: "100%" }} ref={dropdownRef}>
-      {label && (
-        <label
-          style={{
-            display: "block",
-            fontSize: "11px",
-            fontWeight: "700",
-            color: "#334155",
-            marginBottom: "3px"
-          }}
-        >
-          {label} {required && <span style={{ color: "#ef4444" }}>*</span>}
-        </label>
-      )}
-
-      {/* Trigger Button */}
-      <div
-        onClick={() => setIsOpen(!isOpen)}
-        style={{
-          width: "100%",
-          minHeight: "34px",
-          padding: "6px 10px",
-          borderRadius: "6px",
-          border: isOpen ? "1.5px solid #0284c7" : "1px solid #cbd5e1",
-          fontSize: "12px",
-          fontWeight: "600",
-          color: displayText ? "#0f172a" : "#94a3b8",
-          backgroundColor: "#ffffff",
-          cursor: "pointer",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: "8px",
-          boxSizing: "border-box",
-          boxShadow: isOpen ? "0 0 0 2px rgba(2, 132, 199, 0.15)" : "none",
-          transition: "all 0.15s ease"
-        }}
-      >
-        <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, display: "flex", alignItems: "center", gap: "6px" }}>
-          {selectedOpt && typeof selectedOpt !== "string" && selectedOpt.sku ? (
-            <>
-              <span style={{
-                fontFamily: "monospace",
-                fontSize: "10.5px",
-                fontWeight: "800",
-                backgroundColor: "#e0f2fe",
-                color: "#0369a1",
-                padding: "1px 5px",
-                borderRadius: "3px"
-              }}>
-                {selectedOpt.sku}
-              </span>
-              <span style={{ fontSize: "11.5px", color: "#0f172a" }}>
-                {selectedOpt.nama_produk || selectedOpt.label}
-              </span>
-            </>
-          ) : (
-            <span>{displayText || placeholder}</span>
-          )}
-        </div>
-        <span style={{ fontSize: "10px", color: "#94a3b8", flexShrink: 0 }}>▼</span>
-      </div>
-
-      {/* Dropdown panel */}
-      {isOpen && (
-        <div
-          style={{
-            position: "absolute",
-            top: "calc(100% + 4px)",
-            left: 0,
-            right: 0,
-            backgroundColor: "#ffffff",
-            borderRadius: "7px",
-            border: "1px solid #cbd5e1",
-            boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
-            zIndex,
-            overflow: "hidden"
-          }}
-        >
-          {/* Search box inside dropdown */}
-          <div style={{ padding: "6px 8px", borderBottom: "1px solid #e2e8f0", backgroundColor: "#f8fafc" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "6px", backgroundColor: "#ffffff", border: "1px solid #cbd5e1", borderRadius: "4px", padding: "4px 8px" }}>
-              <Search size={13} color="#64748b" />
-              <input
-                ref={searchInputRef}
-                type="text"
-                placeholder="Cari produk / SKU..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                style={{
-                  border: "none",
-                  outline: "none",
-                  width: "100%",
-                  fontSize: "11.5px",
-                  color: "#0f172a",
-                  background: "transparent"
-                }}
-              />
-              {searchTerm && (
-                <button
-                  type="button"
-                  onClick={() => setSearchTerm("")}
-                  style={{ border: "none", background: "transparent", cursor: "pointer", padding: 0, color: "#94a3b8" }}
-                >
-                  <X size={12} />
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* List items */}
-          <div style={{ maxHeight: "220px", overflowY: "auto" }}>
-            {filteredOptions.length === 0 ? (
-              <div style={{ padding: "12px", textAlign: "center", fontSize: "11.5px", color: "#94a3b8" }}>
-                Produk tidak ditemukan
-              </div>
-            ) : (
-              filteredOptions.map((opt, idx) => {
-                const optVal = typeof opt === "string" ? opt : opt.value;
-                const isSelected = String(optVal) === String(value);
-
-                return (
-                  <div
-                    key={idx}
-                    onClick={() => {
-                      onChange(optVal, opt);
-                      setIsOpen(false);
-                      setSearchTerm("");
-                    }}
-                    style={{
-                      padding: "7px 10px",
-                      fontSize: "11.5px",
-                      cursor: "pointer",
-                      borderBottom: "1px solid #f1f5f9",
-                      backgroundColor: isSelected ? "#f0f9ff" : "transparent",
-                      color: isSelected ? "#0369a1" : "#1e293b",
-                      fontWeight: isSelected ? "700" : "500",
-                      transition: "background-color 0.1s"
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!isSelected) e.currentTarget.style.backgroundColor = "#f8fafc";
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!isSelected) e.currentTarget.style.backgroundColor = "transparent";
-                    }}
-                  >
-                    {typeof opt === "object" && opt.sku ? (
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" }}>
-                        <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          <span style={{
-                            fontFamily: "monospace",
-                            fontSize: "10px",
-                            fontWeight: "800",
-                            backgroundColor: "#e0f2fe",
-                            color: "#0284c7",
-                            padding: "1px 4px",
-                            borderRadius: "3px",
-                            marginRight: "6px"
-                          }}>
-                            {opt.sku}
-                          </span>
-                          <span>{opt.nama_produk || opt.label}</span>
-                        </div>
-                        {opt.stok !== undefined && (
-                          <span style={{
-                            fontSize: "10px",
-                            fontWeight: "700",
-                            color: opt.stok > 0 ? "#16a34a" : "#dc2626",
-                            flexShrink: 0
-                          }}>
-                            Stok: {opt.stok}
-                          </span>
-                        )}
-                      </div>
-                    ) : (
-                      <span>{typeof opt === "string" ? opt : opt.label || opt.value}</span>
-                    )}
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-export default function PenitipanBarangDesktopView() {
 
 export default function PenitipanBarangDesktopView() {
   const [activeCompany] = useState(getActiveCompany);
@@ -658,6 +406,46 @@ export default function PenitipanBarangDesktopView() {
       if (res.ok) {
         toastSuccess(resJson.message || 'Data Mitra berhasil disimpan!');
         setIsMitraModalOpen(false);
+
+        // Langsung tambahkan atau perbarui ke state mitraList
+        if (!editingMitraId) {
+          const freshId = resJson.data?.id || Date.now();
+          const newMitraObj = {
+            id: freshId,
+            kode_perusahaan: activeCompany?.code || 'RSG',
+            nama_mitra: mitraForm.nama_mitra.trim(),
+            kontak: mitraForm.kontak.trim(),
+            alamat: mitraForm.alamat.trim(),
+            bank_nama: mitraForm.bank_nama.trim(),
+            bank_rekening: mitraForm.bank_rekening.trim(),
+            bank_atas_nama: mitraForm.bank_atas_nama.trim(),
+            keterangan: mitraForm.keterangan.trim(),
+            total_titipan: 0,
+            total_produk: 0,
+            stok_masuk: 0,
+            stok_terjual: 0,
+            sisa_stok: 0,
+            total_nilai_titip: 0,
+            total_kewajiban_bayar: 0,
+            total_nilai_sisa: 0,
+            total_sudah_dibayar: 0,
+            sisa_hutang: 0,
+            status_pembayaran: 'Belum Ada Penjualan',
+            created_at: new Date().toISOString().slice(0, 10),
+            ...(resJson.data || {})
+          };
+          setMitraList(prev => [newMitraObj, ...prev.filter(m => m.id !== freshId)]);
+        } else {
+          setMitraList(prev => prev.map(m => m.id === editingMitraId ? { ...m, ...mitraForm } : m));
+        }
+
+        // Kembali ke Level 1 (Daftar Mitra) agar langsung terlihat di paling atas
+        setSelectedMitra(null);
+        setCurrentPage(1);
+        setSearch('');
+        setStatusHutangFilter('Semua');
+
+        // Refresh sinkron data dari server
         loadData();
       } else {
         toastError(resJson.message || 'Gagal menyimpan data Mitra.');
@@ -1639,23 +1427,19 @@ export default function PenitipanBarangDesktopView() {
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
               {/* Filter Hutang */}
-              <select
-                value={statusHutangFilter}
-                onChange={(e) => { setStatusHutangFilter(e.target.value); setCurrentPage(1); }}
-                style={{
-                  height: '28px',
-                  padding: '0 8px',
-                  borderRadius: '5px',
-                  border: '1px solid #cbd5e1',
-                  fontSize: '11.5px',
-                  color: '#334155',
-                  backgroundColor: '#ffffff'
-                }}
-              >
-                <option value="Semua">Semua Status Hutang</option>
-                <option value="Belum Lunas">Ada Hutang (Belum Lunas)</option>
-                <option value="Lunas">Lunas</option>
-              </select>
+              <div style={{ minWidth: '175px' }}>
+                <SearchableSelect
+                  size="sm"
+                  value={statusHutangFilter}
+                  onChange={(val) => { setStatusHutangFilter(val); setCurrentPage(1); }}
+                  options={[
+                    { value: 'Semua', label: 'Semua Status Hutang' },
+                    { value: 'Belum Lunas', label: 'Ada Hutang (Belum Lunas)' },
+                    { value: 'Lunas', label: 'Lunas' }
+                  ]}
+                  placeholder="Semua Status Hutang"
+                />
+              </div>
 
               {/* Search Mitra */}
               <div style={{
@@ -1695,28 +1479,22 @@ export default function PenitipanBarangDesktopView() {
               </div>
 
               {/* Entries per page */}
-              <select
-                value={entriesPerPage}
-                onChange={(e) => {
-                  setEntriesPerPage(Number(e.target.value));
-                  setCurrentPage(1);
-                }}
-                style={{
-                  height: '28px',
-                  padding: '0 8px',
-                  borderRadius: '5px',
-                  border: '1px solid #cbd5e1',
-                  fontSize: '11.5px',
-                  fontWeight: '600',
-                  color: '#334155',
-                  backgroundColor: '#ffffff',
-                  cursor: 'pointer'
-                }}
-              >
-                <option value={25}>25 Baris</option>
-                <option value={50}>50 Baris</option>
-                <option value={100}>100 Baris</option>
-              </select>
+              <div style={{ width: '105px' }}>
+                <SearchableSelect
+                  size="sm"
+                  value={String(entriesPerPage)}
+                  onChange={(val) => {
+                    setEntriesPerPage(Number(val));
+                    setCurrentPage(1);
+                  }}
+                  options={[
+                    { value: '25', label: '25 Baris' },
+                    { value: '50', label: '50 Baris' },
+                    { value: '100', label: '100 Baris' }
+                  ]}
+                  placeholder="25 Baris"
+                />
+              </div>
 
               <button
                 type="button"
@@ -2312,23 +2090,18 @@ export default function PenitipanBarangDesktopView() {
 
             {/* Filter Khusus Tab Barang Titipan */}
             {mitraActiveTab === 'titipan' && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', paddingBottom: '6px' }}>
-                <select
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', paddingBottom: '6px', minWidth: '150px' }}>
+                <SearchableSelect
+                  size="sm"
                   value={statusFilter}
-                  onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
-                  style={{
-                    height: '26px',
-                    padding: '0 6px',
-                    borderRadius: '4px',
-                    border: '1px solid #cbd5e1',
-                    fontSize: '11px',
-                    color: '#334155'
-                  }}
-                >
-                  <option value="Semua">Semua Stok</option>
-                  <option value="Masih Ada Stok">Masih Ada Stok</option>
-                  <option value="Habis">Habis Terjual</option>
-                </select>
+                  onChange={(val) => { setStatusFilter(val); setCurrentPage(1); }}
+                  options={[
+                    { value: 'Semua', label: 'Semua Stok' },
+                    { value: 'Masih Ada Stok', label: 'Masih Ada Stok' },
+                    { value: 'Habis', label: 'Habis Terjual' }
+                  ]}
+                  placeholder="Semua Stok"
+                />
               </div>
             )}
           </div>
@@ -3153,10 +2926,10 @@ export default function PenitipanBarangDesktopView() {
                   <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#334155', marginBottom: '3px' }}>
                     Pilih Mitra Penerima Pembayaran <span style={{ color: '#ef4444' }}>*</span>
                   </label>
-                  <select
+                  <SearchableSelect
                     value={bayarForm.mitra_id || ''}
-                    onChange={(e) => {
-                      const m = mitraList.find(item => String(item.id) === String(e.target.value));
+                    onChange={(val) => {
+                      const m = mitraList.find(item => String(item.id) === String(val));
                       if (m) {
                         setBayarForm({
                           ...bayarForm,
@@ -3166,25 +2939,23 @@ export default function PenitipanBarangDesktopView() {
                           metode_pembayaran: m.bank_nama ? `Transfer Bank ${m.bank_nama}` : 'Transfer Bank BCA',
                           catatan: `Pembayaran konsinyasi produk terjual untuk ${m.nama_mitra}`
                         });
+                      } else {
+                        setBayarForm({
+                          ...bayarForm,
+                          mitra_id: null,
+                          nama_mitra: '',
+                          nominal: 0
+                        });
                       }
                     }}
-                    style={{
-                      width: '100%',
-                      padding: '7px 10px',
-                      borderRadius: '5px',
-                      border: '1.5px solid #0284c7',
-                      fontSize: '12px',
-                      fontWeight: '700',
-                      backgroundColor: '#ffffff'
-                    }}
-                  >
-                    <option value="">-- Pilih Mitra --</option>
-                    {mitraList.map(m => (
-                      <option key={m.id} value={m.id}>
-                        {m.nama_mitra} (Hutang: {formatRp(m.sisa_hutang)})
-                      </option>
-                    ))}
-                  </select>
+                    options={mitraList.map(m => ({
+                      value: String(m.id),
+                      label: `${m.nama_mitra} (Hutang: ${formatRp(m.sisa_hutang)})`,
+                      nama_mitra: m.nama_mitra,
+                      sisa_hutang: m.sisa_hutang
+                    }))}
+                    placeholder="-- Pilih atau Cari Mitra --"
+                  />
                 </div>
 
                 {/* Box Info Sisa Hutang Mitra */}
@@ -3519,13 +3290,11 @@ export default function PenitipanBarangDesktopView() {
 
                   {/* Pilih Dari Mitra Terdaftar */}
                   <div>
-                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#334155', marginBottom: '3px' }}>
-                      Pilih Dari Master Mitra Penitip:
-                    </label>
-                    <select
+                    <SearchableSelect
+                      label="Pilih Dari Master Mitra Penitip:"
                       value={formData.mitra_id || ''}
-                      onChange={(e) => {
-                        const m = mitraList.find(item => String(item.id) === String(e.target.value));
+                      onChange={(val) => {
+                        const m = mitraList.find(item => String(item.id) === String(val));
                         if (m) {
                           setFormData({
                             ...formData,
@@ -3535,23 +3304,16 @@ export default function PenitipanBarangDesktopView() {
                           });
                         }
                       }}
-                      style={{
-                        width: '100%',
-                        padding: '7px 10px',
-                        borderRadius: '5px',
-                        border: '1.5px solid #0284c7',
-                        fontSize: '12px',
-                        fontWeight: '700',
-                        backgroundColor: '#f0f9ff'
-                      }}
-                    >
-                      <option value="">-- Ketik Manual atau Pilih Mitra --</option>
-                      {mitraList.map(m => (
-                        <option key={m.id} value={m.id}>
-                          {m.nama_mitra} {m.kontak ? `(${m.kontak})` : ''}
-                        </option>
-                      ))}
-                    </select>
+                      options={[
+                        { value: '', label: '-- Ketik Manual atau Pilih Mitra --' },
+                        ...mitraList.map(m => ({
+                          value: String(m.id),
+                          label: `${m.nama_mitra} ${m.kontak ? `(${m.kontak})` : ''}`,
+                          nama_mitra: m.nama_mitra
+                        }))
+                      ]}
+                      placeholder="-- Ketik Manual atau Pilih Mitra --"
+                    />
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '10px' }}>
@@ -3792,30 +3554,13 @@ export default function PenitipanBarangDesktopView() {
                     </div>
 
                     <div>
-                      <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#334155', marginBottom: '3px' }}>
-                        Satuan Barang
-                      </label>
-                      <select
+                      <SearchableSelect
+                        label="Satuan Barang"
                         value={formData.satuan}
-                        onChange={(e) => setFormData({ ...formData, satuan: e.target.value })}
-                        style={{
-                          width: '100%',
-                          padding: '7px 10px',
-                          borderRadius: '5px',
-                          border: '1px solid #cbd5e1',
-                          fontSize: '12px',
-                          fontWeight: '600',
-                          backgroundColor: '#ffffff'
-                        }}
-                      >
-                        <option value="PCS">PCS</option>
-                        <option value="SET">SET</option>
-                        <option value="LUSIN">LUSIN</option>
-                        <option value="KODI">KODI</option>
-                        <option value="LEMBAR">LEMBAR</option>
-                        <option value="METER">METER</option>
-                        <option value="ROLL">ROLL</option>
-                      </select>
+                        onChange={(val) => setFormData({ ...formData, satuan: val })}
+                        options={['PCS', 'SET', 'LUSIN', 'KODI', 'LEMBAR', 'METER', 'ROLL']}
+                        placeholder="Satuan"
+                      />
                     </div>
                   </div>
 
@@ -4732,27 +4477,17 @@ export default function PenitipanBarangDesktopView() {
                 fontSize: '11px'
               }}>
                 <div>
-                  <label style={{ display: 'block', fontWeight: '700', color: '#475569', marginBottom: '2px' }}>
-                    Filter Mitra Penitip:
-                  </label>
-                  <select
+                  <SearchableSelect
+                    label="Filter Mitra Penitip:"
+                    size="sm"
                     value={opnameMitraFilter}
-                    onChange={(e) => handleOpenScanOpname(mitraList.find(m => m.nama_mitra === e.target.value) || null)}
-                    style={{
-                      width: '100%',
-                      padding: '5px 8px',
-                      borderRadius: '5px',
-                      border: '1px solid #cbd5e1',
-                      fontSize: '11.5px',
-                      fontWeight: '600',
-                      backgroundColor: '#ffffff'
-                    }}
-                  >
-                    <option value="Semua">-- Semua Mitra ({mitraList.length} Mitra) --</option>
-                    {mitraList.map(m => (
-                      <option key={m.id} value={m.nama_mitra}>{m.nama_mitra}</option>
-                    ))}
-                  </select>
+                    onChange={(val) => handleOpenScanOpname(mitraList.find(m => m.nama_mitra === val) || null)}
+                    options={[
+                      { value: 'Semua', label: `-- Semua Mitra (${mitraList.length} Mitra) --` },
+                      ...mitraList.map(m => ({ value: m.nama_mitra, label: m.nama_mitra }))
+                    ]}
+                    placeholder="Semua Mitra"
+                  />
                 </div>
 
                 <div>
