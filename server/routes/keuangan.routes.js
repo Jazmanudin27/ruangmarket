@@ -128,13 +128,29 @@ async function ensureKeuanganTable(pool) {
   }
 }
 
+let isKeuanganTableEnsured = false;
+let keuanganTablePromise = null;
+
+async function ensureKeuanganTableOnce(pool) {
+  if (isKeuanganTableEnsured) return;
+  if (!keuanganTablePromise) {
+    keuanganTablePromise = ensureKeuanganTable(pool).then(() => {
+      isKeuanganTableEnsured = true;
+    }).catch(err => {
+      keuanganTablePromise = null;
+      console.error('[Keuangan] Init Table Error:', err.message);
+    });
+  }
+  return keuanganTablePromise;
+}
+
 export async function handleKeuanganRoutes(req, res, pathname, urlObj, { pool }) {
   // ─── KATEGORI MUTASI API ENDPOINTS ──────────────────────────────────────────
 
   // GET /api/keuangan/kategori
   if (pathname === '/api/keuangan/kategori' && req.method === 'GET') {
     try {
-      await ensureKeuanganTable(pool).catch(() => {});
+      await ensureKeuanganTableOnce(pool).catch(() => {});
       const kodePerusahaan = urlObj.searchParams.get('kode_perusahaan');
       let sql = 'SELECT * FROM kategori_mutasi';
       const params = [];
@@ -156,7 +172,7 @@ export async function handleKeuanganRoutes(req, res, pathname, urlObj, { pool })
   // POST /api/keuangan/kategori (Create or Update)
   if (pathname === '/api/keuangan/kategori' && req.method === 'POST') {
     try {
-      await ensureKeuanganTable(pool).catch(() => {});
+      await ensureKeuanganTableOnce(pool).catch(() => {});
       const body = await parseJsonBody(req);
       if (!body) {
         sendJson(res, 400, { status: 'error', message: 'Data tidak boleh kosong' });
@@ -223,61 +239,95 @@ export async function handleKeuanganRoutes(req, res, pathname, urlObj, { pool })
 
   // ─── MUTASI KAS API ENDPOINTS ───────────────────────────────────────────────
 
-  // 1. GET /api/keuangan/mutasi
+  // 1. GET /api/keuangan/mutasi (Server-Side Pagination ala Laravel)
   if (pathname === '/api/keuangan/mutasi' && req.method === 'GET') {
     try {
-      await ensureKeuanganTable(pool).catch(() => {});
-      const kodePerusahaan = urlObj.searchParams.get('kode_perusahaan');
+      await ensureKeuanganTableOnce(pool).catch(() => {});
+      const kodePerusahaan = urlObj.searchParams.get('kode_perusahaan') || 'RSG';
       const jenisMutasi = urlObj.searchParams.get('jenis_mutasi');
       const kodeBank = urlObj.searchParams.get('kode_bank');
       const kategori = urlObj.searchParams.get('kategori');
       const tglAwal = urlObj.searchParams.get('tgl_awal');
       const tglAkhir = urlObj.searchParams.get('tgl_akhir');
-      const search = urlObj.searchParams.get('search');
+      const search = (urlObj.searchParams.get('search') || '').trim();
+      const pageParam = urlObj.searchParams.get('page');
+      const limitParam = urlObj.searchParams.get('limit') || urlObj.searchParams.get('per_page') || urlObj.searchParams.get('entriesPerPage');
 
-      let sql = 'SELECT * FROM mutasi_kas WHERE 1=1';
-      const params = [];
+      const isPaginated = pageParam !== null || limitParam !== null;
+      const page = Math.max(1, parseInt(pageParam || '1', 10));
+      const limit = Math.max(1, Math.min(200, parseInt(limitParam || '25', 10)));
+      const offset = (page - 1) * limit;
 
-      if (kodePerusahaan && kodePerusahaan !== 'ALL') {
-        sql += ' AND (kode_perusahaan = ? OR kode_perusahaan = "RSG" OR kode_perusahaan IS NULL)';
-        params.push(kodePerusahaan);
-      }
+      let whereSql = ' WHERE (kode_perusahaan = ? OR kode_perusahaan = "RSG" OR kode_perusahaan IS NULL OR ? = "ALL")';
+      const params = [kodePerusahaan, kodePerusahaan];
 
       if (jenisMutasi && jenisMutasi !== 'semua') {
-        sql += ' AND jenis_mutasi = ?';
+        whereSql += ' AND jenis_mutasi = ?';
         params.push(jenisMutasi.toLowerCase());
       }
 
       if (kodeBank && kodeBank !== 'Semua') {
-        sql += ' AND kode_bank = ?';
+        whereSql += ' AND kode_bank = ?';
         params.push(kodeBank);
       }
 
       if (kategori && kategori !== 'Semua') {
-        sql += ' AND kategori = ?';
+        whereSql += ' AND kategori = ?';
         params.push(kategori);
       }
 
       if (tglAwal) {
-        sql += ' AND tanggal >= ?';
+        whereSql += ' AND tanggal >= ?';
         params.push(tglAwal);
       }
 
       if (tglAkhir) {
-        sql += ' AND tanggal <= ?';
+        whereSql += ' AND tanggal <= ?';
         params.push(tglAkhir);
       }
 
-      if (search && search.trim()) {
-        sql += ' AND (no_bukti LIKE ? OR keterangan LIKE ? OR kategori LIKE ? OR kode_bank LIKE ?)';
-        const q = `%${search.trim()}%`;
+      if (search) {
+        whereSql += ' AND (no_bukti LIKE ? OR keterangan LIKE ? OR kategori LIKE ? OR kode_bank LIKE ?)';
+        const q = `%${search}%`;
         params.push(q, q, q, q);
       }
 
-      sql += ' ORDER BY tanggal DESC, id DESC';
+      // Count filtered total
+      const [[countRow]] = await pool.query(`SELECT COUNT(*) as total FROM mutasi_kas ${whereSql}`, params);
+      const totalFiltered = Number(countRow?.total || 0);
 
-      const [rows] = await pool.query(sql, params);
-      sendJson(res, 200, { status: 'success', data: rows });
+      // Agregasi Total Masuk & Total Keluar ringkasan
+      const [[sumRow]] = await pool.query(`
+        SELECT 
+          COALESCE(SUM(CASE WHEN jenis_mutasi = 'masuk' THEN jumlah ELSE 0 END), 0) as total_masuk,
+          COALESCE(SUM(CASE WHEN jenis_mutasi = 'keluar' THEN jumlah ELSE 0 END), 0) as total_keluar
+        FROM mutasi_kas
+        ${whereSql}
+      `, params);
+
+      let sql = `SELECT * FROM mutasi_kas ${whereSql} ORDER BY tanggal DESC, id DESC`;
+      const queryParams = [...params];
+      if (isPaginated) {
+        sql += ' LIMIT ? OFFSET ?';
+        queryParams.push(limit, offset);
+      }
+
+      const [rows] = await pool.query(sql, queryParams);
+      sendJson(res, 200, {
+        status: 'success',
+        data: rows,
+        pagination: {
+          total: totalFiltered,
+          page: isPaginated ? page : 1,
+          limit: isPaginated ? limit : rows.length,
+          total_pages: isPaginated ? Math.ceil(totalFiltered / limit) : 1
+        },
+        summary: {
+          total_transaksi: totalFiltered,
+          total_masuk: Number(sumRow?.total_masuk || 0),
+          total_keluar: Number(sumRow?.total_keluar || 0)
+        }
+      });
       return true;
     } catch (err) {
       console.error('[Keuangan API GET Error]:', err.message);

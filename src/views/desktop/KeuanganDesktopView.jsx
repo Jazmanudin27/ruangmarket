@@ -71,6 +71,13 @@ export default function KeuanganDesktopView() {
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [entriesPerPage, setEntriesPerPage] = useState(25);
+  const [totalRows, setTotalRows] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [summaryCounts, setSummaryCounts] = useState({
+    total_transaksi: 0,
+    total_masuk: 0,
+    total_keluar: 0
+  });
 
   // Modals
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
@@ -141,39 +148,42 @@ export default function KeuanganDesktopView() {
     setBankList(BANK_DEFAULT);
   };
 
-  // Load Data Mutasi from Server API with local fallback
-  const loadMutasi = async () => {
+  // Load Data Mutasi from Server API (Server-Side Pagination ala Laravel)
+  const loadMutasi = async (targetPage = currentPage, targetLimit = entriesPerPage) => {
     setIsLoading(true);
     try {
       const params = new URLSearchParams();
       if (activeCompany?.code) params.set('kode_perusahaan', activeCompany.code);
+      if (activeFilterTab !== 'semua') params.set('jenis_mutasi', activeFilterTab);
+      if (filterBank !== 'Semua') params.set('kode_bank', filterBank);
+      if (filterKategori !== 'Semua') params.set('kategori', filterKategori);
+      if (filterTglAwal) params.set('tgl_awal', filterTglAwal);
+      if (filterTglAkhir) params.set('tgl_akhir', filterTglAkhir);
+      if (search.trim()) params.set('search', search.trim());
+      params.set('page', String(targetPage));
+      params.set('limit', String(targetLimit));
+
       const res = await fetch(`/api/keuangan/mutasi?${params.toString()}`);
       if (res.ok) {
         const json = await res.json();
         if (json.status === 'success' && Array.isArray(json.data)) {
           setMutasiList(json.data);
-          try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(json.data));
-          } catch (_) {}
+          if (json.pagination) {
+            setTotalRows(json.pagination.total || 0);
+            setTotalPages(json.pagination.total_pages || 1);
+            setCurrentPage(json.pagination.page || targetPage);
+          }
+          if (json.summary) {
+            setSummaryCounts(json.summary);
+          }
           setIsLoading(false);
           return;
         }
       }
-      throw new Error('API server unavailable');
+      setMutasiList([]);
     } catch (err) {
-      // Fallback local storage / initial data
-      try {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setMutasiList(parsed);
-            setIsLoading(false);
-            return;
-          }
-        }
-      } catch (_) {}
-      setMutasiList(INITIAL_MUTASI_DATA);
+      console.warn('Gagal memuat mutasi kas:', err.message);
+      setMutasiList([]);
     } finally {
       setIsLoading(false);
     }
@@ -182,8 +192,19 @@ export default function KeuanganDesktopView() {
   useEffect(() => {
     loadBanks();
     loadKategori();
-    loadMutasi();
   }, [activeCompany?.code]);
+
+  useEffect(() => {
+    loadMutasi(currentPage, entriesPerPage);
+  }, [activeCompany?.code, currentPage, entriesPerPage, activeFilterTab, filterBank, filterKategori, filterTglAwal, filterTglAkhir]);
+
+  // Debounced search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      loadMutasi(1, entriesPerPage);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
 
   // ─── KATEGORI MUTASI HANDLERS ───────────────────────────────────────
   const handleStartEditKategori = (kat) => {
@@ -415,74 +436,21 @@ export default function KeuanganDesktopView() {
     toastSuccess(`Data mutasi berhasil diekspor ke ${filename}`);
   };
 
-  // KPI Calculations
-  const { totalMasuk, totalKeluar, saldoBersih, countMasuk, countKeluar } = useMemo(() => {
-    let masuk = 0;
-    let keluar = 0;
-    let cMasuk = 0;
-    let cKeluar = 0;
-    mutasiList.forEach(m => {
-      const nom = Number(m.jumlah || 0);
-      if (m.jenis_mutasi === 'masuk') {
-        masuk += nom;
-        cMasuk++;
-      } else {
-        keluar += nom;
-        cKeluar++;
-      }
-    });
-    return {
-      totalMasuk: masuk,
-      totalKeluar: keluar,
-      saldoBersih: masuk - keluar,
-      countMasuk: cMasuk,
-      countKeluar: cKeluar
-    };
-  }, [mutasiList]);
+  // KPI Calculations dari Server-Side Langsung
+  const totalMasuk = Number(summaryCounts.total_masuk || 0);
+  const totalKeluar = Number(summaryCounts.total_keluar || 0);
+  const saldoBersih = totalMasuk - totalKeluar;
+  const countMasuk = 0;
+  const countKeluar = 0;
 
-  // Filtered List
-  const filteredMutasi = useMemo(() => {
-    return mutasiList.filter(m => {
-      // Tab filter
-      if (activeFilterTab === 'masuk' && m.jenis_mutasi !== 'masuk') return false;
-      if (activeFilterTab === 'keluar' && m.jenis_mutasi !== 'keluar') return false;
+  // Data Mutasi Kas Terpaginasi Server-Side
+  const filteredMutasi = mutasiList;
+  const paginatedMutasi = mutasiList;
 
-      // Bank filter
-      if (filterBank !== 'Semua' && m.kode_bank !== filterBank) return false;
-
-      // Kategori filter
-      if (filterKategori !== 'Semua' && m.kategori !== filterKategori) return false;
-
-      // Tanggal filter
-      const tgl = m.tanggal ? String(m.tanggal).slice(0, 10) : '';
-      if (filterTglAwal && tgl < filterTglAwal) return false;
-      if (filterTglAkhir && tgl > filterTglAkhir) return false;
-
-      // Search term
-      if (search.trim()) {
-        const q = search.trim().toLowerCase();
-        const matchBukti = (m.no_bukti || '').toLowerCase().includes(q);
-        const matchKet = (m.keterangan || '').toLowerCase().includes(q);
-        const matchBank = (m.kode_bank || '').toLowerCase().includes(q);
-        const matchKat = (m.kategori || '').toLowerCase().includes(q);
-        const matchNom = String(m.jumlah || '').includes(q);
-        if (!matchBukti && !matchKet && !matchBank && !matchKat && !matchNom) return false;
-      }
-
-      return true;
-    });
-  }, [mutasiList, activeFilterTab, filterBank, filterKategori, filterTglAwal, filterTglAkhir, search]);
-
-  // Pagination Slice
-  const totalPages = Math.ceil(filteredMutasi.length / entriesPerPage) || 1;
-  const paginatedMutasi = useMemo(() => {
-    const start = (currentPage - 1) * entriesPerPage;
-    return filteredMutasi.slice(start, start + entriesPerPage);
-  }, [filteredMutasi, currentPage, entriesPerPage]);
-
-  useEffect(() => {
+  const handleTabChange = (tab) => {
+    setActiveFilterTab(tab);
     setCurrentPage(1);
-  }, [activeFilterTab, filterBank, filterKategori, filterTglAwal, filterTglAkhir, search, entriesPerPage]);
+  };
 
   return (
     <div style={{ width: '100%', maxWidth: '100%', padding: '8px 16px', boxSizing: 'border-box' }}>
@@ -1308,13 +1276,13 @@ export default function KeuanganDesktopView() {
             <div>
               Menampilkan{' '}
               <b style={{ color: '#0f172a' }}>
-                {filteredMutasi.length === 0 ? 0 : (currentPage - 1) * entriesPerPage + 1}
+                {totalRows === 0 ? 0 : (currentPage - 1) * entriesPerPage + 1}
               </b>{' '}
               sampai{' '}
               <b style={{ color: '#0f172a' }}>
-                {Math.min(currentPage * entriesPerPage, filteredMutasi.length)}
+                {Math.min(currentPage * entriesPerPage, totalRows)}
               </b>{' '}
-              dari <b style={{ color: '#0f172a' }}>{filteredMutasi.length}</b> mutasi kas
+              dari <b style={{ color: '#0f172a' }}>{totalRows}</b> mutasi kas
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>

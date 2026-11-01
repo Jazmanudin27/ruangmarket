@@ -132,6 +132,8 @@ export default function MutasiBarangDesktopView() {
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [entriesPerPage, setEntriesPerPage] = useState(25);
+  const [totalRows, setTotalRows] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
 
   // Master options for Autocomplete
   const [masterProdukList, setMasterProdukList] = useState([]);
@@ -178,8 +180,8 @@ export default function MutasiBarangDesktopView() {
     return `${prefix}-${nowYmd}-${rand}`;
   };
 
-  // Load Data Mutasi dari Backend MySQL
-  const loadMutasi = async () => {
+  // Load Data Mutasi dari Backend MySQL (Server-Side Pagination ala Laravel)
+  const loadMutasi = async (targetPage = currentPage, targetLimit = entriesPerPage) => {
     setIsLoading(true);
     try {
       const company = activeCompany?.code || 'RSG';
@@ -189,12 +191,19 @@ export default function MutasiBarangDesktopView() {
         kategori: filterKategori,
         search,
         start_date: startDate,
-        end_date: endDate
+        end_date: endDate,
+        page: String(targetPage),
+        limit: String(targetLimit)
       });
       const res = await fetch(`/api/mutasi-barang?${params.toString()}`);
       const json = await res.json();
       if (res.ok && json.data) {
         setMutasiList(json.data);
+        if (json.pagination) {
+          setTotalRows(json.pagination.total || 0);
+          setTotalPages(json.pagination.total_pages || 1);
+          setCurrentPage(json.pagination.page || targetPage);
+        }
         if (json.summary) setSummary(json.summary);
       } else {
         setMutasiList([]);
@@ -207,8 +216,9 @@ export default function MutasiBarangDesktopView() {
     }
   };
 
-  // Load Master Produk untuk referensi SKU & stok
+  // Load Master Produk untuk referensi SKU & stok (Lazy on demand)
   const loadMasterProduk = async () => {
+    if (masterProdukList.length > 0) return;
     try {
       const res = await fetch('/api/marketplace/master?limit=1000');
       const json = await res.json();
@@ -235,11 +245,10 @@ export default function MutasiBarangDesktopView() {
   };
 
   useEffect(() => {
-    loadMutasi();
-  }, [activeFilterTab, filterKategori, startDate, endDate, activeCompany.code]);
+    loadMutasi(currentPage, entriesPerPage);
+  }, [activeFilterTab, filterKategori, startDate, endDate, activeCompany.code, currentPage, entriesPerPage]);
 
   useEffect(() => {
-    loadMasterProduk();
     loadKategori();
   }, [activeCompany.code]);
 
@@ -268,7 +277,7 @@ export default function MutasiBarangDesktopView() {
   // Handle Search Debounce
   useEffect(() => {
     const timer = setTimeout(() => {
-      loadMutasi();
+      loadMutasi(1, entriesPerPage);
     }, 300);
     return () => clearTimeout(timer);
   }, [search]);
@@ -338,6 +347,7 @@ export default function MutasiBarangDesktopView() {
   };
 
   const handleOpenAdd = (defaultJenis = 'masuk') => {
+    loadMasterProduk();
     setEditingId(null);
     const newNoBukti = generateNoBukti(defaultJenis);
     const defaultKat = defaultJenis === 'masuk' ? 'Hasil Produksi / SPK' : defaultJenis === 'keluar' ? 'Penjualan Offline' : 'Penyesuaian Opname';
@@ -351,6 +361,7 @@ export default function MutasiBarangDesktopView() {
   };
 
   const handleOpenEdit = (item) => {
+    loadMasterProduk();
     setEditingId(item.id);
     setFormData({
       ...item,
@@ -494,9 +505,8 @@ export default function MutasiBarangDesktopView() {
     window.print();
   };
 
-  // Pagination calculation
-  const totalPages = Math.ceil(mutasiList.length / entriesPerPage) || 1;
-  const paginatedMutasi = mutasiList.slice((currentPage - 1) * entriesPerPage, currentPage * entriesPerPage);
+  // Pagination (Server-Side Paginated)
+  const paginatedMutasi = mutasiList;
 
   const netArusStok = Number(summary.total_qty_masuk || 0) - Number(summary.total_qty_keluar || 0);
 
@@ -1253,7 +1263,7 @@ export default function MutasiBarangDesktopView() {
           borderRadius: '6px'
         }}>
           <div>
-            Menampilkan <b>{mutasiList.length === 0 ? 0 : (currentPage - 1) * entriesPerPage + 1}</b> sampai <b>{Math.min(currentPage * entriesPerPage, mutasiList.length)}</b> dari <b>{mutasiList.length}</b> total mutasi barang
+            Menampilkan <b>{totalRows === 0 ? 0 : (currentPage - 1) * entriesPerPage + 1}</b> sampai <b>{Math.min(currentPage * entriesPerPage, totalRows)}</b> dari <b>{totalRows}</b> total mutasi barang
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>

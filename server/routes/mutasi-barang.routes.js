@@ -194,25 +194,88 @@ async function ensureMutasiBarangTable(pool) {
   }
 }
 
+let isMutasiTableEnsured = false;
+let mutasiTablePromise = null;
+
+async function ensureMutasiBarangTableOnce(pool) {
+  if (isMutasiTableEnsured) return;
+  if (!mutasiTablePromise) {
+    mutasiTablePromise = ensureMutasiBarangTable(pool).then(() => {
+      isMutasiTableEnsured = true;
+    }).catch(err => {
+      mutasiTablePromise = null;
+      console.error('[Mutasi Barang] Init Table Error:', err.message);
+    });
+  }
+  return mutasiTablePromise;
+}
+
 export async function handleMutasiBarangRoutes(req, res, pathname, urlObj, context) {
   const { pool } = context;
 
-  // Pastikan tabel siap
+  // Pastikan tabel siap sekali saja
   try {
-    await ensureMutasiBarangTable(pool);
+    await ensureMutasiBarangTableOnce(pool);
   } catch (err) {
-    console.error('[Mutasi Barang] Init Table Error:', err.message);
+    // ignore
   }
 
-  // 1. GET /api/mutasi-barang - Daftar Mutasi Barang
+  // 1. GET /api/mutasi-barang - Daftar Mutasi Barang (Server-Side Pagination)
   if (pathname === '/api/mutasi-barang' && req.method === 'GET') {
     try {
       const company = urlObj.searchParams.get('company') || urlObj.searchParams.get('kode_perusahaan') || 'RSG';
       const jenis = urlObj.searchParams.get('jenis'); // 'masuk' | 'keluar' | 'penyesuaian' | null
       const kategori = urlObj.searchParams.get('kategori');
-      const search = urlObj.searchParams.get('search');
+      const search = (urlObj.searchParams.get('search') || '').trim();
       const startDate = urlObj.searchParams.get('start_date');
       const endDate = urlObj.searchParams.get('end_date');
+      const pageParam = urlObj.searchParams.get('page');
+      const limitParam = urlObj.searchParams.get('limit') || urlObj.searchParams.get('per_page') || urlObj.searchParams.get('entriesPerPage');
+
+      const isPaginated = pageParam !== null || limitParam !== null;
+      const page = Math.max(1, parseInt(pageParam || '1', 10));
+      const limit = Math.max(1, Math.min(200, parseInt(limitParam || '25', 10)));
+      const offset = (page - 1) * limit;
+
+      let whereConditions = 'WHERE (kode_perusahaan = ? OR kode_perusahaan IS NULL OR kode_perusahaan = "" OR ? = "ALL")';
+      const params = [company, company];
+
+      if (jenis && jenis !== 'semua') {
+        whereConditions += ' AND jenis_mutasi = ?';
+        params.push(jenis);
+      }
+      if (kategori && kategori !== 'Semua') {
+        whereConditions += ' AND kategori = ?';
+        params.push(kategori);
+      }
+      if (startDate) {
+        whereConditions += ' AND tanggal >= ?';
+        params.push(startDate);
+      }
+      if (endDate) {
+        whereConditions += ' AND tanggal <= ?';
+        params.push(endDate);
+      }
+      if (search) {
+        whereConditions += ` AND (
+          no_bukti LIKE ? OR 
+          kode_sku LIKE ? OR 
+          nama_produk LIKE ? OR 
+          keterangan LIKE ? OR 
+          no_referensi LIKE ? OR 
+          pihak_terkait LIKE ? OR 
+          petugas LIKE ?
+        )`;
+        const s = `%${search}%`;
+        params.push(s, s, s, s, s, s, s);
+      }
+
+      // Count total filtered
+      const [[countRow]] = await pool.query(
+        `SELECT COUNT(*) as total FROM mutasi_barang ${whereConditions}`,
+        params
+      );
+      const totalFiltered = Number(countRow?.total || 0);
 
       let query = `
         SELECT 
@@ -226,43 +289,17 @@ export async function handleMutasiBarangRoutes(req, res, pathname, urlObj, conte
           COALESCE(keterangan, '') as keterangan,
           DATE_FORMAT(created_at, '%d/%m/%Y %H:%i') as created_at
         FROM mutasi_barang
-        WHERE (kode_perusahaan = ? OR kode_perusahaan IS NULL OR kode_perusahaan = '' OR ? = 'ALL')
+        ${whereConditions}
+        ORDER BY tanggal DESC, id DESC
       `;
-      const params = [company, company];
 
-      if (jenis && jenis !== 'semua') {
-        query += ' AND jenis_mutasi = ?';
-        params.push(jenis);
-      }
-      if (kategori && kategori !== 'Semua') {
-        query += ' AND kategori = ?';
-        params.push(kategori);
-      }
-      if (startDate) {
-        query += ' AND tanggal >= ?';
-        params.push(startDate);
-      }
-      if (endDate) {
-        query += ' AND tanggal <= ?';
-        params.push(endDate);
-      }
-      if (search) {
-        query += ` AND (
-          no_bukti LIKE ? OR 
-          kode_sku LIKE ? OR 
-          nama_produk LIKE ? OR 
-          keterangan LIKE ? OR 
-          no_referensi LIKE ? OR 
-          pihak_terkait LIKE ? OR 
-          petugas LIKE ?
-        )`;
-        const s = `%${search}%`;
-        params.push(s, s, s, s, s, s, s);
+      const queryParams = [...params];
+      if (isPaginated) {
+        query += ' LIMIT ? OFFSET ?';
+        queryParams.push(limit, offset);
       }
 
-      query += ' ORDER BY tanggal DESC, id DESC';
-
-      const [rows] = await pool.query(query, params);
+      const [rows] = await pool.query(query, queryParams);
 
       // Hitung ringkasan total mutasi
       const [summaryRows] = await pool.query(`
@@ -280,8 +317,14 @@ export async function handleMutasiBarangRoutes(req, res, pathname, urlObj, conte
       sendJson(res, 200, {
         status: 'success',
         data: rows,
+        pagination: {
+          total: totalFiltered,
+          page: isPaginated ? page : 1,
+          limit: isPaginated ? limit : rows.length,
+          total_pages: isPaginated ? Math.ceil(totalFiltered / limit) : 1
+        },
         summary: summaryRows[0] || {
-          total_transaksi: rows.length,
+          total_transaksi: totalFiltered,
           total_qty_masuk: 0,
           total_qty_keluar: 0,
           transaksi_masuk: 0,

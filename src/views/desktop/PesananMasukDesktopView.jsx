@@ -56,6 +56,18 @@ export default function PesananMasukDesktopView({ onNavigate }) {
   // Pagination States
   const [currentPage, setCurrentPage] = useState(1);
   const [entriesPerPage, setEntriesPerPage] = useState(25);
+  const [totalRows, setTotalRows] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [tabCounts, setTabCounts] = useState({
+    total: 0,
+    siap_kirim: 0,
+    belum_diproses: 0,
+    diproses: 0,
+    dikirim: 0,
+    selesai: 0,
+    tiktok: 0,
+    shopee: 0
+  });
 
   // Selection & Modal State
   const [selectedIds, setSelectedIds] = useState([]);
@@ -561,15 +573,36 @@ export default function PesananMasukDesktopView({ onNavigate }) {
     return () => window.removeEventListener('companyChange', handleCompanyChange);
   }, []);
 
-  // Fetch orders from MySQL
-  const loadOrders = async () => {
+  // Fetch orders from MySQL (Server-Side Pagination ala Laravel)
+  const loadOrders = async (targetPage = currentPage, targetLimit = entriesPerPage) => {
     setIsLoading(true);
     try {
-      const res = await fetch('/api/marketplace/orders');
+      const comp = activeCompany?.code || 'RSG';
+      const params = new URLSearchParams({
+        company: comp,
+        page: String(targetPage),
+        limit: String(targetLimit),
+        tab: activeFilterTab,
+        sub_tab: subFilterSiapKirim,
+        channel: filterChannel,
+        status: filterStatus,
+        search: search.trim(),
+        sort: sortByDate === 'asc' ? 'terlama' : 'terbaru'
+      });
+
+      const res = await fetch(`/api/marketplace/orders?${params.toString()}`);
       if (res.ok) {
         const json = await res.json();
         if (json.status === 'success' && Array.isArray(json.data)) {
           setOrders(json.data);
+          if (json.pagination) {
+            setTotalRows(json.pagination.total || 0);
+            setTotalPages(json.pagination.total_pages || 1);
+            setCurrentPage(json.pagination.page || targetPage);
+          }
+          if (json.counts) {
+            setTabCounts(json.counts);
+          }
           setIsLoading(false);
           return;
         }
@@ -583,12 +616,24 @@ export default function PesananMasukDesktopView({ onNavigate }) {
     }
   };
 
+  // Muat ulang ketika filter atau page berubah
   useEffect(() => {
-    loadOrders();
-    const handleOrdersUpdated = () => loadOrders();
+    loadOrders(currentPage, entriesPerPage);
+  }, [activeCompany, currentPage, entriesPerPage, activeFilterTab, subFilterSiapKirim, filterChannel, filterStatus, sortByDate]);
+
+  // Debounced search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      loadOrders(1, entriesPerPage);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  useEffect(() => {
+    const handleOrdersUpdated = () => loadOrders(currentPage, entriesPerPage);
     window.addEventListener('ordersUpdated', handleOrdersUpdated);
     return () => window.removeEventListener('ordersUpdated', handleOrdersUpdated);
-  }, []);
+  }, [currentPage, entriesPerPage]);
 
   // Lock body scroll saat modal detail terbuka agar halaman index tidak ikut ter-scroll
   useEffect(() => {
@@ -667,112 +712,27 @@ export default function PesananMasukDesktopView({ onNavigate }) {
     return hasResi || rawStatus === 'PROCESSED' || rawStatus === 'AWAITING_COLLECTION';
   };
 
-  // Summary Counts
-  const totalOrders = companyOrders.length;
-  const countPerluKirim = companyOrders.filter(o => isStatusSiapKirim(o.status)).length;
-  const countDiproses = companyOrders.filter(o => isStatusSiapKirim(o.status) && isOrderDiproses(o)).length;
-  const countBelumDiproses = companyOrders.filter(o => isStatusSiapKirim(o.status) && !isOrderDiproses(o)).length;
+  // Summary Counts (Dari Server-Side Langsung)
+  const totalOrders = tabCounts.total || 0;
+  const countPerluKirim = tabCounts.siap_kirim || 0;
+  const countDiproses = tabCounts.diproses || 0;
+  const countBelumDiproses = tabCounts.belum_diproses || 0;
+  const countKirim = tabCounts.dikirim || 0;
+  const countSelesai = tabCounts.selesai || 0;
+  const countTikTok = tabCounts.tiktok || 0;
+  const countShopee = tabCounts.shopee || 0;
 
-  const countKirim = companyOrders.filter(o => {
-    const s = String(o.status || '').toUpperCase();
-    return s === 'TO_CONFIRM_RECEIVE' || s === 'SHIPPED' || s === 'DIKIRIM';
-  }).length;
-  const countSelesai = companyOrders.filter(o => {
-    const s = String(o.status || '').toUpperCase();
-    return s === 'COMPLETED' || s === 'SELESAI';
-  }).length;
-  const countTikTok = companyOrders.filter(o => o.channel === 'tiktok').length;
-  const countShopee = companyOrders.filter(o => o.channel === 'shopee').length;
-
-  // Filtered List
-  const filteredOrders = companyOrders.filter(ord => {
-    const s = String(ord.status || '').toUpperCase();
-
-    // 1. Tab filter
-    if (activeFilterTab === 'siap_kirim') {
-      if (!isStatusSiapKirim(ord.status)) return false;
-      if (subFilterSiapKirim === 'belum_diproses' && isOrderDiproses(ord)) return false;
-      if (subFilterSiapKirim === 'diproses' && !isOrderDiproses(ord)) return false;
-    }
-    if (activeFilterTab === 'dikirim') {
-      const isKirim = s === 'TO_CONFIRM_RECEIVE' || s === 'SHIPPED' || s === 'DIKIRIM';
-      if (!isKirim) return false;
-    }
-    if (activeFilterTab === 'selesai') {
-      const isSelesai = s === 'COMPLETED' || s === 'SELESAI';
-      if (!isSelesai) return false;
-    }
-    if (activeFilterTab === 'tiktok' && ord.channel !== 'tiktok') return false;
-    if (activeFilterTab === 'shopee' && ord.channel !== 'shopee') return false;
-
-    // 2. Dropdown filters
-    if (filterChannel !== 'Semua' && ord.channel !== filterChannel) return false;
-    if (filterStatus !== 'Semua') {
-      const target = filterStatus.toUpperCase();
-      if (target === 'SIAP DIKIRIM' && !isStatusSiapKirim(s)) return false;
-      if (target === 'DALAM PENGIRIMAN' && s !== 'TO_CONFIRM_RECEIVE' && s !== 'SHIPPED' && s !== 'DIKIRIM') return false;
-      if (target === 'SELESAI' && s !== 'COMPLETED' && s !== 'SELESAI') return false;
-      if (target === 'DIBATALKAN' && s !== 'CANCELLED' && s !== 'DIBATALKAN') return false;
-    }
-
-    // 3. Search query
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      const matchNo = (ord.no_pesanan || '').toLowerCase().includes(q);
-      const matchBuyer = (ord.customerName || '').toLowerCase().includes(q);
-      const matchShop = (ord.shopName || '').toLowerCase().includes(q);
-      const matchResi = (ord.no_resi || '').toLowerCase().includes(q);
-      const matchItems = (ord.items || []).some(it => 
-        (it.nama_produk || '').toLowerCase().includes(q) ||
-        (it.sku || '').toLowerCase().includes(q) ||
-        (it.varian || '').toLowerCase().includes(q)
-      );
-      return matchNo || matchBuyer || matchShop || matchResi || matchItems;
-    }
-
-    return true;
-  });
-
-  // Helper parsing timestamp pesanan untuk pengurutan tanggal yang presisi
-  const getOrderTimestamp = (ord) => {
-    if (ord.rawOrderTime) {
-      const t = new Date(ord.rawOrderTime).getTime();
-      if (!isNaN(t)) return t;
-    }
-    if (ord.orderTime) {
-      // Format orderTime: 'DD/MM/YYYY HH:mm'
-      const parts = String(ord.orderTime).split(' ');
-      if (parts.length >= 2) {
-        const dateParts = parts[0].split('/').map(Number);
-        const timeParts = parts[1].split(':').map(Number);
-        if (dateParts.length === 3) {
-          const dt = new Date(dateParts[2], dateParts[1] - 1, dateParts[0], timeParts[0] || 0, timeParts[1] || 0);
-          if (!isNaN(dt.getTime())) return dt.getTime();
-        }
-      }
-    }
-    return 0;
-  };
-
-  // Urutkan pesanan masuk berdasarkan tanggal (default: terbaru -> terlama)
-  const sortedOrders = [...filteredOrders].sort((a, b) => {
-    const timeA = getOrderTimestamp(a);
-    const timeB = getOrderTimestamp(b);
-    if (sortByDate === 'asc') {
-      return timeA - timeB;
-    }
-    return timeB - timeA;
-  });
-
-  // Pagination calculation
-  const totalPages = Math.ceil(sortedOrders.length / entriesPerPage) || 1;
-  const paginatedOrders = sortedOrders.slice((currentPage - 1) * entriesPerPage, currentPage * entriesPerPage);
+  // Data pesanan untuk halaman aktif (Server-side Paginated)
+  const paginatedOrders = orders;
+  const sortedOrders = orders;
 
   const changeTab = (tab) => {
     setActiveFilterTab(tab);
     if (tab === 'siap_kirim') {
       setSubFilterSiapKirim('semua');
     }
+    setCurrentPage(1);
+  };
     setCurrentPage(1);
   };
 
@@ -1749,7 +1709,7 @@ export default function PesananMasukDesktopView({ onNavigate }) {
           color: '#64748b'
         }}>
           <div>
-            Menampilkan <b>{sortedOrders.length === 0 ? 0 : (currentPage - 1) * entriesPerPage + 1}</b> sampai <b>{Math.min(currentPage * entriesPerPage, sortedOrders.length)}</b> dari <b>{sortedOrders.length}</b> total pesanan
+            Menampilkan <b>{totalRows === 0 ? 0 : (currentPage - 1) * entriesPerPage + 1}</b> sampai <b>{Math.min(currentPage * entriesPerPage, totalRows)}</b> dari <b>{totalRows}</b> total pesanan
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>

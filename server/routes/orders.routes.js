@@ -19,7 +19,133 @@ export async function handleOrdersRoutes(req, res, pathname, urlObj, { pool, lar
   // 1. API Ambil Data Pesanan Marketplace dari MySQL (Terhubung ke ERP Aspartech)
   if (pathname === '/api/marketplace/orders' && req.method === 'GET') {
     try {
-      const [rows] = await pool.query(`
+      const companyCode = urlObj.searchParams.get('company_code') || urlObj.searchParams.get('company') || 'RSG';
+      const pageParam = urlObj.searchParams.get('page');
+      const limitParam = urlObj.searchParams.get('limit') || urlObj.searchParams.get('per_page') || urlObj.searchParams.get('entriesPerPage');
+      const tab = urlObj.searchParams.get('tab') || 'semua';
+      const subTab = urlObj.searchParams.get('sub_tab') || 'semua';
+      const channel = urlObj.searchParams.get('channel') || 'Semua';
+      const statusParam = urlObj.searchParams.get('status') || 'Semua';
+      const search = (urlObj.searchParams.get('search') || '').trim();
+      const sort = urlObj.searchParams.get('sort') || 'terbaru';
+
+      const isPaginated = pageParam !== null || limitParam !== null;
+      const page = Math.max(1, parseInt(pageParam || '1', 10));
+      const limit = Math.max(1, Math.min(200, parseInt(limitParam || '25', 10)));
+      const offset = (page - 1) * limit;
+
+      // Base company filter
+      const baseWhereClauses = ['(kode_perusahaan = ? OR kode_perusahaan IS NULL OR kode_perusahaan = "" OR ? = "ALL")'];
+      const baseWhereParams = [companyCode, companyCode];
+
+      // Tab Badge Counts
+      let counts = {
+        total: 0,
+        siap_kirim: 0,
+        belum_diproses: 0,
+        diproses: 0,
+        dikirim: 0,
+        selesai: 0,
+        tiktok: 0,
+        shopee: 0
+      };
+
+      try {
+        const [[countsRow]] = await pool.query(`
+          SELECT 
+            COUNT(*) as total_semua,
+            SUM(CASE WHEN UPPER(status_pesanan) IN ('READY_TO_SHIP', 'TO_SHIP', 'PROCESSED', 'SIAP DIKIRIM', 'PERLU DIPROSES', 'AWAITING_SHIPMENT', 'AWAITING_COLLECTION') THEN 1 ELSE 0 END) as total_siap_kirim,
+            SUM(CASE WHEN UPPER(status_pesanan) IN ('READY_TO_SHIP', 'TO_SHIP', 'PROCESSED', 'SIAP DIKIRIM', 'PERLU DIPROSES', 'AWAITING_SHIPMENT', 'AWAITING_COLLECTION') AND ((no_resi IS NOT NULL AND TRIM(no_resi) != '' AND LOWER(no_resi) != 'belum ada resi') OR UPPER(status_pesanan) IN ('PROCESSED', 'AWAITING_COLLECTION')) THEN 1 ELSE 0 END) as total_diproses,
+            SUM(CASE WHEN UPPER(status_pesanan) IN ('READY_TO_SHIP', 'TO_SHIP', 'PROCESSED', 'SIAP DIKIRIM', 'PERLU DIPROSES', 'AWAITING_SHIPMENT', 'AWAITING_COLLECTION') AND (no_resi IS NULL OR TRIM(no_resi) = '' OR LOWER(no_resi) = 'belum ada resi') AND UPPER(status_pesanan) NOT IN ('PROCESSED', 'AWAITING_COLLECTION') THEN 1 ELSE 0 END) as total_belum_diproses,
+            SUM(CASE WHEN UPPER(status_pesanan) IN ('TO_CONFIRM_RECEIVE', 'SHIPPED', 'DIKIRIM', 'IN_TRANSIT') THEN 1 ELSE 0 END) as total_dikirim,
+            SUM(CASE WHEN UPPER(status_pesanan) IN ('COMPLETED', 'FINISHED', 'SELESAI', 'DELIVERED') THEN 1 ELSE 0 END) as total_selesai,
+            SUM(CASE WHEN saluran = 'tiktok' THEN 1 ELSE 0 END) as total_tiktok,
+            SUM(CASE WHEN saluran = 'shopee' THEN 1 ELSE 0 END) as total_shopee
+          FROM pesanan_marketplace
+          WHERE ${baseWhereClauses.join(' AND ')}
+        `, baseWhereParams);
+
+        if (countsRow) {
+          counts = {
+            total: Number(countsRow.total_semua || 0),
+            siap_kirim: Number(countsRow.total_siap_kirim || 0),
+            belum_diproses: Number(countsRow.total_belum_diproses || 0),
+            diproses: Number(countsRow.total_diproses || 0),
+            dikirim: Number(countsRow.total_dikirim || 0),
+            selesai: Number(countsRow.total_selesai || 0),
+            tiktok: Number(countsRow.total_tiktok || 0),
+            shopee: Number(countsRow.total_shopee || 0)
+          };
+        }
+      } catch (eCounts) {
+        console.warn('[Orders Counts Query Error]:', eCounts.message);
+      }
+
+      // Query Filter Berjalan
+      const whereClauses = [...baseWhereClauses];
+      const whereParams = [...baseWhereParams];
+
+      if (tab === 'siap_kirim') {
+        whereClauses.push("UPPER(status_pesanan) IN ('READY_TO_SHIP', 'TO_SHIP', 'PROCESSED', 'SIAP DIKIRIM', 'PERLU DIPROSES', 'AWAITING_SHIPMENT', 'AWAITING_COLLECTION')");
+        if (subTab === 'belum_diproses') {
+          whereClauses.push("(no_resi IS NULL OR TRIM(no_resi) = '' OR LOWER(no_resi) = 'belum ada resi') AND UPPER(status_pesanan) NOT IN ('PROCESSED', 'AWAITING_COLLECTION')");
+        } else if (subTab === 'diproses') {
+          whereClauses.push("((no_resi IS NOT NULL AND TRIM(no_resi) != '' AND LOWER(no_resi) != 'belum ada resi') OR UPPER(status_pesanan) IN ('PROCESSED', 'AWAITING_COLLECTION'))");
+        }
+      } else if (tab === 'dikirim') {
+        whereClauses.push("UPPER(status_pesanan) IN ('TO_CONFIRM_RECEIVE', 'SHIPPED', 'DIKIRIM', 'IN_TRANSIT')");
+      } else if (tab === 'selesai') {
+        whereClauses.push("UPPER(status_pesanan) IN ('COMPLETED', 'FINISHED', 'SELESAI', 'DELIVERED')");
+      } else if (tab === 'tiktok') {
+        whereClauses.push("saluran = 'tiktok'");
+      } else if (tab === 'shopee') {
+        whereClauses.push("saluran = 'shopee'");
+      }
+
+      if (channel && channel !== 'Semua') {
+        whereClauses.push("saluran = ?");
+        whereParams.push(channel);
+      }
+
+      if (statusParam && statusParam !== 'Semua') {
+        const target = statusParam.toUpperCase();
+        if (target === 'SIAP DIKIRIM') {
+          whereClauses.push("UPPER(status_pesanan) IN ('READY_TO_SHIP', 'TO_SHIP', 'PROCESSED', 'SIAP DIKIRIM', 'PERLU DIPROSES', 'AWAITING_SHIPMENT', 'AWAITING_COLLECTION')");
+        } else if (target === 'DALAM PENGIRIMAN') {
+          whereClauses.push("UPPER(status_pesanan) IN ('TO_CONFIRM_RECEIVE', 'SHIPPED', 'DIKIRIM', 'IN_TRANSIT')");
+        } else if (target === 'SELESAI') {
+          whereClauses.push("UPPER(status_pesanan) IN ('COMPLETED', 'FINISHED', 'SELESAI', 'DELIVERED')");
+        } else if (target === 'DIBATALKAN') {
+          whereClauses.push("UPPER(status_pesanan) IN ('CANCELLED', 'BATAL', 'IN_CANCEL', 'DIBATALKAN')");
+        }
+      }
+
+      if (search) {
+        whereClauses.push("(no_pesanan LIKE ? OR nama_pembeli LIKE ? OR nama_toko LIKE ? OR no_resi LIKE ? OR rincian_item LIKE ?)");
+        const q = `%${search}%`;
+        whereParams.push(q, q, q, q, q);
+      }
+
+      const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+
+      // Count filtered total
+      let totalFiltered = counts.total;
+      if (whereClauses.length > 1) {
+        const [[filterCountRow]] = await pool.query(`SELECT COUNT(*) as total FROM pesanan_marketplace ${whereSql}`, whereParams);
+        totalFiltered = Number(filterCountRow?.total || 0);
+      }
+
+      // Order By
+      let orderBySql = 'ORDER BY COALESCE(waktu_pesanan, ditarik_pada) DESC, id DESC';
+      if (sort === 'terlama') {
+        orderBySql = 'ORDER BY COALESCE(waktu_pesanan, ditarik_pada) ASC, id ASC';
+      } else if (sort === 'batas_kirim_asc') {
+        orderBySql = 'ORDER BY batas_kirim ASC, id ASC';
+      } else if (sort === 'batas_kirim_desc') {
+        orderBySql = 'ORDER BY batas_kirim DESC, id DESC';
+      }
+
+      let querySql = `
         SELECT 
           id, kode_perusahaan as company_code, no_pesanan, saluran as channel,
           nama_toko as shopName, nama_pembeli as customerName, total_harga as totalPrice,
@@ -44,8 +170,17 @@ export async function handleOrdersRoutes(req, res, pathname, urlObj, { pool, lar
           DATE_FORMAT(ditarik_pada, '%d/%m/%Y, %H:%i') as syncedAt,
           COALESCE(waktu_pesanan, ditarik_pada) as rawOrderTime
         FROM pesanan_marketplace
-        ORDER BY COALESCE(waktu_pesanan, ditarik_pada) DESC, id DESC
-      `);
+        ${whereSql}
+        ${orderBySql}
+      `;
+
+      const queryParams = [...whereParams];
+      if (isPaginated) {
+        querySql += ' LIMIT ? OFFSET ?';
+        queryParams.push(limit, offset);
+      }
+
+      const [rows] = await pool.query(querySql, queryParams);
 
       let masterRows = [];
       try {
@@ -157,7 +292,17 @@ export async function handleOrdersRoutes(req, res, pathname, urlObj, { pool, lar
         };
       });
 
-      sendJson(res, 200, { status: 'success', data: formatted });
+      sendJson(res, 200, {
+        status: 'success',
+        data: formatted,
+        pagination: {
+          total: totalFiltered,
+          page: isPaginated ? page : 1,
+          limit: isPaginated ? limit : formatted.length,
+          total_pages: isPaginated ? Math.ceil(totalFiltered / limit) : 1
+        },
+        counts
+      });
       return true;
     } catch (err) {
       sendJson(res, 500, { status: 'error', message: err.message });
