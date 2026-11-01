@@ -379,11 +379,6 @@ export default function SearchableSelect({
                         )}
                       </>
                     )}
-                        size={14}
-                        color="#2563eb"
-                        style={{ flexShrink: 0 }}
-                      />
-                    )}
                   </div>
                 );
               })
