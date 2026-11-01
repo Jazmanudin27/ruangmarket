@@ -2049,79 +2049,57 @@ export default function SPKView() {
                     const rowNumber =
                       (currentPage - 1) * entriesPerPage + idx + 1;
                     const spkList = batch.spk_list || [];
-                    const isExpanded = Boolean(expandedBatch[batch.id]);
 
                     return (
-                      <React.Fragment key={`${batch.id}-${batch.kode_produksi}-${idx}`}>
-                        <tr
+                      <tr
+                        key={`${batch.id}-${batch.kode_produksi}-${idx}`}
+                        style={{
+                          backgroundColor:
+                            idx % 2 === 0 ? "#ffffff" : "#fbfcfe",
+                          transition: "background-color 0.15s ease",
+                        }}
+                      >
+                        {/* 1. NO */}
+                        <td
                           style={{
-                            backgroundColor:
-                              idx % 2 === 0 ? "#ffffff" : "#fbfcfe",
-                            transition: "background-color 0.15s ease",
+                            padding: "6px 8px",
+                            textAlign: "center",
+                            fontWeight: "700",
+                            color: "#64748b",
+                            border: "1px solid #cbd5e1",
+                            verticalAlign: "middle",
                           }}
                         >
-                          {/* 1. NO */}
-                          <td
-                            style={{
-                              padding: "6px 8px",
-                              textAlign: "center",
-                              fontWeight: "700",
-                              color: "#64748b",
-                              border: "1px solid #cbd5e1",
-                              verticalAlign: "middle",
-                            }}
-                          >
-                            {rowNumber}
-                          </td>
+                          {rowNumber}
+                        </td>
 
-                          {/* 2. NO PRODUKSI & NO FAKTUR (GROUPED) */}
-                          <td
+                        {/* 2. NO PRODUKSI & NO FAKTUR (GROUPED) */}
+                        <td
+                          style={{
+                            padding: "6px 10px",
+                            border: "1px solid #cbd5e1",
+                            verticalAlign: "middle",
+                          }}
+                        >
+                          {/* Baris Utama: No Produksi + Design Badge + Total SPK & QTY */}
+                          <div
                             style={{
-                              padding: "6px 10px",
-                              border: "1px solid #cbd5e1",
-                              verticalAlign: "middle",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "6px",
+                              flexWrap: "wrap",
                             }}
                           >
-                            {/* Baris Utama: Expand Toggle + No Produksi + Design Badge + Total SPK & QTY */}
-                            <div
+                            <span
                               style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "6px",
-                                flexWrap: "wrap",
+                                fontFamily: "monospace",
+                                fontWeight: "800",
+                                color: "#0284c7",
+                                fontSize: "12.5px",
                               }}
                             >
-                              <button
-                                type="button"
-                                onClick={() => toggleBatch(batch.id)}
-                                style={{
-                                  border: "none",
-                                  background: "transparent",
-                                  padding: 0,
-                                  cursor: "pointer",
-                                  color: "#64748b",
-                                  display: "flex",
-                                  alignItems: "center",
-                                }}
-                                title={isExpanded ? "Tutup rincian SPK" : "Buka rincian SPK"}
-                              >
-                                {isExpanded ? (
-                                  <ChevronDown size={14} color="#0284c7" />
-                                ) : (
-                                  <ChevronRight size={14} color="#64748b" />
-                                )}
-                              </button>
-
-                              <span
-                                style={{
-                                  fontFamily: "monospace",
-                                  fontWeight: "800",
-                                  color: "#0284c7",
-                                  fontSize: "12.5px",
-                                }}
-                              >
-                                {batch.kode_produksi || "-"}
-                              </span>
+                              {batch.kode_produksi || "-"}
+                            </span>
 
                               {batch.has_design && (
                                 <span
@@ -2517,281 +2495,9 @@ export default function SPKView() {
                             </div>
                           </td>
                         </tr>
-
-                        {/* Expandable Accordion Sub-Row */}
-                        {isExpanded && spkList.length > 0 && (
-                          <tr style={{ backgroundColor: "#f8fafc" }}>
-                            <td
-                              colSpan="5"
-                              style={{
-                                padding: "8px 14px",
-                                border: "1px solid #cbd5e1",
-                              }}
-                            >
-                              <div
-                                style={{
-                                  display: "flex",
-                                  flexDirection: "column",
-                                  gap: "8px",
-                                }}
-                              >
-                                <div
-                                  style={{
-                                    fontSize: "11px",
-                                    fontWeight: "800",
-                                    color: "#334155",
-                                  }}
-                                >
-                                  Rincian SPK di No Produksi:{" "}
-                                  <span
-                                    style={{
-                                      color: "#0284c7",
-                                      fontFamily: "monospace",
-                                    }}
-                                  >
-                                    {batch.kode_produksi}
-                                  </span>
-                                </div>
-                                <div
-                                  style={{
-                                    display: "grid",
-                                    gridTemplateColumns:
-                                      "repeat(auto-fit, minmax(320px, 1fr))",
-                                    gap: "10px",
-                                  }}
-                                >
-                                  {spkList.map((spk, sIdx) => {
-                                    const pItems = spk.produk_items || [];
-                                    const spkQty = pItems.reduce(
-                                      (acc, p) => acc + Number(p.qty || 0),
-                                      0,
-                                    );
-                                    const bStyle = getStatusBadgeStyle(
-                                      spk.status_spk,
-                                    );
-                                    return (
-                                      <div
-                                        key={sIdx}
-                                        style={{
-                                          backgroundColor: "#ffffff",
-                                          border: "1px solid #cbd5e1",
-                                          borderRadius: "6px",
-                                          padding: "8px 10px",
-                                          boxShadow:
-                                            "0 1px 3px rgba(0,0,0,0.03)",
-                                        }}
-                                      >
-                                        <div
-                                          style={{
-                                            display: "flex",
-                                            alignItems: "center",
-                                            justifyContent:
-                                              "space-between",
-                                            marginBottom: "6px",
-                                          }}
-                                        >
-                                          <div
-                                            style={{
-                                              display: "flex",
-                                              alignItems: "center",
-                                              gap: "6px",
-                                            }}
-                                          >
-                                            <span
-                                              style={{
-                                                fontWeight: "800",
-                                                color: "#0284c7",
-                                                fontFamily: "monospace",
-                                                fontSize: "12px",
-                                              }}
-                                            >
-                                              {spk.id_spk}
-                                            </span>
-                                            <span
-                                              style={{
-                                                fontWeight: "700",
-                                                color: "#0f172a",
-                                                fontSize: "11px",
-                                              }}
-                                            >
-                                              {spk.nama_spk || "SPK"}
-                                            </span>
-                                          </div>
-                                          <div
-                                            style={{
-                                              display: "flex",
-                                              alignItems: "center",
-                                              gap: "4px",
-                                            }}
-                                          >
-                                            <span
-                                              style={{
-                                                padding: "1px 6px",
-                                                borderRadius: "3px",
-                                                fontSize: "9.5px",
-                                                fontWeight: "800",
-                                                textTransform: "uppercase",
-                                                backgroundColor: bStyle.bg,
-                                                color: bStyle.color,
-                                                border: `1px solid ${bStyle.border}`,
-                                              }}
-                                            >
-                                              {spk.status_spk || "Potong Pola"}
-                                            </span>
-                                            <button
-                                              type="button"
-                                              onClick={() =>
-                                                setPrintModalData({
-                                                  batch,
-                                                  spk,
-                                                })
-                                              }
-                                              title="Cetak SPK ini"
-                                              style={{
-                                                padding: "2px 6px",
-                                                borderRadius: "4px",
-                                                border: "1px solid #818cf8",
-                                                backgroundColor: "#6366f1",
-                                                color: "#ffffff",
-                                                fontSize: "10px",
-                                                fontWeight: "700",
-                                                cursor: "pointer",
-                                                display: "inline-flex",
-                                                alignItems: "center",
-                                                gap: "3px",
-                                              }}
-                                            >
-                                              <Printer size={10} /> Cetak
-                                            </button>
-                                          </div>
-                                        </div>
-
-                                        <div
-                                          style={{
-                                            fontSize: "10px",
-                                            color: "#64748b",
-                                            marginBottom: "6px",
-                                          }}
-                                        >
-                                          Penjahit:{" "}
-                                          <b style={{ color: "#334155" }}>
-                                            {spk.penjahit || "-"}
-                                          </b>{" "}
-                                          • Total Qty:{" "}
-                                          <b style={{ color: "#047857" }}>
-                                            {spkQty} PCS
-                                          </b>
-                                        </div>
-
-                                        {/* Table produk ringkas */}
-                                        <table
-                                          style={{
-                                            width: "100%",
-                                            borderCollapse: "collapse",
-                                            fontSize: "10px",
-                                          }}
-                                        >
-                                          <thead>
-                                            <tr
-                                              style={{
-                                                backgroundColor: "#f1f5f9",
-                                                color: "#475569",
-                                              }}
-                                            >
-                                              <th
-                                                style={{
-                                                  padding: "3px 6px",
-                                                  textAlign: "left",
-                                                }}
-                                              >
-                                                Produk
-                                              </th>
-                                              <th
-                                                style={{
-                                                  padding: "3px 6px",
-                                                  textAlign: "center",
-                                                  width: "50px",
-                                                }}
-                                              >
-                                                Qty
-                                              </th>
-                                              <th
-                                                style={{
-                                                  padding: "3px 6px",
-                                                  textAlign: "left",
-                                                }}
-                                              >
-                                                Kain
-                                              </th>
-                                            </tr>
-                                          </thead>
-                                          <tbody>
-                                            {pItems.map((pi, piIdx) => (
-                                              <tr
-                                                key={piIdx}
-                                                style={{
-                                                  borderBottom:
-                                                    "1px solid #f1f5f9",
-                                                }}
-                                              >
-                                                <td
-                                                  style={{
-                                                    padding: "3px 6px",
-                                                    fontWeight: "600",
-                                                    color: "#0f172a",
-                                                  }}
-                                                >
-                                                  {pi.nama_produk}
-                                                  {pi.sku && (
-                                                    <span
-                                                      style={{
-                                                        color: "#0284c7",
-                                                        marginLeft: "4px",
-                                                        fontFamily: "monospace",
-                                                      }}
-                                                    >
-                                                      ({pi.sku})
-                                                    </span>
-                                                  )}
-                                                </td>
-                                                <td
-                                                  style={{
-                                                    padding: "3px 6px",
-                                                    textAlign: "center",
-                                                    fontWeight: "700",
-                                                  }}
-                                                >
-                                                  {pi.qty}{" "}
-                                                  {pi.satuan || "PCS"}
-                                                </td>
-                                                <td
-                                                  style={{
-                                                    padding: "3px 6px",
-                                                    color: "#64748b",
-                                                  }}
-                                                >
-                                                  {pi.kain_nama ||
-                                                    pi.estimasi_kain?.split(
-                                                      " - ",
-                                                    )?.[0] ||
-                                                    "-"}
-                                                </td>
-                                              </tr>
-                                            ))}
-                                          </tbody>
-                                        </table>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                      </React.Fragment>
-                    );
-                  })
-                )}
+                      );
+                    })
+                  )}
               </tbody>
             </table>
           </div>
