@@ -841,10 +841,8 @@ export default function PesananMasukDesktopView({ onNavigate }) {
     }
     setCurrentPage(1);
   };
-  setCurrentPage(1);
-}
 
-const toggleSelectOne = (id) => {
+  const toggleSelectOne = (id) => {
   setSelectedIds((prev) =>
     prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
   );
@@ -5025,5 +5023,6 @@ return (
           </div>
         );
       })()}
-  </div>
-);
+    </div>
+  );
+}
