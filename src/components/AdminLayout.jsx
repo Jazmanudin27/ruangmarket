@@ -43,7 +43,6 @@ import KaryawanDesktopView from '../views/desktop/KaryawanDesktopView';
 import PelangganDesktopView from '../views/desktop/PelangganDesktopView';
 import TahapanSPKDesktopView from '../views/desktop/TahapanSPKDesktopView';
 import MasterHPPDesktopView from '../views/desktop/MasterHPPDesktopView';
-import ProduksiDesktopView from '../views/desktop/ProduksiDesktopView';
 import SPKDesktopView from '../views/desktop/SPKDesktopView';
 import MarketplaceDesktopView from '../views/desktop/MarketplaceDesktopView';
 import ProdukMarketplaceDesktopView from '../views/desktop/ProdukMarketplaceDesktopView';
@@ -250,7 +249,6 @@ export default function AdminLayout() {
       case 'hpp_produk':
         return <MasterHPPDesktopView />;
       case 'produksi':
-        return <ProduksiDesktopView />;
       case 'spk':
         return <SPKDesktopView />;
       case 'marketplace':
@@ -867,229 +865,51 @@ export default function AdminLayout() {
                     <Calculator size={14} color={activeTab === 'hpp_produk' ? '#38bdf8' : '#94a3b8'} style={{ flexShrink: 0 }} />
                     <span style={{ textAlign: 'left', flex: 1 }}>Master HPP Produk</span>
                   </button>
-
-                  {/* Submenu 8: Mutasi Barang Masuk & Keluar */}
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      changeTab('mutasi_barang');
-                      setIsDataMasterOpen(false);
-                    }}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'flex-start',
-                      gap: '8px',
-                      width: '100%',
-                      padding: '7px 10px',
-                      borderRadius: '6px',
-                      border: 'none',
-                      backgroundColor: (activeTab === 'mutasi_barang' || activeTab === 'mutasi_stok') ? 'rgba(2, 132, 199, 0.2)' : 'transparent',
-                      color: (activeTab === 'mutasi_barang' || activeTab === 'mutasi_stok') ? '#38bdf8' : '#cbd5e1',
-                      fontSize: '11.5px',
-                      fontWeight: (activeTab === 'mutasi_barang' || activeTab === 'mutasi_stok') ? '800' : '600',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      transition: 'background-color 0.15s ease'
-                    }}
-                    onMouseEnter={(e) => {
-                      if (activeTab !== 'mutasi_barang' && activeTab !== 'mutasi_stok') e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)';
-                    }}
-                    onMouseLeave={(e) => {
-                      if (activeTab !== 'mutasi_barang' && activeTab !== 'mutasi_stok') e.currentTarget.style.backgroundColor = 'transparent';
-                    }}
-                  >
-                    <Boxes size={14} color={(activeTab === 'mutasi_barang' || activeTab === 'mutasi_stok') ? '#38bdf8' : '#94a3b8'} style={{ flexShrink: 0 }} />
-                    <span style={{ textAlign: 'left', flex: 1 }}>Mutasi Barang Masuk & Keluar</span>
-                  </button>
-
-                  {/* Submenu 9: Penitipan Barang (Konsinyasi) */}
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      changeTab('penitipan_barang');
-                      setIsDataMasterOpen(false);
-                    }}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'flex-start',
-                      gap: '8px',
-                      width: '100%',
-                      padding: '7px 10px',
-                      borderRadius: '6px',
-                      border: 'none',
-                      backgroundColor: (activeTab === 'penitipan_barang' || activeTab === 'penitipan') ? 'rgba(2, 132, 199, 0.2)' : 'transparent',
-                      color: (activeTab === 'penitipan_barang' || activeTab === 'penitipan') ? '#38bdf8' : '#cbd5e1',
-                      fontSize: '11.5px',
-                      fontWeight: (activeTab === 'penitipan_barang' || activeTab === 'penitipan') ? '800' : '600',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      transition: 'background-color 0.15s ease'
-                    }}
-                    onMouseEnter={(e) => {
-                      if (activeTab !== 'penitipan_barang' && activeTab !== 'penitipan') e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)';
-                    }}
-                    onMouseLeave={(e) => {
-                      if (activeTab !== 'penitipan_barang' && activeTab !== 'penitipan') e.currentTarget.style.backgroundColor = 'transparent';
-                    }}
-                  >
-                    <Warehouse size={14} color={(activeTab === 'penitipan_barang' || activeTab === 'penitipan') ? '#38bdf8' : '#94a3b8'} style={{ flexShrink: 0 }} />
-                    <span style={{ textAlign: 'left', flex: 1 }}>Penitipan Barang (Konsinyasi)</span>
-                  </button>
                 </div>
               )}
             </div>
 
-            {/* 3. Produksi (Dropdown Menu: SPK Produksi & Ikhtisar) */}
-            <div style={{ position: 'relative' }} ref={produksiRef}>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsProduksiOpen(prev => !prev);
-                }}
-                style={{
-                  height: '24px',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '4px',
-                  padding: '0 8px',
-                  borderRadius: '5px',
-                  border: (activeTab === 'spk' || activeTab === 'produksi' || isProduksiOpen) ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.08)',
-                  backgroundColor: (activeTab === 'spk' || activeTab === 'produksi' || isProduksiOpen) ? '#0284c7' : 'rgba(255, 255, 255, 0.05)',
-                  color: (activeTab === 'spk' || activeTab === 'produksi' || isProduksiOpen) ? '#ffffff' : '#cbd5e1',
-                  fontSize: '11px',
-                  fontWeight: (activeTab === 'spk' || activeTab === 'produksi' || isProduksiOpen) ? '800' : '600',
-                  lineHeight: 1,
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease',
-                  whiteSpace: 'nowrap',
-                  boxShadow: (activeTab === 'spk' || activeTab === 'produksi' || isProduksiOpen) ? '0 0 10px rgba(2, 132, 199, 0.5)' : 'none'
-                }}
-                onMouseEnter={(e) => {
-                  if (activeTab !== 'spk' && activeTab !== 'produksi' && !isProduksiOpen) {
-                    e.currentTarget.style.backgroundColor = 'rgba(56, 189, 248, 0.15)';
-                    e.currentTarget.style.borderColor = 'rgba(56, 189, 248, 0.3)';
-                    e.currentTarget.style.color = '#ffffff';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (activeTab !== 'spk' && activeTab !== 'produksi' && !isProduksiOpen) {
-                    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
-                    e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
-                    e.currentTarget.style.color = '#cbd5e1';
-                  }
-                }}
-              >
-                <Factory size={13} color={(activeTab === 'spk' || activeTab === 'produksi' || isProduksiOpen) ? '#ffffff' : '#38bdf8'} style={{ flexShrink: 0 }} />
-                <span>Produksi</span>
-                <ChevronDown 
-                  size={11} 
-                  color={(activeTab === 'spk' || activeTab === 'produksi' || isProduksiOpen) ? '#ffffff' : '#38bdf8'} 
-                  style={{ 
-                    transform: isProduksiOpen ? 'rotate(180deg)' : 'none', 
-                    transition: 'transform 0.15s ease',
-                    marginLeft: '1px'
-                  }} 
-                />
-              </button>
-
-              {/* Produksi Dropdown Popup */}
-              {isProduksiOpen && (
-                <div style={{
-                  position: 'absolute',
-                  left: 0,
-                  top: '100%',
-                  marginTop: '6px',
-                  backgroundColor: '#0f172a',
-                  borderRadius: '8px',
-                  border: '1px solid #334155',
-                  boxShadow: '0 12px 30px rgba(0, 0, 0, 0.6)',
-                  padding: '5px',
-                  minWidth: '170px',
-                  zIndex: 2000,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '3px'
-                }}>
-                  {/* Submenu 1: SPK Produksi */}
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      changeTab('spk');
-                      setIsProduksiOpen(false);
-                    }}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'flex-start',
-                      gap: '8px',
-                      width: '100%',
-                      padding: '7px 10px',
-                      borderRadius: '6px',
-                      border: 'none',
-                      backgroundColor: activeTab === 'spk' ? 'rgba(2, 132, 199, 0.2)' : 'transparent',
-                      color: activeTab === 'spk' ? '#38bdf8' : '#cbd5e1',
-                      fontSize: '11.5px',
-                      fontWeight: activeTab === 'spk' ? '800' : '600',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      transition: 'background-color 0.15s ease'
-                    }}
-                    onMouseEnter={(e) => {
-                      if (activeTab !== 'spk') e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)';
-                    }}
-                    onMouseLeave={(e) => {
-                      if (activeTab !== 'spk') e.currentTarget.style.backgroundColor = 'transparent';
-                    }}
-                  >
-                    <ClipboardList size={14} color={activeTab === 'spk' ? '#38bdf8' : '#94a3b8'} style={{ flexShrink: 0 }} />
-                    <span style={{ textAlign: 'left', flex: 1 }}>SPK</span>
-                  </button>
-
-                  {/* Submenu 2: Monitoring */}
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      changeTab('produksi');
-                      setIsProduksiOpen(false);
-                    }}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'flex-start',
-                      gap: '8px',
-                      width: '100%',
-                      padding: '7px 10px',
-                      borderRadius: '6px',
-                      border: 'none',
-                      backgroundColor: activeTab === 'produksi' ? 'rgba(2, 132, 199, 0.2)' : 'transparent',
-                      color: activeTab === 'produksi' ? '#38bdf8' : '#cbd5e1',
-                      fontSize: '11.5px',
-                      fontWeight: activeTab === 'produksi' ? '800' : '600',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      transition: 'background-color 0.15s ease'
-                    }}
-                    onMouseEnter={(e) => {
-                      if (activeTab !== 'produksi') e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)';
-                    }}
-                    onMouseLeave={(e) => {
-                      if (activeTab !== 'produksi') e.currentTarget.style.backgroundColor = 'transparent';
-                    }}
-                  >
-                    <Factory size={14} color={activeTab === 'produksi' ? '#38bdf8' : '#94a3b8'} style={{ flexShrink: 0 }} />
-                    <span style={{ textAlign: 'left', flex: 1 }}>Monitoring</span>
-                  </button>
-                </div>
-              )}
-            </div>
+            {/* 3. Produksi (Langsung buka SPK) */}
+            <button
+              type="button"
+              onClick={() => changeTab('spk')}
+              style={{
+                height: '24px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '4px',
+                padding: '0 8px',
+                borderRadius: '5px',
+                border: (activeTab === 'spk' || activeTab === 'produksi') ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.08)',
+                backgroundColor: (activeTab === 'spk' || activeTab === 'produksi') ? '#0284c7' : 'rgba(255, 255, 255, 0.05)',
+                color: (activeTab === 'spk' || activeTab === 'produksi') ? '#ffffff' : '#cbd5e1',
+                fontSize: '11px',
+                fontWeight: (activeTab === 'spk' || activeTab === 'produksi') ? '800' : '600',
+                lineHeight: 1,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+                whiteSpace: 'nowrap',
+                boxShadow: (activeTab === 'spk' || activeTab === 'produksi') ? '0 0 10px rgba(2, 132, 199, 0.5)' : 'none'
+              }}
+              onMouseEnter={(e) => {
+                if (activeTab !== 'spk' && activeTab !== 'produksi') {
+                  e.currentTarget.style.backgroundColor = 'rgba(56, 189, 248, 0.15)';
+                  e.currentTarget.style.borderColor = 'rgba(56, 189, 248, 0.3)';
+                  e.currentTarget.style.color = '#ffffff';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (activeTab !== 'spk' && activeTab !== 'produksi') {
+                  e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
+                  e.currentTarget.style.color = '#cbd5e1';
+                }
+              }}
+            >
+              <Factory size={13} color={(activeTab === 'spk' || activeTab === 'produksi') ? '#ffffff' : '#38bdf8'} style={{ flexShrink: 0 }} />
+              <span>Produksi</span>
+            </button>
 
             {/* 3b. Marketing (Dropdown Menu: Pesanan Masuk & Retur Masuk) */}
             <div style={{ position: 'relative' }} ref={marketingRef}>
@@ -1348,7 +1168,7 @@ export default function AdminLayout() {
                   flexDirection: 'column',
                   gap: '3px'
                 }}>
-                  {/* Submenu: Tambah Toko Marketplace */}
+                  {/* Submenu: Toko Marketplace */}
                   <button
                     type="button"
                     onClick={(e) => {
@@ -1381,7 +1201,7 @@ export default function AdminLayout() {
                     }}
                   >
                     <Store size={14} color={activeTab === 'marketplace' ? '#38bdf8' : '#94a3b8'} style={{ flexShrink: 0 }} />
-                    <span style={{ textAlign: 'left', flex: 1 }}>Tambah Toko Marketplace</span>
+                    <span style={{ textAlign: 'left', flex: 1 }}>Toko Marketplace</span>
                   </button>
                 </div>
               )}
@@ -1891,7 +1711,7 @@ export default function AdminLayout() {
               Produksi
             </div>
 
-            {/* 3a. SPK */}
+            {/* 3a. SPK Produksi */}
             <button
               onClick={() => changeTab('spk')}
               style={{
@@ -1900,39 +1720,17 @@ export default function AdminLayout() {
                 gap: '8px',
                 padding: '8px 12px 8px 20px',
                 borderRadius: '6px',
-                border: activeTab === 'spk' ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.08)',
-                backgroundColor: activeTab === 'spk' ? '#0284c7' : 'rgba(255, 255, 255, 0.05)',
+                border: (activeTab === 'spk' || activeTab === 'produksi') ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.08)',
+                backgroundColor: (activeTab === 'spk' || activeTab === 'produksi') ? '#0284c7' : 'rgba(255, 255, 255, 0.05)',
                 color: '#ffffff',
                 fontSize: '12px',
-                fontWeight: activeTab === 'spk' ? '800' : '600',
+                fontWeight: (activeTab === 'spk' || activeTab === 'produksi') ? '800' : '600',
                 cursor: 'pointer',
                 textAlign: 'left'
               }}
             >
-              <ClipboardList size={15} color={activeTab === 'spk' ? '#ffffff' : '#38bdf8'} />
-              <span>SPK</span>
-            </button>
-
-            {/* 3b. Monitoring */}
-            <button
-              onClick={() => changeTab('produksi')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '8px 12px 8px 20px',
-                borderRadius: '6px',
-                border: activeTab === 'produksi' ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.08)',
-                backgroundColor: activeTab === 'produksi' ? '#0284c7' : 'rgba(255, 255, 255, 0.05)',
-                color: '#ffffff',
-                fontSize: '12px',
-                fontWeight: activeTab === 'produksi' ? '800' : '600',
-                cursor: 'pointer',
-                textAlign: 'left'
-              }}
-            >
-              <Factory size={15} color={activeTab === 'produksi' ? '#ffffff' : '#38bdf8'} />
-              <span>Monitoring</span>
+              <Factory size={15} color={(activeTab === 'spk' || activeTab === 'produksi') ? '#ffffff' : '#38bdf8'} />
+              <span>SPK Produksi</span>
             </button>
             {/* 3b. Marketing Section Mobile */}
             <div style={{
@@ -2035,7 +1833,7 @@ export default function AdminLayout() {
               }}
             >
               <Store size={15} color={(activeTab === 'marketplace' || activeTab === 'toko') ? '#ffffff' : '#38bdf8'} />
-              <span>Tambah Toko Marketplace</span>
+              <span>Toko Marketplace</span>
             </button>
 
             {/* 5. Keuangan Section Mobile */}
