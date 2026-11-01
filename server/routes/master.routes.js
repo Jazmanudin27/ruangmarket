@@ -791,14 +791,30 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
       // Tarik info toko marketplace terhubung untuk setiap SKU di baris ini
       const skuList = rows.map(r => r.kode_sku).filter(Boolean);
       const skuListClean = skuList.map(s => s.replace(/^[A-Za-z0-9]+-/, ''));
-      const allSearchSkus = Array.from(new Set([...skuList, ...skuListClean].filter(Boolean)));
+      const skuListNoPo = skuList.map(s => s.replace(/^PO-/i, ''));
+      const skuListCleanNoPo = skuList.map(s => s.replace(/^[A-Za-z0-9]+-PO-/i, ''));
+      const skuListRsg = skuList.map(s => `RSG-${s}`);
+      const skuListRsgClean = skuListClean.map(s => `RSG-${s}`);
+      const skuListRsgNoPo = skuListNoPo.map(s => `RSG-${s}`);
+      const allSearchSkus = Array.from(new Set([
+        ...skuList,
+        ...skuListClean,
+        ...skuListNoPo,
+        ...skuListCleanNoPo,
+        ...skuListRsg,
+        ...skuListRsgClean,
+        ...skuListRsgNoPo
+      ].filter(Boolean)));
+
+      const namaList = Array.from(new Set(rows.map(r => r.nama_produk).filter(Boolean)));
       const storeMap = new Map();
 
-      if (allSearchSkus.length > 0) {
+      if (allSearchSkus.length > 0 || namaList.length > 0) {
         try {
-          const [pmRows] = await pool.query(`
+          let pmSql = `
             SELECT 
               pm.sku_marketplace,
+              pm.nama_produk,
               pm.saluran,
               pm.nama_saluran,
               pm.nama_toko,
@@ -807,26 +823,60 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
               pm.harga_jual,
               pm.id_produk_marketplace
             FROM produk_marketplace pm
-            WHERE pm.sku_marketplace IN (?)
-          `, [allSearchSkus]);
+            WHERE 1=1
+          `;
+          const pmParams = [];
+          if (allSearchSkus.length > 0 && namaList.length > 0) {
+            pmSql += ` AND (pm.sku_marketplace IN (?) OR pm.nama_produk IN (?))`;
+            pmParams.push(allSearchSkus, namaList);
+          } else if (allSearchSkus.length > 0) {
+            pmSql += ` AND pm.sku_marketplace IN (?)`;
+            pmParams.push(allSearchSkus);
+          } else if (namaList.length > 0) {
+            pmSql += ` AND pm.nama_produk IN (?)`;
+            pmParams.push(namaList);
+          }
+
+          const [pmRows] = await pool.query(pmSql, pmParams);
+
+          const addStoreEntry = (key, entry) => {
+            if (!key) return;
+            const k = String(key).trim().toLowerCase();
+            if (!storeMap.has(k)) {
+              storeMap.set(k, []);
+            }
+            const existing = storeMap.get(k);
+            const isDup = existing.some(e => e.saluran === entry.saluran && (e.nama_toko === entry.nama_toko || e.id_toko === entry.id_toko));
+            if (!isDup) {
+              existing.push(entry);
+            }
+          };
 
           for (const pm of pmRows) {
-            const sLower = String(pm.sku_marketplace || '').trim().toLowerCase();
-            if (!storeMap.has(sLower)) {
-              storeMap.set(sLower, []);
+            const entry = {
+              saluran: pm.saluran,
+              nama_saluran: pm.nama_saluran || (pm.saluran === 'shopee' ? 'Shopee' : 'TikTok Shop'),
+              nama_toko: pm.nama_toko || (pm.saluran === 'shopee' ? 'Shopee Store' : 'TikTok Shop'),
+              id_toko: pm.id_toko,
+              stok_marketplace: Number(pm.stok_marketplace || 0),
+              harga_jual: Number(pm.harga_jual || 0),
+              id_produk_marketplace: pm.id_produk_marketplace
+            };
+
+            const s = String(pm.sku_marketplace || '').trim().toLowerCase();
+            if (s) {
+              addStoreEntry(s, entry);
+              addStoreEntry(s.replace(/^[a-z0-9]+-/, ''), entry);
+              addStoreEntry(s.replace(/^po-/, ''), entry);
+              addStoreEntry(s.replace(/^[a-z0-9]+-po-/, ''), entry);
+              if (!s.startsWith('rsg-')) {
+                addStoreEntry(`rsg-${s}`, entry);
+              }
             }
-            const existing = storeMap.get(sLower);
-            const isDup = existing.some(e => e.saluran === pm.saluran && (e.nama_toko === pm.nama_toko || e.id_toko === pm.id_toko));
-            if (!isDup) {
-              existing.push({
-                saluran: pm.saluran,
-                nama_saluran: pm.nama_saluran || (pm.saluran === 'shopee' ? 'Shopee' : 'TikTok Shop'),
-                nama_toko: pm.nama_toko || (pm.saluran === 'shopee' ? 'Shopee Store' : 'TikTok Shop'),
-                id_toko: pm.id_toko,
-                stok_marketplace: Number(pm.stok_marketplace || 0),
-                harga_jual: Number(pm.harga_jual || 0),
-                id_produk_marketplace: pm.id_produk_marketplace
-              });
+
+            const n = String(pm.nama_produk || '').trim().toLowerCase();
+            if (n) {
+              addStoreEntry(n, entry);
             }
           }
         } catch (errPm) {
@@ -851,7 +901,29 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool }) {
 
         const sKey = String(r.kode_sku || '').trim().toLowerCase();
         const sKeyClean = sKey.replace(/^[a-z0-9]+-/, '');
-        const connectedStores = storeMap.get(sKey) || storeMap.get(sKeyClean) || [];
+        const sKeyNoPo = sKey.replace(/^po-/, '');
+        const sKeyCleanNoPo = sKey.replace(/^[a-z0-9]+-po-/, '');
+        const sKeyRsg = `rsg-${sKey}`;
+        const nKey = String(r.nama_produk || '').trim().toLowerCase();
+
+        const candidateStores = [
+          ...(storeMap.get(sKey) || []),
+          ...(storeMap.get(sKeyClean) || []),
+          ...(storeMap.get(sKeyNoPo) || []),
+          ...(storeMap.get(sKeyCleanNoPo) || []),
+          ...(storeMap.get(sKeyRsg) || []),
+          ...(storeMap.get(nKey) || [])
+        ];
+
+        const connectedStores = [];
+        const seenStoreKeys = new Set();
+        for (const st of candidateStores) {
+          const uKey = `${st.saluran}_${st.id_toko || st.nama_toko}`;
+          if (!seenStoreKeys.has(uKey)) {
+            seenStoreKeys.add(uKey);
+            connectedStores.push(st);
+          }
+        }
 
         return {
           ...r,

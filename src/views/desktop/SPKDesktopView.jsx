@@ -684,6 +684,7 @@ export default function SPKView() {
   const [selectPrintBatch, setSelectPrintBatch] = useState(null);
   const [expandedBatch, setExpandedBatch] = useState({});
   const [activeTabSpkIdx, setActiveTabSpkIdx] = useState(0);
+  const [editKainModal, setEditKainModal] = useState(null);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -1074,6 +1075,50 @@ export default function SPKView() {
       list[spkIdx] = { ...list[spkIdx], produk_items: items };
       return { ...prev, spk_list: list };
     });
+  };
+
+  // Save Edit Estimasi Kain (Kain Nama, Panjang Kain cm, Harga Kain cm)
+  const handleSaveEditKain = () => {
+    if (!editKainModal) return;
+    const { spkIdx, prodIdx, kain_nama, panjang_kain_cm, harga_kain_cm, applyToAll } = editKainModal;
+    const cmVal = Number(panjang_kain_cm || 0);
+    const hrgVal = Number(harga_kain_cm || 0);
+
+    setFormData((prev) => {
+      const list = [...prev.spk_list];
+      const spk = { ...list[spkIdx] };
+      const items = [...spk.produk_items];
+
+      if (applyToAll) {
+        spk.produk_items = items.map((it) => {
+          const q = Number(it.qty || 1);
+          return {
+            ...it,
+            kain_nama: kain_nama,
+            panjang_kain_cm: cmVal,
+            harga_kain_cm: hrgVal,
+            estimasi_kain: buildEstimasiKain(kain_nama, cmVal, hrgVal, q),
+          };
+        });
+      } else {
+        const target = { ...items[prodIdx] };
+        const q = Number(target.qty || 1);
+        items[prodIdx] = {
+          ...target,
+          kain_nama: kain_nama,
+          panjang_kain_cm: cmVal,
+          harga_kain_cm: hrgVal,
+          estimasi_kain: buildEstimasiKain(kain_nama, cmVal, hrgVal, q),
+        };
+        spk.produk_items = items;
+      }
+
+      list[spkIdx] = spk;
+      return { ...prev, spk_list: list };
+    });
+
+    toastSuccess("Estimasi kain berhasil disimpan!");
+    setEditKainModal(null);
   };
 
   // When user picks product from master dropdown inside an SPK
@@ -2171,80 +2216,6 @@ export default function SPKView() {
                                 <span>{batch.no_faktur}</span>
                               </div>
                             ) : null}
-
-                            {/* Sub Info: List Seluruh SPK dalam No Produksi ini */}
-                            <div
-                              style={{
-                                marginTop: "4px",
-                                display: "flex",
-                                flexDirection: "column",
-                                gap: "2px",
-                              }}
-                            >
-                              {spkList.map((spk, sIdx) => {
-                                const spkQty = (spk.produk_items || []).reduce(
-                                  (acc, p) => acc + Number(p.qty || 0),
-                                  0,
-                                );
-                                return (
-                                  <div
-                                    key={sIdx}
-                                    style={{
-                                      fontSize: "10.5px",
-                                      color: "#334155",
-                                      display: "flex",
-                                      alignItems: "center",
-                                      gap: "5px",
-                                      flexWrap: "wrap",
-                                    }}
-                                  >
-                                    <span
-                                      style={{
-                                        fontWeight: "700",
-                                        color: "#0284c7",
-                                        fontFamily: "monospace",
-                                        cursor: "pointer",
-                                      }}
-                                      onClick={() => {
-                                        setDetailBatch(batch);
-                                        setDetailActiveSpkIdx(sIdx);
-                                      }}
-                                      title="Klik untuk lihat detail SPK ini"
-                                    >
-                                      {spk.id_spk}
-                                    </span>
-                                    <span style={{ color: "#94a3b8" }}>•</span>
-                                    <span style={{ fontWeight: "600" }}>
-                                      {spk.nama_spk || "SPK"}
-                                    </span>
-                                    {spkQty > 0 && (
-                                      <span
-                                        style={{
-                                          color: "#64748b",
-                                          fontSize: "10px",
-                                        }}
-                                      >
-                                        ({spkQty} PCS)
-                                      </span>
-                                    )}
-                                    {spk.penjahit && spk.penjahit !== "-" && (
-                                      <span
-                                        style={{
-                                          fontSize: "9px",
-                                          color: "#0f766e",
-                                          backgroundColor: "#ccfbf1",
-                                          padding: "0 4px",
-                                          borderRadius: "3px",
-                                          fontWeight: "600",
-                                        }}
-                                      >
-                                        {spk.penjahit}
-                                      </span>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                            </div>
                           </td>
 
                           {/* 3. PELANGGAN & DEADLINE */}
@@ -4287,20 +4258,44 @@ export default function SPKView() {
                                           </span>
                                         )}
 
-                                        {/* Estimasi Kain Gabungan Ringkas */}
-                                        {(Number(prod.panjang_kain_cm) > 0 || prod.kain_nama) && (
+                                        {/* Estimasi Kain: Klik untuk Edit */}
+                                        {(Number(prod.panjang_kain_cm) > 0 || prod.kain_nama) ? (
                                           <span
+                                            onClick={() =>
+                                              setEditKainModal({
+                                                spkIdx: sIdx,
+                                                prodIdx: pIdx,
+                                                nama_produk: prod.nama_produk,
+                                                sku: prod.sku,
+                                                qty: prod.qty || 1,
+                                                kain_nama: prod.kain_nama || "Kain",
+                                                panjang_kain_cm: prod.panjang_kain_cm || 0,
+                                                harga_kain_cm: prod.harga_kain_cm || 150,
+                                                applyToAll: false,
+                                              })
+                                            }
+                                            title="Klik untuk mengubah estimasi kain (panjang/jenis/harga)"
                                             style={{
                                               display: "inline-flex",
                                               alignItems: "center",
                                               gap: "4px",
-                                              padding: "1px 6px",
-                                              borderRadius: "3px",
+                                              padding: "2px 6px",
+                                              borderRadius: "4px",
                                               backgroundColor: "#f0fdf4",
                                               color: "#166534",
                                               fontSize: "9px",
                                               fontWeight: "600",
                                               border: "1px solid #bbf7d0",
+                                              cursor: "pointer",
+                                              transition: "all 0.15s ease",
+                                            }}
+                                            onMouseEnter={(e) => {
+                                              e.currentTarget.style.backgroundColor = "#dcfce7";
+                                              e.currentTarget.style.borderColor = "#86efac";
+                                            }}
+                                            onMouseLeave={(e) => {
+                                              e.currentTarget.style.backgroundColor = "#f0fdf4";
+                                              e.currentTarget.style.borderColor = "#bbf7d0";
                                             }}
                                           >
                                             <Scissors size={9} color="#16a34a" />
@@ -4347,7 +4342,58 @@ export default function SPKView() {
                                                 </span>
                                               </>
                                             )}
+                                            <span
+                                              style={{
+                                                marginLeft: "3px",
+                                                display: "inline-flex",
+                                                alignItems: "center",
+                                                gap: "2px",
+                                                color: "#0369a1",
+                                                backgroundColor: "#e0f2fe",
+                                                padding: "1px 5px",
+                                                borderRadius: "3px",
+                                                fontSize: "8.5px",
+                                                fontWeight: "800",
+                                                border: "1px solid #bae6fd",
+                                              }}
+                                              title="Klik untuk ubah estimasi kain"
+                                            >
+                                              <Edit3 size={8} /> Ubah
+                                            </span>
                                           </span>
+                                        ) : (
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              setEditKainModal({
+                                                spkIdx: sIdx,
+                                                prodIdx: pIdx,
+                                                nama_produk: prod.nama_produk,
+                                                sku: prod.sku,
+                                                qty: prod.qty || 1,
+                                                kain_nama: "Kain",
+                                                panjang_kain_cm: 100,
+                                                harga_kain_cm: 150,
+                                                applyToAll: false,
+                                              })
+                                            }
+                                            style={{
+                                              display: "inline-flex",
+                                              alignItems: "center",
+                                              gap: "3px",
+                                              padding: "2px 6px",
+                                              borderRadius: "3px",
+                                              border: "1px dashed #0284c7",
+                                              backgroundColor: "#f0f9ff",
+                                              color: "#0284c7",
+                                              fontSize: "9px",
+                                              fontWeight: "700",
+                                              cursor: "pointer",
+                                            }}
+                                          >
+                                            <Scissors size={9} />
+                                            <span>+ Atur Estimasi Kain</span>
+                                          </button>
                                         )}
 
                                       </div>
@@ -4589,6 +4635,355 @@ export default function SPKView() {
           </div>
         </div>
       )}
+      {/* Modal Edit Estimasi Kain Produk */}
+      {editKainModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(15, 23, 42, 0.65)",
+            zIndex: 2500,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "16px",
+          }}
+          onClick={() => setEditKainModal(null)}
+        >
+          <div
+            style={{
+              backgroundColor: "#ffffff",
+              borderRadius: "10px",
+              width: "100%",
+              maxWidth: "460px",
+              overflow: "hidden",
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.25)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div
+              style={{
+                padding: "12px 16px",
+                background: "linear-gradient(135deg, #059669 0%, #047857 100%)",
+                color: "#ffffff",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <Scissors size={16} />
+                <span style={{ fontSize: "13px", fontWeight: "800" }}>
+                  Edit Estimasi Pemakaian Kain
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditKainModal(null)}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: "#ffffff",
+                  cursor: "pointer",
+                }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div
+              style={{
+                padding: "16px",
+                display: "flex",
+                flexDirection: "column",
+                gap: "12px",
+              }}
+            >
+              {/* Produk Info */}
+              <div
+                style={{
+                  padding: "8px 10px",
+                  borderRadius: "6px",
+                  backgroundColor: "#f8fafc",
+                  border: "1px solid #e2e8f0",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "12px",
+                    fontWeight: "700",
+                    color: "#0f172a",
+                  }}
+                >
+                  {editKainModal.nama_produk}
+                </div>
+                <div
+                  style={{
+                    fontSize: "10.5px",
+                    color: "#64748b",
+                    marginTop: "2px",
+                  }}
+                >
+                  SKU:{" "}
+                  <span
+                    style={{
+                      color: "#0284c7",
+                      fontFamily: "monospace",
+                      fontWeight: "700",
+                    }}
+                  >
+                    {editKainModal.sku || "-"}
+                  </span>{" "}
+                  • Qty:{" "}
+                  <b style={{ color: "#047857" }}>{editKainModal.qty} PCS</b>
+                </div>
+              </div>
+
+              {/* Form Inputs */}
+              <div>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: "11px",
+                    fontWeight: "700",
+                    color: "#334155",
+                    marginBottom: "4px",
+                  }}
+                >
+                  Nama / Kode Jenis Kain
+                </label>
+                <input
+                  type="text"
+                  value={editKainModal.kain_nama}
+                  onChange={(e) =>
+                    setEditKainModal({
+                      ...editKainModal,
+                      kain_nama: e.target.value,
+                    })
+                  }
+                  placeholder="Contoh: KB-TH-MERAH atau Katun Batik"
+                  style={{
+                    width: "100%",
+                    padding: "7px 10px",
+                    borderRadius: "5px",
+                    border: "1px solid #cbd5e1",
+                    fontSize: "12px",
+                    boxSizing: "border-box",
+                  }}
+                />
+              </div>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: "10px",
+                }}
+              >
+                <div>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: "11px",
+                      fontWeight: "700",
+                      color: "#334155",
+                      marginBottom: "4px",
+                    }}
+                  >
+                    Panjang Kain per Pcs (CM)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={editKainModal.panjang_kain_cm}
+                    onChange={(e) =>
+                      setEditKainModal({
+                        ...editKainModal,
+                        panjang_kain_cm: Number(e.target.value || 0),
+                      })
+                    }
+                    placeholder="Contoh: 95"
+                    style={{
+                      width: "100%",
+                      padding: "7px 10px",
+                      borderRadius: "5px",
+                      border: "1px solid #cbd5e1",
+                      fontSize: "12px",
+                      boxSizing: "border-box",
+                      fontWeight: "700",
+                      color: "#047857",
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: "11px",
+                      fontWeight: "700",
+                      color: "#334155",
+                      marginBottom: "4px",
+                    }}
+                  >
+                    Harga Kain per CM (Rp)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="10"
+                    value={editKainModal.harga_kain_cm}
+                    onChange={(e) =>
+                      setEditKainModal({
+                        ...editKainModal,
+                        harga_kain_cm: Number(e.target.value || 0),
+                      })
+                    }
+                    placeholder="Contoh: 150"
+                    style={{
+                      width: "100%",
+                      padding: "7px 10px",
+                      borderRadius: "5px",
+                      border: "1px solid #cbd5e1",
+                      fontSize: "12px",
+                      boxSizing: "border-box",
+                      fontWeight: "700",
+                      color: "#0284c7",
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Live Calculation Preview */}
+              {(() => {
+                const cm = Number(editKainModal.panjang_kain_cm || 0);
+                const q = Number(editKainModal.qty || 1);
+                const hrg = Number(editKainModal.harga_kain_cm || 0);
+                const totalCm = cm * q;
+                const totalMeter = (totalCm / 100).toFixed(1);
+                const totalBiaya = totalCm * hrg;
+
+                return (
+                  <div
+                    style={{
+                      backgroundColor: "#f0fdf4",
+                      borderRadius: "6px",
+                      border: "1px solid #bbf7d0",
+                      padding: "10px 12px",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "4px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: "800",
+                        color: "#166534",
+                      }}
+                    >
+                      Hasil Kalkulasi Kebutuhan Kain:
+                    </div>
+                    <div style={{ fontSize: "12px", color: "#15803d" }}>
+                      Total Kebutuhan: <b>{totalCm.toLocaleString("id-ID")} cm</b>{" "}
+                      ({totalMeter} Meter) untuk {q} PCS
+                    </div>
+                    {hrg > 0 && (
+                      <div style={{ fontSize: "12px", color: "#15803d" }}>
+                        Estimasi Biaya Kain:{" "}
+                        <b>Rp {totalBiaya.toLocaleString("id-ID")}</b> (@Rp{" "}
+                        {hrg.toLocaleString("id-ID")}/cm atau @Rp{" "}
+                        {(hrg * 100).toLocaleString("id-ID")}/meter)
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Checkbox Apply to All */}
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  fontSize: "11.5px",
+                  color: "#334155",
+                  cursor: "pointer",
+                  marginTop: "2px",
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={editKainModal.applyToAll}
+                  onChange={(e) =>
+                    setEditKainModal({
+                      ...editKainModal,
+                      applyToAll: e.target.checked,
+                    })
+                  }
+                />
+                <span>
+                  Terapkan jenis & harga kain ini ke semua produk di SPK ini
+                </span>
+              </label>
+            </div>
+
+            {/* Footer */}
+            <div
+              style={{
+                padding: "10px 16px",
+                borderTop: "1px solid #e2e8f0",
+                backgroundColor: "#f8fafc",
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: "8px",
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setEditKainModal(null)}
+                style={{
+                  padding: "6px 12px",
+                  borderRadius: "5px",
+                  border: "1px solid #cbd5e1",
+                  backgroundColor: "#ffffff",
+                  color: "#475569",
+                  fontSize: "11.5px",
+                  fontWeight: "700",
+                  cursor: "pointer",
+                }}
+              >
+                Batal
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSaveEditKain}
+                style={{
+                  padding: "6px 14px",
+                  borderRadius: "5px",
+                  border: "none",
+                  backgroundColor: "#059669",
+                  color: "#ffffff",
+                  fontSize: "11.5px",
+                  fontWeight: "700",
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "5px",
+                }}
+              >
+                <Check size={14} />
+                <span>Simpan Estimasi Kain</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal Cetak SPK */}
       <CetakSPKModal
         isOpen={Boolean(printModalData)}

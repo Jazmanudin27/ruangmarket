@@ -880,7 +880,8 @@ export default function ProdukView() {
             harga_kain_cm: Number(p.harga_kain_cm || 150),
             id_kategori_hpp: p.id_kategori_hpp || '',
             nama_kategori_hpp: p.nama_kategori_hpp || '',
-            hpp_kategori: Number(p.hpp_kategori || 0)
+            hpp_kategori: Number(p.hpp_kategori || 0),
+            toko_terhubung: Array.isArray(p.toko_terhubung) ? p.toko_terhubung : []
           };
         });
 
@@ -1304,8 +1305,69 @@ export default function ProdukView() {
       });
       resolvedItem.bundle_items = bundleItems;
     }
+    resolvedItem.toko_terhubung = Array.isArray(item.toko_terhubung) ? [...item.toko_terhubung] : [];
     setSelectedProduk(resolvedItem);
     setIsDetailModalOpen(true);
+
+    // Jika belum ada data toko terhubung, cari langsung ke API produk marketplace secara real-time
+    if (resolvedItem.toko_terhubung.length === 0 && (item.sku || item.nama_produk)) {
+      const q = (item.sku || item.nama_produk || '').trim();
+      fetch(`/api/marketplace/products?search=${encodeURIComponent(q)}&limit=100`)
+        .then(res => res.json())
+        .then(json => {
+          const list = Array.isArray(json.data) ? json.data : [];
+          const cleanItemSku = (item.sku || '').toLowerCase().replace(/^(rsg|byr|off)-/i, '').replace(/^po-/i, '').trim();
+          const cleanItemNama = (item.nama_produk || '').toLowerCase().trim();
+
+          const matchedStores = [];
+          const seen = new Set();
+
+          list.forEach(pm => {
+            const pmSku = (pm.sku_marketplace || '').toLowerCase().trim();
+            const pmSkuClean = pmSku.replace(/^(rsg|byr|off)-/i, '').replace(/^po-/i, '').trim();
+            const pmNama = (pm.nama_produk || '').toLowerCase().trim();
+
+            const isSkuMatch = cleanItemSku && pmSku && (
+              pmSku === (item.sku || '').toLowerCase().trim() ||
+              pmSkuClean === cleanItemSku ||
+              pmSku.includes(cleanItemSku) ||
+              cleanItemSku.includes(pmSkuClean)
+            );
+            const isNamaMatch = cleanItemNama && pmNama && (
+              pmNama === cleanItemNama ||
+              pmNama.includes(cleanItemNama) ||
+              cleanItemNama.includes(pmNama)
+            );
+
+            if (isSkuMatch || isNamaMatch) {
+              const uKey = `${pm.channel || pm.saluran}_${pm.shopId || pm.id_toko || pm.shopName || pm.nama_toko}`;
+              if (!seen.has(uKey)) {
+                seen.add(uKey);
+                matchedStores.push({
+                  saluran: pm.channel || pm.saluran || 'marketplace',
+                  nama_saluran: pm.channelName || pm.nama_saluran || (pm.channel === 'shopee' ? 'Shopee' : 'TikTok Shop'),
+                  nama_toko: pm.shopName || pm.nama_toko || (pm.channel === 'shopee' ? 'Shopee Store' : 'TikTok Shop'),
+                  id_toko: pm.shopId || pm.id_toko,
+                  stok_marketplace: Number(pm.stok_marketplace || 0),
+                  harga_jual: Number(pm.harga_jual || 0),
+                  sku_marketplace: pm.sku_marketplace
+                });
+              }
+            }
+          });
+
+          if (matchedStores.length > 0) {
+            setSelectedProduk(prev => {
+              if (prev && (prev.id === item.id || prev.sku === item.sku)) {
+                return { ...prev, toko_terhubung: matchedStores };
+              }
+              return prev;
+            });
+            setProdukList(prev => prev.map(p => (p.id === item.id || p.sku === item.sku) ? { ...p, toko_terhubung: matchedStores } : p));
+          }
+        })
+        .catch(err => console.warn('Gagal memuat toko terhubung:', err));
+    }
   };
 
   // Helper Bundle / Paket Setel Components
@@ -4424,12 +4486,16 @@ export default function ProdukView() {
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '6px' }}>
                       {selectedProduk.toko_terhubung.map((tk, tkIdx) => {
                         const isShopee = tk.saluran === 'shopee';
+                        const isTiktok = tk.saluran === 'tiktok';
+                        const badgeColor = isShopee ? '#ea580c' : (isTiktok ? '#0f172a' : '#0284c7');
+                        const borderColor = isShopee ? '#fed7aa' : (isTiktok ? '#cbd5e1' : '#bae6fd');
+                        const bgColor = isShopee ? '#fff7ed' : (isTiktok ? '#f8fafc' : '#f0f9ff');
                         return (
                           <div key={tkIdx} style={{
                             padding: '8px 10px',
                             borderRadius: '6px',
-                            border: isShopee ? '1px solid #fed7aa' : '1px solid #cbd5e1',
-                            backgroundColor: isShopee ? '#fff7ed' : '#f8fafc',
+                            border: `1px solid ${borderColor}`,
+                            backgroundColor: bgColor,
                             display: 'flex',
                             flexDirection: 'column',
                             gap: '3px'
@@ -4438,12 +4504,12 @@ export default function ProdukView() {
                               <span style={{
                                 fontSize: '10px',
                                 fontWeight: '800',
-                                color: isShopee ? '#ea580c' : '#0f172a',
+                                color: badgeColor,
                                 display: 'inline-flex',
                                 alignItems: 'center',
                                 gap: '4px'
                               }}>
-                                <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: isShopee ? '#ea580c' : '#0f172a' }} />
+                                <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: badgeColor }} />
                                 {tk.nama_saluran}
                               </span>
                               <span style={{ fontSize: '9.5px', color: '#059669', fontWeight: '800' }}>
@@ -4453,6 +4519,11 @@ export default function ProdukView() {
                             <div style={{ fontSize: '11px', fontWeight: '700', color: '#1e293b' }}>
                               {tk.nama_toko}
                             </div>
+                            {tk.sku_marketplace && (
+                              <div style={{ fontSize: '9px', color: '#64748b', fontFamily: 'monospace' }}>
+                                SKU: {tk.sku_marketplace}
+                              </div>
+                            )}
                             <div style={{ fontSize: '9.5px', color: '#64748b' }}>
                               Harga Jual Toko: Rp {Number(tk.harga_jual || 0).toLocaleString('id-ID')}
                             </div>

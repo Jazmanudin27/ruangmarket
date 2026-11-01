@@ -29,7 +29,8 @@ import {
   Calculator,
   Send,
   DollarSign,
-  Warehouse
+  Warehouse,
+  Settings
 } from 'lucide-react';
 import { getCompanies, getActiveCompany, setActiveCompanyCode } from '../utils/tenant.util';
 import { useDeviceType } from '../hooks/useDeviceType';
@@ -1316,8 +1317,8 @@ export default function AdminLayout() {
                   }
                 }}
               >
-                <Store size={13} color={(activeTab === 'marketplace' || activeTab === 'toko' || isMarketplaceOpen) ? '#ffffff' : '#38bdf8'} style={{ flexShrink: 0 }} />
-                <span>Marketplace & POS</span>
+                <Settings size={13} color={(activeTab === 'marketplace' || activeTab === 'toko' || isMarketplaceOpen) ? '#ffffff' : '#38bdf8'} style={{ flexShrink: 0 }} />
+                <span>Settings</span>
                 <ChevronDown 
                   size={11} 
                   color={(activeTab === 'marketplace' || activeTab === 'toko' || isMarketplaceOpen) ? '#ffffff' : '#38bdf8'} 
@@ -2014,7 +2015,7 @@ export default function AdminLayout() {
               textTransform: 'uppercase',
               letterSpacing: '0.05em'
             }}>
-              Marketplace & POS
+              Settings
             </div>
             <button
               onClick={() => changeTab('marketplace')}
