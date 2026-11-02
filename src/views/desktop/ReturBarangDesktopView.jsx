@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   RotateCcw,
   Search,
@@ -16,7 +16,8 @@ import {
   Layers,
   FileText,
   Eye,
-  Calendar
+  Calendar,
+  QrCode
 } from 'lucide-react';
 import { toastSuccess, toastError } from '../../utils/alert.util';
 import { getActiveCompany } from '../../utils/tenant.util';
@@ -51,6 +52,132 @@ export default function ReturBarangDesktopView() {
   const [restockCondition, setRestockCondition] = useState('Bagus / Layak Jual (Restok)');
   const [restockNotes, setRestockNotes] = useState('');
   const [isSubmittingRestock, setIsSubmittingRestock] = useState(false);
+
+  // Scan Retur Modal States
+  const [isScanReturOpen, setIsScanReturOpen] = useState(false);
+  const [scanKeyword, setScanKeyword] = useState('');
+  const [isLookingUpScan, setIsLookingUpScan] = useState(false);
+  const [scannedRetur, setScannedRetur] = useState(null);
+  const [scanFeedback, setScanFeedback] = useState(null);
+  const scanInputRef = useRef(null);
+
+  const playScanBeep = (type = 'success') => {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      if (type === 'success') {
+        osc.frequency.setValueAtTime(880, ctx.currentTime);
+        gain.gain.setValueAtTime(0.12, ctx.currentTime);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.12);
+      } else {
+        osc.frequency.setValueAtTime(240, ctx.currentTime);
+        gain.gain.setValueAtTime(0.18, ctx.currentTime);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.28);
+      }
+    } catch (e) {}
+  };
+
+  const handleOpenScanModal = () => {
+    setIsScanReturOpen(true);
+    setScanKeyword('');
+    setScannedRetur(null);
+    setScanFeedback(null);
+    setRestockCondition('Bagus / Layak Jual (Restok)');
+    setRestockNotes('');
+    setTimeout(() => {
+      if (scanInputRef.current) scanInputRef.current.focus();
+    }, 80);
+  };
+
+  const handleScanLookupSubmit = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    const kw = scanKeyword.trim();
+    if (!kw) {
+      toastError('Scan atau ketik No. Resi / No. Pesanan terlebih dahulu!');
+      return;
+    }
+
+    setIsLookingUpScan(true);
+    setScanFeedback(null);
+    try {
+      const res = await fetch('/api/marketplace/returns/scan-lookup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keyword: kw })
+      });
+      const json = await res.json();
+      if (!res.ok || !json.data) {
+        playScanBeep('error');
+        setScannedRetur(null);
+        setScanFeedback({
+          type: 'error',
+          text: json.message || `No. Resi / No. Pesanan "${kw}" tidak ditemukan.`
+        });
+        return;
+      }
+
+      playScanBeep('success');
+      setScannedRetur(json.data);
+      setScanKeyword('');
+      setRestockCondition('Bagus / Layak Jual (Restok)');
+      setRestockNotes('');
+      setScanFeedback({
+        type: json.data.is_restocked ? 'warning' : 'success',
+        text: json.data.is_restocked
+          ? `Paket ${json.data.no_pesanan} (${json.data.nama_pembeli || '-'}) SUDAH DITERIMA & DIRESTOK sebelumnya.`
+          : `Paket Retur ditemukan! No. Pesanan: ${json.data.no_pesanan} (${json.data.nama_pembeli || '-'}). Silakan cek kondisi & klik Terima Retur.`
+      });
+    } catch (err) {
+      playScanBeep('error');
+      setScanFeedback({ type: 'error', text: `Gagal mencari data: ${err.message}` });
+    } finally {
+      setIsLookingUpScan(false);
+    }
+  };
+
+  const handleConfirmScannedRestock = async () => {
+    if (!scannedRetur) return;
+    setIsSubmittingRestock(true);
+    try {
+      const res = await fetch(`/api/marketplace/returns/${encodeURIComponent(scannedRetur.id)}/restock`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          kondisi_barang: restockCondition,
+          catatan: restockNotes || 'Diterima via Scan Barcode Retur',
+          do_restock: restockCondition.includes('Layak') || restockCondition.includes('Bagus') || restockCondition.includes('Restok')
+        })
+      });
+      const json = await res.json();
+      if (res.ok && json.status === 'success') {
+        playScanBeep('success');
+        toastSuccess(json.message || 'Retur berhasil diterima & stok diupdate!');
+        setScanFeedback({
+          type: 'success',
+          text: `✅ Retur ${scannedRetur.no_pesanan} selesai diterima! Silakan scan paket retur berikutnya.`
+        });
+        setScannedRetur(null);
+        setScanKeyword('');
+        setRestockNotes('');
+        await loadReturns();
+        setTimeout(() => {
+          if (scanInputRef.current) scanInputRef.current.focus();
+        }, 80);
+      } else {
+        throw new Error(json.message || 'Gagal memproses penerimaan retur');
+      }
+    } catch (e) {
+      playScanBeep('error');
+      toastError(`Gagal: ${e.message}`);
+    } finally {
+      setIsSubmittingRestock(false);
+    }
+  };
 
   // Listen to company change
   useEffect(() => {
@@ -314,6 +441,30 @@ export default function ReturBarangDesktopView() {
 
         {/* Header Action Buttons */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={handleOpenScanModal}
+            style={{
+              height: '32px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '0 14px',
+              borderRadius: '6px',
+              border: '1px solid #10b981',
+              backgroundColor: '#059669',
+              color: '#ffffff',
+              fontSize: '12px',
+              fontWeight: '800',
+              cursor: 'pointer',
+              boxShadow: '0 2px 8px rgba(5, 150, 105, 0.35)',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            <QrCode size={14} />
+            <span>Scan Terima Retur</span>
+          </button>
+
           <button
             type="button"
             onClick={handleSyncReturns}
@@ -1489,6 +1640,323 @@ export default function ReturBarangDesktopView() {
               >
                 Tutup
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 8. MODAL SCAN PENERIMAAN RETUR & RESTOK CEPAT */}
+      {isScanReturOpen && (
+        <div
+          onClick={() => setIsScanReturOpen(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.72)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 99999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px'
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: '#ffffff',
+              borderRadius: '12px',
+              width: '100%',
+              maxWidth: '640px',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.4)',
+              overflow: 'hidden'
+            }}
+          >
+            {/* Modal Header */}
+            <div style={{
+              padding: '14px 18px',
+              background: 'linear-gradient(135deg, #090d16 0%, #0f172a 100%)',
+              color: '#ffffff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{
+                  width: '34px',
+                  height: '34px',
+                  borderRadius: '8px',
+                  backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                  border: '1px solid rgba(16, 185, 129, 0.4)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#34d399'
+                }}>
+                  <QrCode size={18} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '800' }}>
+                    Scan Barcode Penerimaan Retur
+                  </h3>
+                  <div style={{ fontSize: '11px', color: '#94a3b8' }}>
+                    Scan No. Resi Pengiriman / Resi Retur / No. Pesanan pada label paket
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsScanReturOpen(false)}
+                style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#94a3b8' }}
+              >
+                <X size={19} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: '18px' }}>
+              {/* Barcode Scanner Input Form */}
+              <form onSubmit={handleScanLookupSubmit} style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
+                <div style={{ flex: 1, position: 'relative' }}>
+                  <QrCode size={16} color="#059669" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+                  <input
+                    ref={scanInputRef}
+                    type="text"
+                    value={scanKeyword}
+                    onChange={(e) => setScanKeyword(e.target.value)}
+                    placeholder="Arahkan scanner ke barcode Resi / No. Pesanan lalu tekan Enter..."
+                    autoFocus
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px 10px 38px',
+                      borderRadius: '8px',
+                      border: '2px solid #059669',
+                      fontSize: '13.5px',
+                      fontWeight: '700',
+                      fontFamily: 'monospace',
+                      outline: 'none',
+                      backgroundColor: '#f0fdf4',
+                      color: '#0f172a',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={isLookingUpScan}
+                  style={{
+                    padding: '0 18px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    backgroundColor: '#0284c7',
+                    color: '#ffffff',
+                    fontSize: '12.5px',
+                    fontWeight: '800',
+                    cursor: isLookingUpScan ? 'not-allowed' : 'pointer',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  {isLookingUpScan ? 'Mencari...' : 'Cari Paket'}
+                </button>
+              </form>
+
+              {/* Feedback Banner */}
+              {scanFeedback && (
+                <div style={{
+                  padding: '10px 12px',
+                  borderRadius: '8px',
+                  marginBottom: '14px',
+                  fontSize: '12px',
+                  fontWeight: '700',
+                  backgroundColor: scanFeedback.type === 'error' ? '#fef2f2' : scanFeedback.type === 'warning' ? '#fffbeb' : '#ecfdf5',
+                  color: scanFeedback.type === 'error' ? '#b91c1c' : scanFeedback.type === 'warning' ? '#b45309' : '#065f46',
+                  border: `1px solid ${scanFeedback.type === 'error' ? '#fecaca' : scanFeedback.type === 'warning' ? '#fde68a' : '#a7f3d0'}`
+                }}>
+                  {scanFeedback.text}
+                </div>
+              )}
+
+              {/* Scanned Package Details */}
+              {scannedRetur ? (
+                <div style={{
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '8px',
+                  padding: '14px',
+                  backgroundColor: '#f8fafc'
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'flex-start',
+                    flexWrap: 'wrap',
+                    gap: '8px',
+                    paddingBottom: '10px',
+                    marginBottom: '10px',
+                    borderBottom: '1px solid #e2e8f0'
+                  }}>
+                    <div>
+                      <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '700' }}>NO. PESANAN & TOKO</div>
+                      <div style={{ fontSize: '15px', fontWeight: '900', color: '#0284c7', fontFamily: 'monospace' }}>
+                        {scannedRetur.no_pesanan}
+                      </div>
+                      <div style={{ fontSize: '12px', fontWeight: '700', color: '#0f172a', marginTop: '2px' }}>
+                        {scannedRetur.nama_toko || '-'} ({String(scannedRetur.saluran || 'MARKETPLACE').toUpperCase()}) • Pembeli: {scannedRetur.nama_pembeli || '-'}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{
+                        display: 'inline-block',
+                        padding: '3px 10px',
+                        borderRadius: '999px',
+                        fontSize: '10.5px',
+                        fontWeight: '800',
+                        backgroundColor: scannedRetur.is_restocked ? '#dcfce7' : '#fef3c7',
+                        color: scannedRetur.is_restocked ? '#15803d' : '#b45309',
+                        border: `1px solid ${scannedRetur.is_restocked ? '#86efac' : '#fde68a'}`
+                      }}>
+                        {scannedRetur.is_restocked ? 'SUDAH DIRESTOK' : 'SIAP DITERIMA'}
+                      </span>
+                      <div style={{ fontSize: '11px', color: '#475569', marginTop: '4px', fontFamily: 'monospace' }}>
+                        Resi: <b>{scannedRetur.no_resi_retur || scannedRetur.no_resi || '-'}</b>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Daftar Item dalam Paket */}
+                  <div style={{ marginBottom: '12px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: '800', color: '#475569', marginBottom: '6px', textTransform: 'uppercase' }}>
+                      Produk dalam Paket ({scannedRetur.items?.length || 1} Item):
+                    </div>
+                    <div style={{
+                      backgroundColor: '#ffffff',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '6px',
+                      padding: '8px 10px',
+                      maxHeight: '140px',
+                      overflowY: 'auto',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '6px'
+                    }}>
+                      {(scannedRetur.items && scannedRetur.items.length > 0 ? scannedRetur.items : [scannedRetur]).map((it, idx) => (
+                        <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
+                          <div>
+                            <span style={{ fontWeight: '800', color: '#0284c7', fontFamily: 'monospace' }}>
+                              {it.sku || it.kode_sku || 'SKU-MASTER'}
+                            </span>
+                            <span style={{ color: '#334155', marginLeft: '6px', fontWeight: '600' }}>
+                              {it.nama_produk || 'Produk'}
+                            </span>
+                          </div>
+                          <span style={{
+                            fontWeight: '800',
+                            backgroundColor: '#eff6ff',
+                            color: '#1d4ed8',
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            border: '1px solid #bfdbfe'
+                          }}>
+                            {it.qty || it.quantity || 1} PCS
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {!scannedRetur.is_restocked && (
+                    <>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
+                        <div>
+                          <label style={{ display: 'block', fontWeight: '700', fontSize: '11.5px', marginBottom: '4px', color: '#0f172a' }}>
+                            Kondisi Fisik Barang
+                          </label>
+                          <select
+                            value={restockCondition}
+                            onChange={(e) => setRestockCondition(e.target.value)}
+                            style={{
+                              width: '100%',
+                              padding: '7px 10px',
+                              borderRadius: '6px',
+                              border: '1px solid #cbd5e1',
+                              fontSize: '12px',
+                              fontWeight: '600',
+                              backgroundColor: '#ffffff'
+                            }}
+                          >
+                            <option value="Bagus / Layak Jual (Restok)">Bagus / Layak Jual (Restok Otomatis)</option>
+                            <option value="Kemasan Rusak Tapi Barang Aman (Restok)">Kemasan Rusak, Barang Aman (Restok)</option>
+                            <option value="Rusak / Cacat Pabrik (Jangan Restok)">Rusak / Reject (Jangan Restok)</option>
+                            <option value="Barang Hilang / Salah Kirim (Jangan Restok)">Barang Hilang / Salah Kirim (Jangan Restok)</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label style={{ display: 'block', fontWeight: '700', fontSize: '11.5px', marginBottom: '4px', color: '#0f172a' }}>
+                            Catatan Penerimaan (Opsional)
+                          </label>
+                          <input
+                            type="text"
+                            value={restockNotes}
+                            onChange={(e) => setRestockNotes(e.target.value)}
+                            placeholder="Contoh: Barang aman, masuk rak..."
+                            style={{
+                              width: '100%',
+                              padding: '7px 10px',
+                              borderRadius: '6px',
+                              border: '1px solid #cbd5e1',
+                              fontSize: '12px',
+                              backgroundColor: '#ffffff',
+                              boxSizing: 'border-box'
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        disabled={isSubmittingRestock}
+                        onClick={handleConfirmScannedRestock}
+                        style={{
+                          width: '100%',
+                          padding: '10px 16px',
+                          borderRadius: '8px',
+                          border: 'none',
+                          backgroundColor: '#059669',
+                          color: '#ffffff',
+                          fontSize: '13px',
+                          fontWeight: '800',
+                          cursor: isSubmittingRestock ? 'not-allowed' : 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '8px',
+                          boxShadow: '0 4px 10px rgba(5, 150, 105, 0.3)'
+                        }}
+                      >
+                        <CheckCircle2 size={16} />
+                        <span>{isSubmittingRestock ? 'Memproses...' : `Terima Retur & Restok (+${scannedRetur.qty || 1} PCS)`}</span>
+                      </button>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <div style={{
+                  padding: '28px 16px',
+                  textAlign: 'center',
+                  border: '1px dashed #cbd5e1',
+                  borderRadius: '8px',
+                  backgroundColor: '#f8fafc',
+                  color: '#64748b'
+                }}>
+                  <QrCode size={36} color="#94a3b8" style={{ marginBottom: '8px' }} />
+                  <div style={{ fontWeight: '700', fontSize: '13px', color: '#334155' }}>
+                    Siap Menerima Scan Barcode Paket Retur
+                  </div>
+                  <div style={{ fontSize: '11.5px', marginTop: '4px' }}>
+                    Scan barcode <b>No. Resi</b> atau <b>No. Pesanan</b> pada resi tempel paket retur. Sistem otomatis mencari data pesanan dan menyiapkan tombol restok.
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

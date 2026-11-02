@@ -370,5 +370,177 @@ export async function handleReturnsRoutes(req, res, pathname, urlObj, { pool, la
     }
   }
 
+  // 5. POST /api/marketplace/returns/scan-lookup - Scan Barcode Resi / No Pesanan Retur
+  if (pathname === '/api/marketplace/returns/scan-lookup' && req.method === 'POST') {
+    try {
+      const body = await parseJsonBody(req);
+      const kw = String(body.keyword || body.query || '').trim();
+      if (!kw) {
+        sendJson(res, 400, { status: 'error', message: 'Scan atau ketik No. Resi / No. Pesanan terlebih dahulu' });
+        return true;
+      }
+
+      // A. Cari di tabel retur_barang (exact match dulu, lalu LIKE)
+      let [retRows] = await pool.query(`
+        SELECT * FROM retur_barang
+        WHERE no_pesanan = ? OR no_resi_retur = ? OR id_retur_marketplace = ? OR id = ?
+        ORDER BY waktu_diajukan DESC, dibuat_pada DESC
+        LIMIT 1
+      `, [kw, kw, kw, kw]);
+
+      if (!retRows || retRows.length === 0) {
+        [retRows] = await pool.query(`
+          SELECT * FROM retur_barang
+          WHERE no_pesanan LIKE ? OR no_resi_retur LIKE ? OR id_retur_marketplace LIKE ?
+          ORDER BY waktu_diajukan DESC, dibuat_pada DESC
+          LIMIT 1
+        `, [`%${kw}%`, `%${kw}%`, `%${kw}%`]);
+      }
+
+      // B. Jika belum ada di retur_barang, cari di pesanan_marketplace berdasarkan no_pesanan atau no_resi pengiriman
+      if (!retRows || retRows.length === 0) {
+        let [ordRows] = await pool.query(`
+          SELECT * FROM pesanan_marketplace
+          WHERE no_pesanan = ? OR no_resi = ? OR id = ?
+          LIMIT 1
+        `, [kw, kw, kw]);
+
+        if (!ordRows || ordRows.length === 0) {
+          [ordRows] = await pool.query(`
+            SELECT * FROM pesanan_marketplace
+            WHERE no_pesanan LIKE ? OR no_resi LIKE ?
+            ORDER BY COALESCE(waktu_pesanan, ditarik_pada) DESC
+            LIMIT 1
+          `, [`%${kw}%`, `%${kw}%`]);
+        }
+
+        if (ordRows && ordRows.length > 0) {
+          const ord = ordRows[0];
+          const newReturId = `ret_scan_${ord.no_pesanan}`;
+          await pool.query(`
+            INSERT INTO retur_barang (
+              id, kode_perusahaan, id_retur_marketplace, no_pesanan, saluran,
+              nama_toko, nama_pembeli, alasan_retur, tipe_retur, status_retur,
+              kondisi_barang, no_resi_retur, kurir_retur, total_refund,
+              rincian_item, sudah_restok, catatan, waktu_diajukan
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'Paket Retur / Gagal Kirim (Scan Resi)', 'RETURN_REFUND', 'Menunggu', 'Menunggu Penerimaan', ?, ?, ?, ?, 0, 'Terdeteksi otomatis via Scan Barcode Retur', CURRENT_TIMESTAMP)
+            ON DUPLICATE KEY UPDATE diperbarui_pada = CURRENT_TIMESTAMP
+          `, [
+            newReturId,
+            ord.kode_perusahaan || 'RSG',
+            ord.no_pesanan,
+            ord.no_pesanan,
+            ord.saluran || 'shopee',
+            ord.nama_toko || 'Toko Marketplace',
+            ord.nama_pembeli || 'Pembeli',
+            ord.no_resi || kw,
+            ord.kurir || 'Ekspedisi',
+            Number(ord.total_harga || 0),
+            ord.rincian_item || '[]'
+          ]);
+
+          const [createdRows] = await pool.query('SELECT * FROM retur_barang WHERE id = ? OR no_pesanan = ? LIMIT 1', [newReturId, ord.no_pesanan]);
+          retRows = createdRows;
+        }
+      }
+
+      // C. Fallback: Cari di database Laravel (return_orders / orders) jika masih belum ditemukan
+      if ((!retRows || retRows.length === 0) && laravelPool) {
+        try {
+          const [lOrders] = await laravelPool.query(`
+            SELECT 
+              o.id as order_id,
+              o.order_marketplace_id as no_pesanan,
+              o.buyer_name as nama_pembeli,
+              o.courier as kurir,
+              o.tracking_number as no_resi,
+              o.total_amount as total_harga,
+              s.store_name as nama_toko,
+              c.code as saluran
+            FROM orders o
+            LEFT JOIN stores s ON s.id = o.store_id
+            LEFT JOIN channels c ON c.id = s.channel_id
+            WHERE o.order_marketplace_id = ? OR o.tracking_number = ?
+               OR o.order_marketplace_id LIKE ? OR o.tracking_number LIKE ?
+            LIMIT 1
+          `, [kw, kw, `%${kw}%`, `%${kw}%`]);
+
+          if (lOrders && lOrders.length > 0) {
+            const lo = lOrders[0];
+            const [lItems] = await laravelPool.query(`
+              SELECT sku, product_name as nama_produk, quantity as qty, price as harga, total_price as subtotal
+              FROM order_items WHERE order_id = ?
+            `, [lo.order_id]).catch(() => [[]]);
+
+            const newReturId = `ret_scan_${lo.no_pesanan}`;
+            await pool.query(`
+              INSERT INTO retur_barang (
+                id, kode_perusahaan, id_retur_marketplace, no_pesanan, saluran,
+                nama_toko, nama_pembeli, alasan_retur, tipe_retur, status_retur,
+                kondisi_barang, no_resi_retur, kurir_retur, total_refund,
+                rincian_item, sudah_restok, catatan, waktu_diajukan
+              ) VALUES (?, 'RSG', ?, ?, ?, ?, ?, 'Paket Retur / Gagal Kirim (Scan Resi)', 'RETURN_REFUND', 'Menunggu', 'Menunggu Penerimaan', ?, ?, ?, ?, 0, 'Terdeteksi otomatis via Scan Barcode Retur', CURRENT_TIMESTAMP)
+              ON DUPLICATE KEY UPDATE diperbarui_pada = CURRENT_TIMESTAMP
+            `, [
+              newReturId,
+              lo.no_pesanan,
+              lo.no_pesanan,
+              lo.saluran || 'shopee',
+              lo.nama_toko || 'Toko Marketplace',
+              lo.nama_pembeli || 'Pembeli',
+              lo.no_resi || kw,
+              lo.kurir || 'Ekspedisi',
+              Number(lo.total_harga || 0),
+              JSON.stringify(lItems || [])
+            ]);
+
+            const [createdRows] = await pool.query('SELECT * FROM retur_barang WHERE id = ? OR no_pesanan = ? LIMIT 1', [newReturId, lo.no_pesanan]);
+            retRows = createdRows;
+          }
+        } catch (eLarScan) {}
+      }
+
+      if (!retRows || retRows.length === 0) {
+        sendJson(res, 404, {
+          status: 'not_found',
+          message: `Data retur atau pesanan dengan No. Resi / No. Pesanan "${kw}" tidak ditemukan.`
+        });
+        return true;
+      }
+
+      const r = retRows[0];
+      let items = [];
+      try {
+        items = r.rincian_item ? (typeof r.rincian_item === 'string' ? JSON.parse(r.rincian_item) : r.rincian_item) : [];
+      } catch (e) {
+        items = [];
+      }
+      const validItems = Array.isArray(items) ? items : [];
+      const firstItem = validItems[0] || null;
+      const displayStatus = mapReturnStatus(r.status_retur, r.sudah_restok);
+
+      sendJson(res, 200, {
+        status: 'success',
+        data: {
+          ...r,
+          return_sn: r.id_retur_marketplace || r.no_pesanan,
+          status_retur: displayStatus,
+          status: displayStatus,
+          is_restocked: Boolean(r.sudah_restok),
+          sku: firstItem?.sku || firstItem?.kode_sku || 'SKU-MASTER',
+          nama_produk: firstItem?.nama_produk || 'Produk Retur',
+          varian: firstItem?.varian || '',
+          qty: validItems.reduce((acc, it) => acc + Number(it.qty || it.quantity || 1), 0) || 1,
+          items: validItems
+        }
+      });
+      return true;
+    } catch (err) {
+      console.error('[Scan Retur Lookup Error]:', err.message);
+      sendJson(res, 500, { status: 'error', message: err.message });
+      return true;
+    }
+  }
+
   return false;
 }
