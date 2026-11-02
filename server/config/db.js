@@ -93,23 +93,166 @@ export async function initDb() {
       await conn.query(`ALTER TABLE toko_marketplace MODIFY COLUMN id_toko VARCHAR(128) NULL`);
     } catch (e) {}
     try {
+      // Sinkronisasi toko dari database marketplace terlebih dahulu sebelum update nama_toko di produk_marketplace
+      try {
+        await conn.query(`
+          INSERT INTO toko_marketplace (
+            id, kode_perusahaan, saluran, nama_saluran, nama_toko, id_toko, 
+            logo_toko, cipher_toko, token_akses, token_refresh, kadaluarsa_pada, 
+            status_koneksi, sinkron_stok_otomatis, dibuat_pada, diperbarui_pada
+          )
+          SELECT 
+            CONCAT('tk_', c.code, '_', s.id) AS id,
+            'RSG' AS kode_perusahaan,
+            c.code AS saluran,
+            c.name AS nama_saluran,
+            s.store_name AS nama_toko,
+            COALESCE(NULLIF(s.marketplace_store_id, ''), NULLIF(s.shop_cipher, ''), CONCAT('tk_', c.code, '_', s.id)) AS id_toko,
+            COALESCE(s.logo_path, '') AS logo_toko,
+            COALESCE(s.shop_cipher, '') AS cipher_toko,
+            s.access_token AS token_akses,
+            s.refresh_token AS token_refresh,
+            s.token_expires_at AS kadaluarsa_pada,
+            CASE 
+              WHEN s.status = 'connected' THEN 'Aktif (Terhubung)'
+              WHEN s.status = 'expired' THEN 'Kadaluarsa'
+              ELSE s.status
+            END AS status_koneksi,
+            1 AS sinkron_stok_otomatis,
+            COALESCE(s.created_at, NOW()) AS dibuat_pada,
+            COALESCE(s.updated_at, NOW()) AS diperbarui_pada
+          FROM marketplace.stores s
+          JOIN marketplace.channels c ON s.channel_id = c.id
+          ON DUPLICATE KEY UPDATE
+            nama_toko = VALUES(nama_toko),
+            saluran = VALUES(saluran),
+            nama_saluran = VALUES(nama_saluran),
+            id_toko = VALUES(id_toko),
+            logo_toko = VALUES(logo_toko),
+            cipher_toko = VALUES(cipher_toko),
+            token_akses = VALUES(token_akses),
+            token_refresh = VALUES(token_refresh),
+            kadaluarsa_pada = VALUES(kadaluarsa_pada),
+            status_koneksi = VALUES(status_koneksi),
+            diperbarui_pada = VALUES(diperbarui_pada)
+        `);
+      } catch (eEarlySync) {}
+
       await conn.query(`
         UPDATE produk_marketplace pm
         JOIN toko_marketplace tm ON (
           (pm.saluran = 'tiktok' AND (
-            pm.id_toko = tm.id_toko 
-            OR pm.id_toko = tm.cipher_toko 
-            OR pm.id LIKE CONCAT('%', tm.cipher_toko, '%')
-            OR (pm.id_toko = '' AND pm.nama_toko = tm.nama_toko)
+            (pm.id_toko IS NOT NULL AND pm.id_toko != '' AND (pm.id_toko = tm.id_toko OR pm.id_toko = tm.cipher_toko OR pm.id_toko = tm.id))
+            OR (tm.cipher_toko IS NOT NULL AND tm.cipher_toko != '' AND pm.id LIKE CONCAT('%', tm.cipher_toko, '%'))
+            OR (tm.id_toko IS NOT NULL AND tm.id_toko != '' AND pm.id LIKE CONCAT('tiktok_', tm.id_toko, '_%'))
+            OR (LOWER(TRIM(pm.nama_toko)) = LOWER(TRIM(tm.nama_toko)))
           ))
           OR (pm.saluran != 'tiktok' AND (
-            tm.id_toko = pm.id_toko OR tm.id = pm.id_toko
+            (pm.id_toko IS NOT NULL AND pm.id_toko != '' AND (tm.id_toko = pm.id_toko OR tm.id = pm.id_toko))
+            OR (tm.id_toko IS NOT NULL AND tm.id_toko != '' AND pm.id LIKE CONCAT('shopee_', tm.id_toko, '_%'))
           ))
         )
         SET pm.nama_toko = tm.nama_toko,
-            pm.id_toko = COALESCE(NULLIF(tm.id_toko, ''), tm.cipher_toko, tm.id)
+            pm.id_toko = COALESCE(NULLIF(tm.id_toko, ''), NULLIF(tm.cipher_toko, ''), tm.id)
         WHERE tm.nama_toko IS NOT NULL AND tm.nama_toko != ''
       `);
+
+      // Otomatis tarik ulang katalog produk untuk toko yang belum memiliki produk sama sekali di produk_marketplace
+      setTimeout(async () => {
+        try {
+          const [allStores] = await pool.query(`
+            SELECT id, saluran, nama_toko, id_toko, cipher_toko, token_akses, token_refresh
+            FROM toko_marketplace
+            WHERE token_akses IS NOT NULL AND token_akses != ''
+          `);
+          for (const st of allStores) {
+            const [cntRows] = await pool.query(
+              `SELECT COUNT(*) as cnt FROM produk_marketplace WHERE LOWER(TRIM(nama_toko)) = LOWER(TRIM(?)) OR id_toko = ?`,
+              [st.nama_toko, st.id_toko || st.cipher_toko || st.id]
+            );
+            const count = Number(cntRows?.[0]?.cnt || 0);
+            if (count === 0) {
+              console.log(`[Auto-Sync Startup] Toko "${st.nama_toko}" (${st.saluran}) masih 0 produk. Menarik otomatis...`);
+              try {
+                if (st.saluran === 'tiktok') {
+                  const { TiktokService } = await import('../services/tiktok.service.js');
+                  const ttSvc = new TiktokService();
+                  let token = st.token_akses;
+                  let cipher = st.cipher_toko || st.id_toko;
+                  const sId = st.id_toko || st.cipher_toko || st.id;
+                  if (!cipher || cipher.startsWith('tk_')) {
+                    try {
+                      const shops = await ttSvc.getShopInfo(token);
+                      const matched = shops.find(s => s.name?.toLowerCase().trim() === st.nama_toko?.toLowerCase().trim()) || shops[0];
+                      if (matched?.cipher) cipher = matched.cipher;
+                    } catch (eInfo) {}
+                  }
+                  let prods = [];
+                  try {
+                    prods = await ttSvc.syncProducts(token, cipher, st.nama_toko, sId);
+                  } catch (eSync) {
+                    if (st.token_refresh) {
+                      const ref = await ttSvc.refreshAccessToken(st.token_refresh);
+                      if (ref?.access_token) {
+                        token = ref.access_token;
+                        await pool.query('UPDATE toko_marketplace SET token_akses = ?, token_refresh = ? WHERE id = ?', [token, ref.refresh_token || st.token_refresh, st.id]);
+                        prods = await ttSvc.syncProducts(token, cipher, st.nama_toko, sId);
+                      }
+                    }
+                  }
+                  for (const p of prods) {
+                    const uId = `tiktok_${sId}_${p.item_id}_${p.sku_id || '0'}`;
+                    await pool.query(`
+                      INSERT INTO produk_marketplace (
+                        id, id_produk_marketplace, kode_perusahaan, saluran, nama_saluran, nama_toko, id_toko,
+                        nama_produk, sku_marketplace, harga_jual, stok_marketplace, varian, foto_produk, status_mapping
+                      ) VALUES (?, ?, 'RSG', 'tiktok', 'TikTok Shop', ?, ?, ?, ?, ?, ?, ?, ?, 'Belum Dimapping')
+                      ON DUPLICATE KEY UPDATE
+                        nama_toko = VALUES(nama_toko), id_toko = VALUES(id_toko), stok_marketplace = VALUES(stok_marketplace), harga_jual = VALUES(harga_jual)
+                    `, [uId, p.item_id, st.nama_toko, sId, p.nama_produk, p.sku_marketplace, p.harga_jual, p.stok_marketplace, p.varian_marketplace, p.foto_produk || '']);
+                  }
+                  console.log(`[Auto-Sync Startup] Berhasil menarik ${prods.length} produk untuk TikTok: ${st.nama_toko}`);
+                } else if (st.saluran === 'shopee') {
+                  const { ShopeeService } = await import('../services/shopee.service.js');
+                  const spSvc = new ShopeeService();
+                  let token = st.token_akses;
+                  const sId = st.id_toko;
+                  let prods = [];
+                  try {
+                    prods = await spSvc.syncProducts(sId, token, 100, st.nama_toko);
+                  } catch (eSync) {
+                    if (st.token_refresh) {
+                      const ref = await spSvc.refreshAccessToken(st.token_refresh, sId, false);
+                      if (ref?.access_token) {
+                        token = ref.access_token;
+                        await pool.query('UPDATE toko_marketplace SET token_akses = ?, token_refresh = ? WHERE id = ?', [token, ref.refresh_token || st.token_refresh, st.id]);
+                        prods = await spSvc.syncProducts(sId, token, 100, st.nama_toko);
+                      }
+                    }
+                  }
+                  for (const p of prods) {
+                    const uId = `shopee_${sId}_${p.item_id}_${p.model_id || '0'}`;
+                    await pool.query(`
+                      INSERT INTO produk_marketplace (
+                        id, id_produk_marketplace, kode_perusahaan, saluran, nama_saluran, nama_toko, id_toko,
+                        nama_produk, sku_marketplace, harga_jual, stok_marketplace, varian, foto_produk, status_mapping
+                      ) VALUES (?, ?, 'RSG', 'shopee', 'Shopee Marketplace', ?, ?, ?, ?, ?, ?, ?, ?, 'Belum Dimapping')
+                      ON DUPLICATE KEY UPDATE
+                        nama_toko = VALUES(nama_toko), id_toko = VALUES(id_toko), stok_marketplace = VALUES(stok_marketplace), harga_jual = VALUES(harga_jual)
+                    `, [uId, p.item_id, st.nama_toko, sId, (p.nama_produk || '').slice(0, 250), (p.sku_marketplace || '').slice(0, 120), p.harga_jual || 0, p.stok_marketplace || 0, (p.varian_marketplace || 'Standard').slice(0, 500), p.foto_produk || '']);
+                  }
+                  console.log(`[Auto-Sync Startup] Berhasil menarik ${prods.length} produk untuk Shopee: ${st.nama_toko}`);
+                }
+              } catch (eStoreSync) {
+                console.warn(`[Auto-Sync Startup Warning] Gagal sync ${st.nama_toko}:`, eStoreSync.message);
+              }
+            }
+          }
+        } catch (eBg) {
+          console.warn('[Auto-Sync Startup Error]:', eBg.message);
+        }
+      }, 3000);
+
       console.log('[MySQL] Berhasil sinkronisasi ulang nama_toko di produk_marketplace!');
     } catch (e) {}
     try {

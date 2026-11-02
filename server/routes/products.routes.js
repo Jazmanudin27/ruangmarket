@@ -29,8 +29,24 @@ export async function handleProductsRoutes(req, res, pathname, urlObj, { pool, s
         whereParams.push(channel);
       }
       if (toko && toko !== 'Semua') {
-        whereClauses.push('(pm.id_toko = ? OR pm.nama_toko = ?)');
-        whereParams.push(toko, toko);
+        const cleanToko = toko.trim();
+        whereClauses.push(`(
+          LOWER(TRIM(pm.id_toko)) = LOWER(?) 
+          OR LOWER(TRIM(pm.nama_toko)) = LOWER(?)
+          OR EXISTS (
+            SELECT 1 FROM toko_marketplace tm 
+            WHERE (LOWER(TRIM(tm.nama_toko)) = LOWER(?) OR tm.id_toko = ? OR tm.cipher_toko = ? OR tm.id = ?)
+              AND (
+                pm.id_toko = tm.id_toko 
+                OR pm.id_toko = tm.cipher_toko 
+                OR pm.id_toko = tm.id 
+                OR LOWER(TRIM(pm.nama_toko)) = LOWER(TRIM(tm.nama_toko))
+                OR (tm.cipher_toko != '' AND pm.id LIKE CONCAT('%', tm.cipher_toko, '%'))
+                OR (tm.id_toko != '' AND pm.id LIKE CONCAT('%_', tm.id_toko, '_%'))
+              )
+          )
+        )`);
+        whereParams.push(cleanToko, cleanToko, cleanToko, cleanToko, cleanToko, cleanToko);
       }
       if (search && search.trim()) {
         const q = `%${search.trim()}%`;
@@ -132,8 +148,24 @@ export async function handleProductsRoutes(req, res, pathname, urlObj, { pool, s
           baseWhereParams.push(channel);
         }
         if (toko && toko !== 'Semua') {
-          baseWhereClauses.push('(pm.nama_toko = ? OR pm.id_toko = ?)');
-          baseWhereParams.push(toko, toko);
+          const cleanToko = toko.trim();
+          baseWhereClauses.push(`(
+            LOWER(TRIM(pm.id_toko)) = LOWER(?) 
+            OR LOWER(TRIM(pm.nama_toko)) = LOWER(?)
+            OR EXISTS (
+              SELECT 1 FROM toko_marketplace tm 
+              WHERE (LOWER(TRIM(tm.nama_toko)) = LOWER(?) OR tm.id_toko = ? OR tm.cipher_toko = ? OR tm.id = ?)
+                AND (
+                  pm.id_toko = tm.id_toko 
+                  OR pm.id_toko = tm.cipher_toko 
+                  OR pm.id_toko = tm.id 
+                  OR LOWER(TRIM(pm.nama_toko)) = LOWER(TRIM(tm.nama_toko))
+                  OR (tm.cipher_toko != '' AND pm.id LIKE CONCAT('%', tm.cipher_toko, '%'))
+                  OR (tm.id_toko != '' AND pm.id LIKE CONCAT('%_', tm.id_toko, '_%'))
+                )
+            )
+          )`);
+          baseWhereParams.push(cleanToko, cleanToko, cleanToko, cleanToko, cleanToko, cleanToko);
         }
         if (search && search.trim()) {
           const q = `%${search.trim()}%`;
@@ -391,6 +423,16 @@ export async function handleProductsRoutes(req, res, pathname, urlObj, { pool, s
         shopCipher = shopCipher || store.cipher_toko || store.id_toko;
         shopId = shopId || store.id_toko || store.id;
         shopName = shopName || store.nama_toko;
+      }
+
+      if (!shopCipher || shopCipher.startsWith('tk_')) {
+        try {
+          const shops = await tiktokService.getShopInfo(accessToken);
+          if (shops && shops.length > 0) {
+            const matched = shops.find(s => s.name?.toLowerCase().trim() === shopName?.toLowerCase().trim()) || shops[0];
+            if (matched?.cipher) shopCipher = matched.cipher;
+          }
+        } catch (eInfo) {}
       }
 
       shopCipher = shopCipher || 'ROW_Hbd_fAAAAACqX58asQX4uCOsoefXXn4c';
