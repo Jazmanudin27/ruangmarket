@@ -22,12 +22,13 @@ export async function handleStoresRoutes(req, res, pathname, urlObj, { pool }) {
           FROM produk_marketplace
           WHERE id_toko IS NOT NULL AND id_toko != '' AND nama_toko IS NOT NULL AND nama_toko != ''
         `);
-        const existingShopIds = new Set(rows.map(r => String(r.shopId || r.id)));
+        const existingStoreNames = new Set(rows.map(r => String(r.shopName || '').toLowerCase().trim()));
         for (const es of extraStores) {
-          if (!existingShopIds.has(String(es.shopId))) {
-            existingShopIds.add(String(es.shopId));
+          const sNameKey = String(es.shopName || '').toLowerCase().trim();
+          if (sNameKey && !existingStoreNames.has(sNameKey)) {
+            existingStoreNames.add(sNameKey);
             rows.push({
-              id: es.shopId,
+              id: es.shopId || es.shopName,
               company_code: 'RSG',
               channel: es.channel,
               channelName: es.channelName || (es.channel === 'shopee' ? 'Shopee' : 'TikTok Shop'),

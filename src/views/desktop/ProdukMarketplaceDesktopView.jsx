@@ -506,7 +506,7 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
         >
           <option value="Semua">🏬 Semua Toko</option>
           {tokoOptions.map((st, sIdx) => (
-            <option key={sIdx} value={st.shopId || st.shopName}>
+            <option key={sIdx} value={st.shopName || st.shopId}>
               {st.channelName || (st.channel === 'shopee' ? 'Shopee' : 'TikTok')}: {st.shopName}
             </option>
           ))}

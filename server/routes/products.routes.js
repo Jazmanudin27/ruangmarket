@@ -131,6 +131,10 @@ export async function handleProductsRoutes(req, res, pathname, urlObj, { pool, s
           baseWhereClauses.push('pm.saluran = ?');
           baseWhereParams.push(channel);
         }
+        if (toko && toko !== 'Semua') {
+          baseWhereClauses.push('(pm.nama_toko = ? OR pm.id_toko = ?)');
+          baseWhereParams.push(toko, toko);
+        }
         if (search && search.trim()) {
           const q = `%${search.trim()}%`;
           baseWhereClauses.push('(pm.nama_produk LIKE ? OR pm.sku_marketplace LIKE ? OR pm.nama_toko LIKE ? OR pm.varian LIKE ?)');
