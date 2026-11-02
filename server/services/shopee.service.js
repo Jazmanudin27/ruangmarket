@@ -401,7 +401,7 @@ export class ShopeeService {
   }
 
   // 5. Sinkronisasi Lengkap: Detail Base Info + Model Varian (Limit 100 produk, super cepat <5 detik)
-  async syncProducts(shopId, accessToken, limit = 100) {
+  async syncProducts(shopId, accessToken, limit = 100, customShopName = '') {
     const sId = String(shopId);
     // 1. Ambil 100 item ID pertama toko
     const items = await this.getAllItemList(sId, accessToken, limit);
@@ -440,7 +440,7 @@ export class ShopeeService {
     const flatProducts = [];
 
     for (const d of details) {
-      const shopTitle = d.shop_name || 'Koperasi Sahabat Anak Bangsa';
+      const shopTitle = customShopName || d.shop_name || 'Shopee Store';
       const mData = modelMap.get(String(d.item_id));
 
       const defaultShopeeImage = d.image?.image_url_list?.[0] 
@@ -460,12 +460,13 @@ export class ShopeeService {
                       ?? 0;
 
           flatProducts.push({
-            id: `shopee_${d.item_id}_${m.model_id}`,
+            id: `shopee_${sId}_${d.item_id}_${m.model_id}`,
             item_id: String(d.item_id),
             model_id: String(m.model_id),
             channel: 'shopee',
             channelName: 'Shopee Marketplace',
             shopName: shopTitle,
+            shopId: sId,
             nama_produk: d.item_name || 'Produk Shopee',
             sku_marketplace: modelSku,
             harga_jual: Number(mPrice) || 0,
@@ -497,12 +498,13 @@ export class ShopeeService {
         }
 
         flatProducts.push({
-          id: `shopee_${d.item_id}`,
+          id: `shopee_${sId}_${d.item_id}`,
           item_id: String(d.item_id),
           model_id: '',
           channel: 'shopee',
           channelName: 'Shopee Marketplace',
           shopName: shopTitle,
+          shopId: sId,
           nama_produk: d.item_name || 'Produk Shopee',
           sku_marketplace: sku,
           harga_jual: Number(harga) || 0,

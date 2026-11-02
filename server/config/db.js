@@ -69,7 +69,7 @@ export async function initDb() {
         status_mapping VARCHAR(32) DEFAULT 'Belum Dimapping',
         ditarik_pada TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         diperbarui_pada TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        UNIQUE KEY uq_produk_sku (id_produk_marketplace, saluran, sku_marketplace)
+        INDEX idx_produk_mkt (id_produk_marketplace)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Tabel staging produk marketplace sebelum ke master data';
     `);
 
@@ -78,10 +78,22 @@ export async function initDb() {
       await conn.query(`ALTER TABLE produk_marketplace MODIFY COLUMN varian TEXT`);
     } catch (e) {}
     try {
+      await conn.query(`ALTER TABLE produk_marketplace MODIFY COLUMN id VARCHAR(128) NOT NULL`);
+    } catch (e) {}
+    try {
+      await conn.query(`ALTER TABLE produk_marketplace DROP INDEX uq_produk_sku`);
+    } catch (e) {}
+    try {
       await conn.query(`ALTER TABLE produk_marketplace DROP INDEX uq_produk_toko`);
     } catch (e) {}
     try {
-      await conn.query(`ALTER TABLE produk_marketplace ADD UNIQUE KEY uq_produk_sku (id_produk_marketplace, saluran, sku_marketplace)`);
+      await conn.query(`
+        UPDATE produk_marketplace pm
+        JOIN toko_marketplace tm ON (tm.id_toko = pm.id_toko OR tm.id = pm.id_toko)
+        SET pm.nama_toko = tm.nama_toko
+        WHERE tm.nama_toko IS NOT NULL AND tm.nama_toko != ''
+      `);
+      console.log('[MySQL] Berhasil sinkronisasi ulang nama_toko di produk_marketplace!');
     } catch (e) {}
     try {
       await conn.query(`ALTER TABLE produk_marketplace ADD COLUMN foto_produk TEXT`);

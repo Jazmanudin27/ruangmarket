@@ -259,8 +259,8 @@ export default function MarketplaceView({ onBack, onNavigate }) {
 
       try {
         const endpoint = isTikTok
-          ? `/api/marketplace/tiktok/products?shop_cipher=${encodeURIComponent(store.cipher || '')}&access_token=${encodeURIComponent(store.accessToken || '')}`
-          : `/api/marketplace/shopee/products?shop_id=${store.shopId}&access_token=${encodeURIComponent(store.accessToken || '')}`;
+          ? `/api/marketplace/tiktok/products?shop_cipher=${encodeURIComponent(store.cipher || '')}&shop_name=${encodeURIComponent(store.shopName || '')}&shop_id=${encodeURIComponent(store.shopId || '')}&access_token=${encodeURIComponent(store.accessToken || '')}`
+          : `/api/marketplace/shopee/products?shop_id=${encodeURIComponent(store.shopId || '')}&shop_name=${encodeURIComponent(store.shopName || '')}&access_token=${encodeURIComponent(store.accessToken || '')}`;
         
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 120000); // 120s untuk ambil semua produk + varian detail

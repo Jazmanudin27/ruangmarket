@@ -163,7 +163,7 @@ export class TiktokService {
   }
 
   // 4. Sinkronisasi SEMUA Produk TikTok & Ekstrak Tiap Varian SKU ke Format Staging
-  async syncProducts(accessToken, shopCipher) {
+  async syncProducts(accessToken, shopCipher, customShopName = '', customShopId = '') {
     const allProducts = [];
     let pageToken = '';
     let hasMore = true;
@@ -199,11 +199,12 @@ export class TiktokService {
         const fotoProduk = sku?.image?.urls?.[0] || sku?.image?.url || p.main_images?.[0]?.urls?.[0] || (typeof p.main_images?.[0] === 'string' ? p.main_images[0] : '') || '';
 
         flattenedRows.push({
-          id: `tiktok_${p.id}_${skuId}`,
+          id: `tiktok_${customShopId || shopCipher}_${p.id}_${skuId}`,
           item_id: String(p.id),
           channel: 'tiktok',
           channelName: 'TikTok Shop',
-          shopName: 'RUANG SERAGAM',
+          shopName: customShopName || 'TikTok Shop',
+          shopId: customShopId || shopCipher,
           nama_produk: p.title || 'Produk TikTok',
           sku_marketplace: sellerSku,
           harga_jual: hargaJual,
