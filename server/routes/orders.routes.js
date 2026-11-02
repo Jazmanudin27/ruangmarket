@@ -491,7 +491,11 @@ export async function handleOrdersRoutes(req, res, pathname, urlObj, { pool, lar
 
         const subtotalPesanan = enrichedItems.reduce((acc, it) => acc + (Number(it.subtotal) || 0), 0) || Number(r.totalPrice || 0);
         const hppTotal = enrichedItems.reduce((acc, it) => acc + (Number(it.hpp_subtotal) || 0), 0);
-        const netAmount = Number(r.net_amount || (subtotalPesanan + Number(r.ongkir || 0) - Number(r.marketplace_fee || 0)));
+        const rawFee = Math.abs(Number(r.marketplace_fee || 0));
+        const rawNet = Number(r.net_amount || 0);
+        const netAmount = (rawNet > 0 && rawNet <= subtotalPesanan)
+          ? rawNet
+          : Math.max(0, subtotalPesanan - rawFee);
         const netProfit = netAmount - hppTotal;
         const profitMargin = netAmount > 0 ? ((netProfit / netAmount) * 100).toFixed(2) : '0';
 

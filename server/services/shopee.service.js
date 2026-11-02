@@ -708,10 +708,10 @@ export class ShopeeService {
 
         marketplaceFee = sellerFee;
         const rawEscrow = Number(escrow.escrow_amount_after_adjustment || escrow.escrow_amount || 0);
-        netAmount = rawEscrow > 0 ? rawEscrow : Math.max(0, subtotalPesanan + shippingFee - marketplaceFee);
+        netAmount = rawEscrow > 0 ? rawEscrow : Math.max(0, subtotalPesanan - marketplaceFee);
       } else {
         marketplaceFee = Math.round(subtotalPesanan * 0.095);
-        netAmount = Math.max(0, subtotalPesanan + shippingFee - marketplaceFee);
+        netAmount = Math.max(0, subtotalPesanan - marketplaceFee);
       }
 
       orders.push({

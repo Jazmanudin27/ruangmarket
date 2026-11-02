@@ -372,93 +372,268 @@ export async function handlePenitipanBarangRoutes(req, res, pathname, urlObj, co
         cleanToko = parts.slice(1).join('|').trim();
       }
 
-      // 1. Ambil Master Produk untuk referensi HPP, Nama Produk, dan Kategori
+      // 1. Ambil Master Produk (RuangMarket + Laravel marketplace.products) untuk referensi HPP, Nama Produk, dan Kategori
       const masterMap = new Map();
-      try {
-        const [mRows] = await pool.query(`
-          SELECT kode_sku, nama_produk, kategori, varian, COALESCE(harga_modal, 0) as hpp, COALESCE(harga_jual, 0) as harga_jual
-          FROM produk_master
-        `);
-        for (const m of (mRows || [])) {
-          const info = {
-            kode_sku: m.kode_sku,
-            nama_produk: m.nama_produk,
-            kategori: m.kategori || 'Umum',
-            varian: m.varian || 'Standard',
-            hpp: Number(m.hpp || 0),
-            harga_jual: Number(m.harga_jual || 0)
-          };
-          if (m.kode_sku) {
-            const k = String(m.kode_sku).trim().toLowerCase();
-            masterMap.set(k, info);
-            masterMap.set(k.replace(/^rsg-/, ''), info);
-          }
-          if (m.nama_produk) {
-            masterMap.set(String(m.nama_produk).trim().toLowerCase(), info);
+      const laravelProductByIdMap = new Map();
+
+      const registerMasterInfo = (info) => {
+        if (!info) return;
+        if (info.kode_sku) {
+          const k = String(info.kode_sku).trim().toLowerCase();
+          if (k) {
+            const prev = masterMap.get(k);
+            if (!prev || (info.hpp > 0 && (!prev.hpp || prev.hpp === 0))) {
+              masterMap.set(k, { ...prev, ...info, hpp: info.hpp > 0 ? info.hpp : (prev?.hpp || 0) });
+            }
+            const kNoRsg = k.replace(/^rsg-/, '');
+            if (kNoRsg && (!masterMap.has(kNoRsg) || (info.hpp > 0 && !masterMap.get(kNoRsg)?.hpp))) {
+              masterMap.set(kNoRsg, masterMap.get(k));
+            }
+            const kNoPo = k.replace(/^po-/, '');
+            if (kNoPo && (!masterMap.has(kNoPo) || (info.hpp > 0 && !masterMap.get(kNoPo)?.hpp))) {
+              masterMap.set(kNoPo, masterMap.get(k));
+            }
           }
         }
-      } catch (eMaster) {}
+        if (info.nama_produk) {
+          const nk = String(info.nama_produk).trim().toLowerCase();
+          if (nk && (!masterMap.has(nk) || (info.hpp > 0 && !masterMap.get(nk)?.hpp))) {
+            masterMap.set(nk, info);
+          }
+        }
+      };
 
-      // 2. Kumpulkan seluruh transaksi penjualan dari pesanan_marketplace, laravelPool.orders, dan pesanan_offline
-      const rawOrdersMap = new Map();
+      try {
+        let mRows = [];
+        try {
+          const [rowsJoin] = await pool.query(`
+            SELECT 
+              p.kode_sku,
+              p.nama_produk,
+              p.kategori,
+              COALESCE(p.harga_modal, 0) as harga_modal,
+              COALESCE(p.harga_jual, 0) as harga_jual,
+              p.estimasi_kain,
+              p.bundle_items,
+              COALESCE(k.harga_per_meter, 0) as harga_kain_meter,
+              COALESCE(h.total_hpp, 0) as hpp_kategori
+            FROM produk_master p
+            LEFT JOIN master_kain k ON p.sku_kain = k.kode_sku_kain
+            LEFT JOIN master_hpp_produk h ON p.id_kategori_hpp = h.id_kategori_hpp
+          `);
+          mRows = rowsJoin || [];
+        } catch (eJoinMaster) {
+          const [rowsPlain] = await pool.query(`SELECT * FROM produk_master`);
+          mRows = rowsPlain || [];
+        }
 
-      // A. Dari database Laravel (marketplace.orders + order_items) jika tersedia
+        // Pass 1: produk reguler
+        for (const m of mRows) {
+          const modalManual = Number(m.harga_modal ?? m.harga_pokok ?? m.hpp ?? m.modal ?? 0);
+          const estCm = parseFloat(String(m.estimasi_kain || '').replace(/[^0-9.]/g, '')) || 0;
+          const hargaMeter = Number(m.harga_kain_meter || 0);
+          const biayaKain = (estCm > 0 && hargaMeter > 0) ? Math.round((hargaMeter / 100) * estCm) : 0;
+          const biayaHppKat = Number(m.hpp_kategori || 0);
+          const computedHpp = modalManual > 0 ? modalManual : (biayaKain + biayaHppKat);
+
+          registerMasterInfo({
+            kode_sku: m.kode_sku,
+            nama_produk: m.nama_produk,
+            kategori: m.kategori || 'Pakaian',
+            varian: 'Standard',
+            hpp: computedHpp,
+            harga_jual: Number(m.harga_jual || 0),
+            bundle_items: m.bundle_items || null
+          });
+        }
+
+        // Pass 2: hitung HPP untuk produk paket/bundle jika HPP masih 0
+        for (const m of mRows) {
+          if (!m.bundle_items || !m.kode_sku) continue;
+          const k = String(m.kode_sku).trim().toLowerCase();
+          const cur = masterMap.get(k);
+          if (cur && cur.hpp > 0) continue;
+          try {
+            const bList = typeof m.bundle_items === 'string' ? JSON.parse(m.bundle_items) : m.bundle_items;
+            if (Array.isArray(bList) && bList.length > 0) {
+              let bundleHpp = 0;
+              for (const b of bList) {
+                const bSku = String(b.kode_sku || b.sku || '').trim().toLowerCase();
+                const comp = masterMap.get(bSku) || masterMap.get(bSku.replace(/^rsg-/, ''));
+                const compHpp = Number(b.harga_modal || b.hpp || comp?.hpp || 0);
+                bundleHpp += compHpp * Math.max(1, Number(b.qty || 1));
+              }
+              if (bundleHpp > 0 && cur) {
+                cur.hpp = bundleHpp;
+                registerMasterInfo(cur);
+              }
+            }
+          } catch (eBundle) {}
+        }
+      } catch (eMaster) {
+        console.warn('[Penjualan Cair Master Lookup Error]:', eMaster.message);
+      }
+
+      // 1B. Ambil Master Produk dari Laravel (marketplace.products & product_variants) jika tersedia
       if (laravelPool) {
         try {
-          const [lOrders] = await laravelPool.query(`
-            SELECT 
-              o.id as laravel_id,
-              o.order_marketplace_id as no_pesanan,
-              o.buyer_name as nama_pembeli,
-              o.total_amount as total_harga,
-              o.status as status_pesanan,
-              COALESCE(o.order_date, o.created_at) as waktu_pesanan,
-              s.store_name as nama_toko,
-              c.code as saluran
-            FROM orders o
-            LEFT JOIN stores s ON o.store_id = s.id
-            LEFT JOIN channels c ON s.channel_id = c.id
-            ORDER BY COALESCE(o.order_date, o.created_at) DESC
-          `);
+          const [lProds] = await laravelPool.query(`SELECT * FROM products`);
+          for (const lp of (lProds || [])) {
+            const sku = String(lp.sku || lp.kode_sku || lp.product_sku || lp.item_sku || lp.code || '').trim();
+            const name = String(lp.name || lp.product_name || lp.nama_produk || lp.title || '').trim();
+            const kategori = String(lp.category || lp.category_name || lp.kategori || 'Pakaian').trim();
+            const hpp = Number(lp.cost_price ?? lp.hpp ?? lp.harga_modal ?? lp.harga_pokok ?? lp.modal ?? lp.buy_price ?? lp.purchase_price ?? 0);
+            const hargaJual = Number(lp.price ?? lp.selling_price ?? lp.harga_jual ?? 0);
+            const info = {
+              kode_sku: sku,
+              nama_produk: name,
+              kategori: kategori || 'Pakaian',
+              varian: 'Standard',
+              hpp,
+              harga_jual: hargaJual
+            };
+            if (lp.id !== undefined && lp.id !== null) {
+              laravelProductByIdMap.set(String(lp.id), info);
+            }
+            registerMasterInfo(info);
+          }
+        } catch (eLProd) {}
 
-          // Ambil seluruh order_items secara batch untuk efisiensi
-          const [lItems] = await laravelPool.query(`
-            SELECT order_id, sku, product_name as nama_produk, quantity as qty, price as harga, total_price as subtotal
-            FROM order_items
-          `).catch(() => [[]]);
+        try {
+          const [lVars] = await laravelPool.query(`SELECT * FROM product_variants`);
+          for (const lv of (lVars || [])) {
+            const parent = lv.product_id ? laravelProductByIdMap.get(String(lv.product_id)) : null;
+            const sku = String(lv.sku || lv.variant_sku || lv.model_sku || lv.kode_sku || '').trim();
+            const name = String(lv.name || lv.variant_name || parent?.nama_produk || '').trim();
+            const hpp = Number(lv.cost_price ?? lv.hpp ?? lv.harga_modal ?? lv.modal ?? parent?.hpp ?? 0);
+            const hargaJual = Number(lv.price ?? lv.selling_price ?? parent?.harga_jual ?? 0);
+            if (sku) {
+              registerMasterInfo({
+                kode_sku: sku,
+                nama_produk: parent?.nama_produk || name,
+                kategori: parent?.kategori || 'Pakaian',
+                varian: String(lv.variant_name || lv.name || 'Standard').trim(),
+                hpp,
+                harga_jual: hargaJual
+              });
+            }
+          }
+        } catch (eLVar) {}
+      }
 
+      // 2. Kumpulkan seluruh transaksi penjualan dari laravelPool.orders, pesanan_marketplace, dan pesanan_offline
+      const rawOrdersMap = new Map();
+
+      // A. Dari database Laravel (marketplace.orders + order_items) — sumber utama yang sama persis dengan Laporan Penjualan per Detail Transaksi di Laravel
+      if (laravelPool) {
+        try {
+          let lOrders = [];
+          try {
+            const [rowsJoin] = await laravelPool.query(`
+              SELECT o.*, s.store_name as _join_store_name, c.code as _join_channel_code
+              FROM orders o
+              LEFT JOIN stores s ON o.store_id = s.id
+              LEFT JOIN channels c ON s.channel_id = c.id
+              ORDER BY COALESCE(o.order_date, o.created_at) DESC
+            `);
+            lOrders = rowsJoin || [];
+          } catch (eJoinOrd) {
+            const [rowsPlain] = await laravelPool.query(`SELECT * FROM orders ORDER BY id DESC`);
+            lOrders = rowsPlain || [];
+          }
+
+          const [lItems] = await laravelPool.query(`SELECT * FROM order_items`).catch(() => [[]]);
           const itemsByOrderId = new Map();
           for (const it of (lItems || [])) {
-            if (!itemsByOrderId.has(it.order_id)) itemsByOrderId.set(it.order_id, []);
-            itemsByOrderId.get(it.order_id).push(it);
+            const oid = it.order_id;
+            if (oid === undefined || oid === null) continue;
+            if (!itemsByOrderId.has(oid)) itemsByOrderId.set(oid, []);
+            itemsByOrderId.get(oid).push(it);
           }
 
           for (const lo of (lOrders || [])) {
-            const key = String(lo.no_pesanan || lo.laravel_id || '').trim();
+            const key = String(
+              lo.order_marketplace_id || lo.order_sn || lo.order_number || lo.invoice_number || lo.no_pesanan || lo.id || ''
+            ).trim();
             if (!key) continue;
-            const st = String(lo.status_pesanan || '').toUpperCase();
+
+            const st = String(lo.status || lo.order_status || lo.status_pesanan || '').toUpperCase();
             if (['CANCELLED', 'BATAL', 'IN_CANCEL', 'DIBATALKAN', 'UNPAID'].includes(st)) continue;
 
-            const ordItems = itemsByOrderId.get(lo.laravel_id) || [];
-            const gross = Number(lo.total_harga || 0);
+            const rawOrdItems = itemsByOrderId.get(lo.id) || [];
+            const normItems = rawOrdItems.map(it => {
+              const pById = it.product_id ? laravelProductByIdMap.get(String(it.product_id)) : null;
+              const sku = String(
+                it.sku || it.product_sku || it.item_sku || it.model_sku || it.seller_sku || it.kode_sku || it.variation_sku || pById?.kode_sku || ''
+              ).trim();
+              const namaProduk = String(
+                it.product_name || it.item_name || it.name || it.nama_produk || pById?.nama_produk || ''
+              ).trim();
+              const varian = String(
+                it.variant_name || it.model_name || it.variation_name || it.varian || 'Standard'
+              ).trim();
+              const qty = Math.max(1, Number(it.quantity ?? it.qty ?? it.model_quantity_purchased ?? 1));
+              const harga = Number(
+                it.price ?? it.unit_price ?? it.discounted_price ?? it.selling_price ?? it.harga ?? it.harga_satuan ?? pById?.harga_jual ?? 0
+              );
+              const subtotal = Number(it.total_price ?? it.subtotal ?? it.total ?? it.sub_total ?? (harga * qty)) || (harga * qty);
+              const hpp = Number(
+                it.cost_price ?? it.hpp ?? it.hpp_satuan ?? it.buy_price ?? it.purchase_price ?? it.modal ?? pById?.hpp ?? 0
+              );
+              const hppSubtotal = Number(it.hpp_subtotal ?? it.total_hpp ?? it.total_cost ?? (hpp * qty)) || (hpp * qty);
+
+              return {
+                sku,
+                nama_produk: namaProduk,
+                varian,
+                qty,
+                harga,
+                subtotal,
+                hpp,
+                hpp_subtotal: hppSubtotal
+              };
+            });
+
+            const itemsSum = normItems.reduce((acc, it) => acc + (Number(it.subtotal) || 0), 0);
+            const gross = Number(
+              lo.total_amount ?? lo.subtotal ?? lo.grand_total ?? lo.total_price ?? lo.total_harga ?? lo.amount ?? 0
+            ) || itemsSum;
+
+            const feeParts = Math.abs(Number(lo.fee_platform ?? lo.commission_fee ?? 0))
+              + Math.abs(Number(lo.fee_free_shipping ?? lo.service_fee ?? 0))
+              + Math.abs(Number(lo.fee_service ?? lo.seller_transaction_fee ?? lo.processing_fee ?? 0));
+            const lrvFee = Math.abs(Number(lo.marketplace_fee ?? lo.admin_fee ?? lo.total_fee ?? 0)) || feeParts;
+            const lrvNetRaw = Number(lo.net_amount ?? lo.escrow_amount ?? lo.payout_amount ?? lo.seller_income ?? lo.dana_cair ?? 0);
+            // Hindari nilai net_amount yang ter-inflate ongkir (> gross)
+            const lrvNet = (lrvNetRaw > 0 && lrvNetRaw <= gross)
+              ? lrvNetRaw
+              : (lrvFee > 0 ? Math.max(0, gross - lrvFee) : gross);
+            const finalLrvFee = lrvFee > 0 ? lrvFee : (lrvNet > 0 && lrvNet < gross ? Math.max(0, gross - lrvNet) : 0);
+
+            const dtRaw = lo.order_date || lo.ordered_at || lo.order_time || lo.waktu_pesanan || lo.created_at;
+            const waktuPesanan = dtRaw ? new Date(dtRaw) : new Date();
+
             rawOrdersMap.set(key, {
-              id: `lrv_${lo.laravel_id}`,
+              id: `lrv_${lo.id}`,
               no_pesanan: key,
-              saluran: String(lo.saluran || 'shopee').toLowerCase(),
-              nama_toko: lo.nama_toko || 'Toko Marketplace',
-              nama_pembeli: lo.nama_pembeli || 'Pembeli Marketplace',
-              waktu_pesanan: lo.waktu_pesanan ? new Date(lo.waktu_pesanan) : new Date(),
-              status_pesanan: lo.status_pesanan || 'COMPLETED',
+              saluran: String(lo._join_channel_code || lo.channel || lo.platform || lo.saluran || 'shopee').trim().toLowerCase(),
+              nama_toko: String(lo._join_store_name || lo.store_name || lo.shop_name || lo.nama_toko || 'Toko Marketplace').trim(),
+              nama_pembeli: String(lo.buyer_name || lo.customer_name || lo.buyer_username || lo.recipient_name || lo.nama_pembeli || 'Pembeli Marketplace').trim(),
+              waktu_pesanan: !isNaN(waktuPesanan.getTime()) ? waktuPesanan : new Date(),
+              status_pesanan: lo.status || lo.order_status || lo.status_pesanan || 'COMPLETED',
               omset_kotor: gross,
-              potongan_fee: 0,
-              dana_cair: gross,
-              items: ordItems
+              potongan_fee: finalLrvFee,
+              dana_cair: Math.max(0, gross - finalLrvFee),
+              lrv_hpp_total: Number(lo.hpp_total ?? lo.total_hpp ?? lo.cost_total ?? 0),
+              items: normItems
             });
           }
-        } catch (eLrv) {}
+        } catch (eLrv) {
+          console.warn('[Penjualan Cair Laravel Sync Error]:', eLrv.message);
+        }
       }
 
-      // B. Dari tabel pesanan_marketplace (ruangmarket) — menimpa dengan data fee & net_amount yang lebih detail
+      // B. Dari tabel pesanan_marketplace (ruangmarket) — melengkapi pesanan baru atau rincian fee yang belum ada di Laravel
       try {
         const [rmOrders] = await pool.query(`
           SELECT 
@@ -482,23 +657,58 @@ export async function handlePenitipanBarangRoutes(req, res, pathname, urlObj, co
             parsedItems = [];
           }
 
-          const gross = Number(ro.total_harga || 0);
-          const totalFee = Number(ro.marketplace_fee || 0) || (Number(ro.fee_platform || 0) + Number(ro.fee_free_shipping || 0) + Number(ro.fee_service || 0));
-          const net = Number(ro.net_amount || 0) > 0 ? Number(ro.net_amount) : Math.max(0, gross - totalFee);
+          const rmGross = Number(ro.total_harga || 0);
+          const rmFeeRaw = Math.abs(Number(ro.marketplace_fee || 0))
+            || (Math.abs(Number(ro.fee_platform || 0)) + Math.abs(Number(ro.fee_free_shipping || 0)) + Math.abs(Number(ro.fee_service || 0)));
+          const rmNetRaw = Number(ro.net_amount || 0);
 
           const existing = rawOrdersMap.get(key);
+          const gross = (existing?.omset_kotor > 0) ? existing.omset_kotor : rmGross;
+
+          // Pilih fee terbaik: jika di Laravel sudah ada fee > 0 gunakan itu, jika belum gunakan rmFeeRaw
+          let chosenFee = (existing && existing.potongan_fee > 0) ? existing.potongan_fee : rmFeeRaw;
+          // Jika rmNetRaw valid (0 < rmNetRaw < gross) dan chosenFee === 0, hitung selisihnya
+          if (chosenFee === 0 && rmNetRaw > 0 && rmNetRaw < gross) {
+            chosenFee = Math.max(0, gross - rmNetRaw);
+          }
+          // Pastikan dana_cair selalu konsisten = gross - chosenFee (tidak pernah > gross akibat bug +ongkir lama)
+          const chosenNet = Math.max(0, gross - chosenFee);
+
+          // Gabungkan items: utamakan items yang memiliki informasi SKU & HPP paling lengkap
+          let mergedItems = [];
+          const exItems = Array.isArray(existing?.items) ? existing.items : [];
+          const rmItems = Array.isArray(parsedItems) ? parsedItems : [];
+
+          if (exItems.length > 0) {
+            mergedItems = exItems.map((exIt, idx) => {
+              const matchRm = rmItems[idx] || rmItems.find(r => (r.sku && r.sku === exIt.sku) || (r.nama_produk && r.nama_produk === exIt.nama_produk)) || {};
+              return {
+                ...matchRm,
+                ...exIt,
+                sku: exIt.sku || matchRm.sku || matchRm.kode_sku || matchRm.model_sku || matchRm.item_sku || '',
+                nama_produk: exIt.nama_produk || matchRm.nama_produk || matchRm.product_name || matchRm.item_name || '',
+                varian: (exIt.varian && exIt.varian !== 'Standard') ? exIt.varian : (matchRm.varian || matchRm.model_name || 'Standard'),
+                hpp: Number(exIt.hpp || matchRm.hpp || matchRm.cost_price || 0)
+              };
+            });
+          } else {
+            mergedItems = rmItems;
+          }
+
+          const dtRm = ro.waktu_pesanan ? new Date(ro.waktu_pesanan) : null;
           rawOrdersMap.set(key, {
-            id: ro.id,
+            id: existing?.id || ro.id,
             no_pesanan: key,
-            saluran: String(ro.saluran || existing?.saluran || 'shopee').toLowerCase(),
-            nama_toko: ro.nama_toko || existing?.nama_toko || 'Toko Marketplace',
-            nama_pembeli: ro.nama_pembeli || existing?.nama_pembeli || 'Pembeli',
-            waktu_pesanan: ro.waktu_pesanan ? new Date(ro.waktu_pesanan) : (existing?.waktu_pesanan || new Date()),
-            status_pesanan: ro.status_pesanan || existing?.status_pesanan || 'COMPLETED',
-            omset_kotor: gross > 0 ? gross : (existing?.omset_kotor || 0),
-            potongan_fee: totalFee,
-            dana_cair: net > 0 ? net : (existing?.dana_cair || gross),
-            items: (Array.isArray(parsedItems) && parsedItems.length > 0) ? parsedItems : (existing?.items || [])
+            saluran: String(existing?.saluran || ro.saluran || 'shopee').trim().toLowerCase(),
+            nama_toko: (existing?.nama_toko && existing.nama_toko !== 'Toko Marketplace') ? existing.nama_toko : (ro.nama_toko || 'Toko Marketplace'),
+            nama_pembeli: (existing?.nama_pembeli && existing.nama_pembeli !== 'Pembeli Marketplace') ? existing.nama_pembeli : (ro.nama_pembeli || 'Pembeli'),
+            waktu_pesanan: existing?.waktu_pesanan || (dtRm && !isNaN(dtRm.getTime()) ? dtRm : new Date()),
+            status_pesanan: existing?.status_pesanan || ro.status_pesanan || 'COMPLETED',
+            omset_kotor: gross,
+            potongan_fee: chosenFee,
+            dana_cair: chosenNet,
+            lrv_hpp_total: existing?.lrv_hpp_total || 0,
+            items: mergedItems
           });
         }
       } catch (eRm) {}
@@ -592,7 +802,11 @@ export async function handlePenitipanBarangRoutes(req, res, pathname, urlObj, co
         const enrichedItems = rawItems.map(it => {
           const rawSku = String(it.sku || it.kode_sku || it.item_sku || it.model_sku || it.seller_sku || it.sku_marketplace || '').trim();
           const rawName = String(it.nama_produk || it.product_name || it.item_name || '').trim();
-          const mInfo = masterMap.get(rawSku.toLowerCase()) || masterMap.get(rawSku.toLowerCase().replace(/^rsg-/, '')) || masterMap.get(rawName.toLowerCase()) || null;
+          const mInfo = masterMap.get(rawSku.toLowerCase()) 
+            || masterMap.get(rawSku.toLowerCase().replace(/^rsg-/, ''))
+            || masterMap.get(rawSku.toLowerCase().replace(/^po-/, ''))
+            || masterMap.get(rawName.toLowerCase()) 
+            || null;
 
           const finalSku = rawSku || mInfo?.kode_sku || 'SKU-UMUM';
           const finalName = rawName || mInfo?.nama_produk || `Produk ${finalSku}`;
@@ -602,7 +816,7 @@ export async function handlePenitipanBarangRoutes(req, res, pathname, urlObj, co
           const price = Number(it.harga || it.price || it.harga_satuan || mInfo?.harga_jual || 0);
           const subtotal = Number(it.subtotal || it.total_price || (price * qty)) || 0;
           const hppSatuan = Number(it.hpp || it.hpp_satuan || it.cost_price || mInfo?.hpp || 0);
-          const hppTotalItem = hppSatuan * qty;
+          const hppTotalItem = Number(it.hpp_subtotal || 0) > 0 ? Number(it.hpp_subtotal) : (hppSatuan * qty);
 
           orderQty += qty;
           orderHpp += hppTotalItem;
@@ -622,11 +836,41 @@ export async function handlePenitipanBarangRoutes(req, res, pathname, urlObj, co
         });
 
         const finalOmsetKotor = ord.omset_kotor > 0 ? ord.omset_kotor : itemsCalcSubtotal;
-        const finalFee = Number(ord.potongan_fee || 0);
-        const finalDanaCair = ord.dana_cair > 0 ? ord.dana_cair : Math.max(0, finalOmsetKotor - finalFee);
-        const finalLabaBersih = finalDanaCair - orderHpp;
+        let rawFee = Math.abs(Number(ord.potongan_fee || 0));
+        let rawNet = Number(ord.dana_cair || 0);
 
-        const ringkasanBarang = enrichedItems
+        // Jika dana_cair ter-inflate karena bug shippingFee lama (> omset), sesuaikan kembali
+        if (rawNet > finalOmsetKotor) {
+          rawNet = Math.max(0, finalOmsetKotor - rawFee);
+        }
+        if (rawFee === 0 && rawNet > 0 && rawNet < finalOmsetKotor) {
+          rawFee = Math.max(0, finalOmsetKotor - rawNet);
+        }
+        const finalDanaCair = (rawNet > 0 && rawNet <= finalOmsetKotor)
+          ? rawNet
+          : Math.max(0, finalOmsetKotor - rawFee);
+        const finalFee = Math.max(0, finalOmsetKotor - finalDanaCair);
+
+        const finalOrderHpp = orderHpp > 0 ? orderHpp : Math.min(finalDanaCair, Number(ord.lrv_hpp_total || 0));
+        const finalLabaBersih = finalDanaCair - finalOrderHpp;
+
+        // Proporsikan fee, dana cair, dan laba bersih ke masing-masing item transaksi
+        const itemsWithFinancials = enrichedItems.map(it => {
+          const ratio = finalOmsetKotor > 0 ? (it.subtotal / finalOmsetKotor) : (1 / enrichedItems.length);
+          const itemFee = Math.round(finalFee * ratio);
+          const itemDanaCair = Math.round(finalDanaCair * ratio);
+          const itemLaba = itemDanaCair - it.total_hpp;
+          const itemMargin = itemDanaCair > 0 ? Number(((itemLaba / itemDanaCair) * 100).toFixed(1)) : 0;
+          return {
+            ...it,
+            potongan_fee: itemFee,
+            dana_cair: itemDanaCair,
+            laba_bersih: itemLaba,
+            margin_persen: itemMargin
+          };
+        });
+
+        const ringkasanBarang = itemsWithFinancials
           .map(i => `${i.kode_sku} (${i.qty}x)`)
           .join(', ');
 
@@ -637,7 +881,7 @@ export async function handlePenitipanBarangRoutes(req, res, pathname, urlObj, co
             ord.nama_pembeli.toLowerCase().includes(search) ||
             ord.nama_toko.toLowerCase().includes(search) ||
             ringkasanBarang.toLowerCase().includes(search) ||
-            enrichedItems.some(i =>
+            itemsWithFinancials.some(i =>
               i.kode_sku.toLowerCase().includes(search) ||
               i.nama_produk.toLowerCase().includes(search) ||
               i.kategori.toLowerCase().includes(search)
@@ -655,12 +899,12 @@ export async function handlePenitipanBarangRoutes(req, res, pathname, urlObj, co
           nama_pembeli: ord.nama_pembeli,
           status_pesanan: isCompletedStatus(ord.status_pesanan) ? 'Sudah Cair' : ord.status_pesanan,
           rincian_barang: ringkasanBarang,
-          items: enrichedItems,
+          items: itemsWithFinancials,
           total_qty: orderQty,
           omset_kotor: Math.round(finalOmsetKotor),
           potongan_fee: Math.round(finalFee),
           dana_cair: Math.round(finalDanaCair),
-          total_hpp: Math.round(orderHpp),
+          total_hpp: Math.round(finalOrderHpp),
           laba_bersih: Math.round(finalLabaBersih),
           margin_persen: finalDanaCair > 0 ? Number(((finalLabaBersih / finalDanaCair) * 100).toFixed(1)) : 0
         });
