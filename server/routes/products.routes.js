@@ -9,6 +9,7 @@ export async function handleProductsRoutes(req, res, pathname, urlObj, { pool, s
       const limitParam = urlObj.searchParams.get('limit') || urlObj.searchParams.get('entriesPerPage');
       const search = urlObj.searchParams.get('search');
       const channel = urlObj.searchParams.get('channel');
+      const toko = urlObj.searchParams.get('toko') || urlObj.searchParams.get('shop_id') || urlObj.searchParams.get('id_toko');
       const mapping = urlObj.searchParams.get('mapping'); // 'Belum Dimapping' | 'Sudah Dimapping'
 
       const isPaginated = pageParam !== null || limitParam !== null;
@@ -26,6 +27,10 @@ export async function handleProductsRoutes(req, res, pathname, urlObj, { pool, s
       if (channel && channel !== 'Semua') {
         whereClauses.push('pm.saluran = ?');
         whereParams.push(channel);
+      }
+      if (toko && toko !== 'Semua') {
+        whereClauses.push('(pm.id_toko = ? OR pm.nama_toko = ?)');
+        whereParams.push(toko, toko);
       }
       if (search && search.trim()) {
         const q = `%${search.trim()}%`;

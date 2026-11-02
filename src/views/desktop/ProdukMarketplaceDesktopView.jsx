@@ -12,7 +12,8 @@ import {
   Package,
   Eye,
   X,
-  CheckSquare
+  CheckSquare,
+  Store
 } from 'lucide-react';
 import { showConfirm, toastSuccess, toastError } from '../../utils/alert.util';
 import { getActiveCompany } from '../../utils/tenant.util';
@@ -50,6 +51,8 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
   const [activeCompany, setActiveCompany] = useState(getActiveCompany);
   const [search, setSearch] = useState('');
   const [filterChannel, setFilterChannel] = useState('Semua');
+  const [filterToko, setFilterToko] = useState('Semua');
+  const [tokoOptions, setTokoOptions] = useState([]);
   const [activeFilterTab, setActiveFilterTab] = useState('semua');
   const [filterMapping, setFilterMapping] = useState('Semua');
   const [filterStok, setFilterStok] = useState('Semua');
@@ -116,6 +119,7 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
       params.set('limit', limit);
       if (search.trim()) params.set('search', search.trim());
       if (filterChannel !== 'Semua') params.set('channel', filterChannel);
+      if (filterToko !== 'Semua') params.set('toko', filterToko);
       if (filterMapping !== 'Semua') params.set('mapping', filterMapping);
       if (activeFilterTab && activeFilterTab !== 'semua') params.set('tab', activeFilterTab);
 
@@ -141,11 +145,19 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
 
   useEffect(() => {
     loadMasterSkus();
+    fetch('/api/marketplace/stores')
+      .then(res => res.json())
+      .then(json => {
+        if (json.status === 'success' && Array.isArray(json.data)) {
+          setTokoOptions(json.data);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
     loadMarketplaceProducts(currentPage, entriesPerPage);
-  }, [currentPage, entriesPerPage, search, filterChannel, filterMapping, activeFilterTab, activeCompany?.code]);
+  }, [currentPage, entriesPerPage, search, filterChannel, filterToko, filterMapping, activeFilterTab, activeCompany?.code]);
 
   // Helper dinamis: produk dianggap terhubung HANYA jika SKU-nya benar-benar ada di master produk
   const checkIsItemMapped = (item) => {
@@ -474,6 +486,7 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
           />
         </div>
 
+        {/* Filter Saluran */}
         <select
           className="pm-select pm-select--channel"
           value={filterChannel}
@@ -484,6 +497,22 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
           <option value="tiktok">TikTok Shop</option>
         </select>
 
+        {/* Filter Toko Marketplace */}
+        <select
+          className="pm-select pm-select--store"
+          value={filterToko}
+          onChange={(e) => { setFilterToko(e.target.value); setCurrentPage(1); }}
+          style={{ minWidth: '160px', fontWeight: '600' }}
+        >
+          <option value="Semua">🏬 Semua Toko</option>
+          {tokoOptions.map((st, sIdx) => (
+            <option key={sIdx} value={st.shopId || st.shopName}>
+              {st.channelName || (st.channel === 'shopee' ? 'Shopee' : 'TikTok')}: {st.shopName}
+            </option>
+          ))}
+        </select>
+
+        {/* Filter Status Mapping */}
         <select
           className="pm-select pm-select--mapping"
           value={filterMapping}
@@ -494,6 +523,7 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
           <option value="Sudah Dimapping">Sudah Dimapping</option>
         </select>
 
+        {/* Filter Stok */}
         <select
           className="pm-select pm-select--stok"
           value={filterStok}
@@ -504,6 +534,7 @@ export default function ProdukMarketplaceDesktopView({ onNavigate }) {
           <option value="Habis">Stok Habis</option>
         </select>
 
+        {/* Entries Per Page */}
         <select
           className="pm-select pm-select--rows"
           value={entriesPerPage}

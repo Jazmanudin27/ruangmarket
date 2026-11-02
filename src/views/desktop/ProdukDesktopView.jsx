@@ -337,6 +337,8 @@ export default function ProdukView() {
   const [filterStatusOrder, setFilterStatusOrder] = useState('Semua');
   const [filterStatus, setFilterStatus] = useState('Semua');
   const [filterSkuKain, setFilterSkuKain] = useState('Semua');
+  const [filterToko, setFilterToko] = useState('Semua');
+  const [tokoOptions, setTokoOptions] = useState([]);
   const [kainOptions, setKainOptions] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [entriesPerPage, setEntriesPerPage] = useState(50);
@@ -910,6 +912,7 @@ export default function ProdukView() {
       if (filterStatusOrder !== 'Semua') params.set('status_order', filterStatusOrder);
       if (filterStatus !== 'Semua') params.set('status', filterStatus);
       if (filterSkuKain !== 'Semua') params.set('sku_kain', filterSkuKain);
+      if (filterToko !== 'Semua') params.set('toko', filterToko);
       if (activeFilterTab && activeFilterTab !== 'semua') params.set('tab', activeFilterTab);
 
       const res = await fetch(`/api/marketplace/master?${params.toString()}`);
@@ -989,7 +992,7 @@ export default function ProdukView() {
 
   useEffect(() => {
     loadMasterProduk(currentPage, entriesPerPage);
-  }, [currentPage, entriesPerPage, search, filterKategori, filterTipeSet, filterStatusOrder, filterStatus, filterSkuKain, activeFilterTab, activeCompany?.code]);
+  }, [currentPage, entriesPerPage, search, filterKategori, filterTipeSet, filterStatusOrder, filterStatus, filterSkuKain, filterToko, activeFilterTab, activeCompany?.code]);
 
   // Form State
   const initialForm = {
@@ -1058,10 +1061,23 @@ export default function ProdukView() {
     }
   }, []);
 
+  const fetchStoresList = useCallback(async () => {
+    try {
+      const res = await fetch('/api/marketplace/stores');
+      if (res.ok) {
+        const json = await res.json();
+        if (json && Array.isArray(json.data)) {
+          setTokoOptions(json.data);
+        }
+      }
+    } catch (e) {}
+  }, []);
+
   useEffect(() => {
     fetchHppList();
     fetchKainList();
-  }, [fetchHppList, fetchKainList]);
+    fetchStoresList();
+  }, [fetchHppList, fetchKainList, fetchStoresList]);
 
   // Dynamic Kategori List from Storage
   const [kategoriOptions, setKategoriOptions] = useState(() => {
@@ -2112,6 +2128,33 @@ export default function ProdukView() {
           <option value="Semua">Semua Bahan Kain</option>
           {kainOptions.map(k => (
             <option key={k.value} value={k.value}>{k.sku} ({k.nama_kain})</option>
+          ))}
+        </select>
+
+        {/* Filter Toko Marketplace */}
+        <select
+          value={filterToko}
+          onChange={(e) => {
+            setFilterToko(e.target.value);
+            setCurrentPage(1);
+          }}
+          style={{
+            padding: '6px 10px',
+            borderRadius: '6px',
+            border: '1px solid #cbd5e1',
+            fontSize: '12px',
+            color: '#334155',
+            backgroundColor: '#ffffff',
+            cursor: 'pointer',
+            minWidth: '145px',
+            fontWeight: '600'
+          }}
+        >
+          <option value="Semua">🏬 Semua Toko</option>
+          {tokoOptions.map((st, sIdx) => (
+            <option key={sIdx} value={st.shopId || st.shopName}>
+              {st.channelName || (st.channel === 'shopee' ? 'Shopee' : 'TikTok')}: {st.shopName}
+            </option>
           ))}
         </select>
 

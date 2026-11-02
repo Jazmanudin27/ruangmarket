@@ -640,6 +640,7 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool, lar
       const tipeSet = urlObj.searchParams.get('tipe_set');
       const statusOrder = urlObj.searchParams.get('status_order');
       const status = urlObj.searchParams.get('status');
+      const tokoParam = urlObj.searchParams.get('toko') || urlObj.searchParams.get('id_toko');
 
       const tabParam = urlObj.searchParams.get('tab');
       const sortParam = urlObj.searchParams.get('sort');
@@ -675,6 +676,20 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool, lar
       if (skuKainParam && skuKainParam !== 'Semua') {
         whereClauses.push('p.sku_kain = ?');
         whereParams.push(skuKainParam);
+      }
+      if (tokoParam && tokoParam !== 'Semua') {
+        whereClauses.push(`EXISTS (
+          SELECT 1 FROM produk_marketplace pm 
+          WHERE (pm.id_toko = ? OR pm.nama_toko = ?)
+            AND (
+              pm.sku_marketplace = p.kode_sku 
+              OR pm.sku_marketplace = REPLACE(p.kode_sku, 'PO-', '')
+              OR pm.sku_marketplace = CONCAT('RSG-', p.kode_sku)
+              OR p.kode_sku = CONCAT('RSG-', pm.sku_marketplace)
+              OR pm.nama_produk = p.nama_produk
+            )
+        )`);
+        whereParams.push(tokoParam, tokoParam);
       }
       if (search && search.trim()) {
         const q = `%${search.trim()}%`;
@@ -730,6 +745,20 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool, lar
         if (skuKainParam && skuKainParam !== 'Semua') {
           baseWhereClauses.push('p.sku_kain = ?');
           baseWhereParams.push(skuKainParam);
+        }
+        if (tokoParam && tokoParam !== 'Semua') {
+          baseWhereClauses.push(`EXISTS (
+            SELECT 1 FROM produk_marketplace pm 
+            WHERE (pm.id_toko = ? OR pm.nama_toko = ?)
+              AND (
+                pm.sku_marketplace = p.kode_sku 
+                OR pm.sku_marketplace = REPLACE(p.kode_sku, 'PO-', '')
+                OR pm.sku_marketplace = CONCAT('RSG-', p.kode_sku)
+                OR p.kode_sku = CONCAT('RSG-', pm.sku_marketplace)
+                OR pm.nama_produk = p.nama_produk
+              )
+          )`);
+          baseWhereParams.push(tokoParam, tokoParam);
         }
         if (search && search.trim()) {
           const q = `%${search.trim()}%`;

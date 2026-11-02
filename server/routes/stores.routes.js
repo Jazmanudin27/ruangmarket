@@ -14,6 +14,32 @@ export async function handleStoresRoutes(req, res, pathname, urlObj, { pool }) {
         FROM toko_marketplace
         ORDER BY dibuat_pada DESC
       `);
+
+      // Lengkapi dengan toko yang ada di staging produk_marketplace jika belum terdaftar
+      try {
+        const [extraStores] = await pool.query(`
+          SELECT DISTINCT id_toko as shopId, nama_toko as shopName, saluran as channel, nama_saluran as channelName
+          FROM produk_marketplace
+          WHERE id_toko IS NOT NULL AND id_toko != '' AND nama_toko IS NOT NULL AND nama_toko != ''
+        `);
+        const existingShopIds = new Set(rows.map(r => String(r.shopId || r.id)));
+        for (const es of extraStores) {
+          if (!existingShopIds.has(String(es.shopId))) {
+            existingShopIds.add(String(es.shopId));
+            rows.push({
+              id: es.shopId,
+              company_code: 'RSG',
+              channel: es.channel,
+              channelName: es.channelName || (es.channel === 'shopee' ? 'Shopee' : 'TikTok Shop'),
+              shopName: es.shopName,
+              shopId: es.shopId,
+              logo: '',
+              status: 'Aktif',
+              autoSyncStok: 1
+            });
+          }
+        }
+      } catch (eExtra) {}
       sendJson(res, 200, { status: 'success', data: rows });
       return true;
     } catch (err) {
