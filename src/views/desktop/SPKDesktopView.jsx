@@ -3601,42 +3601,6 @@ export default function SPKView() {
                     }}
                   />
                 </div>
-
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "10.5px",
-                      fontWeight: "700",
-                      color: "#334155",
-                      marginBottom: "3px",
-                    }}
-                  >
-                    Tahapan Saat Ini
-                  </label>
-                  <select
-                    value={formData.status}
-                    onChange={(e) =>
-                      setFormData({ ...formData, status: e.target.value })
-                    }
-                    style={{
-                      width: "100%",
-                      padding: "6px 9px",
-                      borderRadius: "5px",
-                      border: "1px solid #cbd5e1",
-                      fontSize: "11.5px",
-                      fontWeight: "700",
-                      color: "#0f172a",
-                      backgroundColor: "#ffffff",
-                    }}
-                  >
-                    {tahapanOptions.map((t) => (
-                      <option key={t.id || t.kode_tahapan} value={t.nama_tahapan}>
-                        {t.emoji ? `${t.emoji} ` : ""}{t.nama_tahapan}
-                      </option>
-                    ))}
-                  </select>
-                </div>
               </div>
 
               <div style={{ marginTop: "8px" }}>

@@ -39,7 +39,14 @@ export default function LaporanStokDesktopView() {
   const [isLoading, setIsLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [filterKategori, setFilterKategori] = useState('Semua');
+  const [filterTipeSet, setFilterTipeSet] = useState('Semua');
+  const [filterStatusOrder, setFilterStatusOrder] = useState('Semua');
   const [filterStatusStok, setFilterStatusStok] = useState('Semua');
+  const [filterSkuKain, setFilterSkuKain] = useState('Semua');
+  const [filterToko, setFilterToko] = useState('Semua');
+  const [kainOptions, setKainOptions] = useState([]);
+  const [tokoOptions, setTokoOptions] = useState([]);
+  const [kategoriOptions, setKategoriOptions] = useState([]);
   const [entriesPerPage, setEntriesPerPage] = useState(50);
   const [currentPage, setCurrentPage] = useState(1);
   const [sortConfig, setSortConfig] = useState({ key: 'jumlah_stok', direction: 'desc' });
@@ -53,6 +60,41 @@ export default function LaporanStokDesktopView() {
     return () => window.removeEventListener('companyChange', handleCompanyChange);
   }, []);
 
+  // Load referensi Kain, Toko, dan Kategori untuk dropdown filter
+  useEffect(() => {
+    fetch('/api/kain/master')
+      .then(res => res.ok ? res.json() : null)
+      .then(json => {
+        if (json && Array.isArray(json.data)) {
+          setKainOptions(json.data.map(k => ({
+            value: k.kode_sku_kain,
+            sku: k.kode_sku_kain,
+            nama_kain: k.nama_kain
+          })));
+        }
+      })
+      .catch(() => {});
+
+    fetch('/api/marketplace/stores')
+      .then(res => res.ok ? res.json() : null)
+      .then(json => {
+        if (json && Array.isArray(json.data)) {
+          setTokoOptions(json.data);
+        }
+      })
+      .catch(() => {});
+
+    fetch('/api/marketplace/kategori')
+      .then(res => res.ok ? res.json() : null)
+      .then(json => {
+        if (json && Array.isArray(json.data)) {
+          const activeList = json.data.filter(k => k.status !== 'Nonaktif').map(k => k.nama);
+          setKategoriOptions(activeList);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   // Fetch data laporan dari backend
   const fetchLaporanStok = async () => {
     setIsLoading(true);
@@ -61,7 +103,11 @@ export default function LaporanStokDesktopView() {
       const params = new URLSearchParams();
       params.append('company', companyCode);
       if (filterKategori !== 'Semua') params.append('kategori', filterKategori);
+      if (filterTipeSet !== 'Semua') params.append('tipe_set', filterTipeSet);
+      if (filterStatusOrder !== 'Semua') params.append('status_order', filterStatusOrder);
       if (filterStatusStok !== 'Semua') params.append('filter_stok', filterStatusStok);
+      if (filterSkuKain !== 'Semua') params.append('sku_kain', filterSkuKain);
+      if (filterToko !== 'Semua') params.append('toko', filterToko);
       if (search.trim()) params.append('search', search.trim());
 
       const res = await fetch(`/api/laporan/stok-barang?${params.toString()}`);
@@ -151,7 +197,7 @@ export default function LaporanStokDesktopView() {
 
   useEffect(() => {
     fetchLaporanStok();
-  }, [activeCompany, filterKategori, filterStatusStok]);
+  }, [activeCompany, filterKategori, filterTipeSet, filterStatusOrder, filterStatusStok, filterSkuKain, filterToko]);
 
   // Handle Search Debounce / Direct
   const handleSearchSubmit = (e) => {
@@ -161,12 +207,12 @@ export default function LaporanStokDesktopView() {
 
   // Kategori unik untuk filter dropdown
   const kategoriList = useMemo(() => {
-    const setKat = new Set();
+    const setKat = new Set(kategoriOptions);
     data.forEach(item => {
       if (item.kategori) setKat.add(item.kategori);
     });
-    return ['Semua', ...Array.from(setKat)];
-  }, [data]);
+    return Array.from(setKat);
+  }, [data, kategoriOptions]);
 
   // Sorting
   const handleSort = (key) => {
@@ -356,27 +402,6 @@ export default function LaporanStokDesktopView() {
           >
             <Download size={13} />
             <span>Export Excel</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={handlePrint}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '6px 12px',
-              borderRadius: '6px',
-              border: '1px solid #0284c7',
-              backgroundColor: '#0284c7',
-              color: '#ffffff',
-              fontSize: '11.5px',
-              fontWeight: '800',
-              cursor: 'pointer'
-            }}
-          >
-            <Printer size={13} />
-            <span>Cetak PDF</span>
           </button>
         </div>
       </div>
@@ -571,7 +596,7 @@ export default function LaporanStokDesktopView() {
         </div>
       </div>
 
-      {/* 3. FILTER & TOOLBAR */}
+      {/* 3. FILTER & TOOLBAR (SAMA PERSIS DENGAN MASTER PRODUK) */}
       <div style={{
         backgroundColor: '#ffffff',
         border: '1px solid #cbd5e1',
@@ -580,109 +605,216 @@ export default function LaporanStokDesktopView() {
         marginBottom: '10px',
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: '10px',
-        flexWrap: 'wrap'
+        gap: '8px',
+        flexWrap: 'wrap',
+        boxShadow: '0 1px 3px rgba(15, 23, 42, 0.04)'
       }}>
-        {/* Search */}
-        <form onSubmit={handleSearchSubmit} style={{ flex: 1, minWidth: '240px', position: 'relative' }}>
+        {/* Search input with icon */}
+        <form onSubmit={handleSearchSubmit} style={{ flex: 1, minWidth: '220px', position: 'relative' }}>
           <Search size={14} color="#94a3b8" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
           <input
             type="text"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Cari SKU, Nama Barang, Varian, Kategori..."
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setCurrentPage(1);
+            }}
+            placeholder="Cari nama produk, SKU, varian, tipe set, status order..."
             style={{
               width: '100%',
               padding: '6px 10px 6px 32px',
               borderRadius: '6px',
               border: '1px solid #cbd5e1',
-              fontSize: '11.5px',
+              fontSize: '12px',
               outline: 'none',
               backgroundColor: '#f8fafc',
-              boxSizing: 'border-box'
+              boxSizing: 'border-box',
+              transition: 'all 0.15s ease'
+            }}
+            onFocus={(e) => {
+              e.target.style.borderColor = '#0284c7';
+              e.target.style.backgroundColor = '#ffffff';
+            }}
+            onBlur={(e) => {
+              e.target.style.borderColor = '#cbd5e1';
+              e.target.style.backgroundColor = '#f8fafc';
             }}
           />
         </form>
 
-        {/* Filter Kategori */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748b' }}>Kategori:</span>
-          <select
-            value={filterKategori}
-            onChange={(e) => {
-              setFilterKategori(e.target.value);
-              setCurrentPage(1);
-            }}
-            style={{
-              padding: '5.5px 8px',
-              borderRadius: '5px',
-              border: '1px solid #cbd5e1',
-              fontSize: '11.5px',
-              fontWeight: '600',
-              backgroundColor: '#ffffff',
-              color: '#334155'
-            }}
-          >
-            {kategoriList.map((kat, i) => (
-              <option key={i} value={kat}>{kat}</option>
-            ))}
-          </select>
-        </div>
+        {/* Select Kategori */}
+        <select
+          value={filterKategori}
+          onChange={(e) => {
+            setFilterKategori(e.target.value);
+            setCurrentPage(1);
+          }}
+          style={{
+            padding: '6px 10px',
+            borderRadius: '6px',
+            border: '1px solid #cbd5e1',
+            fontSize: '12px',
+            color: '#334155',
+            backgroundColor: '#ffffff',
+            cursor: 'pointer',
+            minWidth: '125px'
+          }}
+        >
+          <option value="Semua">Semua Kategori</option>
+          {kategoriList.map((kat, idx) => (
+            <option key={idx} value={kat}>{kat}</option>
+          ))}
+        </select>
 
-        {/* Filter Status Stok */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748b' }}>Status Stok:</span>
-          <select
-            value={filterStatusStok}
-            onChange={(e) => {
-              setFilterStatusStok(e.target.value);
-              setCurrentPage(1);
-            }}
-            style={{
-              padding: '5.5px 8px',
-              borderRadius: '5px',
-              border: '1px solid #cbd5e1',
-              fontSize: '11.5px',
-              fontWeight: '600',
-              backgroundColor: '#ffffff',
-              color: '#334155'
-            }}
-          >
-            <option value="Semua">Semua Stok</option>
-            <option value="tersedia">Stok Tersedia (&gt; 0)</option>
-            <option value="habis">Stok Habis (0)</option>
-            <option value="gabungan">Ada Gudang &amp; Titipan</option>
-            <option value="hanya_gudang">Hanya Ada di Gudang</option>
-            <option value="hanya_titipan">Hanya Ada di Titipan</option>
-          </select>
-        </div>
+        {/* Select Tipe: Satu Setel / Single */}
+        <select
+          value={filterTipeSet}
+          onChange={(e) => {
+            setFilterTipeSet(e.target.value);
+            setCurrentPage(1);
+          }}
+          style={{
+            padding: '6px 10px',
+            borderRadius: '6px',
+            border: '1px solid #cbd5e1',
+            fontSize: '12px',
+            color: '#334155',
+            backgroundColor: '#ffffff',
+            cursor: 'pointer',
+            minWidth: '115px'
+          }}
+        >
+          <option value="Semua">Semua Tipe</option>
+          <option value="Satu Setel">Satu Setel</option>
+          <option value="Single">Single</option>
+        </select>
+
+        {/* Select Status Order: Ready Stok / PO */}
+        <select
+          value={filterStatusOrder}
+          onChange={(e) => {
+            setFilterStatusOrder(e.target.value);
+            setCurrentPage(1);
+          }}
+          style={{
+            padding: '6px 10px',
+            borderRadius: '6px',
+            border: '1px solid #cbd5e1',
+            fontSize: '12px',
+            color: '#334155',
+            backgroundColor: '#ffffff',
+            cursor: 'pointer',
+            minWidth: '120px'
+          }}
+        >
+          <option value="Semua">Semua Order</option>
+          <option value="Ready Stok">Ready Stok</option>
+          <option value="PO">PO (Pre-Order)</option>
+        </select>
+
+        {/* Select Status Stok */}
+        <select
+          value={filterStatusStok}
+          onChange={(e) => {
+            setFilterStatusStok(e.target.value);
+            setCurrentPage(1);
+          }}
+          style={{
+            padding: '6px 10px',
+            borderRadius: '6px',
+            border: '1px solid #cbd5e1',
+            fontSize: '12px',
+            color: '#334155',
+            backgroundColor: '#ffffff',
+            cursor: 'pointer',
+            minWidth: '115px'
+          }}
+        >
+          <option value="Semua">Semua Stok</option>
+          <option value="tersedia">Tersedia</option>
+          <option value="menipis">Menipis</option>
+          <option value="habis">Habis</option>
+          <option value="gabungan">Ada Gudang &amp; Titipan</option>
+          <option value="hanya_gudang">Hanya Ada di Gudang</option>
+          <option value="hanya_titipan">Hanya Ada di Titipan</option>
+        </select>
+
+        {/* Filter SKU Kain */}
+        <select
+          value={filterSkuKain}
+          onChange={(e) => {
+            setFilterSkuKain(e.target.value);
+            setCurrentPage(1);
+          }}
+          style={{
+            padding: '6px 10px',
+            borderRadius: '6px',
+            border: '1px solid #cbd5e1',
+            fontSize: '12px',
+            color: '#334155',
+            backgroundColor: '#ffffff',
+            cursor: 'pointer',
+            minWidth: '135px'
+          }}
+        >
+          <option value="Semua">Semua Bahan Kain</option>
+          {kainOptions.map(k => (
+            <option key={k.value} value={k.value}>{k.sku} ({k.nama_kain})</option>
+          ))}
+        </select>
+
+        {/* Filter Toko Marketplace */}
+        <select
+          value={filterToko}
+          onChange={(e) => {
+            setFilterToko(e.target.value);
+            setCurrentPage(1);
+          }}
+          style={{
+            padding: '6px 10px',
+            borderRadius: '6px',
+            border: '1px solid #cbd5e1',
+            fontSize: '12px',
+            color: '#334155',
+            backgroundColor: '#ffffff',
+            cursor: 'pointer',
+            minWidth: '145px',
+            fontWeight: '600'
+          }}
+        >
+          <option value="Semua">🏬 Semua Toko</option>
+          {tokoOptions.map((st, sIdx) => (
+            <option key={sIdx} value={`${st.channel}|${st.shopName || st.shopId}`}>
+              {st.channelName || (st.channel === 'shopee' ? 'Shopee' : 'TikTok')}: {st.shopName}
+            </option>
+          ))}
+        </select>
 
         {/* Entries Per Page */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748b' }}>Tampil:</span>
-          <select
-            value={entriesPerPage}
-            onChange={(e) => {
-              setEntriesPerPage(e.target.value);
-              setCurrentPage(1);
-            }}
-            style={{
-              padding: '5.5px 8px',
-              borderRadius: '5px',
-              border: '1px solid #cbd5e1',
-              fontSize: '11.5px',
-              fontWeight: '600',
-              backgroundColor: '#ffffff',
-              color: '#334155'
-            }}
-          >
-            <option value="25">25 Baris</option>
-            <option value="50">50 Baris</option>
-            <option value="100">100 Baris</option>
-            <option value="Semua">Semua Data</option>
-          </select>
-        </div>
+        <select
+          value={entriesPerPage}
+          onChange={(e) => {
+            setEntriesPerPage(e.target.value);
+            setCurrentPage(1);
+          }}
+          style={{
+            padding: '6px 10px',
+            borderRadius: '6px',
+            border: '1px solid #cbd5e1',
+            fontSize: '12px',
+            color: '#334155',
+            backgroundColor: '#ffffff',
+            cursor: 'pointer',
+            minWidth: '105px'
+          }}
+        >
+          <option value="10">10 Baris</option>
+          <option value="25">25 Baris</option>
+          <option value="50">50 Baris</option>
+          <option value="100">100 Baris</option>
+          <option value="250">250 Baris</option>
+          <option value="Semua">Semua Data</option>
+        </select>
       </div>
 
       {/* 4. TABEL LAPORAN STOK BARANG */}

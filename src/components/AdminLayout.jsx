@@ -89,6 +89,8 @@ export default function AdminLayout() {
   const marketingRef = useRef(null);
   const [isMarketplaceOpen, setIsMarketplaceOpen] = useState(false);
   const marketplaceRef = useRef(null);
+  const [isLaporanOpen, setIsLaporanOpen] = useState(false);
+  const laporanRef = useRef(null);
   const [isCompanyDropdownOpen, setIsCompanyDropdownOpen] = useState(false);
   const companyDropdownRef = useRef(null);
   const [companies, setCompanies] = useState(getCompanies);
@@ -111,6 +113,9 @@ export default function AdminLayout() {
       }
       if (marketplaceRef.current && !marketplaceRef.current.contains(event.target)) {
         setIsMarketplaceOpen(false);
+      }
+      if (laporanRef.current && !laporanRef.current.contains(event.target)) {
+        setIsLaporanOpen(false);
       }
       if (userDropdownRef.current && !userDropdownRef.current.contains(event.target)) {
         setIsUserDropdownOpen(false);
@@ -200,6 +205,7 @@ export default function AdminLayout() {
     setIsProduksiOpen(false);
     setIsMarketingOpen(false);
     setIsMarketplaceOpen(false);
+    setIsLaporanOpen(false);
   };
 
   const toggleFullscreen = () => {
@@ -870,42 +876,6 @@ export default function AdminLayout() {
                     <Calculator size={14} color={activeTab === 'hpp_produk' ? '#38bdf8' : '#94a3b8'} style={{ flexShrink: 0 }} />
                     <span style={{ textAlign: 'left', flex: 1 }}>Master HPP Produk</span>
                   </button>
-
-                  {/* Submenu 8: Laporan Stok Barang */}
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      changeTab('laporan_stok');
-                      setIsDataMasterOpen(false);
-                    }}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'flex-start',
-                      gap: '8px',
-                      width: '100%',
-                      padding: '7px 10px',
-                      borderRadius: '6px',
-                      border: 'none',
-                      backgroundColor: activeTab === 'laporan_stok' ? 'rgba(2, 132, 199, 0.2)' : 'transparent',
-                      color: activeTab === 'laporan_stok' ? '#38bdf8' : '#cbd5e1',
-                      fontSize: '11.5px',
-                      fontWeight: activeTab === 'laporan_stok' ? '800' : '600',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      transition: 'background-color 0.15s ease'
-                    }}
-                    onMouseEnter={(e) => {
-                      if (activeTab !== 'laporan_stok') e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)';
-                    }}
-                    onMouseLeave={(e) => {
-                      if (activeTab !== 'laporan_stok') e.currentTarget.style.backgroundColor = 'transparent';
-                    }}
-                  >
-                    <FileSpreadsheet size={14} color={activeTab === 'laporan_stok' ? '#38bdf8' : '#94a3b8'} style={{ flexShrink: 0 }} />
-                    <span style={{ textAlign: 'left', flex: 1 }}>Laporan Stok Barang</span>
-                  </button>
                 </div>
               )}
             </div>
@@ -1262,47 +1232,116 @@ export default function AdminLayout() {
               <span>Penitipan Barang</span>
             </button>
 
-            {/* 8. Laporan Stok Barang */}
-            <button
-              type="button"
-              onClick={() => changeTab('laporan_stok')}
-              style={{
-                height: '24px',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '4px',
-                padding: '0 8px',
-                borderRadius: '5px',
-                border: (activeTab === 'laporan_stok' || activeTab === 'laporan') ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.08)',
-                backgroundColor: (activeTab === 'laporan_stok' || activeTab === 'laporan') ? '#0284c7' : 'rgba(255, 255, 255, 0.05)',
-                color: (activeTab === 'laporan_stok' || activeTab === 'laporan') ? '#ffffff' : '#cbd5e1',
-                fontSize: '11px',
-                fontWeight: (activeTab === 'laporan_stok' || activeTab === 'laporan') ? '800' : '600',
-                lineHeight: 1,
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-                whiteSpace: 'nowrap',
-                boxShadow: (activeTab === 'laporan_stok' || activeTab === 'laporan') ? '0 0 10px rgba(2, 132, 199, 0.5)' : 'none'
-              }}
-              onMouseEnter={(e) => {
-                if (activeTab !== 'laporan_stok' && activeTab !== 'laporan') {
-                  e.currentTarget.style.backgroundColor = 'rgba(56, 189, 248, 0.15)';
-                  e.currentTarget.style.borderColor = 'rgba(56, 189, 248, 0.3)';
-                  e.currentTarget.style.color = '#ffffff';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (activeTab !== 'laporan_stok' && activeTab !== 'laporan') {
-                  e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
-                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
-                  e.currentTarget.style.color = '#cbd5e1';
-                }
-              }}
-            >
-              <FileSpreadsheet size={13} color={(activeTab === 'laporan_stok' || activeTab === 'laporan') ? '#ffffff' : '#38bdf8'} style={{ flexShrink: 0 }} />
-              <span>Laporan Stok</span>
-            </button>
+            {/* 8. Laporan (Dropdown) */}
+            <div style={{ position: 'relative' }} ref={laporanRef}>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsLaporanOpen(prev => !prev);
+                }}
+                style={{
+                  height: '24px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '4px',
+                  padding: '0 8px',
+                  borderRadius: '5px',
+                  border: (activeTab === 'laporan_stok' || activeTab === 'laporan' || isLaporanOpen) ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.08)',
+                  backgroundColor: (activeTab === 'laporan_stok' || activeTab === 'laporan' || isLaporanOpen) ? '#0284c7' : 'rgba(255, 255, 255, 0.05)',
+                  color: (activeTab === 'laporan_stok' || activeTab === 'laporan' || isLaporanOpen) ? '#ffffff' : '#cbd5e1',
+                  fontSize: '11px',
+                  fontWeight: (activeTab === 'laporan_stok' || activeTab === 'laporan' || isLaporanOpen) ? '800' : '600',
+                  lineHeight: 1,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                  whiteSpace: 'nowrap',
+                  boxShadow: (activeTab === 'laporan_stok' || activeTab === 'laporan' || isLaporanOpen) ? '0 0 10px rgba(2, 132, 199, 0.5)' : 'none'
+                }}
+                onMouseEnter={(e) => {
+                  if (activeTab !== 'laporan_stok' && activeTab !== 'laporan' && !isLaporanOpen) {
+                    e.currentTarget.style.backgroundColor = 'rgba(56, 189, 248, 0.15)';
+                    e.currentTarget.style.borderColor = 'rgba(56, 189, 248, 0.3)';
+                    e.currentTarget.style.color = '#ffffff';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (activeTab !== 'laporan_stok' && activeTab !== 'laporan' && !isLaporanOpen) {
+                    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                    e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
+                    e.currentTarget.style.color = '#cbd5e1';
+                  }
+                }}
+              >
+                <FileSpreadsheet size={13} color={(activeTab === 'laporan_stok' || activeTab === 'laporan' || isLaporanOpen) ? '#ffffff' : '#38bdf8'} style={{ flexShrink: 0 }} />
+                <span>Laporan</span>
+                <ChevronDown 
+                  size={11} 
+                  color={(activeTab === 'laporan_stok' || activeTab === 'laporan' || isLaporanOpen) ? '#ffffff' : '#38bdf8'} 
+                  style={{ 
+                    transform: isLaporanOpen ? 'rotate(180deg)' : 'none', 
+                    transition: 'transform 0.15s ease',
+                    marginLeft: '1px'
+                  }} 
+                />
+              </button>
+
+              {/* Laporan Dropdown Popup */}
+              {isLaporanOpen && (
+                <div style={{
+                  position: 'absolute',
+                  left: 0,
+                  top: '100%',
+                  marginTop: '6px',
+                  backgroundColor: '#0f172a',
+                  borderRadius: '8px',
+                  border: '1px solid #334155',
+                  boxShadow: '0 12px 30px rgba(0, 0, 0, 0.6)',
+                  padding: '5px',
+                  minWidth: '170px',
+                  zIndex: 2000,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '3px'
+                }}>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      changeTab('laporan_stok');
+                      setIsLaporanOpen(false);
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'flex-start',
+                      gap: '8px',
+                      width: '100%',
+                      padding: '7px 10px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      backgroundColor: activeTab === 'laporan_stok' ? 'rgba(2, 132, 199, 0.2)' : 'transparent',
+                      color: activeTab === 'laporan_stok' ? '#38bdf8' : '#cbd5e1',
+                      fontSize: '11.5px',
+                      fontWeight: activeTab === 'laporan_stok' ? '800' : '600',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'background-color 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (activeTab !== 'laporan_stok') e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (activeTab !== 'laporan_stok') e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
+                  >
+                    <FileSpreadsheet size={14} color={activeTab === 'laporan_stok' ? '#38bdf8' : '#94a3b8'} style={{ flexShrink: 0 }} />
+                    <span style={{ textAlign: 'left', flex: 1 }}>Stok Barang</span>
+                  </button>
+                </div>
+              )}
+            </div>
 
             {/* 9. Settings (Marketplace & Toko Online) */}
             <div style={{ position: 'relative' }} ref={marketplaceRef}>

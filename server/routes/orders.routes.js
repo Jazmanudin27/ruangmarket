@@ -17,6 +17,219 @@ export async function handleOrdersRoutes(req, res, pathname, urlObj, { pool, lar
     await pool.query("ALTER TABLE pesanan_marketplace ADD COLUMN catatan_kemas TEXT");
   } catch (e) {}
 
+  // 0. API Dashboard Utama & Analytics Bulanan (/api/marketplace/dashboard)
+  if (pathname === '/api/marketplace/dashboard' && req.method === 'GET') {
+    try {
+      const year = parseInt(urlObj.searchParams.get('year') || new Date().getFullYear(), 10);
+      const tokoParam = (urlObj.searchParams.get('toko') || 'Semua').trim();
+      const companyCode = urlObj.searchParams.get('company') || 'RSG';
+
+      let targetSaluran = null;
+      let cleanToko = tokoParam;
+      if (cleanToko !== 'Semua' && cleanToko.includes('|')) {
+        const parts = cleanToko.split('|');
+        targetSaluran = parts[0].trim().toLowerCase();
+        cleanToko = parts.slice(1).join('|').trim();
+      }
+
+      // 1. Katalog Produk & Peringatan Stok
+      let totalProduk = 0;
+      let itemLow = 0;
+      try {
+        const [[prodStats]] = await pool.query(`
+          SELECT 
+            COUNT(*) as total_produk,
+            SUM(CASE WHEN COALESCE(stok_fisik, 0) <= 5 THEN 1 ELSE 0 END) as item_low
+          FROM produk_master
+          WHERE kode_perusahaan = ? OR kode_perusahaan IS NULL OR kode_perusahaan = '' OR kode_perusahaan = 'RSG'
+        `, [companyCode]);
+        totalProduk = Number(prodStats?.total_produk || 0);
+        itemLow = Number(prodStats?.item_low || 0);
+      } catch (eProd) {}
+
+      // Jika di database laravel (marketplace.products) ada peringatan stok spesifik, cek juga
+      try {
+        const [lProdCols] = await laravelPool.query('SHOW COLUMNS FROM products');
+        const colNames = lProdCols.map(c => c.Field);
+        const stockCol = colNames.includes('stock') ? 'stock' : (colNames.includes('qty') ? 'qty' : null);
+        const minStockCol = colNames.includes('min_stock') ? 'min_stock' : (colNames.includes('low_stock_threshold') ? 'low_stock_threshold' : null);
+        if (stockCol) {
+          const cond = minStockCol ? `${stockCol} <= COALESCE(NULLIF(${minStockCol}, 0), 5)` : `${stockCol} <= 5`;
+          const [[lLow]] = await laravelPool.query(`SELECT COUNT(*) as cnt, (SELECT COUNT(*) FROM products) as total_cnt FROM products WHERE ${cond}`);
+          if (itemLow === 0 && Number(lLow?.cnt || 0) > 0) {
+            itemLow = Number(lLow.cnt);
+          }
+          if (totalProduk === 0 && Number(lLow?.total_cnt || 0) > 0) {
+            totalProduk = Number(lLow.total_cnt);
+          }
+        }
+      } catch (eLProd) {}
+
+      // 2. Kumpulkan seluruh pesanan unik (gabungan pesanan_marketplace + laravel marketplace.orders + pesanan_offline)
+      const orderMap = new Map();
+
+      // A. Dari tabel laravel marketplace.orders (jika tersedia)
+      try {
+        const [orderCols] = await laravelPool.query('SHOW COLUMNS FROM orders');
+        const cNames = orderCols.map(c => c.Field);
+        const idCol = ['order_marketplace_id', 'order_sn', 'order_number', 'invoice_number', 'id'].find(c => cNames.includes(c)) || 'id';
+        const amountCol = ['total_amount', 'grand_total', 'total_price', 'total', 'subtotal', 'amount'].find(c => cNames.includes(c)) || 'total_amount';
+        const dateCol = ['order_date', 'ordered_at', 'order_time', 'created_at'].find(c => cNames.includes(c)) || 'created_at';
+        const statusCol = ['status', 'order_status'].find(c => cNames.includes(c)) || null;
+        const hasStoreId = cNames.includes('store_id');
+
+        const lSql = hasStoreId
+          ? `SELECT o.${idCol} as order_key, o.${amountCol} as total_harga, o.${dateCol} as waktu, ${statusCol ? `o.${statusCol}` : "''"} as status, s.store_name as nama_toko, c.code as saluran
+             FROM orders o
+             LEFT JOIN stores s ON o.store_id = s.id
+             LEFT JOIN channels c ON s.channel_id = c.id`
+          : `SELECT ${idCol} as order_key, ${amountCol} as total_harga, ${dateCol} as waktu, ${statusCol ? statusCol : "''"} as status, '' as nama_toko, '' as saluran FROM orders`;
+
+        const [lOrders] = await laravelPool.query(lSql);
+        for (const r of (lOrders || [])) {
+          const st = String(r.status || '').toUpperCase();
+          if (['CANCELLED', 'BATAL', 'IN_CANCEL', 'DIBATALKAN', 'UNPAID'].includes(st)) continue;
+          const dt = r.waktu ? new Date(r.waktu) : null;
+          if (!dt || isNaN(dt.getTime())) continue;
+          const key = String(r.order_key || '').trim();
+          if (!key) continue;
+          orderMap.set(key, {
+            amount: Number(r.total_harga || 0),
+            date: dt,
+            shopName: String(r.nama_toko || '').trim(),
+            channel: String(r.saluran || '').trim().toLowerCase()
+          });
+        }
+      } catch (eLaravelOrders) {}
+
+      // B. Dari tabel pesanan_marketplace (ruangmarket)
+      try {
+        const [rmOrders] = await pool.query(`
+          SELECT no_pesanan, total_harga, COALESCE(waktu_pesanan, ditarik_pada) as waktu, status_pesanan, nama_toko, saluran
+          FROM pesanan_marketplace
+        `);
+        for (const r of (rmOrders || [])) {
+          const st = String(r.status_pesanan || '').toUpperCase();
+          if (['CANCELLED', 'BATAL', 'IN_CANCEL', 'DIBATALKAN', 'UNPAID'].includes(st)) continue;
+          const dt = r.waktu ? new Date(r.waktu) : null;
+          if (!dt || isNaN(dt.getTime())) continue;
+          const key = String(r.no_pesanan || '').trim();
+          if (!key) continue;
+          orderMap.set(key, {
+            amount: Number(r.total_harga || 0),
+            date: dt,
+            shopName: String(r.nama_toko || '').trim(),
+            channel: String(r.saluran || '').trim().toLowerCase()
+          });
+        }
+      } catch (eRmOrders) {}
+
+      // C. Dari tabel pesanan_offline (ruangmarket)
+      try {
+        const [offOrders] = await pool.query(`
+          SELECT no_pesanan, total_harga, dibuat_pada as waktu, status_pesanan, COALESCE(nama_toko, 'Penjualan Offline') as nama_toko
+          FROM pesanan_offline
+        `);
+        for (const r of (offOrders || [])) {
+          const st = String(r.status_pesanan || '').toUpperCase();
+          if (['CANCELLED', 'BATAL', 'DIBATALKAN', 'DRAFT'].includes(st)) continue;
+          const dt = r.waktu ? new Date(r.waktu) : null;
+          if (!dt || isNaN(dt.getTime())) continue;
+          const key = String(r.no_pesanan || '').trim();
+          if (!key) continue;
+          orderMap.set(key, {
+            amount: Number(r.total_harga || 0),
+            date: dt,
+            shopName: String(r.nama_toko || 'Penjualan Offline').trim(),
+            channel: 'offline'
+          });
+        }
+      } catch (eOffOrders) {}
+
+      // 3. Hitung KPI Hari Ini, Bulan Ini, dan Grafik Bulanan (Jan - Des)
+      const now = new Date();
+      // Konversi ke tanggal lokal WIB (UTC+7)
+      const wibNow = new Date(now.getTime() + (7 * 60 * 60 * 1000));
+      const todayYear = wibNow.getUTCFullYear();
+      const todayMonth = wibNow.getUTCMonth() + 1;
+      const todayDate = wibNow.getUTCDate();
+
+      let penjualanHariIni = 0;
+      let pesananHariIni = 0;
+      let omsetBulanIni = 0;
+      let pesananBulanIni = 0;
+
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+      const monthlyData = monthNames.map((label, idx) => ({
+        month: idx + 1,
+        label,
+        omset: 0,
+        trx: 0
+      }));
+
+      for (const ord of orderMap.values()) {
+        // Filter toko jika dipilih
+        if (cleanToko && cleanToko !== 'Semua') {
+          if (targetSaluran && ord.channel !== targetSaluran) continue;
+          if (ord.shopName.toLowerCase() !== cleanToko.toLowerCase()) continue;
+        }
+
+        const wibDt = new Date(ord.date.getTime() + (7 * 60 * 60 * 1000));
+        const y = wibDt.getUTCFullYear();
+        const m = wibDt.getUTCMonth() + 1;
+        const d = wibDt.getUTCDate();
+
+        if (y === todayYear && m === todayMonth) {
+          omsetBulanIni += ord.amount;
+          pesananBulanIni += 1;
+          if (d === todayDate) {
+            penjualanHariIni += ord.amount;
+            pesananHariIni += 1;
+          }
+        }
+
+        if (y === year && m >= 1 && m <= 12) {
+          monthlyData[m - 1].omset += ord.amount;
+          monthlyData[m - 1].trx += 1;
+        }
+      }
+
+      const rataRataOrderBulanIni = pesananBulanIni > 0 ? Math.round(omsetBulanIni / pesananBulanIni) : 0;
+      const totalOmsetTahun = monthlyData.reduce((acc, m) => acc + m.omset, 0);
+      const totalOrderTahun = monthlyData.reduce((acc, m) => acc + m.trx, 0);
+      const rataRataBulanan = Math.round(totalOmsetTahun / 12);
+
+      return sendJson(res, 200, {
+        status: 'success',
+        data: {
+          kpi: {
+            penjualan_hari_ini: Math.round(penjualanHariIni),
+            pesanan_hari_ini: pesananHariIni,
+            omset_bulan_ini: Math.round(omsetBulanIni),
+            pesanan_bulan_ini: pesananBulanIni,
+            rata_rata_order_bulan_ini: rataRataOrderBulanIni,
+            total_produk: totalProduk,
+            item_low: itemLow
+          },
+          analytics: {
+            year,
+            toko: tokoParam,
+            total_omset_tahun: Math.round(totalOmsetTahun),
+            total_order_tahun: totalOrderTahun,
+            rata_rata_bulanan: rataRataBulanan,
+            monthly: monthlyData.map(m => ({
+              ...m,
+              omset: Math.round(m.omset)
+            }))
+          }
+        }
+      });
+    } catch (err) {
+      console.error('[Dashboard API Error]:', err);
+      return sendJson(res, 500, { status: 'error', message: err.message });
+    }
+  }
+
   // 1. API Ambil Data Pesanan Marketplace dari MySQL (Terhubung ke ERP Aspartech)
   if (pathname === '/api/marketplace/orders' && req.method === 'GET') {
     try {

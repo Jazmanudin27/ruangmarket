@@ -202,6 +202,10 @@ export async function handlePenitipanBarangRoutes(req, res, pathname, urlObj, co
       const company = urlObj.searchParams.get('company') || 'RSG';
       const search = (urlObj.searchParams.get('search') || '').trim();
       const kategori = urlObj.searchParams.get('kategori') || 'Semua';
+      const tipeSet = urlObj.searchParams.get('tipe_set') || 'Semua';
+      const statusOrder = urlObj.searchParams.get('status_order') || 'Semua';
+      const skuKain = urlObj.searchParams.get('sku_kain') || 'Semua';
+      const tokoParam = urlObj.searchParams.get('toko') || 'Semua';
       const filterStok = urlObj.searchParams.get('filter_stok') || 'Semua';
 
       let query = `
@@ -213,6 +217,9 @@ export async function handlePenitipanBarangRoutes(req, res, pathname, urlObj, co
           COALESCE(pm.kategori, 'Umum') as kategori,
           COALESCE(pm.varian, pb_agg.varian, 'Standard') as varian,
           COALESCE(pm.satuan, pb_agg.satuan, 'PCS') as satuan,
+          COALESCE(pm.tipe_set, 'Single') as tipe_set,
+          COALESCE(pm.status_order, 'Ready Stok') as status_order,
+          COALESCE(pm.sku_kain, '') as sku_kain,
           CAST(COALESCE(pm.stok_fisik, 0) AS SIGNED) as stok_gudang,
           CAST(COALESCE(pb_agg.stok_titipan, 0) AS SIGNED) as stok_titipan,
           CAST(COALESCE(pm.stok_fisik, 0) + COALESCE(pb_agg.stok_titipan, 0) AS SIGNED) as jumlah_stok,
@@ -253,10 +260,51 @@ export async function handlePenitipanBarangRoutes(req, res, pathname, urlObj, co
         params.push(kategori);
       }
 
+      if (tipeSet && tipeSet !== 'Semua') {
+        query += ` AND pm.tipe_set = ?`;
+        params.push(tipeSet);
+      }
+
+      if (statusOrder && statusOrder !== 'Semua') {
+        query += ` AND pm.status_order = ?`;
+        params.push(statusOrder);
+      }
+
+      if (skuKain && skuKain !== 'Semua') {
+        query += ` AND pm.sku_kain = ?`;
+        params.push(skuKain);
+      }
+
+      if (tokoParam && tokoParam !== 'Semua') {
+        let targetSaluran = null;
+        let cleanToko = tokoParam.trim();
+        if (cleanToko.includes('|')) {
+          const parts = cleanToko.split('|');
+          targetSaluran = parts[0].trim().toLowerCase();
+          cleanToko = parts.slice(1).join('|').trim();
+        }
+        query += ` AND EXISTS (
+          SELECT 1 FROM produk_marketplace pmp 
+          WHERE ${targetSaluran ? 'pmp.saluran = ? AND ' : ''}(LOWER(TRIM(pmp.id_toko)) = LOWER(?) OR LOWER(TRIM(pmp.nama_toko)) = LOWER(?))
+            AND (
+              pmp.sku_marketplace = pm.kode_sku 
+              OR pmp.sku_marketplace = REPLACE(pm.kode_sku, 'PO-', '')
+              OR pmp.sku_marketplace = CONCAT('RSG-', pm.kode_sku)
+              OR pm.kode_sku = CONCAT('RSG-', pmp.sku_marketplace)
+              OR pmp.nama_produk = pm.nama_produk
+            )
+        )`;
+        if (targetSaluran) {
+          params.push(targetSaluran, cleanToko, cleanToko);
+        } else {
+          params.push(cleanToko, cleanToko);
+        }
+      }
+
       if (search) {
-        query += ` AND (pm.kode_sku LIKE ? OR pm.nama_produk LIKE ? OR pm.kategori LIKE ? OR pm.varian LIKE ?)`;
+        query += ` AND (pm.kode_sku LIKE ? OR pm.nama_produk LIKE ? OR pm.kategori LIKE ? OR pm.varian LIKE ? OR pm.sku_kain LIKE ?)`;
         const s = `%${search}%`;
-        params.push(s, s, s, s);
+        params.push(s, s, s, s, s);
       }
 
       query += ` ORDER BY jumlah_stok DESC, pm.id ASC`;
@@ -265,15 +313,18 @@ export async function handlePenitipanBarangRoutes(req, res, pathname, urlObj, co
 
       // Filter in-memory jika ada filter status stok khusus
       let filtered = rows;
-      if (filterStok === 'tersedia') {
+      const fs = String(filterStok || 'Semua').toLowerCase();
+      if (fs === 'tersedia') {
         filtered = rows.filter(r => r.jumlah_stok > 0);
-      } else if (filterStok === 'habis') {
+      } else if (fs === 'menipis') {
+        filtered = rows.filter(r => r.jumlah_stok > 0 && r.jumlah_stok <= 5);
+      } else if (fs === 'habis') {
         filtered = rows.filter(r => r.jumlah_stok <= 0);
-      } else if (filterStok === 'hanya_gudang') {
+      } else if (fs === 'hanya_gudang') {
         filtered = rows.filter(r => r.stok_gudang > 0 && r.stok_titipan <= 0);
-      } else if (filterStok === 'hanya_titipan') {
+      } else if (fs === 'hanya_titipan') {
         filtered = rows.filter(r => r.stok_titipan > 0 && r.stok_gudang <= 0);
-      } else if (filterStok === 'gabungan') {
+      } else if (fs === 'gabungan') {
         filtered = rows.filter(r => r.stok_gudang > 0 && r.stok_titipan > 0);
       }
 
