@@ -1402,22 +1402,30 @@ export default function SPKView() {
 
       const hasDesign = list.some((spk) => Boolean(spk.design_img));
 
+      // Cek apakah SEMUA SPK di dalam No Produksi ini sudah berstatus Selesai
+      const isAllSpkSelesai =
+        list.length > 0 &&
+        list.every((spk) => getNormalizedStatus(spk.status_spk) === "selesai");
+      const computedBatchStatus = isAllSpkSelesai ? "Selesai" : "Diproses";
+
       return {
         ...batch,
+        status: computedBatchStatus,
         no_faktur: rawFaktur,
         spk_list: list,
         total_spk: list.length,
         total_qty: totalQty,
         has_design: hasDesign,
+        is_all_selesai: isAllSpkSelesai,
       };
     });
   }, [companyBatches]);
 
   const countByTahapan = (val) => {
     if (val === "semua") return allBatches.length;
+    if (val === "diproses") return allBatches.filter((b) => !b.is_all_selesai).length;
+    if (val === "selesai") return allBatches.filter((b) => b.is_all_selesai).length;
     return allBatches.filter((b) => {
-      const batchNorm = getNormalizedStatus(b.status);
-      if (batchNorm === val) return true;
       return (b.spk_list || []).some(
         (spk) => getNormalizedStatus(spk.status_spk) === val,
       );
@@ -1527,11 +1535,16 @@ export default function SPKView() {
   const filteredBatches = useMemo(() => {
     return allBatches.filter((batch) => {
       if (filterStatus !== "semua") {
-        const batchNorm = getNormalizedStatus(batch.status);
-        const matchSpk = (batch.spk_list || []).some(
-          (s) => getNormalizedStatus(s.status_spk) === filterStatus,
-        );
-        if (batchNorm !== filterStatus && !matchSpk) return false;
+        if (filterStatus === "selesai") {
+          if (!batch.is_all_selesai) return false;
+        } else if (filterStatus === "diproses") {
+          if (batch.is_all_selesai) return false;
+        } else {
+          const matchSpk = (batch.spk_list || []).some(
+            (s) => getNormalizedStatus(s.status_spk) === filterStatus,
+          );
+          if (!matchSpk) return false;
+        }
       }
       if (filterPenjahit !== "Semua") {
         const matchPenjahit = (batch.spk_list || []).some(
@@ -2051,7 +2064,7 @@ export default function SPKView() {
                       width: "140px",
                     }}
                   >
-                    STATUS / TAHAPAN
+                    STATUS
                   </th>
                   <th
                     style={{
@@ -2304,7 +2317,7 @@ export default function SPKView() {
                             )}
                           </td>
 
-                          {/* 4. STATUS / TAHAPAN */}
+                          {/* 4. STATUS */}
                           <td
                             style={{
                               padding: "6px 8px",
@@ -2314,68 +2327,24 @@ export default function SPKView() {
                             }}
                           >
                             {(() => {
-                              const uniqueStatuses = Array.from(
-                                new Set(
-                                  spkList
-                                    .map((s) => s.status_spk)
-                                    .filter(Boolean),
-                                ),
-                              );
-                              if (uniqueStatuses.length === 0) {
-                                const bStyle = getStatusBadgeStyle(
-                                  batch.status,
-                                );
-                                return (
-                                  <span
-                                    style={{
-                                      display: "inline-block",
-                                      padding: "2px 8px",
-                                      borderRadius: "4px",
-                                      fontSize: "10.5px",
-                                      fontWeight: "800",
-                                      textTransform: "uppercase",
-                                      letterSpacing: "0.02em",
-                                      backgroundColor: bStyle.bg,
-                                      color: bStyle.color,
-                                      border: `1px solid ${bStyle.border}`,
-                                    }}
-                                  >
-                                    {batch.status || "Proses"}
-                                  </span>
-                                );
-                              }
+                              const isSelesai = Boolean(batch.is_all_selesai);
                               return (
-                                <div
+                                <span
                                   style={{
-                                    display: "flex",
-                                    flexDirection: "column",
-                                    gap: "3px",
-                                    alignItems: "center",
+                                    display: "inline-block",
+                                    padding: "3px 10px",
+                                    borderRadius: "4px",
+                                    fontSize: "10.5px",
+                                    fontWeight: "800",
+                                    textTransform: "uppercase",
+                                    letterSpacing: "0.02em",
+                                    backgroundColor: isSelesai ? "#dcfce7" : "#fef3c7",
+                                    color: isSelesai ? "#166534" : "#d97706",
+                                    border: isSelesai ? "1px solid #bbf7d0" : "1px solid #fde68a",
                                   }}
                                 >
-                                  {uniqueStatuses.map((st, sIdx) => {
-                                    const bStyle = getStatusBadgeStyle(st);
-                                    return (
-                                      <span
-                                        key={sIdx}
-                                        style={{
-                                          display: "inline-block",
-                                          padding: "2px 8px",
-                                          borderRadius: "4px",
-                                          fontSize: "10.5px",
-                                          fontWeight: "800",
-                                          textTransform: "uppercase",
-                                          letterSpacing: "0.02em",
-                                          backgroundColor: bStyle.bg,
-                                          color: bStyle.color,
-                                          border: `1px solid ${bStyle.border}`,
-                                        }}
-                                      >
-                                        {st}
-                                      </span>
-                                    );
-                                  })}
-                                </div>
+                                  {isSelesai ? "Selesai" : "Diproses"}
+                                </span>
                               );
                             })()}
                           </td>
@@ -2934,65 +2903,16 @@ export default function SPKView() {
                       fontWeight: "700",
                     }}
                   >
-                    TOTAL SPK & STATUS
+                    TOTAL SPK
                   </div>
                   <div
                     style={{
                       fontSize: "12px",
                       fontWeight: "800",
                       color: "#166534",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "6px",
-                      marginTop: "2px",
                     }}
                   >
-                    <span>{detailBatch.spk_list?.length || 0} SPK •</span>
-                    <select
-                      value={detailBatch.status || (tahapanOptions[0]?.nama_tahapan || "Dalam Proses")}
-                      onChange={async (e) => {
-                        const newStatus = e.target.value;
-                        const updatedBatch = { ...detailBatch, status: newStatus };
-                        setDetailBatch(updatedBatch);
-                        setBatchList((prev) =>
-                          prev.map((b) => (b.id === detailBatch.id ? updatedBatch : b))
-                        );
-                        try {
-                          await fetch("/api/marketplace/spk", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({
-                              ...updatedBatch,
-                              company_code: activeCompany.code || "RSG",
-                            }),
-                          });
-                          toastSuccess(`Status Produksi diubah ke "${newStatus}"`);
-                        } catch (err) {
-                          console.warn("Gagal simpan status batch:", err);
-                        }
-                      }}
-                      style={{
-                        padding: "3px 8px",
-                        borderRadius: "5px",
-                        border: "1px solid #86efac",
-                        backgroundColor: "#f0fdf4",
-                        color: "#166534",
-                        fontSize: "11px",
-                        fontWeight: "800",
-                        cursor: "pointer",
-                        outline: "none",
-                      }}
-                    >
-                      {tahapanOptions.map((t) => (
-                        <option key={t.id || t.kode_tahapan} value={t.nama_tahapan}>
-                          {t.emoji ? `${t.emoji} ` : ""}{t.nama_tahapan}
-                        </option>
-                      ))}
-                      {detailBatch.status &&
-                        !tahapanOptions.some((t) => t.nama_tahapan === detailBatch.status) && (
-                          <option value={detailBatch.status}>{detailBatch.status}</option>
-                        )}
-                    </select>
+                    {detailBatch.spk_list?.length || 0} SPK
                   </div>
                 </div>
               </div>
@@ -3110,6 +3030,11 @@ export default function SPKView() {
                               );
                               const updatedBatch = {
                                 ...detailBatch,
+                                status: updatedSpkList.every(
+                                  (s) => getNormalizedStatus(s.status_spk) === "selesai"
+                                )
+                                  ? "Selesai"
+                                  : "Diproses",
                                 spk_list: updatedSpkList,
                               };
                               setDetailBatch(updatedBatch);
