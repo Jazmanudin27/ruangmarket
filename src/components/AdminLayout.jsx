@@ -1136,118 +1136,6 @@ export default function AdminLayout() {
               )}
             </div>
 
-            {/* 4. Marketplace & Toko Online */}
-            <div style={{ position: 'relative' }} ref={marketplaceRef}>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsMarketplaceOpen(prev => !prev);
-                }}
-                style={{
-                  height: '24px',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '4px',
-                  padding: '0 8px',
-                  borderRadius: '5px',
-                  border: (activeTab === 'marketplace' || activeTab === 'toko' || isMarketplaceOpen) ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.08)',
-                  backgroundColor: (activeTab === 'marketplace' || activeTab === 'toko' || isMarketplaceOpen) ? '#0284c7' : 'rgba(255, 255, 255, 0.05)',
-                  color: (activeTab === 'marketplace' || activeTab === 'toko' || isMarketplaceOpen) ? '#ffffff' : '#cbd5e1',
-                  fontSize: '11px',
-                  fontWeight: (activeTab === 'marketplace' || activeTab === 'toko' || isMarketplaceOpen) ? '800' : '600',
-                  lineHeight: 1,
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease',
-                  whiteSpace: 'nowrap',
-                  boxShadow: (activeTab === 'marketplace' || activeTab === 'toko' || isMarketplaceOpen) ? '0 0 10px rgba(2, 132, 199, 0.5)' : 'none'
-                }}
-                onMouseEnter={(e) => {
-                  if (activeTab !== 'marketplace' && activeTab !== 'toko' && !isMarketplaceOpen) {
-                    e.currentTarget.style.backgroundColor = 'rgba(56, 189, 248, 0.15)';
-                    e.currentTarget.style.borderColor = 'rgba(56, 189, 248, 0.3)';
-                    e.currentTarget.style.color = '#ffffff';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (activeTab !== 'marketplace' && activeTab !== 'toko' && !isMarketplaceOpen) {
-                    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
-                    e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
-                    e.currentTarget.style.color = '#cbd5e1';
-                  }
-                }}
-              >
-                <Settings size={13} color={(activeTab === 'marketplace' || activeTab === 'toko' || isMarketplaceOpen) ? '#ffffff' : '#38bdf8'} style={{ flexShrink: 0 }} />
-                <span>Settings</span>
-                <ChevronDown 
-                  size={11} 
-                  color={(activeTab === 'marketplace' || activeTab === 'toko' || isMarketplaceOpen) ? '#ffffff' : '#38bdf8'} 
-                  style={{ 
-                    transform: isMarketplaceOpen ? 'rotate(180deg)' : 'none', 
-                    transition: 'transform 0.15s ease',
-                    marginLeft: '1px'
-                  }} 
-                />
-              </button>
-
-              {/* Marketplace Dropdown Popup */}
-              {isMarketplaceOpen && (
-                <div style={{
-                  position: 'absolute',
-                  left: 0,
-                  top: '100%',
-                  marginTop: '6px',
-                  backgroundColor: '#0f172a',
-                  borderRadius: '8px',
-                  border: '1px solid #334155',
-                  boxShadow: '0 12px 30px rgba(0, 0, 0, 0.6)',
-                  padding: '5px',
-                  minWidth: '190px',
-                  zIndex: 2000,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '3px'
-                }}>
-                  {/* Submenu: Toko Marketplace */}
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      changeTab('marketplace');
-                      setIsMarketplaceOpen(false);
-                    }}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'flex-start',
-                      gap: '8px',
-                      width: '100%',
-                      padding: '7px 10px',
-                      borderRadius: '6px',
-                      border: 'none',
-                      backgroundColor: activeTab === 'marketplace' ? 'rgba(2, 132, 199, 0.2)' : 'transparent',
-                      color: activeTab === 'marketplace' ? '#38bdf8' : '#cbd5e1',
-                      fontSize: '11.5px',
-                      fontWeight: activeTab === 'marketplace' ? '800' : '600',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      transition: 'background-color 0.15s ease'
-                    }}
-                    onMouseEnter={(e) => {
-                      if (activeTab !== 'marketplace') e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)';
-                    }}
-                    onMouseLeave={(e) => {
-                      if (activeTab !== 'marketplace') e.currentTarget.style.backgroundColor = 'transparent';
-                    }}
-                  >
-                    <Store size={14} color={activeTab === 'marketplace' ? '#38bdf8' : '#94a3b8'} style={{ flexShrink: 0 }} />
-                    <span style={{ textAlign: 'left', flex: 1 }}>Toko Marketplace</span>
-                  </button>
-                </div>
-              )}
-            </div>
-
             {/* 5. Keuangan (Mutasi Kas Masuk & Keluar) */}
             <button
               type="button"
@@ -1415,6 +1303,118 @@ export default function AdminLayout() {
               <FileSpreadsheet size={13} color={(activeTab === 'laporan_stok' || activeTab === 'laporan') ? '#ffffff' : '#38bdf8'} style={{ flexShrink: 0 }} />
               <span>Laporan Stok</span>
             </button>
+
+            {/* 9. Settings (Marketplace & Toko Online) */}
+            <div style={{ position: 'relative' }} ref={marketplaceRef}>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsMarketplaceOpen(prev => !prev);
+                }}
+                style={{
+                  height: '24px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '4px',
+                  padding: '0 8px',
+                  borderRadius: '5px',
+                  border: (activeTab === 'marketplace' || activeTab === 'toko' || isMarketplaceOpen) ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.08)',
+                  backgroundColor: (activeTab === 'marketplace' || activeTab === 'toko' || isMarketplaceOpen) ? '#0284c7' : 'rgba(255, 255, 255, 0.05)',
+                  color: (activeTab === 'marketplace' || activeTab === 'toko' || isMarketplaceOpen) ? '#ffffff' : '#cbd5e1',
+                  fontSize: '11px',
+                  fontWeight: (activeTab === 'marketplace' || activeTab === 'toko' || isMarketplaceOpen) ? '800' : '600',
+                  lineHeight: 1,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                  whiteSpace: 'nowrap',
+                  boxShadow: (activeTab === 'marketplace' || activeTab === 'toko' || isMarketplaceOpen) ? '0 0 10px rgba(2, 132, 199, 0.5)' : 'none'
+                }}
+                onMouseEnter={(e) => {
+                  if (activeTab !== 'marketplace' && activeTab !== 'toko' && !isMarketplaceOpen) {
+                    e.currentTarget.style.backgroundColor = 'rgba(56, 189, 248, 0.15)';
+                    e.currentTarget.style.borderColor = 'rgba(56, 189, 248, 0.3)';
+                    e.currentTarget.style.color = '#ffffff';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (activeTab !== 'marketplace' && activeTab !== 'toko' && !isMarketplaceOpen) {
+                    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                    e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
+                    e.currentTarget.style.color = '#cbd5e1';
+                  }
+                }}
+              >
+                <Settings size={13} color={(activeTab === 'marketplace' || activeTab === 'toko' || isMarketplaceOpen) ? '#ffffff' : '#38bdf8'} style={{ flexShrink: 0 }} />
+                <span>Settings</span>
+                <ChevronDown 
+                  size={11} 
+                  color={(activeTab === 'marketplace' || activeTab === 'toko' || isMarketplaceOpen) ? '#ffffff' : '#38bdf8'} 
+                  style={{ 
+                    transform: isMarketplaceOpen ? 'rotate(180deg)' : 'none', 
+                    transition: 'transform 0.15s ease',
+                    marginLeft: '1px'
+                  }} 
+                />
+              </button>
+
+              {/* Marketplace Dropdown Popup */}
+              {isMarketplaceOpen && (
+                <div style={{
+                  position: 'absolute',
+                  right: 0,
+                  top: '100%',
+                  marginTop: '6px',
+                  backgroundColor: '#0f172a',
+                  borderRadius: '8px',
+                  border: '1px solid #334155',
+                  boxShadow: '0 12px 30px rgba(0, 0, 0, 0.6)',
+                  padding: '5px',
+                  minWidth: '190px',
+                  zIndex: 2000,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '3px'
+                }}>
+                  {/* Submenu: Toko Marketplace */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      changeTab('marketplace');
+                      setIsMarketplaceOpen(false);
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'flex-start',
+                      gap: '8px',
+                      width: '100%',
+                      padding: '7px 10px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      backgroundColor: activeTab === 'marketplace' ? 'rgba(2, 132, 199, 0.2)' : 'transparent',
+                      color: activeTab === 'marketplace' ? '#38bdf8' : '#cbd5e1',
+                      fontSize: '11.5px',
+                      fontWeight: activeTab === 'marketplace' ? '800' : '600',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'background-color 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (activeTab !== 'marketplace') e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (activeTab !== 'marketplace') e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
+                  >
+                    <Store size={14} color={activeTab === 'marketplace' ? '#38bdf8' : '#94a3b8'} style={{ flexShrink: 0 }} />
+                    <span style={{ textAlign: 'left', flex: 1 }}>Toko Marketplace</span>
+                  </button>
+                </div>
+              )}
+            </div>
 
           </nav>
 
