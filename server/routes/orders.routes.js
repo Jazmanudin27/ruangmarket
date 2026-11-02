@@ -973,19 +973,35 @@ export async function handleOrdersRoutes(req, res, pathname, urlObj, { pool, lar
   if (pathname === '/api/marketplace/tiktok/orders' && req.method === 'GET') {
     let shopCipher = urlObj.searchParams.get('shop_cipher');
     let accessToken = urlObj.searchParams.get('access_token');
+    let shopName = urlObj.searchParams.get('shop_name') || '';
 
     try {
-      let shopName = 'RUANG SERAGAM';
       let refreshToken = null;
       let storeId = null;
 
-      const [storeRows] = await pool.query('SELECT id, nama_toko, token_akses, token_refresh, cipher_toko, id_toko FROM toko_marketplace WHERE id_toko = ? OR cipher_toko = ? OR saluran = "tiktok" LIMIT 1', [shopCipher, shopCipher]);
-      if (storeRows.length > 0) {
-        accessToken = storeRows[0].token_akses || accessToken;
-        refreshToken = storeRows[0].token_refresh;
-        shopCipher = storeRows[0].cipher_toko || storeRows[0].id_toko || shopCipher;
-        shopName = storeRows[0].nama_toko || shopName;
-        storeId = storeRows[0].id;
+      const [storeRows] = await pool.query(`
+        SELECT id, nama_toko, token_akses, token_refresh, cipher_toko, id_toko 
+        FROM toko_marketplace 
+        WHERE saluran = 'tiktok' 
+          AND (
+            (? != '' AND (id_toko = ? OR cipher_toko = ? OR id = ?))
+            OR (? != '' AND nama_toko = ?)
+          )
+        LIMIT 1
+      `, [shopCipher || '', shopCipher || '', shopCipher || '', shopCipher || '', shopName || '', shopName || '']);
+
+      let matchedStore = storeRows[0];
+      if (!matchedStore) {
+        const [fallbackStore] = await pool.query("SELECT id, nama_toko, token_akses, token_refresh, cipher_toko, id_toko FROM toko_marketplace WHERE saluran = 'tiktok' LIMIT 1");
+        matchedStore = fallbackStore[0];
+      }
+
+      if (matchedStore) {
+        accessToken = matchedStore.token_akses || accessToken;
+        refreshToken = matchedStore.token_refresh;
+        shopCipher = matchedStore.cipher_toko || matchedStore.id_toko || shopCipher;
+        shopName = matchedStore.nama_toko || shopName || 'TikTok Shop';
+        storeId = matchedStore.id;
       }
 
       console.log(`[TikTok] Syncing orders for shop: ${shopName} (Cipher: ${shopCipher})...`);

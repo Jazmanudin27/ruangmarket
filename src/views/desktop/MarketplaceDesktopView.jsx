@@ -259,7 +259,7 @@ export default function MarketplaceView({ onBack, onNavigate }) {
 
       try {
         const endpoint = isTikTok
-          ? `/api/marketplace/tiktok/products?shop_cipher=${encodeURIComponent(store.cipher || '')}&shop_name=${encodeURIComponent(store.shopName || '')}&shop_id=${encodeURIComponent(store.shopId || '')}&access_token=${encodeURIComponent(store.accessToken || '')}`
+          ? `/api/marketplace/tiktok/products?shop_cipher=${encodeURIComponent(store.cipher || store.shopId || '')}&shop_name=${encodeURIComponent(store.shopName || '')}&shop_id=${encodeURIComponent(store.shopId || '')}&access_token=${encodeURIComponent(store.accessToken || '')}`
           : `/api/marketplace/shopee/products?shop_id=${encodeURIComponent(store.shopId || '')}&shop_name=${encodeURIComponent(store.shopName || '')}&access_token=${encodeURIComponent(store.accessToken || '')}`;
         
         const controller = new AbortController();
@@ -323,8 +323,8 @@ export default function MarketplaceView({ onBack, onNavigate }) {
     try {
       let orders = [];
       const endpoint = store.channel === 'tiktok'
-        ? `/api/marketplace/tiktok/orders?shop_cipher=${encodeURIComponent(store.shopId || '')}&access_token=${encodeURIComponent(store.accessToken || '')}`
-        : `/api/marketplace/shopee/orders?shop_id=${store.shopId}&access_token=${encodeURIComponent(store.accessToken || '')}`;
+        ? `/api/marketplace/tiktok/orders?shop_cipher=${encodeURIComponent(store.cipher || store.shopId || '')}&shop_name=${encodeURIComponent(store.shopName || '')}&access_token=${encodeURIComponent(store.accessToken || '')}`
+        : `/api/marketplace/shopee/orders?shop_id=${store.shopId}&shop_name=${encodeURIComponent(store.shopName || '')}&access_token=${encodeURIComponent(store.accessToken || '')}`;
 
       try {
         const controller = new AbortController();

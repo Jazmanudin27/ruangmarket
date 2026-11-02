@@ -201,6 +201,8 @@ export class TiktokService {
         flattenedRows.push({
           id: `tiktok_${customShopId || shopCipher}_${p.id}_${skuId}`,
           item_id: String(p.id),
+          sku_id: String(skuId),
+          model_id: String(skuId),
           channel: 'tiktok',
           channelName: 'TikTok Shop',
           shopName: customShopName || 'TikTok Shop',

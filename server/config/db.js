@@ -38,7 +38,7 @@ export async function initDb() {
         saluran VARCHAR(32) NOT NULL COMMENT 'shopee, tiktok, lazada',
         nama_saluran VARCHAR(64) NOT NULL,
         nama_toko VARCHAR(128) NOT NULL,
-        id_toko VARCHAR(64) NOT NULL UNIQUE,
+        id_toko VARCHAR(128) NULL,
         logo_toko VARCHAR(255) DEFAULT '',
         cipher_toko VARCHAR(255) DEFAULT '',
         token_akses TEXT,
@@ -87,10 +87,27 @@ export async function initDb() {
       await conn.query(`ALTER TABLE produk_marketplace DROP INDEX uq_produk_toko`);
     } catch (e) {}
     try {
+      await conn.query(`ALTER TABLE toko_marketplace DROP INDEX id_toko`);
+    } catch (e) {}
+    try {
+      await conn.query(`ALTER TABLE toko_marketplace MODIFY COLUMN id_toko VARCHAR(128) NULL`);
+    } catch (e) {}
+    try {
       await conn.query(`
         UPDATE produk_marketplace pm
-        JOIN toko_marketplace tm ON (tm.id_toko = pm.id_toko OR tm.id = pm.id_toko)
-        SET pm.nama_toko = tm.nama_toko
+        JOIN toko_marketplace tm ON (
+          (pm.saluran = 'tiktok' AND (
+            pm.id_toko = tm.id_toko 
+            OR pm.id_toko = tm.cipher_toko 
+            OR pm.id LIKE CONCAT('%', tm.cipher_toko, '%')
+            OR (pm.id_toko = '' AND pm.nama_toko = tm.nama_toko)
+          ))
+          OR (pm.saluran != 'tiktok' AND (
+            tm.id_toko = pm.id_toko OR tm.id = pm.id_toko
+          ))
+        )
+        SET pm.nama_toko = tm.nama_toko,
+            pm.id_toko = COALESCE(NULLIF(tm.id_toko, ''), tm.cipher_toko, tm.id)
         WHERE tm.nama_toko IS NOT NULL AND tm.nama_toko != ''
       `);
       console.log('[MySQL] Berhasil sinkronisasi ulang nama_toko di produk_marketplace!');
@@ -307,7 +324,7 @@ export async function initDb() {
           c.code AS saluran,
           c.name AS nama_saluran,
           s.store_name AS nama_toko,
-          s.marketplace_store_id AS id_toko,
+          COALESCE(NULLIF(s.marketplace_store_id, ''), NULLIF(s.shop_cipher, ''), CONCAT('tk_', c.code, '_', s.id)) AS id_toko,
           COALESCE(s.logo_path, '') AS logo_toko,
           COALESCE(s.shop_cipher, '') AS cipher_toko,
           s.access_token AS token_akses,
@@ -327,6 +344,7 @@ export async function initDb() {
           nama_toko = VALUES(nama_toko),
           saluran = VALUES(saluran),
           nama_saluran = VALUES(nama_saluran),
+          id_toko = VALUES(id_toko),
           logo_toko = VALUES(logo_toko),
           cipher_toko = VALUES(cipher_toko),
           token_akses = VALUES(token_akses),

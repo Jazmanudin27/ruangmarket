@@ -361,20 +361,36 @@ export async function handleProductsRoutes(req, res, pathname, urlObj, { pool, s
     let shopId = urlObj.searchParams.get('shop_id') || '';
 
     try {
-      if (!accessToken || !shopCipher) {
-        const [rows] = await pool.query("SELECT id_toko, nama_toko, token_akses, cipher_toko FROM toko_marketplace WHERE saluran = 'tiktok' LIMIT 1");
-        if (rows.length > 0) {
-          accessToken = accessToken || rows[0].token_akses;
-          shopCipher = shopCipher || rows[0].cipher_toko;
-          shopId = shopId || rows[0].id_toko;
-          shopName = shopName || rows[0].nama_toko;
-        }
-      } else {
-        const [rows] = await pool.query("SELECT id_toko, nama_toko FROM toko_marketplace WHERE cipher_toko = ? OR id_toko = ? LIMIT 1", [shopCipher, shopId || '']);
-        if (rows.length > 0) {
-          shopId = shopId || rows[0].id_toko;
-          shopName = shopName || rows[0].nama_toko;
-        }
+      let store = null;
+      if (shopCipher || shopId || shopName) {
+        const [matchedStores] = await pool.query(`
+          SELECT id, id_toko, nama_toko, token_akses, token_refresh, cipher_toko 
+          FROM toko_marketplace 
+          WHERE saluran = 'tiktok' 
+            AND (
+              (? != '' AND (id_toko = ? OR cipher_toko = ? OR id = ?))
+              OR (? != '' AND cipher_toko = ?)
+              OR (? != '' AND nama_toko = ?)
+            )
+          LIMIT 1
+        `, [
+          shopId || '', shopId || '', shopId || '', shopId || '',
+          shopCipher || '', shopCipher || '',
+          shopName || '', shopName || ''
+        ]);
+        if (matchedStores.length > 0) store = matchedStores[0];
+      }
+
+      if (!store) {
+        const [fallbackStores] = await pool.query("SELECT id, id_toko, nama_toko, token_akses, token_refresh, cipher_toko FROM toko_marketplace WHERE saluran = 'tiktok' LIMIT 1");
+        if (fallbackStores.length > 0) store = fallbackStores[0];
+      }
+
+      if (store) {
+        accessToken = accessToken || store.token_akses;
+        shopCipher = shopCipher || store.cipher_toko || store.id_toko;
+        shopId = shopId || store.id_toko || store.id;
+        shopName = shopName || store.nama_toko;
       }
 
       shopCipher = shopCipher || 'ROW_Hbd_fAAAAACqX58asQX4uCOsoefXXn4c';
@@ -384,11 +400,35 @@ export async function handleProductsRoutes(req, res, pathname, urlObj, { pool, s
         return true;
       }
 
-      console.log(`[TikTok] Syncing all products for store: ${shopName || shopCipher}...`);
-      const products = await tiktokService.syncProducts(accessToken, shopCipher, shopName, shopId);
+      console.log(`[TikTok] Syncing all products for store: ${shopName || shopCipher} (ID: ${shopId})...`);
+      let products = null;
+
+      try {
+        products = await tiktokService.syncProducts(accessToken, shopCipher, shopName, shopId);
+      } catch (syncErr) {
+        console.log(`[TikTok Sync Warning]: ${syncErr.message}. Mencoba auto-refresh token...`);
+        if (store?.token_refresh) {
+          const refreshed = await tiktokService.refreshAccessToken(store.token_refresh);
+          if (refreshed?.access_token) {
+            accessToken = refreshed.access_token;
+            const newRefreshToken = refreshed.refresh_token || store.token_refresh;
+            await pool.query('UPDATE toko_marketplace SET token_akses = ?, token_refresh = ? WHERE id = ?', [
+              accessToken,
+              newRefreshToken,
+              store.id
+            ]);
+            console.log('[TikTok] Token berhasil di-refresh dan disimpan!');
+            products = await tiktokService.syncProducts(accessToken, shopCipher, shopName, shopId);
+          } else {
+            throw syncErr;
+          }
+        } else {
+          throw syncErr;
+        }
+      }
 
       for (const p of products) {
-        const uniqueId = `tiktok_${shopId || shopCipher}_${p.item_id}_${p.sku_id || '0'}`;
+        const uniqueId = p.id || `tiktok_${shopId || shopCipher}_${p.item_id}_${p.sku_id || '0'}`;
         await pool.query(`
           INSERT INTO produk_marketplace (
             id, id_produk_marketplace, kode_perusahaan, saluran, 
@@ -407,7 +447,7 @@ export async function handleProductsRoutes(req, res, pathname, urlObj, { pool, s
             diperbarui_pada = CURRENT_TIMESTAMP
         `, [
           uniqueId, p.item_id, 'RSG', 'tiktok',
-          'TikTok Shop', shopName || p.shopName || 'TikTok Store', shopId || p.shopId || '',
+          'TikTok Shop', p.shopName || shopName || 'TikTok Store', p.shopId || shopId || shopCipher,
           p.nama_produk, p.sku_marketplace, p.harga_jual, p.stok_marketplace,
           p.varian_marketplace, p.foto_produk || '', p.status || 'Belum Dimapping'
         ]);

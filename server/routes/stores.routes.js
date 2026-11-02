@@ -15,6 +15,40 @@ export async function handleStoresRoutes(req, res, pathname, urlObj, { pool }) {
         ORDER BY dibuat_pada DESC
       `);
 
+      // Lengkapi dengan toko dari database marketplace.stores jika ada yang belum terdaftar di toko_marketplace
+      try {
+        const [mStores] = await pool.query(`
+          SELECT 
+            CONCAT('tk_', c.code, '_', s.id) AS id,
+            'RSG' AS company_code,
+            c.code AS channel,
+            c.name AS channelName,
+            s.store_name AS shopName,
+            COALESCE(NULLIF(s.marketplace_store_id, ''), NULLIF(s.shop_cipher, ''), CONCAT('tk_', c.code, '_', s.id)) AS shopId,
+            COALESCE(s.logo_path, '') AS logo,
+            COALESCE(s.shop_cipher, '') AS cipher,
+            s.access_token AS accessToken,
+            s.refresh_token AS refreshToken,
+            s.token_expires_at AS expiresAt,
+            CASE 
+              WHEN s.status = 'connected' THEN 'Aktif (Terhubung)'
+              WHEN s.status = 'expired' THEN 'Kadaluarsa'
+              ELSE s.status
+            END AS status,
+            1 AS autoSyncStok
+          FROM marketplace.stores s
+          JOIN marketplace.channels c ON s.channel_id = c.id
+        `);
+        const existingKeys = new Set(rows.map(r => `${r.channel}_${String(r.shopName || '').toLowerCase().trim()}`));
+        for (const ms of mStores) {
+          const key = `${ms.channel}_${String(ms.shopName || '').toLowerCase().trim()}`;
+          if (!existingKeys.has(key)) {
+            existingKeys.add(key);
+            rows.push(ms);
+          }
+        }
+      } catch (eMarketplace) {}
+
       // Lengkapi dengan toko yang ada di staging produk_marketplace jika belum terdaftar
       try {
         const [extraStores] = await pool.query(`
