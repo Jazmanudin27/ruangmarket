@@ -2498,62 +2498,13 @@ export default function ProdukView() {
                               fontWeight: '700',
                               backgroundColor: '#ecfdf5',
                               color: '#047857',
-                              border: '1px solid #a7f3d0'
+                              border: '1px solid #a7f3d0',
+                              whiteSpace: 'nowrap'
                             }} title={`Terhubung ke HPP: ${item.nama_kategori_hpp || item.id_kategori_hpp} (Rp ${Number(item.hpp_kategori || 0).toLocaleString('id-ID')})`}>
-                              <span>HPP: {item.nama_kategori_hpp ? (item.nama_kategori_hpp.length > 25 ? `${item.nama_kategori_hpp.slice(0, 25)}...` : item.nama_kategori_hpp) : item.id_kategori_hpp}</span>
+                              <span>HPP: {item.nama_kategori_hpp || item.id_kategori_hpp}</span>
                             </span>
                           </div>
                         ) : null}
-
-                        {/* Baris 4: Toko Marketplace Terhubung */}
-                        <div style={{ marginTop: '3px', display: 'flex', flexWrap: 'wrap', gap: '3px', alignItems: 'center' }}>
-                          {item.toko_terhubung && item.toko_terhubung.length > 0 ? (
-                            item.toko_terhubung.map((tk, tkIdx) => {
-                              const isShopee = tk.saluran === 'shopee';
-                              return (
-                                <span
-                                  key={tkIdx}
-                                  title={`Terhubung ke ${tk.nama_saluran}: ${tk.nama_toko} (Stok: ${tk.stok_marketplace})`}
-                                  style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '3px',
-                                    padding: '1px 5px',
-                                    borderRadius: '3px',
-                                    fontSize: '9px',
-                                    fontWeight: '700',
-                                    backgroundColor: isShopee ? '#fff7ed' : '#f1f5f9',
-                                    color: isShopee ? '#c2410c' : '#0f172a',
-                                    border: isShopee ? '1px solid #fed7aa' : '1px solid #cbd5e1'
-                                  }}
-                                >
-                                  <span style={{
-                                    width: '5px',
-                                    height: '5px',
-                                    borderRadius: '50%',
-                                    backgroundColor: isShopee ? '#ea580c' : '#0f172a'
-                                  }} />
-                                  <span>{isShopee ? 'Shopee' : 'TikTok'}: {tk.nama_toko}</span>
-                                </span>
-                              );
-                            })
-                          ) : (
-                            <span style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '3px',
-                              padding: '1px 5px',
-                              borderRadius: '3px',
-                              fontSize: '9px',
-                              fontWeight: '600',
-                              backgroundColor: '#f8fafc',
-                              color: '#94a3b8',
-                              border: '1px dashed #cbd5e1'
-                            }}>
-                              Belum Terhubung
-                            </span>
-                          )}
-                        </div>
                       </td>
 
                       {/* ESTIMASI KAIN (CM & HARGA) */}
