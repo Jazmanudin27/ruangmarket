@@ -374,7 +374,22 @@ export async function handleProductsRoutes(req, res, pathname, urlObj, { pool, s
       }
 
       for (const p of products) {
+        const finalShopName = shopName || p.shopName || 'Shopee Store';
+        const cleanSku = (p.sku_marketplace || '').trim();
         const uniqueId = `shopee_${shopId}_${p.item_id}_${p.model_id || '0'}`;
+
+        // Hapus baris lama di toko yang sama jika SKU-nya sama tapi beda ID, atau ItemID+model sama tapi beda toko
+        if (cleanSku) {
+          await pool.query(
+            `DELETE FROM produk_marketplace WHERE saluran = 'shopee' AND LOWER(TRIM(nama_toko)) = LOWER(TRIM(?)) AND LOWER(TRIM(sku_marketplace)) = LOWER(?) AND id != ?`,
+            [finalShopName, cleanSku, uniqueId]
+          );
+        }
+        await pool.query(
+          `DELETE FROM produk_marketplace WHERE saluran = 'shopee' AND id_produk_marketplace = ? AND varian = ? AND id != ?`,
+          [String(p.item_id), (p.varian_marketplace || 'Standard').slice(0, 500), uniqueId]
+        );
+
         await pool.query(`
           INSERT INTO produk_marketplace (
             id, id_produk_marketplace, kode_perusahaan, saluran, 
@@ -390,11 +405,12 @@ export async function handleProductsRoutes(req, res, pathname, urlObj, { pool, s
             nama_toko = VALUES(nama_toko),
             id_toko = VALUES(id_toko),
             foto_produk = COALESCE(NULLIF(VALUES(foto_produk), ''), foto_produk),
+            ditarik_pada = CURRENT_TIMESTAMP,
             diperbarui_pada = CURRENT_TIMESTAMP
         `, [
           uniqueId, p.item_id, 'RSG', 'shopee',
-          'Shopee Marketplace', shopName || p.shopName || 'Shopee Store', shopId,
-          (p.nama_produk || '').slice(0, 250), (p.sku_marketplace || '').slice(0, 120), p.harga_jual || 0, p.stok_marketplace || 0,
+          'Shopee Marketplace', finalShopName, shopId,
+          (p.nama_produk || '').slice(0, 250), cleanSku.slice(0, 120), p.harga_jual || 0, p.stok_marketplace || 0,
           (p.varian_marketplace || 'Standard').slice(0, 500), p.foto_produk || '', p.status || 'Belum Dimapping'
         ]);
       }
@@ -500,7 +516,23 @@ export async function handleProductsRoutes(req, res, pathname, urlObj, { pool, s
       }
 
       for (const p of products) {
-        const uniqueId = p.id || `tiktok_${shopId || shopCipher}_${p.item_id}_${p.sku_id || '0'}`;
+        const finalShopName = p.shopName || shopName || 'TikTok Store';
+        const finalShopId = p.shopId || shopId || shopCipher;
+        const cleanSku = (p.sku_marketplace || '').trim();
+        const uniqueId = p.id || `tiktok_${finalShopId}_${p.item_id}_${p.sku_id || '0'}`;
+
+        // Hapus baris lama di toko yang sama jika SKU-nya sama tapi beda ID, atau ItemID+SKU sama tapi nyangkut di toko lain
+        if (cleanSku) {
+          await pool.query(
+            `DELETE FROM produk_marketplace WHERE saluran = 'tiktok' AND LOWER(TRIM(nama_toko)) = LOWER(TRIM(?)) AND LOWER(TRIM(sku_marketplace)) = LOWER(?) AND id != ?`,
+            [finalShopName, cleanSku, uniqueId]
+          );
+        }
+        await pool.query(
+          `DELETE FROM produk_marketplace WHERE saluran = 'tiktok' AND id_produk_marketplace = ? AND COALESCE(sku_marketplace, '') = ? AND id != ?`,
+          [String(p.item_id), cleanSku, uniqueId]
+        );
+
         await pool.query(`
           INSERT INTO produk_marketplace (
             id, id_produk_marketplace, kode_perusahaan, saluran, 
@@ -516,11 +548,12 @@ export async function handleProductsRoutes(req, res, pathname, urlObj, { pool, s
             nama_toko = VALUES(nama_toko),
             id_toko = VALUES(id_toko),
             foto_produk = COALESCE(NULLIF(VALUES(foto_produk), ''), foto_produk),
+            ditarik_pada = CURRENT_TIMESTAMP,
             diperbarui_pada = CURRENT_TIMESTAMP
         `, [
           uniqueId, p.item_id, 'RSG', 'tiktok',
-          'TikTok Shop', p.shopName || shopName || 'TikTok Store', p.shopId || shopId || shopCipher,
-          p.nama_produk, p.sku_marketplace, p.harga_jual, p.stok_marketplace,
+          'TikTok Shop', finalShopName, finalShopId,
+          p.nama_produk, cleanSku, p.harga_jual, p.stok_marketplace,
           p.varian_marketplace, p.foto_produk || '', p.status || 'Belum Dimapping'
         ]);
       }
