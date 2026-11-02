@@ -935,7 +935,6 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool, lar
             connectedStores.push(st);
           }
         }
-        }
 
         return {
           ...r,

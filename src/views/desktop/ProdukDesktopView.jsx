@@ -359,6 +359,70 @@ export default function ProdukView() {
   const handleOpenIntegrasi = (item) => {
     setSelectedIntegrasiProduk(item);
     setIsIntegrasiModalOpen(true);
+
+    if (item && (item.sku || item.nama_produk)) {
+      const cleanItemSku = (item.sku || '').toLowerCase().replace(/^(rsg|byr|off)-/i, '').replace(/^po-/i, '').trim();
+      const cleanItemNama = (item.nama_produk || '').toLowerCase().trim();
+      const q = cleanItemSku || (item.sku || '').trim() || cleanItemNama;
+
+      fetch(`/api/marketplace/products?search=${encodeURIComponent(q)}&limit=250`)
+        .then(res => res.json())
+        .then(json => {
+          const list = Array.isArray(json.data) ? json.data : [];
+          const matchedStores = [...(item.toko_terhubung || [])];
+          const seen = new Set(matchedStores.map(st => `${st.saluran}_${st.id_toko || st.nama_toko}_${st.sku_marketplace || ''}`));
+
+          list.forEach(pm => {
+            const pmSku = (pm.sku_marketplace || '').toLowerCase().trim();
+            const pmSkuClean = pmSku.replace(/^(rsg|byr|off)-/i, '').replace(/^po-/i, '').trim();
+            const pmNama = (pm.nama_produk || '').toLowerCase().trim();
+
+            const isSkuMatch = cleanItemSku && pmSku && (
+              pmSku === (item.sku || '').toLowerCase().trim() ||
+              pmSkuClean === cleanItemSku ||
+              pmSku.includes(cleanItemSku) ||
+              cleanItemSku.includes(pmSkuClean)
+            );
+            const isNamaMatch = cleanItemNama && pmNama && (
+              pmNama === cleanItemNama ||
+              pmNama.includes(cleanItemNama) ||
+              cleanItemNama.includes(pmNama)
+            );
+
+            if (isSkuMatch || isNamaMatch) {
+              const uKey = `${pm.channel || pm.saluran}_${pm.shopId || pm.id_toko || pm.shopName || pm.nama_toko}_${pm.sku_marketplace || ''}`;
+              if (!seen.has(uKey)) {
+                seen.add(uKey);
+                matchedStores.push({
+                  saluran: pm.channel || pm.saluran || 'marketplace',
+                  nama_saluran: pm.channelName || pm.nama_saluran || (pm.channel === 'shopee' ? 'Shopee' : 'TikTok Shop'),
+                  nama_toko: pm.shopName || pm.nama_toko || (pm.channel === 'shopee' ? 'Shopee Store' : 'TikTok Shop'),
+                  id_toko: pm.shopId || pm.id_toko,
+                  stok_marketplace: Number(pm.stok_marketplace || 0),
+                  harga_jual: Number(pm.harga_jual || 0),
+                  sku_marketplace: pm.sku_marketplace || item.sku
+                });
+              }
+            }
+          });
+
+          if (matchedStores.length > 0) {
+            setSelectedIntegrasiProduk(prev => {
+              if (prev && (prev.id === item.id || prev.sku === item.sku)) {
+                return { ...prev, toko_terhubung: matchedStores };
+              }
+              return prev;
+            });
+            setSelectedProduk(prev => {
+              if (prev && (prev.id === item.id || prev.sku === item.sku)) {
+                return { ...prev, toko_terhubung: matchedStores };
+              }
+              return prev;
+            });
+          }
+        })
+        .catch(() => {});
+    }
   };
 
   // Import Modal & Template state
@@ -1319,18 +1383,19 @@ export default function ProdukView() {
     setSelectedProduk(resolvedItem);
     setIsDetailModalOpen(true);
 
-    // Jika belum ada data toko terhubung, cari langsung ke API produk marketplace secara real-time
-    if (resolvedItem.toko_terhubung.length === 0 && (item.sku || item.nama_produk)) {
-      const q = (item.sku || item.nama_produk || '').trim();
-      fetch(`/api/marketplace/products?search=${encodeURIComponent(q)}&limit=100`)
+    // Tarik data toko terhubung terlengkap langsung dari API produk marketplace secara real-time
+    if (item.sku || item.nama_produk) {
+      const cleanItemSku = (item.sku || '').toLowerCase().replace(/^(rsg|byr|off)-/i, '').replace(/^po-/i, '').trim();
+      const cleanItemNama = (item.nama_produk || '').toLowerCase().trim();
+      const q = cleanItemSku || (item.sku || '').trim() || cleanItemNama;
+
+      fetch(`/api/marketplace/products?search=${encodeURIComponent(q)}&limit=250`)
         .then(res => res.json())
         .then(json => {
           const list = Array.isArray(json.data) ? json.data : [];
-          const cleanItemSku = (item.sku || '').toLowerCase().replace(/^(rsg|byr|off)-/i, '').replace(/^po-/i, '').trim();
-          const cleanItemNama = (item.nama_produk || '').toLowerCase().trim();
 
-          const matchedStores = [];
-          const seen = new Set();
+          const matchedStores = [...(resolvedItem.toko_terhubung || [])];
+          const seen = new Set(matchedStores.map(st => `${st.saluran}_${st.id_toko || st.nama_toko}_${st.sku_marketplace || ''}`));
 
           list.forEach(pm => {
             const pmSku = (pm.sku_marketplace || '').toLowerCase().trim();
@@ -1350,7 +1415,7 @@ export default function ProdukView() {
             );
 
             if (isSkuMatch || isNamaMatch) {
-              const uKey = `${pm.channel || pm.saluran}_${pm.shopId || pm.id_toko || pm.shopName || pm.nama_toko}`;
+              const uKey = `${pm.channel || pm.saluran}_${pm.shopId || pm.id_toko || pm.shopName || pm.nama_toko}_${pm.sku_marketplace || ''}`;
               if (!seen.has(uKey)) {
                 seen.add(uKey);
                 matchedStores.push({
@@ -1360,7 +1425,7 @@ export default function ProdukView() {
                   id_toko: pm.shopId || pm.id_toko,
                   stok_marketplace: Number(pm.stok_marketplace || 0),
                   harga_jual: Number(pm.harga_jual || 0),
-                  sku_marketplace: pm.sku_marketplace
+                  sku_marketplace: pm.sku_marketplace || item.sku
                 });
               }
             }
