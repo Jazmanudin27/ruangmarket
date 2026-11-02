@@ -182,7 +182,7 @@ async function ensureTablesOnce(pool) {
 }
 
 export async function handlePenitipanBarangRoutes(req, res, pathname, urlObj, context) {
-  const { pool } = context;
+  const { pool, laravelPool } = context;
 
   if (!pathname.startsWith('/api/penitipan-barang') && !pathname.startsWith('/api/laporan')) {
     return false;
@@ -346,6 +346,432 @@ export async function handlePenitipanBarangRoutes(req, res, pathname, urlObj, co
       });
     } catch (err) {
       console.error('[GET /api/laporan/stok-barang Error]:', err);
+      return sendJson(res, 500, { status: 'error', message: err.message });
+    }
+  }
+
+  // =========================================================================
+  // LAPORAN TRANSAKSI PENJUALAN YANG SUDAH CAIR (/api/laporan/penjualan-cair)
+  // Mendukung 3 Format: Per Tanggal, Per Transaksi, Per Barang
+  // =========================================================================
+  if (req.method === 'GET' && pathname === '/api/laporan/penjualan-cair') {
+    try {
+      const company = urlObj.searchParams.get('company') || 'RSG';
+      const startDate = (urlObj.searchParams.get('start_date') || '').trim();
+      const endDate = (urlObj.searchParams.get('end_date') || '').trim();
+      const saluranParam = (urlObj.searchParams.get('saluran') || 'Semua').trim();
+      const tokoParam = (urlObj.searchParams.get('toko') || 'Semua').trim();
+      const statusCair = (urlObj.searchParams.get('status_cair') || 'cair').trim().toLowerCase();
+      const search = (urlObj.searchParams.get('search') || '').trim().toLowerCase();
+
+      let targetSaluran = null;
+      let cleanToko = tokoParam;
+      if (cleanToko !== 'Semua' && cleanToko.includes('|')) {
+        const parts = cleanToko.split('|');
+        targetSaluran = parts[0].trim().toLowerCase();
+        cleanToko = parts.slice(1).join('|').trim();
+      }
+
+      // 1. Ambil Master Produk untuk referensi HPP, Nama Produk, dan Kategori
+      const masterMap = new Map();
+      try {
+        const [mRows] = await pool.query(`
+          SELECT kode_sku, nama_produk, kategori, varian, COALESCE(harga_modal, 0) as hpp, COALESCE(harga_jual, 0) as harga_jual
+          FROM produk_master
+        `);
+        for (const m of (mRows || [])) {
+          const info = {
+            kode_sku: m.kode_sku,
+            nama_produk: m.nama_produk,
+            kategori: m.kategori || 'Umum',
+            varian: m.varian || 'Standard',
+            hpp: Number(m.hpp || 0),
+            harga_jual: Number(m.harga_jual || 0)
+          };
+          if (m.kode_sku) {
+            const k = String(m.kode_sku).trim().toLowerCase();
+            masterMap.set(k, info);
+            masterMap.set(k.replace(/^rsg-/, ''), info);
+          }
+          if (m.nama_produk) {
+            masterMap.set(String(m.nama_produk).trim().toLowerCase(), info);
+          }
+        }
+      } catch (eMaster) {}
+
+      // 2. Kumpulkan seluruh transaksi penjualan dari pesanan_marketplace, laravelPool.orders, dan pesanan_offline
+      const rawOrdersMap = new Map();
+
+      // A. Dari database Laravel (marketplace.orders + order_items) jika tersedia
+      if (laravelPool) {
+        try {
+          const [lOrders] = await laravelPool.query(`
+            SELECT 
+              o.id as laravel_id,
+              o.order_marketplace_id as no_pesanan,
+              o.buyer_name as nama_pembeli,
+              o.total_amount as total_harga,
+              o.status as status_pesanan,
+              COALESCE(o.order_date, o.created_at) as waktu_pesanan,
+              s.store_name as nama_toko,
+              c.code as saluran
+            FROM orders o
+            LEFT JOIN stores s ON o.store_id = s.id
+            LEFT JOIN channels c ON s.channel_id = c.id
+            ORDER BY COALESCE(o.order_date, o.created_at) DESC
+          `);
+
+          // Ambil seluruh order_items secara batch untuk efisiensi
+          const [lItems] = await laravelPool.query(`
+            SELECT order_id, sku, product_name as nama_produk, quantity as qty, price as harga, total_price as subtotal
+            FROM order_items
+          `).catch(() => [[]]);
+
+          const itemsByOrderId = new Map();
+          for (const it of (lItems || [])) {
+            if (!itemsByOrderId.has(it.order_id)) itemsByOrderId.set(it.order_id, []);
+            itemsByOrderId.get(it.order_id).push(it);
+          }
+
+          for (const lo of (lOrders || [])) {
+            const key = String(lo.no_pesanan || lo.laravel_id || '').trim();
+            if (!key) continue;
+            const st = String(lo.status_pesanan || '').toUpperCase();
+            if (['CANCELLED', 'BATAL', 'IN_CANCEL', 'DIBATALKAN', 'UNPAID'].includes(st)) continue;
+
+            const ordItems = itemsByOrderId.get(lo.laravel_id) || [];
+            const gross = Number(lo.total_harga || 0);
+            rawOrdersMap.set(key, {
+              id: `lrv_${lo.laravel_id}`,
+              no_pesanan: key,
+              saluran: String(lo.saluran || 'shopee').toLowerCase(),
+              nama_toko: lo.nama_toko || 'Toko Marketplace',
+              nama_pembeli: lo.nama_pembeli || 'Pembeli Marketplace',
+              waktu_pesanan: lo.waktu_pesanan ? new Date(lo.waktu_pesanan) : new Date(),
+              status_pesanan: lo.status_pesanan || 'COMPLETED',
+              omset_kotor: gross,
+              potongan_fee: 0,
+              dana_cair: gross,
+              items: ordItems
+            });
+          }
+        } catch (eLrv) {}
+      }
+
+      // B. Dari tabel pesanan_marketplace (ruangmarket) — menimpa dengan data fee & net_amount yang lebih detail
+      try {
+        const [rmOrders] = await pool.query(`
+          SELECT 
+            id, no_pesanan, saluran, nama_toko, nama_pembeli,
+            total_harga, marketplace_fee, fee_platform, fee_free_shipping, fee_service, net_amount,
+            status_pesanan, rincian_item, COALESCE(waktu_pesanan, ditarik_pada) as waktu_pesanan
+          FROM pesanan_marketplace
+          ORDER BY COALESCE(waktu_pesanan, ditarik_pada) DESC
+        `);
+
+        for (const ro of (rmOrders || [])) {
+          const key = String(ro.no_pesanan || ro.id || '').trim();
+          if (!key) continue;
+          const st = String(ro.status_pesanan || '').toUpperCase();
+          if (['CANCELLED', 'BATAL', 'IN_CANCEL', 'DIBATALKAN', 'UNPAID'].includes(st)) continue;
+
+          let parsedItems = [];
+          try {
+            parsedItems = ro.rincian_item ? (typeof ro.rincian_item === 'string' ? JSON.parse(ro.rincian_item) : ro.rincian_item) : [];
+          } catch (e) {
+            parsedItems = [];
+          }
+
+          const gross = Number(ro.total_harga || 0);
+          const totalFee = Number(ro.marketplace_fee || 0) || (Number(ro.fee_platform || 0) + Number(ro.fee_free_shipping || 0) + Number(ro.fee_service || 0));
+          const net = Number(ro.net_amount || 0) > 0 ? Number(ro.net_amount) : Math.max(0, gross - totalFee);
+
+          const existing = rawOrdersMap.get(key);
+          rawOrdersMap.set(key, {
+            id: ro.id,
+            no_pesanan: key,
+            saluran: String(ro.saluran || existing?.saluran || 'shopee').toLowerCase(),
+            nama_toko: ro.nama_toko || existing?.nama_toko || 'Toko Marketplace',
+            nama_pembeli: ro.nama_pembeli || existing?.nama_pembeli || 'Pembeli',
+            waktu_pesanan: ro.waktu_pesanan ? new Date(ro.waktu_pesanan) : (existing?.waktu_pesanan || new Date()),
+            status_pesanan: ro.status_pesanan || existing?.status_pesanan || 'COMPLETED',
+            omset_kotor: gross > 0 ? gross : (existing?.omset_kotor || 0),
+            potongan_fee: totalFee,
+            dana_cair: net > 0 ? net : (existing?.dana_cair || gross),
+            items: (Array.isArray(parsedItems) && parsedItems.length > 0) ? parsedItems : (existing?.items || [])
+          });
+        }
+      } catch (eRm) {}
+
+      // C. Dari tabel pesanan_offline (ruangmarket)
+      try {
+        const [offOrders] = await pool.query(`
+          SELECT id, no_pesanan, COALESCE(nama_toko, 'Penjualan Offline') as nama_toko,
+                 nama_pembeli, subtotal, diskon, ongkir, total_harga, status_pembayaran,
+                 status_pesanan, dibuat_pada as waktu_pesanan
+          FROM pesanan_offline
+          ORDER BY dibuat_pada DESC
+        `);
+        const [offItems] = await pool.query(`
+          SELECT id_pesanan, sku, nama_produk, varian, qty, harga_satuan as harga, subtotal, hpp_satuan
+          FROM pesanan_offline_item
+        `).catch(() => [[]]);
+
+        const offItemsMap = new Map();
+        for (const it of (offItems || [])) {
+          if (!offItemsMap.has(it.id_pesanan)) offItemsMap.set(it.id_pesanan, []);
+          offItemsMap.get(it.id_pesanan).push(it);
+        }
+
+        for (const oo of (offOrders || [])) {
+          const st = String(oo.status_pesanan || '').toUpperCase();
+          if (['CANCELLED', 'BATAL', 'DIBATALKAN', 'DRAFT'].includes(st)) continue;
+          const isPaid = String(oo.status_pembayaran || '').toLowerCase() === 'lunas' || ['SELESAI', 'COMPLETED', 'DIKIRIM'].includes(st);
+          const gross = Number(oo.total_harga || oo.subtotal || 0);
+          rawOrdersMap.set(oo.no_pesanan, {
+            id: oo.id,
+            no_pesanan: oo.no_pesanan,
+            saluran: 'offline',
+            nama_toko: oo.nama_toko || 'Penjualan Offline',
+            nama_pembeli: oo.nama_pembeli || 'Pelanggan Offline',
+            waktu_pesanan: oo.waktu_pesanan ? new Date(oo.waktu_pesanan) : new Date(),
+            status_pesanan: isPaid ? 'COMPLETED' : oo.status_pesanan,
+            omset_kotor: gross,
+            potongan_fee: 0,
+            dana_cair: gross,
+            items: offItemsMap.get(oo.id) || []
+          });
+        }
+      } catch (eOff) {}
+
+      // 3. Cek apakah ada pesanan berstatus COMPLETED/SELESAI. Jika status_cair === 'cair', saring yang sudah cair/selesai
+      const allOrdersList = Array.from(rawOrdersMap.values());
+      const isCompletedStatus = (st) => {
+        const u = String(st || '').toUpperCase();
+        return ['COMPLETED', 'FINISHED', 'SELESAI', 'DELIVERED', 'SETTLED', 'SUDAH CAIR', 'LUNAS'].includes(u);
+      };
+
+      const hasAnyCompleted = allOrdersList.some(o => isCompletedStatus(o.status_pesanan));
+
+      // 4. Filter dan bangun rincian item + HPP per transaksi
+      const filteredTransactions = [];
+
+      for (const ord of allOrdersList) {
+        if (statusCair === 'cair' && hasAnyCompleted && !isCompletedStatus(ord.status_pesanan)) {
+          continue;
+        }
+
+        // Filter saluran
+        if (saluranParam !== 'Semua' && ord.saluran !== saluranParam.toLowerCase()) {
+          continue;
+        }
+
+        // Filter toko
+        if (cleanToko !== 'Semua') {
+          if (targetSaluran && ord.saluran !== targetSaluran) continue;
+          if (String(ord.nama_toko || '').trim().toLowerCase() !== cleanToko.toLowerCase()) continue;
+        }
+
+        // Konversi tanggal ke WIB (YYYY-MM-DD)
+        const wibDate = new Date(ord.waktu_pesanan.getTime() + (7 * 60 * 60 * 1000));
+        const tanggalStr = wibDate.toISOString().slice(0, 10);
+        const waktuStr = wibDate.toISOString().slice(11, 16);
+
+        if (startDate && tanggalStr < startDate) continue;
+        if (endDate && tanggalStr > endDate) continue;
+
+        // Enrich rincian item dengan HPP dan kategori dari produk_master
+        const rawItems = Array.isArray(ord.items) && ord.items.length > 0
+          ? ord.items
+          : [{ sku: 'SKU-PRODUK', nama_produk: `Pesanan ${ord.no_pesanan}`, qty: 1, harga: ord.omset_kotor, subtotal: ord.omset_kotor }];
+
+        let orderQty = 0;
+        let orderHpp = 0;
+        let itemsCalcSubtotal = 0;
+
+        const enrichedItems = rawItems.map(it => {
+          const rawSku = String(it.sku || it.kode_sku || it.item_sku || it.model_sku || it.seller_sku || it.sku_marketplace || '').trim();
+          const rawName = String(it.nama_produk || it.product_name || it.item_name || '').trim();
+          const mInfo = masterMap.get(rawSku.toLowerCase()) || masterMap.get(rawSku.toLowerCase().replace(/^rsg-/, '')) || masterMap.get(rawName.toLowerCase()) || null;
+
+          const finalSku = rawSku || mInfo?.kode_sku || 'SKU-UMUM';
+          const finalName = rawName || mInfo?.nama_produk || `Produk ${finalSku}`;
+          const finalKategori = mInfo?.kategori || 'Pakaian';
+          const finalVarian = String(it.varian || it.model_name || mInfo?.varian || 'Standard').trim();
+          const qty = Math.max(1, Number(it.qty || it.quantity || 1));
+          const price = Number(it.harga || it.price || it.harga_satuan || mInfo?.harga_jual || 0);
+          const subtotal = Number(it.subtotal || it.total_price || (price * qty)) || 0;
+          const hppSatuan = Number(it.hpp || it.hpp_satuan || it.cost_price || mInfo?.hpp || 0);
+          const hppTotalItem = hppSatuan * qty;
+
+          orderQty += qty;
+          orderHpp += hppTotalItem;
+          itemsCalcSubtotal += subtotal;
+
+          return {
+            kode_sku: finalSku,
+            nama_produk: finalName,
+            kategori: finalKategori,
+            varian: finalVarian,
+            qty,
+            harga_satuan: price,
+            subtotal,
+            hpp_satuan: hppSatuan,
+            total_hpp: hppTotalItem
+          };
+        });
+
+        const finalOmsetKotor = ord.omset_kotor > 0 ? ord.omset_kotor : itemsCalcSubtotal;
+        const finalFee = Number(ord.potongan_fee || 0);
+        const finalDanaCair = ord.dana_cair > 0 ? ord.dana_cair : Math.max(0, finalOmsetKotor - finalFee);
+        const finalLabaBersih = finalDanaCair - orderHpp;
+
+        const ringkasanBarang = enrichedItems
+          .map(i => `${i.kode_sku} (${i.qty}x)`)
+          .join(', ');
+
+        // Filter search
+        if (search) {
+          const matchOrder =
+            ord.no_pesanan.toLowerCase().includes(search) ||
+            ord.nama_pembeli.toLowerCase().includes(search) ||
+            ord.nama_toko.toLowerCase().includes(search) ||
+            ringkasanBarang.toLowerCase().includes(search) ||
+            enrichedItems.some(i =>
+              i.kode_sku.toLowerCase().includes(search) ||
+              i.nama_produk.toLowerCase().includes(search) ||
+              i.kategori.toLowerCase().includes(search)
+            );
+          if (!matchOrder) continue;
+        }
+
+        filteredTransactions.push({
+          id: ord.id,
+          tanggal: tanggalStr,
+          waktu: `${tanggalStr} ${waktuStr}`,
+          no_pesanan: ord.no_pesanan,
+          saluran: ord.saluran,
+          nama_toko: ord.nama_toko,
+          nama_pembeli: ord.nama_pembeli,
+          status_pesanan: isCompletedStatus(ord.status_pesanan) ? 'Sudah Cair' : ord.status_pesanan,
+          rincian_barang: ringkasanBarang,
+          items: enrichedItems,
+          total_qty: orderQty,
+          omset_kotor: Math.round(finalOmsetKotor),
+          potongan_fee: Math.round(finalFee),
+          dana_cair: Math.round(finalDanaCair),
+          total_hpp: Math.round(orderHpp),
+          laba_bersih: Math.round(finalLabaBersih),
+          margin_persen: finalDanaCair > 0 ? Number(((finalLabaBersih / finalDanaCair) * 100).toFixed(1)) : 0
+        });
+      }
+
+      // 5. Bangun Rekap Format 1: PER TANGGAL
+      const mapTanggal = new Map();
+      for (const trx of filteredTransactions) {
+        if (!mapTanggal.has(trx.tanggal)) {
+          mapTanggal.set(trx.tanggal, {
+            tanggal: trx.tanggal,
+            jumlah_transaksi: 0,
+            total_qty: 0,
+            omset_kotor: 0,
+            potongan_fee: 0,
+            dana_cair: 0,
+            total_hpp: 0,
+            laba_bersih: 0
+          });
+        }
+        const row = mapTanggal.get(trx.tanggal);
+        row.jumlah_transaksi += 1;
+        row.total_qty += trx.total_qty;
+        row.omset_kotor += trx.omset_kotor;
+        row.potongan_fee += trx.potongan_fee;
+        row.dana_cair += trx.dana_cair;
+        row.total_hpp += trx.total_hpp;
+        row.laba_bersih += trx.laba_bersih;
+      }
+
+      const perTanggal = Array.from(mapTanggal.values())
+        .sort((a, b) => b.tanggal.localeCompare(a.tanggal))
+        .map(r => ({
+          ...r,
+          margin_persen: r.dana_cair > 0 ? Number(((r.laba_bersih / r.dana_cair) * 100).toFixed(1)) : 0
+        }));
+
+      // 6. Bangun Rekap Format 3: PER BARANG (SKU)
+      const mapBarang = new Map();
+      for (const trx of filteredTransactions) {
+        const itemsSum = trx.items.reduce((acc, it) => acc + (it.subtotal || 0), 0) || trx.omset_kotor || 1;
+        for (const it of trx.items) {
+          const skuKey = String(it.kode_sku || it.nama_produk).toUpperCase();
+          if (!mapBarang.has(skuKey)) {
+            mapBarang.set(skuKey, {
+              kode_sku: it.kode_sku,
+              nama_produk: it.nama_produk,
+              kategori: it.kategori || 'Pakaian',
+              varian: it.varian || 'Standard',
+              jumlah_transaksi: 0,
+              total_qty: 0,
+              omset_kotor: 0,
+              potongan_fee: 0,
+              dana_cair: 0,
+              hpp_satuan: it.hpp_satuan || 0,
+              total_hpp: 0,
+              laba_bersih: 0
+            });
+          }
+          const bRow = mapBarang.get(skuKey);
+          const propRatio = itemsSum > 0 ? (it.subtotal || (trx.omset_kotor / trx.items.length)) / itemsSum : (1 / trx.items.length);
+          const itemOmset = Math.round(trx.omset_kotor * propRatio);
+          const itemFee = Math.round(trx.potongan_fee * propRatio);
+          const itemCair = Math.round(trx.dana_cair * propRatio);
+          const itemHpp = Math.round(it.total_hpp || 0);
+
+          bRow.jumlah_transaksi += 1;
+          bRow.total_qty += it.qty;
+          bRow.omset_kotor += itemOmset;
+          bRow.potongan_fee += itemFee;
+          bRow.dana_cair += itemCair;
+          bRow.total_hpp += itemHpp;
+          bRow.laba_bersih += (itemCair - itemHpp);
+          if (it.hpp_satuan > 0 && bRow.hpp_satuan === 0) bRow.hpp_satuan = it.hpp_satuan;
+        }
+      }
+
+      const perBarang = Array.from(mapBarang.values())
+        .sort((a, b) => b.total_qty - a.total_qty || b.dana_cair - a.dana_cair)
+        .map(r => ({
+          ...r,
+          margin_persen: r.dana_cair > 0 ? Number(((r.laba_bersih / r.dana_cair) * 100).toFixed(1)) : 0
+        }));
+
+      // 7. Summary Keseluruhan
+      const totalOmsetKotor = filteredTransactions.reduce((acc, r) => acc + r.omset_kotor, 0);
+      const totalPotonganFee = filteredTransactions.reduce((acc, r) => acc + r.potongan_fee, 0);
+      const totalDanaCair = filteredTransactions.reduce((acc, r) => acc + r.dana_cair, 0);
+      const totalHpp = filteredTransactions.reduce((acc, r) => acc + r.total_hpp, 0);
+      const totalLabaBersih = totalDanaCair - totalHpp;
+
+      const summary = {
+        total_transaksi: filteredTransactions.length,
+        total_qty: filteredTransactions.reduce((acc, r) => acc + r.total_qty, 0),
+        total_omset_kotor: totalOmsetKotor,
+        total_potongan_fee: totalPotonganFee,
+        total_dana_cair: totalDanaCair,
+        total_hpp: totalHpp,
+        total_laba_bersih: totalLabaBersih,
+        margin_persen: totalDanaCair > 0 ? Number(((totalLabaBersih / totalDanaCair) * 100).toFixed(1)) : 0
+      };
+
+      return sendJson(res, 200, {
+        status: 'success',
+        summary,
+        per_tanggal: perTanggal,
+        per_transaksi: filteredTransactions,
+        per_barang: perBarang
+      });
+    } catch (err) {
+      console.error('[GET /api/laporan/penjualan-cair Error]:', err);
       return sendJson(res, 500, { status: 'error', message: err.message });
     }
   }

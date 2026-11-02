@@ -56,6 +56,7 @@ import KeuanganDesktopView from '../views/desktop/KeuanganDesktopView';
 import MutasiBarangDesktopView from '../views/desktop/MutasiBarangDesktopView';
 import PenitipanBarangDesktopView from '../views/desktop/PenitipanBarangDesktopView';
 import LaporanStokDesktopView from '../views/desktop/LaporanStokDesktopView';
+import LaporanPenjualanCairDesktopView from '../views/desktop/LaporanPenjualanCairDesktopView';
 
 // Mobile Views
 import MarketplaceMobileView from '../views/mobile/MarketplaceMobileView';
@@ -296,6 +297,9 @@ export default function AdminLayout() {
       case 'laporan_stok':
       case 'laporan':
         return <LaporanStokDesktopView />;
+      case 'laporan_penjualan_cair':
+      case 'penjualan_cair':
+        return <LaporanPenjualanCairDesktopView />;
       case 'blank':
         return <BlankTemplateDesktopView />;
       default:
@@ -1248,37 +1252,37 @@ export default function AdminLayout() {
                   gap: '4px',
                   padding: '0 8px',
                   borderRadius: '5px',
-                  border: (activeTab === 'laporan_stok' || activeTab === 'laporan' || isLaporanOpen) ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.08)',
-                  backgroundColor: (activeTab === 'laporan_stok' || activeTab === 'laporan' || isLaporanOpen) ? '#0284c7' : 'rgba(255, 255, 255, 0.05)',
-                  color: (activeTab === 'laporan_stok' || activeTab === 'laporan' || isLaporanOpen) ? '#ffffff' : '#cbd5e1',
+                  border: (activeTab === 'laporan_stok' || activeTab === 'laporan_penjualan_cair' || activeTab === 'laporan' || isLaporanOpen) ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.08)',
+                  backgroundColor: (activeTab === 'laporan_stok' || activeTab === 'laporan_penjualan_cair' || activeTab === 'laporan' || isLaporanOpen) ? '#0284c7' : 'rgba(255, 255, 255, 0.05)',
+                  color: (activeTab === 'laporan_stok' || activeTab === 'laporan_penjualan_cair' || activeTab === 'laporan' || isLaporanOpen) ? '#ffffff' : '#cbd5e1',
                   fontSize: '11px',
-                  fontWeight: (activeTab === 'laporan_stok' || activeTab === 'laporan' || isLaporanOpen) ? '800' : '600',
+                  fontWeight: (activeTab === 'laporan_stok' || activeTab === 'laporan_penjualan_cair' || activeTab === 'laporan' || isLaporanOpen) ? '800' : '600',
                   lineHeight: 1,
                   cursor: 'pointer',
                   transition: 'all 0.15s ease',
                   whiteSpace: 'nowrap',
-                  boxShadow: (activeTab === 'laporan_stok' || activeTab === 'laporan' || isLaporanOpen) ? '0 0 10px rgba(2, 132, 199, 0.5)' : 'none'
+                  boxShadow: (activeTab === 'laporan_stok' || activeTab === 'laporan_penjualan_cair' || activeTab === 'laporan' || isLaporanOpen) ? '0 0 10px rgba(2, 132, 199, 0.5)' : 'none'
                 }}
                 onMouseEnter={(e) => {
-                  if (activeTab !== 'laporan_stok' && activeTab !== 'laporan' && !isLaporanOpen) {
+                  if (activeTab !== 'laporan_stok' && activeTab !== 'laporan_penjualan_cair' && activeTab !== 'laporan' && !isLaporanOpen) {
                     e.currentTarget.style.backgroundColor = 'rgba(56, 189, 248, 0.15)';
                     e.currentTarget.style.borderColor = 'rgba(56, 189, 248, 0.3)';
                     e.currentTarget.style.color = '#ffffff';
                   }
                 }}
                 onMouseLeave={(e) => {
-                  if (activeTab !== 'laporan_stok' && activeTab !== 'laporan' && !isLaporanOpen) {
+                  if (activeTab !== 'laporan_stok' && activeTab !== 'laporan_penjualan_cair' && activeTab !== 'laporan' && !isLaporanOpen) {
                     e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
                     e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
                     e.currentTarget.style.color = '#cbd5e1';
                   }
                 }}
               >
-                <FileSpreadsheet size={13} color={(activeTab === 'laporan_stok' || activeTab === 'laporan' || isLaporanOpen) ? '#ffffff' : '#38bdf8'} style={{ flexShrink: 0 }} />
+                <FileSpreadsheet size={13} color={(activeTab === 'laporan_stok' || activeTab === 'laporan_penjualan_cair' || activeTab === 'laporan' || isLaporanOpen) ? '#ffffff' : '#38bdf8'} style={{ flexShrink: 0 }} />
                 <span>Laporan</span>
                 <ChevronDown 
                   size={11} 
-                  color={(activeTab === 'laporan_stok' || activeTab === 'laporan' || isLaporanOpen) ? '#ffffff' : '#38bdf8'} 
+                  color={(activeTab === 'laporan_stok' || activeTab === 'laporan_penjualan_cair' || activeTab === 'laporan' || isLaporanOpen) ? '#ffffff' : '#38bdf8'} 
                   style={{ 
                     transform: isLaporanOpen ? 'rotate(180deg)' : 'none', 
                     transition: 'transform 0.15s ease',
@@ -1299,7 +1303,7 @@ export default function AdminLayout() {
                   border: '1px solid #334155',
                   boxShadow: '0 12px 30px rgba(0, 0, 0, 0.6)',
                   padding: '5px',
-                  minWidth: '170px',
+                  minWidth: '185px',
                   zIndex: 2000,
                   display: 'flex',
                   flexDirection: 'column',
@@ -1338,6 +1342,41 @@ export default function AdminLayout() {
                   >
                     <FileSpreadsheet size={14} color={activeTab === 'laporan_stok' ? '#38bdf8' : '#94a3b8'} style={{ flexShrink: 0 }} />
                     <span style={{ textAlign: 'left', flex: 1 }}>Stok Barang</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      changeTab('laporan_penjualan_cair');
+                      setIsLaporanOpen(false);
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'flex-start',
+                      gap: '8px',
+                      width: '100%',
+                      padding: '7px 10px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      backgroundColor: activeTab === 'laporan_penjualan_cair' ? 'rgba(2, 132, 199, 0.2)' : 'transparent',
+                      color: activeTab === 'laporan_penjualan_cair' ? '#38bdf8' : '#cbd5e1',
+                      fontSize: '11.5px',
+                      fontWeight: activeTab === 'laporan_penjualan_cair' ? '800' : '600',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'background-color 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (activeTab !== 'laporan_penjualan_cair') e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (activeTab !== 'laporan_penjualan_cair') e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
+                  >
+                    <DollarSign size={14} color={activeTab === 'laporan_penjualan_cair' ? '#38bdf8' : '#94a3b8'} style={{ flexShrink: 0 }} />
+                    <span style={{ textAlign: 'left', flex: 1 }}>Penjualan Cair</span>
                   </button>
                 </div>
               )}
