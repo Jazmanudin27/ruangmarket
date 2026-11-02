@@ -2421,41 +2421,6 @@ export default function SPKView() {
                                 <Eye size={12} />
                               </button>
 
-                              {/* Print Button */}
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  if (spkList.length <= 1) {
-                                    setPrintModalData({
-                                      batch: batch,
-                                      spk: spkList[0] || {
-                                        id_spk: `SPK-${batch.kode_produksi}`,
-                                        nama_spk: "SPK Produksi",
-                                        produk_items: [],
-                                      },
-                                    });
-                                  } else {
-                                    setSelectPrintBatch(batch);
-                                  }
-                                }}
-                                title="Cetak SPK"
-                                style={{
-                                  width: "26px",
-                                  height: "26px",
-                                  borderRadius: "4px",
-                                  border: "1px solid #818cf8",
-                                  backgroundColor: "#6366f1",
-                                  color: "#ffffff",
-                                  display: "inline-flex",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                  cursor: "pointer",
-                                  transition: "all 0.15s ease",
-                                }}
-                              >
-                                <Printer size={12} />
-                              </button>
-
                               {/* Edit Button */}
                               <button
                                 type="button"
@@ -2769,49 +2734,60 @@ export default function SPKView() {
         </div>
       )}
 
-      {/* DETAIL PRODUKSI & SPK MODAL (GROUPED BY NO PRODUKSI) */}
+      {/* DETAIL PRODUKSI & SPK MODAL (FULL SCREEN COMPACT) */}
       {detailBatch && (
         <div
           style={{
             position: "fixed",
             inset: 0,
-            backgroundColor: "rgba(15, 23, 42, 0.65)",
+            backgroundColor: "#0f172a",
             zIndex: 2100,
             display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "16px",
+            flexDirection: "column",
+            overflow: "hidden",
           }}
-          onClick={() => setDetailBatch(null)}
         >
           <div
             style={{
-              backgroundColor: "#ffffff",
-              borderRadius: "10px",
+              backgroundColor: "#f1f5f9",
               width: "100%",
-              maxWidth: "820px",
-              maxHeight: "90vh",
+              height: "100vh",
               overflow: "hidden",
               display: "flex",
               flexDirection: "column",
-              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2)",
             }}
-            onClick={(e) => e.stopPropagation()}
           >
-            {/* Modal Header */}
+            {/* Modal Header (Full Screen Dark Slate / Blue Gradient) */}
             <div
               style={{
-                padding: "12px 16px",
-                background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
+                height: "42px",
+                padding: "0 16px",
+                background: "linear-gradient(135deg, #090d16 0%, #0f172a 50%, #1e293b 100%)",
+                borderBottom: "1px solid #334155",
                 color: "#ffffff",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
+                flexShrink: 0,
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <ClipboardList size={18} />
-                <span style={{ fontSize: "14px", fontWeight: "800" }}>
+                <div
+                  style={{
+                    width: "26px",
+                    height: "26px",
+                    borderRadius: "6px",
+                    backgroundColor: "rgba(56, 189, 248, 0.15)",
+                    border: "1px solid rgba(56, 189, 248, 0.3)",
+                    color: "#38bdf8",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <ClipboardList size={14} />
+                </div>
+                <span style={{ fontSize: "13px", fontWeight: "800" }}>
                   Detail Produksi: {detailBatch.kode_produksi}{" "}
                   {detailBatch.no_faktur ? `(${detailBatch.no_faktur})` : ""}
                 </span>
@@ -2820,19 +2796,26 @@ export default function SPKView() {
                 type="button"
                 onClick={() => setDetailBatch(null)}
                 style={{
-                  background: "transparent",
-                  border: "none",
-                  color: "#ffffff",
+                  width: "26px",
+                  height: "26px",
+                  borderRadius: "5px",
+                  background: "rgba(255, 255, 255, 0.08)",
+                  border: "1px solid rgba(255, 255, 255, 0.12)",
+                  color: "#cbd5e1",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
                   cursor: "pointer",
                 }}
               >
-                <X size={18} />
+                <X size={15} />
               </button>
             </div>
 
             {/* Modal Body */}
             <div
               style={{
+                flex: 1,
                 padding: "16px",
                 overflowY: "auto",
                 display: "flex",
@@ -2958,10 +2941,58 @@ export default function SPKView() {
                       fontSize: "12px",
                       fontWeight: "800",
                       color: "#166534",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      marginTop: "2px",
                     }}
                   >
-                    {detailBatch.spk_list?.length || 0} SPK •{" "}
-                    {detailBatch.status || "Proses"}
+                    <span>{detailBatch.spk_list?.length || 0} SPK •</span>
+                    <select
+                      value={detailBatch.status || (tahapanOptions[0]?.nama_tahapan || "Dalam Proses")}
+                      onChange={async (e) => {
+                        const newStatus = e.target.value;
+                        const updatedBatch = { ...detailBatch, status: newStatus };
+                        setDetailBatch(updatedBatch);
+                        setBatchList((prev) =>
+                          prev.map((b) => (b.id === detailBatch.id ? updatedBatch : b))
+                        );
+                        try {
+                          await fetch("/api/marketplace/spk", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              ...updatedBatch,
+                              company_code: activeCompany.code || "RSG",
+                            }),
+                          });
+                          toastSuccess(`Status Produksi diubah ke "${newStatus}"`);
+                        } catch (err) {
+                          console.warn("Gagal simpan status batch:", err);
+                        }
+                      }}
+                      style={{
+                        padding: "3px 8px",
+                        borderRadius: "5px",
+                        border: "1px solid #86efac",
+                        backgroundColor: "#f0fdf4",
+                        color: "#166534",
+                        fontSize: "11px",
+                        fontWeight: "800",
+                        cursor: "pointer",
+                        outline: "none",
+                      }}
+                    >
+                      {tahapanOptions.map((t) => (
+                        <option key={t.id || t.kode_tahapan} value={t.nama_tahapan}>
+                          {t.emoji ? `${t.emoji} ` : ""}{t.nama_tahapan}
+                        </option>
+                      ))}
+                      {detailBatch.status &&
+                        !tahapanOptions.some((t) => t.nama_tahapan === detailBatch.status) && (
+                          <option value={detailBatch.status}>{detailBatch.status}</option>
+                        )}
+                    </select>
                   </div>
                 </div>
               </div>
@@ -3055,17 +3086,72 @@ export default function SPKView() {
                           style={{
                             fontSize: "11px",
                             color: "#64748b",
-                            marginTop: "2px",
+                            marginTop: "4px",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "6px",
+                            flexWrap: "wrap",
                           }}
                         >
-                          Penjahit:{" "}
-                          <b style={{ color: "#0f172a" }}>
-                            {currentSpk.penjahit || "-"}
-                          </b>{" "}
-                          • Status:{" "}
-                          <b style={{ color: "#d97706" }}>
-                            {currentSpk.status_spk || "Potong Pola"}
-                          </b>
+                          <span>
+                            Penjahit:{" "}
+                            <b style={{ color: "#0f172a" }}>
+                              {currentSpk.penjahit || "-"}
+                            </b>
+                          </span>
+                          <span>• Status SPK:</span>
+                          <select
+                            value={currentSpk.status_spk || (tahapanOptions[0]?.nama_tahapan || "Potong Pola")}
+                            onChange={async (e) => {
+                              const newSpkStatus = e.target.value;
+                              const targetIdx = detailBatch.spk_list?.[detailActiveSpkIdx] ? detailActiveSpkIdx : 0;
+                              const updatedSpkList = (detailBatch.spk_list || []).map((s, idx) =>
+                                idx === targetIdx ? { ...s, status_spk: newSpkStatus } : s
+                              );
+                              const updatedBatch = {
+                                ...detailBatch,
+                                spk_list: updatedSpkList,
+                              };
+                              setDetailBatch(updatedBatch);
+                              setBatchList((prev) =>
+                                prev.map((b) => (b.id === detailBatch.id ? updatedBatch : b))
+                              );
+                              try {
+                                await fetch("/api/marketplace/spk", {
+                                  method: "POST",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({
+                                    ...updatedBatch,
+                                    company_code: activeCompany.code || "RSG",
+                                  }),
+                                });
+                                toastSuccess(`Status ${currentSpk.id_spk} diubah ke "${newSpkStatus}"`);
+                              } catch (err) {
+                                console.warn("Gagal simpan status SPK:", err);
+                              }
+                            }}
+                            style={{
+                              padding: "3px 8px",
+                              borderRadius: "5px",
+                              border: "1px solid #fcd34d",
+                              backgroundColor: "#fffbeb",
+                              color: "#b45309",
+                              fontSize: "11px",
+                              fontWeight: "800",
+                              cursor: "pointer",
+                              outline: "none",
+                            }}
+                          >
+                            {tahapanOptions.map((t) => (
+                              <option key={t.id || t.kode_tahapan} value={t.nama_tahapan}>
+                                {t.emoji ? `${t.emoji} ` : ""}{t.nama_tahapan}
+                              </option>
+                            ))}
+                            {currentSpk.status_spk &&
+                              !tahapanOptions.some((t) => t.nama_tahapan === currentSpk.status_spk) && (
+                                <option value={currentSpk.status_spk}>{currentSpk.status_spk}</option>
+                              )}
+                          </select>
                         </div>
                       </div>
                       <button
