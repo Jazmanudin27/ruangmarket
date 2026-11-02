@@ -167,8 +167,8 @@ export async function initDb() {
           `);
           for (const st of allStores) {
             const [cntRows] = await pool.query(
-              `SELECT COUNT(*) as cnt FROM produk_marketplace WHERE LOWER(TRIM(nama_toko)) = LOWER(TRIM(?)) OR id_toko = ?`,
-              [st.nama_toko, st.id_toko || st.cipher_toko || st.id]
+              `SELECT COUNT(*) as cnt FROM produk_marketplace WHERE saluran = ? AND (LOWER(TRIM(nama_toko)) = LOWER(TRIM(?)) OR id_toko = ?)`,
+              [st.saluran, st.nama_toko, st.id_toko || st.cipher_toko || st.id]
             );
             const count = Number(cntRows?.[0]?.cnt || 0);
             if (count === 0) {

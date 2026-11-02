@@ -678,9 +678,16 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool, lar
         whereParams.push(skuKainParam);
       }
       if (tokoParam && tokoParam !== 'Semua') {
+        let targetSaluran = null;
+        let cleanToko = tokoParam.trim();
+        if (cleanToko.includes('|')) {
+          const parts = cleanToko.split('|');
+          targetSaluran = parts[0].trim().toLowerCase();
+          cleanToko = parts.slice(1).join('|').trim();
+        }
         whereClauses.push(`EXISTS (
           SELECT 1 FROM produk_marketplace pm 
-          WHERE (pm.id_toko = ? OR pm.nama_toko = ?)
+          WHERE ${targetSaluran ? 'pm.saluran = ? AND ' : ''}(LOWER(TRIM(pm.id_toko)) = LOWER(?) OR LOWER(TRIM(pm.nama_toko)) = LOWER(?))
             AND (
               pm.sku_marketplace = p.kode_sku 
               OR pm.sku_marketplace = REPLACE(p.kode_sku, 'PO-', '')
@@ -689,7 +696,11 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool, lar
               OR pm.nama_produk = p.nama_produk
             )
         )`);
-        whereParams.push(tokoParam, tokoParam);
+        if (targetSaluran) {
+          whereParams.push(targetSaluran, cleanToko, cleanToko);
+        } else {
+          whereParams.push(cleanToko, cleanToko);
+        }
       }
       if (search && search.trim()) {
         const q = `%${search.trim()}%`;
@@ -747,9 +758,16 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool, lar
           baseWhereParams.push(skuKainParam);
         }
         if (tokoParam && tokoParam !== 'Semua') {
+          let targetSaluran = null;
+          let cleanToko = tokoParam.trim();
+          if (cleanToko.includes('|')) {
+            const parts = cleanToko.split('|');
+            targetSaluran = parts[0].trim().toLowerCase();
+            cleanToko = parts.slice(1).join('|').trim();
+          }
           baseWhereClauses.push(`EXISTS (
             SELECT 1 FROM produk_marketplace pm 
-            WHERE (pm.id_toko = ? OR pm.nama_toko = ?)
+            WHERE ${targetSaluran ? 'pm.saluran = ? AND ' : ''}(LOWER(TRIM(pm.id_toko)) = LOWER(?) OR LOWER(TRIM(pm.nama_toko)) = LOWER(?))
               AND (
                 pm.sku_marketplace = p.kode_sku 
                 OR pm.sku_marketplace = REPLACE(p.kode_sku, 'PO-', '')
@@ -758,7 +776,11 @@ export async function handleMasterRoutes(req, res, pathname, urlObj, { pool, lar
                 OR pm.nama_produk = p.nama_produk
               )
           )`);
-          baseWhereParams.push(tokoParam, tokoParam);
+          if (targetSaluran) {
+            baseWhereParams.push(targetSaluran, cleanToko, cleanToko);
+          } else {
+            baseWhereParams.push(cleanToko, cleanToko);
+          }
         }
         if (search && search.trim()) {
           const q = `%${search.trim()}%`;
