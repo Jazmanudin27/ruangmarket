@@ -527,6 +527,7 @@ export async function handlePenitipanBarangRoutes(req, res, pathname, urlObj, co
       let lItems = [];
 
       // A. Ambil dari database Laravel (marketplace.orders + order_items)
+      // Filter strictly: hanya pesanan yang completed_at tidak null (sudah cair/selesai di marketplace)
       if (laravelPool) {
         try {
           const [rowsJoin] = await laravelPool.query(`
@@ -534,7 +535,9 @@ export async function handlePenitipanBarangRoutes(req, res, pathname, urlObj, co
             FROM orders o
             LEFT JOIN stores s ON o.store_id = s.id
             LEFT JOIN channels c ON s.channel_id = c.id
-            ORDER BY COALESCE(o.completed_at, o.order_date, o.created_at) DESC
+            WHERE o.completed_at IS NOT NULL
+              AND o.order_status IN ('COMPLETED', 'SELESAI', 'FINISHED', 'RETURNED', 'REFUNDED', 'RETURN', 'RETUR')
+            ORDER BY o.completed_at DESC
           `);
           lOrders = rowsJoin || [];
           const [itRows] = await laravelPool.query(`SELECT * FROM order_items`).catch(() => [[]]);
@@ -550,7 +553,9 @@ export async function handlePenitipanBarangRoutes(req, res, pathname, urlObj, co
             FROM marketplace.orders o
             LEFT JOIN marketplace.stores s ON o.store_id = s.id
             LEFT JOIN marketplace.channels c ON s.channel_id = c.id
-            ORDER BY COALESCE(o.completed_at, o.order_date, o.created_at) DESC
+            WHERE o.completed_at IS NOT NULL
+              AND o.order_status IN ('COMPLETED', 'SELESAI', 'FINISHED', 'RETURNED', 'REFUNDED', 'RETURN', 'RETUR')
+            ORDER BY o.completed_at DESC
           `);
           lOrders = rowsJoin || [];
           const [itRows] = await pool.query(`SELECT * FROM marketplace.order_items`).catch(() => [[]]);
@@ -729,46 +734,8 @@ export async function handlePenitipanBarangRoutes(req, res, pathname, urlObj, co
         }
       } catch (eRm) {}
 
-      // C. Dari tabel pesanan_offline (ruangmarket)
-      try {
-        const [offOrders] = await pool.query(`
-          SELECT id, no_pesanan, COALESCE(nama_toko, 'Penjualan Offline') as nama_toko,
-                 nama_pembeli, subtotal, diskon, ongkir, total_harga, status_pembayaran,
-                 status_pesanan, dibuat_pada as waktu_pesanan
-          FROM pesanan_offline
-          ORDER BY dibuat_pada DESC
-        `);
-        const [offItems] = await pool.query(`
-          SELECT id_pesanan, sku, nama_produk, varian, qty, harga_satuan as harga, subtotal, hpp_satuan
-          FROM pesanan_offline_item
-        `).catch(() => [[]]);
-
-        const offItemsMap = new Map();
-        for (const it of (offItems || [])) {
-          if (!offItemsMap.has(it.id_pesanan)) offItemsMap.set(it.id_pesanan, []);
-          offItemsMap.get(it.id_pesanan).push(it);
-        }
-
-        for (const oo of (offOrders || [])) {
-          const st = String(oo.status_pesanan || '').toUpperCase();
-          if (['CANCELLED', 'BATAL', 'DIBATALKAN', 'DRAFT'].includes(st)) continue;
-          const isPaid = String(oo.status_pembayaran || '').toLowerCase() === 'lunas' || ['SELESAI', 'COMPLETED', 'DIKIRIM'].includes(st);
-          const gross = Number(oo.total_harga || oo.subtotal || 0);
-          rawOrdersMap.set(oo.no_pesanan, {
-            id: oo.id,
-            no_pesanan: oo.no_pesanan,
-            saluran: 'offline',
-            nama_toko: oo.nama_toko || 'Penjualan Offline',
-            nama_pembeli: oo.nama_pembeli || 'Pelanggan Offline',
-            waktu_pesanan: oo.waktu_pesanan ? new Date(oo.waktu_pesanan) : new Date(),
-            status_pesanan: isPaid ? 'COMPLETED' : oo.status_pesanan,
-            omset_kotor: gross,
-            potongan_fee: 0,
-            dana_cair: gross,
-            items: offItemsMap.get(oo.id) || []
-          });
-        }
-      } catch (eOff) {}
+      // C. Pesanan Offline TIDAK DIMASUKKAN ke Laporan Penjualan Cair Marketplace
+      // (Khusus marketplace online: Shopee & TikTok)
 
       // 3. Cek apakah ada pesanan berstatus COMPLETED/SELESAI. Jika status_cair === 'cair', saring yang sudah cair/selesai
       const allOrdersList = Array.from(rawOrdersMap.values());
