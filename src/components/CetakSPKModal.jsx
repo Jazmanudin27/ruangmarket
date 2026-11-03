@@ -6,14 +6,14 @@ export default function CetakSPKModal({ isOpen, onClose, batch, spk, adminName =
 
   if (!isOpen || !spk || !batch) return null;
 
-  const noProduksi = batch.kode_produksi || 'JN2610008';
-  const noSpk = spk.id_spk || 'SPK-20261026-0001';
-  const orderDate = batch.tgl_pesan || '2026-10-26';
-  const deadline = batch.deadline || '2026-11-02';
-  const pemesan = batch.nama_pelanggan || 'SALMAH KHAIRANI NASUTION';
-  const noTelp = batch.no_telepon || '+62 852-1858-3688';
+  const noProduksi = batch.kode_produksi || batch.no_produksi || '-';
+  const noSpk = spk.id_spk || spk.no_spk || '-';
+  const orderDate = batch.tgl_pesan || batch.created_at?.slice(0, 10) || '-';
+  const deadline = batch.deadline || '-';
+  const pemesan = batch.nama_pelanggan || batch.pelanggan || '-';
+  const noTelp = batch.no_telepon || batch.telepon || '';
   const instansi = batch.instansi || '—';
-  const catatan = spk.catatan || batch.catatan || 'untuk size XXXL lpk pake size SMA 1 pcs LD 120';
+  const catatan = (spk.catatan && spk.catatan.trim()) || (batch.catatan && batch.catatan.trim()) || '';
   const designImg = spk.design_img || spk.mockup_img || null;
 
   // Sizes columns
