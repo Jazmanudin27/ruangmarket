@@ -152,16 +152,8 @@ export default function PesananMasukDesktopView({ onNavigate }) {
     setScanOrderInput("");
     setScanSkuInput("");
 
-    const targetCandidate =
-      orderOrId ||
-      orders.find(
-        (o) =>
-          !["CANCELLED", "BATAL", "DIBATALKAN"].includes(
-            String(o.status || "").toUpperCase(),
-          ) && o.status_kemas !== "sudah_dikemas",
-      ) ||
-      orders[0] ||
-      null;
+    // Hanya ambil target jika tombol scan diklik spesifik dari baris pesanan tertentu
+    const targetCandidate = orderOrId || null;
 
     if (targetCandidate) {
       const orderSn =
