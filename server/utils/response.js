@@ -6,6 +6,7 @@ export function sendJson(res, statusCode, data) {
     'Access-Control-Allow-Headers': 'Content-Type, Authorization'
   });
   res.end(JSON.stringify(data));
+  return true;
 }
 
 export function parseJsonBody(req) {

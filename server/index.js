@@ -96,8 +96,8 @@ server.setTimeout(120000);
 server.listen(PORT, () => {
   console.log(`RuangMarket Marketplace API Server berjalan di port ${PORT} [Modular Architecture]`);
 
-  // Background auto-sync tiap 2 menit (ringan & otomatis menjaring pesanan baru)
-  const AUTO_SYNC_INTERVAL_MS = 2 * 60 * 1000;
+  // Background auto-sync tiap 10 menit (ringan & hemat CPU/MySQL)
+  const AUTO_SYNC_INTERVAL_MS = 10 * 60 * 1000;
   setInterval(async () => {
     try {
       const [stores] = await pool.query('SELECT * FROM toko_marketplace WHERE status_koneksi LIKE "%Aktif%" OR status_koneksi LIKE "%Terhubung%" OR status_koneksi LIKE "%connected%"');

@@ -39,6 +39,7 @@ async function ensureAllTables(pool) {
   await safeAddColumn(pool, 'mitra_penitip', 'bank_rekening', "VARCHAR(60) DEFAULT ''");
   await safeAddColumn(pool, 'mitra_penitip', 'bank_atas_nama', "VARCHAR(100) DEFAULT ''");
   await safeAddColumn(pool, 'mitra_penitip', 'keterangan', "TEXT NULL");
+  await safeAddColumn(pool, 'produk_master', 'varian', "VARCHAR(100) DEFAULT 'Standard'");
 
   // 2. Tabel Penitipan Barang
   await pool.query(`
@@ -215,7 +216,7 @@ export async function handlePenitipanBarangRoutes(req, res, pathname, urlObj, co
           COALESCE(pm.kode_sku, pb_agg.kode_sku) as kode_sku,
           COALESCE(pm.nama_produk, pb_agg.nama_produk) as nama_produk,
           COALESCE(pm.kategori, 'Umum') as kategori,
-          COALESCE(pm.varian, pb_agg.varian, 'Standard') as varian,
+          COALESCE(pb_agg.varian, 'Standard') as varian,
           COALESCE(pm.satuan, pb_agg.satuan, 'PCS') as satuan,
           COALESCE(pm.tipe_set, 'Single') as tipe_set,
           COALESCE(pm.status_order, 'Ready Stok') as status_order,
@@ -302,7 +303,7 @@ export async function handlePenitipanBarangRoutes(req, res, pathname, urlObj, co
       }
 
       if (search) {
-        query += ` AND (pm.kode_sku LIKE ? OR pm.nama_produk LIKE ? OR pm.kategori LIKE ? OR pm.varian LIKE ? OR pm.sku_kain LIKE ?)`;
+        query += ` AND (pm.kode_sku LIKE ? OR pm.nama_produk LIKE ? OR pm.kategori LIKE ? OR pb_agg.varian LIKE ? OR pm.sku_kain LIKE ?)`;
         const s = `%${search}%`;
         params.push(s, s, s, s, s);
       }
@@ -393,6 +394,10 @@ export async function handlePenitipanBarangRoutes(req, res, pathname, urlObj, co
             if (kNoPo && (!masterMap.has(kNoPo) || (info.hpp > 0 && !masterMap.get(kNoPo)?.hpp))) {
               masterMap.set(kNoPo, masterMap.get(k));
             }
+            const kWithRsg = `rsg-${k.replace(/^rsg-/, '')}`;
+            if (!masterMap.has(kWithRsg) || (info.hpp > 0 && !masterMap.get(kWithRsg)?.hpp)) {
+              masterMap.set(kWithRsg, masterMap.get(k));
+            }
           }
         }
         if (info.nama_produk) {
@@ -474,163 +479,173 @@ export async function handlePenitipanBarangRoutes(req, res, pathname, urlObj, co
         console.warn('[Penjualan Cair Master Lookup Error]:', eMaster.message);
       }
 
-      // 1B. Ambil Master Produk dari Laravel (marketplace.products & product_variants) jika tersedia
+      // 1B. Ambil Master Produk dari Laravel (marketplace.master_products) jika tersedia
+      let lProds = [];
       if (laravelPool) {
         try {
-          const [lProds] = await laravelPool.query(`SELECT * FROM products`);
-          for (const lp of (lProds || [])) {
-            const sku = String(lp.sku || lp.kode_sku || lp.product_sku || lp.item_sku || lp.code || '').trim();
-            const name = String(lp.name || lp.product_name || lp.nama_produk || lp.title || '').trim();
-            const kategori = String(lp.category || lp.category_name || lp.kategori || 'Pakaian').trim();
-            const hpp = Number(lp.cost_price ?? lp.hpp ?? lp.harga_modal ?? lp.harga_pokok ?? lp.modal ?? lp.buy_price ?? lp.purchase_price ?? 0);
-            const hargaJual = Number(lp.price ?? lp.selling_price ?? lp.harga_jual ?? 0);
-            const info = {
-              kode_sku: sku,
-              nama_produk: name,
-              kategori: kategori || 'Pakaian',
-              varian: 'Standard',
-              hpp,
-              harga_jual: hargaJual
-            };
-            if (lp.id !== undefined && lp.id !== null) {
-              laravelProductByIdMap.set(String(lp.id), info);
-            }
-            registerMasterInfo(info);
-          }
+          const [rows] = await laravelPool.query(`SELECT * FROM master_products`);
+          lProds = rows || [];
         } catch (eLProd) {}
-
+      }
+      if (lProds.length === 0) {
         try {
-          const [lVars] = await laravelPool.query(`SELECT * FROM product_variants`);
-          for (const lv of (lVars || [])) {
-            const parent = lv.product_id ? laravelProductByIdMap.get(String(lv.product_id)) : null;
-            const sku = String(lv.sku || lv.variant_sku || lv.model_sku || lv.kode_sku || '').trim();
-            const name = String(lv.name || lv.variant_name || parent?.nama_produk || '').trim();
-            const hpp = Number(lv.cost_price ?? lv.hpp ?? lv.harga_modal ?? lv.modal ?? parent?.hpp ?? 0);
-            const hargaJual = Number(lv.price ?? lv.selling_price ?? parent?.harga_jual ?? 0);
-            if (sku) {
-              registerMasterInfo({
-                kode_sku: sku,
-                nama_produk: parent?.nama_produk || name,
-                kategori: parent?.kategori || 'Pakaian',
-                varian: String(lv.variant_name || lv.name || 'Standard').trim(),
-                hpp,
-                harga_jual: hargaJual
-              });
-            }
-          }
-        } catch (eLVar) {}
+          const [rows] = await pool.query(`SELECT * FROM marketplace.master_products`);
+          lProds = rows || [];
+        } catch (ePoolProd) {}
+      }
+      if (lProds.length === 0) {
+        try {
+          const [rows] = await pool.query(`SELECT * FROM marketplace.products`);
+          lProds = rows || [];
+        } catch (_) {}
       }
 
-      // 2. Kumpulkan seluruh transaksi penjualan dari laravelPool.orders, pesanan_marketplace, dan pesanan_offline
+      for (const lp of lProds) {
+        const sku = String(lp.sku || lp.kode_sku || lp.product_sku || lp.item_sku || lp.code || '').trim();
+        const name = String(lp.name || lp.product_name || lp.nama_produk || lp.title || '').trim();
+        const kategori = String(lp.category || lp.category_name || lp.kategori || 'Pakaian').trim();
+        const hpp = Number(lp.cost_price ?? lp.hpp ?? lp.harga_modal ?? lp.harga_pokok ?? lp.modal ?? lp.buy_price ?? lp.purchase_price ?? 0);
+        const hargaJual = Number(lp.price ?? lp.selling_price ?? lp.harga_jual ?? 0);
+        const info = {
+          kode_sku: sku,
+          nama_produk: name,
+          kategori: kategori || 'Pakaian',
+          varian: 'Standard',
+          hpp,
+          harga_jual: hargaJual
+        };
+        if (lp.id !== undefined && lp.id !== null) {
+          laravelProductByIdMap.set(String(lp.id), info);
+        }
+        registerMasterInfo(info);
+      }
+
+      // 2. Kumpulkan seluruh transaksi penjualan dari database Laravel (marketplace.orders), pesanan_marketplace, dan pesanan_offline
       const rawOrdersMap = new Map();
 
-      // A. Dari database Laravel (marketplace.orders + order_items) — sumber utama yang sama persis dengan Laporan Penjualan per Detail Transaksi di Laravel
+      let lOrders = [];
+      let lItems = [];
+
+      // A. Ambil dari database Laravel (marketplace.orders + order_items)
       if (laravelPool) {
         try {
-          let lOrders = [];
-          try {
-            const [rowsJoin] = await laravelPool.query(`
-              SELECT o.*, s.store_name as _join_store_name, c.code as _join_channel_code
-              FROM orders o
-              LEFT JOIN stores s ON o.store_id = s.id
-              LEFT JOIN channels c ON s.channel_id = c.id
-              ORDER BY COALESCE(o.order_date, o.created_at) DESC
-            `);
-            lOrders = rowsJoin || [];
-          } catch (eJoinOrd) {
-            const [rowsPlain] = await laravelPool.query(`SELECT * FROM orders ORDER BY id DESC`);
-            lOrders = rowsPlain || [];
-          }
+          const [rowsJoin] = await laravelPool.query(`
+            SELECT o.*, s.store_name as _join_store_name, c.code as _join_channel_code
+            FROM orders o
+            LEFT JOIN stores s ON o.store_id = s.id
+            LEFT JOIN channels c ON s.channel_id = c.id
+            ORDER BY COALESCE(o.completed_at, o.order_date, o.created_at) DESC
+          `);
+          lOrders = rowsJoin || [];
+          const [itRows] = await laravelPool.query(`SELECT * FROM order_items`).catch(() => [[]]);
+          lItems = itRows || [];
+        } catch (eLrv) {}
+      }
 
-          const [lItems] = await laravelPool.query(`SELECT * FROM order_items`).catch(() => [[]]);
-          const itemsByOrderId = new Map();
-          for (const it of (lItems || [])) {
-            const oid = it.order_id;
-            if (oid === undefined || oid === null) continue;
-            if (!itemsByOrderId.has(oid)) itemsByOrderId.set(oid, []);
-            itemsByOrderId.get(oid).push(it);
-          }
+      // Fallback: Jika via laravelPool gagal/kosong, query langsung via pool ke tabel marketplace.orders
+      if (lOrders.length === 0) {
+        try {
+          const [rowsJoin] = await pool.query(`
+            SELECT o.*, s.store_name as _join_store_name, c.code as _join_channel_code
+            FROM marketplace.orders o
+            LEFT JOIN marketplace.stores s ON o.store_id = s.id
+            LEFT JOIN marketplace.channels c ON s.channel_id = c.id
+            ORDER BY COALESCE(o.completed_at, o.order_date, o.created_at) DESC
+          `);
+          lOrders = rowsJoin || [];
+          const [itRows] = await pool.query(`SELECT * FROM marketplace.order_items`).catch(() => [[]]);
+          lItems = itRows || [];
+        } catch (ePoolLrv) {}
+      }
 
-          for (const lo of (lOrders || [])) {
-            const key = String(
-              lo.order_marketplace_id || lo.order_sn || lo.order_number || lo.invoice_number || lo.no_pesanan || lo.id || ''
-            ).trim();
-            if (!key) continue;
+      const itemsByOrderId = new Map();
+      for (const it of (lItems || [])) {
+        const oid = it.order_id;
+        if (oid === undefined || oid === null) continue;
+        if (!itemsByOrderId.has(oid)) itemsByOrderId.set(oid, []);
+        itemsByOrderId.get(oid).push(it);
+      }
 
-            const st = String(lo.status || lo.order_status || lo.status_pesanan || '').toUpperCase();
-            if (['CANCELLED', 'BATAL', 'IN_CANCEL', 'DIBATALKAN', 'UNPAID'].includes(st)) continue;
+      for (const lo of lOrders) {
+        const key = String(
+          lo.order_marketplace_id || lo.order_sn || lo.order_number || lo.invoice_number || lo.no_pesanan || lo.id || ''
+        ).trim();
+        if (!key) continue;
 
-            const rawOrdItems = itemsByOrderId.get(lo.id) || [];
-            const normItems = rawOrdItems.map(it => {
-              const pById = it.product_id ? laravelProductByIdMap.get(String(it.product_id)) : null;
-              const sku = String(
-                it.sku || it.product_sku || it.item_sku || it.model_sku || it.seller_sku || it.kode_sku || it.variation_sku || pById?.kode_sku || ''
-              ).trim();
-              const namaProduk = String(
-                it.product_name || it.item_name || it.name || it.nama_produk || pById?.nama_produk || ''
-              ).trim();
-              const varian = String(
-                it.variant_name || it.model_name || it.variation_name || it.varian || 'Standard'
-              ).trim();
-              const qty = Math.max(1, Number(it.quantity ?? it.qty ?? it.model_quantity_purchased ?? 1));
-              const harga = Number(
-                it.price ?? it.unit_price ?? it.discounted_price ?? it.selling_price ?? it.harga ?? it.harga_satuan ?? pById?.harga_jual ?? 0
-              );
-              const subtotal = Number(it.total_price ?? it.subtotal ?? it.total ?? it.sub_total ?? (harga * qty)) || (harga * qty);
-              const hpp = Number(
-                it.cost_price ?? it.hpp ?? it.hpp_satuan ?? it.buy_price ?? it.purchase_price ?? it.modal ?? pById?.hpp ?? 0
-              );
-              const hppSubtotal = Number(it.hpp_subtotal ?? it.total_hpp ?? it.total_cost ?? (hpp * qty)) || (hpp * qty);
+        const st = String(lo.order_status || lo.status || lo.status_pesanan || '').toUpperCase();
+        if (['CANCELLED', 'BATAL', 'IN_CANCEL', 'DIBATALKAN', 'UNPAID'].includes(st)) continue;
 
-              return {
-                sku,
-                nama_produk: namaProduk,
-                varian,
-                qty,
-                harga,
-                subtotal,
-                hpp,
-                hpp_subtotal: hppSubtotal
-              };
-            });
+        const rawOrdItems = itemsByOrderId.get(lo.id) || [];
+        const normItems = rawOrdItems.map(it => {
+          const pById = it.product_id ? laravelProductByIdMap.get(String(it.product_id)) : null;
+          const sku = String(
+            it.sku || it.product_sku || it.item_sku || it.model_sku || it.seller_sku || it.kode_sku || it.variation_sku || pById?.kode_sku || ''
+          ).trim();
+          const namaProduk = String(
+            it.product_name || it.item_name || it.name || it.nama_produk || pById?.nama_produk || ''
+          ).trim();
+          const varian = String(
+            it.variant_name || it.model_name || it.variation_name || it.varian || 'Standard'
+          ).trim();
+          const qty = Math.max(1, Number(it.quantity ?? it.qty ?? it.model_quantity_purchased ?? 1));
+          const harga = Number(
+            it.price ?? it.unit_price ?? it.discounted_price ?? it.selling_price ?? it.harga ?? it.harga_satuan ?? pById?.harga_jual ?? 0
+          );
+          const subtotal = Number(it.total_price ?? it.subtotal ?? it.total ?? it.sub_total ?? (harga * qty)) || (harga * qty);
+          const hpp = Number(
+            it.cost_price ?? it.hpp ?? it.hpp_satuan ?? it.buy_price ?? it.purchase_price ?? it.modal ?? pById?.hpp ?? 0
+          );
+          const hppSubtotal = Number(it.hpp_subtotal ?? it.total_hpp ?? it.total_cost ?? (hpp * qty)) || (hpp * qty);
 
-            const itemsSum = normItems.reduce((acc, it) => acc + (Number(it.subtotal) || 0), 0);
-            const gross = Number(
-              lo.total_amount ?? lo.subtotal ?? lo.grand_total ?? lo.total_price ?? lo.total_harga ?? lo.amount ?? 0
-            ) || itemsSum;
+          return {
+            sku,
+            nama_produk: namaProduk,
+            varian,
+            qty,
+            harga,
+            subtotal,
+            hpp,
+            hpp_subtotal: hppSubtotal
+          };
+        });
 
-            const feeParts = Math.abs(Number(lo.fee_platform ?? lo.commission_fee ?? 0))
-              + Math.abs(Number(lo.fee_free_shipping ?? lo.service_fee ?? 0))
-              + Math.abs(Number(lo.fee_service ?? lo.seller_transaction_fee ?? lo.processing_fee ?? 0));
-            const lrvFee = Math.abs(Number(lo.marketplace_fee ?? lo.admin_fee ?? lo.total_fee ?? 0)) || feeParts;
-            const lrvNetRaw = Number(lo.net_amount ?? lo.escrow_amount ?? lo.payout_amount ?? lo.seller_income ?? lo.dana_cair ?? 0);
-            // Hindari nilai net_amount yang ter-inflate ongkir (> gross)
-            const lrvNet = (lrvNetRaw > 0 && lrvNetRaw <= gross)
-              ? lrvNetRaw
-              : (lrvFee > 0 ? Math.max(0, gross - lrvFee) : gross);
-            const finalLrvFee = lrvFee > 0 ? lrvFee : (lrvNet > 0 && lrvNet < gross ? Math.max(0, gross - lrvNet) : 0);
+        const itemsSum = normItems.reduce((acc, it) => acc + (Number(it.subtotal) || 0), 0);
+        const gross = Number(
+          lo.total_amount ?? lo.subtotal ?? lo.grand_total ?? lo.total_price ?? lo.total_harga ?? lo.amount ?? 0
+        ) || itemsSum;
 
-            const dtRaw = lo.order_date || lo.ordered_at || lo.order_time || lo.waktu_pesanan || lo.created_at;
-            const waktuPesanan = dtRaw ? new Date(dtRaw) : new Date();
+        const feeParts = Math.abs(Number(lo.fee_platform_amount ?? lo.fee_platform ?? lo.commission_fee ?? 0))
+          + Math.abs(Number(lo.fee_free_shipping_amount ?? lo.fee_free_shipping ?? lo.service_fee ?? 0))
+          + Math.abs(Number(lo.fee_service_amount ?? lo.fee_service ?? lo.seller_transaction_fee ?? lo.processing_fee ?? 0))
+          + Math.abs(Number(lo.fee_promo_amount ?? 0))
+          + Math.abs(Number(lo.fee_other_amount ?? 0));
+        const lrvFee = Math.abs(Number(lo.marketplace_fee ?? lo.admin_fee ?? lo.total_fee ?? 0)) || feeParts;
+        const lrvNetRaw = Number(lo.net_amount ?? lo.escrow_amount ?? lo.payout_amount ?? lo.seller_income ?? lo.dana_cair ?? 0);
+        const lrvNet = (lrvNetRaw > 0 && lrvNetRaw <= gross)
+          ? lrvNetRaw
+          : (lrvFee > 0 ? Math.max(0, gross - lrvFee) : gross);
+        const finalLrvFee = lrvFee > 0 ? lrvFee : (lrvNet > 0 && lrvNet < gross ? Math.max(0, gross - lrvNet) : 0);
 
-            rawOrdersMap.set(key, {
-              id: `lrv_${lo.id}`,
-              no_pesanan: key,
-              saluran: String(lo._join_channel_code || lo.channel || lo.platform || lo.saluran || 'shopee').trim().toLowerCase(),
-              nama_toko: String(lo._join_store_name || lo.store_name || lo.shop_name || lo.nama_toko || 'Toko Marketplace').trim(),
-              nama_pembeli: String(lo.buyer_name || lo.customer_name || lo.buyer_username || lo.recipient_name || lo.nama_pembeli || 'Pembeli Marketplace').trim(),
-              waktu_pesanan: !isNaN(waktuPesanan.getTime()) ? waktuPesanan : new Date(),
-              status_pesanan: lo.status || lo.order_status || lo.status_pesanan || 'COMPLETED',
-              omset_kotor: gross,
-              potongan_fee: finalLrvFee,
-              dana_cair: Math.max(0, gross - finalLrvFee),
-              lrv_hpp_total: Number(lo.hpp_total ?? lo.total_hpp ?? lo.cost_total ?? 0),
-              items: normItems
-            });
-          }
-        } catch (eLrv) {
-          console.warn('[Penjualan Cair Laravel Sync Error]:', eLrv.message);
-        }
+        const dtRaw = lo.order_date || lo.ordered_at || lo.order_time || lo.waktu_pesanan || lo.created_at;
+        const waktuPesanan = dtRaw ? new Date(dtRaw) : new Date();
+        const dtCairRaw = lo.completed_at || lo.settled_at || lo.payout_at || lo.released_at || lo.escrow_date || lo.paid_at;
+        const waktuCair = dtCairRaw ? new Date(dtCairRaw) : null;
+
+        rawOrdersMap.set(key, {
+          id: `lrv_${lo.id}`,
+          no_pesanan: key,
+          saluran: String(lo._join_channel_code || lo.channel || lo.platform || lo.saluran || 'shopee').trim().toLowerCase(),
+          nama_toko: String(lo._join_store_name || lo.store_name || lo.shop_name || lo.nama_toko || 'Toko Marketplace').trim(),
+          nama_pembeli: String(lo.buyer_name || lo.customer_name || lo.buyer_username || lo.recipient_name || lo.nama_pembeli || 'Pembeli Marketplace').trim(),
+          waktu_pesanan: !isNaN(waktuPesanan.getTime()) ? waktuPesanan : new Date(),
+          waktu_cair: (waktuCair && !isNaN(waktuCair.getTime())) ? waktuCair : null,
+          status_pesanan: lo.order_status || lo.status || lo.status_pesanan || 'COMPLETED',
+          omset_kotor: gross,
+          potongan_fee: finalLrvFee,
+          dana_cair: Math.max(0, gross - finalLrvFee),
+          lrv_hpp_total: Number(lo.hpp_total ?? lo.total_hpp ?? lo.cost_total ?? 0),
+          items: normItems
+        });
       }
 
       // B. Dari tabel pesanan_marketplace (ruangmarket) — melengkapi pesanan baru atau rincian fee yang belum ada di Laravel
@@ -782,8 +797,9 @@ export async function handlePenitipanBarangRoutes(req, res, pathname, urlObj, co
           if (String(ord.nama_toko || '').trim().toLowerCase() !== cleanToko.toLowerCase()) continue;
         }
 
-        // Konversi tanggal ke WIB (YYYY-MM-DD)
-        const wibDate = new Date(ord.waktu_pesanan.getTime() + (7 * 60 * 60 * 1000));
+        // Konversi tanggal ke WIB (YYYY-MM-DD): Prioritaskan waktu_cair (Escrow / Dilepas) untuk laporan dana cair
+        const dateToUse = (statusCair === 'cair' && ord.waktu_cair) ? ord.waktu_cair : ord.waktu_pesanan;
+        const wibDate = new Date(dateToUse.getTime() + (7 * 60 * 60 * 1000));
         const tanggalStr = wibDate.toISOString().slice(0, 10);
         const waktuStr = wibDate.toISOString().slice(11, 16);
 
@@ -802,9 +818,11 @@ export async function handlePenitipanBarangRoutes(req, res, pathname, urlObj, co
         const enrichedItems = rawItems.map(it => {
           const rawSku = String(it.sku || it.kode_sku || it.item_sku || it.model_sku || it.seller_sku || it.sku_marketplace || '').trim();
           const rawName = String(it.nama_produk || it.product_name || it.item_name || '').trim();
-          const mInfo = masterMap.get(rawSku.toLowerCase()) 
-            || masterMap.get(rawSku.toLowerCase().replace(/^rsg-/, ''))
-            || masterMap.get(rawSku.toLowerCase().replace(/^po-/, ''))
+          const cleanSkuLower = rawSku.toLowerCase();
+          const mInfo = masterMap.get(cleanSkuLower) 
+            || masterMap.get(cleanSkuLower.replace(/^rsg-/, ''))
+            || masterMap.get(cleanSkuLower.replace(/^po-/, ''))
+            || masterMap.get(`rsg-${cleanSkuLower.replace(/^rsg-/, '')}`)
             || masterMap.get(rawName.toLowerCase()) 
             || null;
 
@@ -1683,7 +1701,7 @@ export async function handlePenitipanBarangRoutes(req, res, pathname, urlObj, co
   // 3. PUT /api/penitipan-barang/:id - Edit Data Penitipan Barang (Tanpa Harga Jual)
   if (req.method === 'PUT' && pathname.startsWith('/api/penitipan-barang/')) {
     const id = pathname.split('/')[3];
-    if (!id || id === 'terjual' || id === 'mitra' || id === 'pembayaran') return false;
+    if (!id || id === 'terjual' || id === 'retur' || id === 'mitra' || id === 'pembayaran' || id === 'opname' || id === 'laporan-stok') return false;
 
     try {
       const body = await parseJsonBody(req);
@@ -1787,10 +1805,55 @@ export async function handlePenitipanBarangRoutes(req, res, pathname, urlObj, co
     }
   }
 
+  // 4b. POST /api/penitipan-barang/:id/retur - Catat Retur Barang ke Penitip
+  if (req.method === 'POST' && pathname.includes('/retur')) {
+    const parts = pathname.split('/');
+    const id = parts[3];
+
+    try {
+      const body = await parseJsonBody(req);
+      const qtyReturBaru = Number(body.qty_retur || 0);
+
+      if (qtyReturBaru <= 0) {
+        return sendJson(res, 400, { status: 'error', message: 'Jumlah retur harus lebih dari 0!' });
+      }
+
+      // Cek sisa stok saat ini
+      const [[current]] = await pool.query('SELECT qty_titip, qty_terjual, qty_retur FROM penitipan_barang WHERE id = ?', [id]);
+      if (!current) {
+        return sendJson(res, 404, { status: 'error', message: 'Data penitipan tidak ditemukan!' });
+      }
+
+      const sisaSaatIni = Number(current.qty_titip) - Number(current.qty_terjual) - Number(current.qty_retur);
+      if (qtyReturBaru > sisaSaatIni) {
+        return sendJson(res, 400, {
+          status: 'error',
+          message: `Jumlah retur (${qtyReturBaru}) melebihi sisa stok yang ada (${sisaSaatIni})!`
+        });
+      }
+
+      await pool.query(
+        `UPDATE penitipan_barang SET 
+          qty_retur = qty_retur + ?,
+          status = CASE WHEN (qty_titip - qty_terjual - (qty_retur + ?)) <= 0 THEN 'Selesai' ELSE 'Aktif' END
+        WHERE id = ?`,
+        [qtyReturBaru, qtyReturBaru, id]
+      );
+
+      return sendJson(res, 200, {
+        status: 'success',
+        message: `Berhasil mencatat retur ${qtyReturBaru} barang ke penitip!`
+      });
+    } catch (err) {
+      console.error('[POST /api/penitipan-barang/retur Error]:', err);
+      return sendJson(res, 500, { status: 'error', message: err.message });
+    }
+  }
+
   // 5. DELETE /api/penitipan-barang/:id - Hapus Data Penitipan
   if (req.method === 'DELETE' && pathname.startsWith('/api/penitipan-barang/')) {
     const id = pathname.split('/')[3];
-    if (id === 'mitra' || id === 'pembayaran') return false;
+    if (!id || id === 'mitra' || id === 'pembayaran' || id === 'opname' || id === 'terjual' || id === 'retur') return false;
 
     try {
       await pool.query('DELETE FROM penitipan_barang WHERE id = ?', [id]);
@@ -1872,7 +1935,7 @@ export async function deductWarehouseStock(pool, { sku, qty, source = 'gudang', 
 
   // 2. Default / source === 'gudang': Kurangi dari produk_master
   const [[prod]] = await pool.query(
-    `SELECT id, nama_produk, varian, satuan, stok_fisik FROM produk_master WHERE kode_sku = ? LIMIT 1`,
+    `SELECT id, nama_produk, satuan, stok_fisik FROM produk_master WHERE kode_sku = ? LIMIT 1`,
     [cleanSku]
   );
 
@@ -1892,7 +1955,7 @@ export async function deductWarehouseStock(pool, { sku, qty, source = 'gudang', 
       stok_sebelum, stok_sesudah, no_referensi, pihak_terkait, petugas, keterangan
     ) VALUES (?, ?, ?, 'keluar', 'Penjualan / Fulfillment', ?, ?, ?, ?, ?, ?, ?, ?, 'Gudang Utama Sendiri', ?, ?)`,
     [
-      'RSG', today, noBukti, cleanSku, prod?.nama_produk || cleanSku, prod?.varian || '', prod?.satuan || 'PCS',
+      'RSG', today, noBukti, cleanSku, prod?.nama_produk || cleanSku, 'Standard', prod?.satuan || 'PCS',
       numQty, stokAwal, stokAkhir, noRef, petugas, keterangan || 'Pengurangan stok hasil scan QR Code Gudang'
     ]
   ).catch(() => {});

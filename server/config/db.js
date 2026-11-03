@@ -17,7 +17,7 @@ export const pool = mysql.createPool(DB_CONFIG);
 export const laravelPool = mysql.createPool({
   host: process.env.LARAVEL_DB_HOST || process.env.DB_HOST || '127.0.0.1',
   user: process.env.LARAVEL_DB_USER || 'marketplace',
-  password: process.env.LARAVEL_DB_PASSWORD || 'Jazman@271998',
+  password: process.env.LARAVEL_DB_PASSWORD || process.env.DB_PASSWORD || 'Jazman@27198',
   database: process.env.LARAVEL_DB_NAME || 'marketplace',
   waitForConnections: true,
   connectionLimit: 10,
@@ -157,35 +157,25 @@ export async function initDb() {
         WHERE tm.nama_toko IS NOT NULL AND tm.nama_toko != ''
       `);
 
-      // Bersihkan duplikat:1) ItemID yang sama tetapi muncul di lebih dari 1 toko (simpan hanya baris yang paling baru ditarik), 2) SKU + Toko yang sama (simpan hanya 1 baris terbaru)
+      // Bersihkan duplikat satu kali jika diperlukan, gunakan subquery ID agar tidak mengunci tabel / bakar CPU
       try {
-        // 1. Jika id_produk_marketplace + varian sama tetapi beda id/toko akibat bug lama (NUSANTARA SERAGAM), hapus yang ditarik_pada lebih lama
         await conn.query(`
-          DELETE pm1 FROM produk_marketplace pm1
-          INNER JOIN produk_marketplace pm2 ON 
-            pm1.saluran = pm2.saluran 
-            AND pm1.id_produk_marketplace = pm2.id_produk_marketplace
-            AND COALESCE(pm1.sku_marketplace, '') = COALESCE(pm2.sku_marketplace, '')
-            AND COALESCE(pm1.varian, '') = COALESCE(pm2.varian, '')
-            AND pm1.id != pm2.id
-          WHERE pm1.ditarik_pada < pm2.ditarik_pada 
-             OR (pm1.ditarik_pada = pm2.ditarik_pada AND pm1.nama_toko = 'NUSANTARA SERAGAM' AND pm2.nama_toko != 'NUSANTARA SERAGAM')
-             OR (pm1.ditarik_pada = pm2.ditarik_pada AND pm1.id < pm2.id)
+          DELETE FROM produk_marketplace 
+          WHERE id IN (
+            SELECT id FROM (
+              SELECT pm1.id
+              FROM produk_marketplace pm1
+              INNER JOIN produk_marketplace pm2 ON 
+                pm1.saluran = pm2.saluran 
+                AND pm1.nama_toko = pm2.nama_toko
+                AND pm1.sku_marketplace IS NOT NULL 
+                AND pm1.sku_marketplace != ''
+                AND pm1.sku_marketplace = pm2.sku_marketplace
+                AND pm1.id < pm2.id
+              LIMIT 500
+            ) AS dups
+          )
         `);
-
-        // 2. Jika dalam 1 Toko + Saluran yang sama terdapat SKU Marketplace yang sama persis, hapus duplikatnya (sisakan 1 terbaru)
-        await conn.query(`
-          DELETE pm1 FROM produk_marketplace pm1
-          INNER JOIN produk_marketplace pm2 ON 
-            pm1.saluran = pm2.saluran 
-            AND LOWER(TRIM(pm1.nama_toko)) = LOWER(TRIM(pm2.nama_toko))
-            AND TRIM(pm1.sku_marketplace) != ''
-            AND LOWER(TRIM(pm1.sku_marketplace)) = LOWER(TRIM(pm2.sku_marketplace))
-            AND pm1.id != pm2.id
-          WHERE pm1.ditarik_pada < pm2.ditarik_pada 
-             OR (pm1.ditarik_pada = pm2.ditarik_pada AND pm1.id < pm2.id)
-        `);
-        console.log('[MySQL] Berhasil membersihkan duplikat SKU & ItemID per toko di produk_marketplace!');
       } catch (eDedup) {
         console.warn('[MySQL Dedup Warning]:', eDedup.message);
       }
