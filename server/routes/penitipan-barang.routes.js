@@ -718,6 +718,7 @@ export async function handlePenitipanBarangRoutes(req, res, pathname, urlObj, co
             nama_toko: (existing?.nama_toko && existing.nama_toko !== 'Toko Marketplace') ? existing.nama_toko : (ro.nama_toko || 'Toko Marketplace'),
             nama_pembeli: (existing?.nama_pembeli && existing.nama_pembeli !== 'Pembeli Marketplace') ? existing.nama_pembeli : (ro.nama_pembeli || 'Pembeli'),
             waktu_pesanan: existing?.waktu_pesanan || (dtRm && !isNaN(dtRm.getTime()) ? dtRm : new Date()),
+            waktu_cair: existing?.waktu_cair || null,
             status_pesanan: existing?.status_pesanan || ro.status_pesanan || 'COMPLETED',
             omset_kotor: gross,
             potongan_fee: chosenFee,
