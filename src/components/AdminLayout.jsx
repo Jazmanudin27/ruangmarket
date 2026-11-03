@@ -57,6 +57,7 @@ import MutasiBarangDesktopView from '../views/desktop/MutasiBarangDesktopView';
 import PenitipanBarangDesktopView from '../views/desktop/PenitipanBarangDesktopView';
 import LaporanStokDesktopView from '../views/desktop/LaporanStokDesktopView';
 import LaporanPenjualanCairDesktopView from '../views/desktop/LaporanPenjualanCairDesktopView';
+import SaldoMarketplaceDesktopView from '../views/desktop/SaldoMarketplaceDesktopView';
 
 // Mobile Views
 import MarketplaceMobileView from '../views/mobile/MarketplaceMobileView';
@@ -92,6 +93,8 @@ export default function AdminLayout() {
   const marketplaceRef = useRef(null);
   const [isLaporanOpen, setIsLaporanOpen] = useState(false);
   const laporanRef = useRef(null);
+  const [isKeuanganOpen, setIsKeuanganOpen] = useState(false);
+  const keuanganRef = useRef(null);
   const [isCompanyDropdownOpen, setIsCompanyDropdownOpen] = useState(false);
   const companyDropdownRef = useRef(null);
   const [companies, setCompanies] = useState(getCompanies);
@@ -117,6 +120,9 @@ export default function AdminLayout() {
       }
       if (laporanRef.current && !laporanRef.current.contains(event.target)) {
         setIsLaporanOpen(false);
+      }
+      if (keuanganRef.current && !keuanganRef.current.contains(event.target)) {
+        setIsKeuanganOpen(false);
       }
       if (userDropdownRef.current && !userDropdownRef.current.contains(event.target)) {
         setIsUserDropdownOpen(false);
@@ -207,6 +213,7 @@ export default function AdminLayout() {
     setIsMarketingOpen(false);
     setIsMarketplaceOpen(false);
     setIsLaporanOpen(false);
+    setIsKeuanganOpen(false);
   };
 
   const toggleFullscreen = () => {
@@ -286,6 +293,9 @@ export default function AdminLayout() {
       case 'mutasi_kas':
       case 'kas':
         return <KeuanganDesktopView />;
+      case 'saldo_marketplace':
+      case 'wallet':
+        return <SaldoMarketplaceDesktopView />;
       case 'mutasi_barang':
       case 'mutasi_stok':
       case 'mutasi':
@@ -1110,47 +1120,153 @@ export default function AdminLayout() {
               )}
             </div>
 
-            {/* 5. Keuangan (Mutasi Kas Masuk & Keluar) */}
-            <button
-              type="button"
-              onClick={() => changeTab('keuangan')}
-              style={{
-                height: '24px',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '4px',
-                padding: '0 8px',
-                borderRadius: '5px',
-                border: (activeTab === 'keuangan' || activeTab === 'mutasi_kas') ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.08)',
-                backgroundColor: (activeTab === 'keuangan' || activeTab === 'mutasi_kas') ? '#0284c7' : 'rgba(255, 255, 255, 0.05)',
-                color: (activeTab === 'keuangan' || activeTab === 'mutasi_kas') ? '#ffffff' : '#cbd5e1',
-                fontSize: '11px',
-                fontWeight: (activeTab === 'keuangan' || activeTab === 'mutasi_kas') ? '800' : '600',
-                lineHeight: 1,
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-                whiteSpace: 'nowrap',
-                boxShadow: (activeTab === 'keuangan' || activeTab === 'mutasi_kas') ? '0 0 10px rgba(2, 132, 199, 0.5)' : 'none'
-              }}
-              onMouseEnter={(e) => {
-                if (activeTab !== 'keuangan' && activeTab !== 'mutasi_kas') {
-                  e.currentTarget.style.backgroundColor = 'rgba(56, 189, 248, 0.15)';
-                  e.currentTarget.style.borderColor = 'rgba(56, 189, 248, 0.3)';
-                  e.currentTarget.style.color = '#ffffff';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (activeTab !== 'keuangan' && activeTab !== 'mutasi_kas') {
-                  e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
-                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
-                  e.currentTarget.style.color = '#cbd5e1';
-                }
-              }}
-            >
-              <DollarSign size={13} color={(activeTab === 'keuangan' || activeTab === 'mutasi_kas') ? '#ffffff' : '#38bdf8'} style={{ flexShrink: 0 }} />
-              <span>Keuangan</span>
-            </button>
+            {/* 5. Keuangan (Dropdown Mutasi Kas & Saldo Marketplace) */}
+            <div style={{ position: 'relative' }} ref={keuanganRef}>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsKeuanganOpen(prev => !prev);
+                }}
+                style={{
+                  height: '24px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '4px',
+                  padding: '0 8px',
+                  borderRadius: '5px',
+                  border: (activeTab === 'keuangan' || activeTab === 'mutasi_kas' || activeTab === 'saldo_marketplace' || activeTab === 'wallet' || isKeuanganOpen) ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.08)',
+                  backgroundColor: (activeTab === 'keuangan' || activeTab === 'mutasi_kas' || activeTab === 'saldo_marketplace' || activeTab === 'wallet' || isKeuanganOpen) ? '#0284c7' : 'rgba(255, 255, 255, 0.05)',
+                  color: (activeTab === 'keuangan' || activeTab === 'mutasi_kas' || activeTab === 'saldo_marketplace' || activeTab === 'wallet' || isKeuanganOpen) ? '#ffffff' : '#cbd5e1',
+                  fontSize: '11px',
+                  fontWeight: (activeTab === 'keuangan' || activeTab === 'mutasi_kas' || activeTab === 'saldo_marketplace' || activeTab === 'wallet' || isKeuanganOpen) ? '800' : '600',
+                  lineHeight: 1,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                  whiteSpace: 'nowrap',
+                  boxShadow: (activeTab === 'keuangan' || activeTab === 'mutasi_kas' || activeTab === 'saldo_marketplace' || activeTab === 'wallet' || isKeuanganOpen) ? '0 0 10px rgba(2, 132, 199, 0.5)' : 'none'
+                }}
+                onMouseEnter={(e) => {
+                  if (activeTab !== 'keuangan' && activeTab !== 'mutasi_kas' && activeTab !== 'saldo_marketplace' && activeTab !== 'wallet' && !isKeuanganOpen) {
+                    e.currentTarget.style.backgroundColor = 'rgba(56, 189, 248, 0.15)';
+                    e.currentTarget.style.borderColor = 'rgba(56, 189, 248, 0.3)';
+                    e.currentTarget.style.color = '#ffffff';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (activeTab !== 'keuangan' && activeTab !== 'mutasi_kas' && activeTab !== 'saldo_marketplace' && activeTab !== 'wallet' && !isKeuanganOpen) {
+                    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                    e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
+                    e.currentTarget.style.color = '#cbd5e1';
+                  }
+                }}
+              >
+                <DollarSign size={13} color={(activeTab === 'keuangan' || activeTab === 'mutasi_kas' || activeTab === 'saldo_marketplace' || activeTab === 'wallet' || isKeuanganOpen) ? '#ffffff' : '#38bdf8'} style={{ flexShrink: 0 }} />
+                <span>Keuangan</span>
+                <ChevronDown 
+                  size={11} 
+                  color={(activeTab === 'keuangan' || activeTab === 'mutasi_kas' || activeTab === 'saldo_marketplace' || activeTab === 'wallet' || isKeuanganOpen) ? '#ffffff' : '#38bdf8'} 
+                  style={{ 
+                    transform: isKeuanganOpen ? 'rotate(180deg)' : 'none', 
+                    transition: 'transform 0.15s ease',
+                    marginLeft: '1px'
+                  }} 
+                />
+              </button>
+
+              {/* Keuangan Dropdown Popup */}
+              {isKeuanganOpen && (
+                <div style={{
+                  position: 'absolute',
+                  left: 0,
+                  top: '100%',
+                  marginTop: '6px',
+                  backgroundColor: '#0f172a',
+                  border: '1px solid #334155',
+                  borderRadius: '8px',
+                  padding: '6px',
+                  minWidth: '190px',
+                  boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5)',
+                  zIndex: 1000,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '2px'
+                }}>
+                  {/* Submenu 1: Mutasi Kas */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      changeTab('keuangan');
+                      setIsKeuanganOpen(false);
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'flex-start',
+                      gap: '8px',
+                      width: '100%',
+                      padding: '7px 10px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      backgroundColor: (activeTab === 'keuangan' || activeTab === 'mutasi_kas') ? 'rgba(2, 132, 199, 0.2)' : 'transparent',
+                      color: (activeTab === 'keuangan' || activeTab === 'mutasi_kas') ? '#38bdf8' : '#cbd5e1',
+                      fontSize: '11.5px',
+                      fontWeight: (activeTab === 'keuangan' || activeTab === 'mutasi_kas') ? '800' : '600',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'background-color 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (activeTab !== 'keuangan' && activeTab !== 'mutasi_kas') e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (activeTab !== 'keuangan' && activeTab !== 'mutasi_kas') e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
+                  >
+                    <DollarSign size={14} color={(activeTab === 'keuangan' || activeTab === 'mutasi_kas') ? '#38bdf8' : '#94a3b8'} style={{ flexShrink: 0 }} />
+                    <span style={{ textAlign: 'left', flex: 1 }}>Mutasi Kas (BCA / Mandiri)</span>
+                  </button>
+
+                  {/* Submenu 2: Saldo Marketplace */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      changeTab('saldo_marketplace');
+                      setIsKeuanganOpen(false);
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'flex-start',
+                      gap: '8px',
+                      width: '100%',
+                      padding: '7px 10px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      backgroundColor: (activeTab === 'saldo_marketplace' || activeTab === 'wallet') ? 'rgba(2, 132, 199, 0.2)' : 'transparent',
+                      color: (activeTab === 'saldo_marketplace' || activeTab === 'wallet') ? '#38bdf8' : '#cbd5e1',
+                      fontSize: '11.5px',
+                      fontWeight: (activeTab === 'saldo_marketplace' || activeTab === 'wallet') ? '800' : '600',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'background-color 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (activeTab !== 'saldo_marketplace' && activeTab !== 'wallet') e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (activeTab !== 'saldo_marketplace' && activeTab !== 'wallet') e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
+                  >
+                    <Wallet size={14} color={(activeTab === 'saldo_marketplace' || activeTab === 'wallet') ? '#38bdf8' : '#94a3b8'} style={{ flexShrink: 0 }} />
+                    <span style={{ textAlign: 'left', flex: 1 }}>Saldo Marketplace</span>
+                  </button>
+                </div>
+              )}
+            </div>
 
             {/* 6. Mutasi Barang (Masuk & Keluar) */}
             <button
