@@ -1,7 +1,7 @@
 import { sendJson } from '../utils/response.js';
 
-export async function handleWalletRoutes(req, res, pathname, urlObj, { pool, laravelPool }) {
-  // GET /api/marketplace/wallet - Ambil saldo & mutasi dompet marketplace
+export async function handleWalletRoutes(req, res, pathname, urlObj, { pool }) {
+  // GET /api/marketplace/wallet - Ambil saldo & mutasi dompet dari database ruangmarket (dompet_marketplace)
   if (pathname === '/api/marketplace/wallet' && req.method === 'GET') {
     try {
       const storeId = urlObj.searchParams.get('store_id') || 'all';
@@ -13,40 +13,62 @@ export async function handleWalletRoutes(req, res, pathname, urlObj, { pool, lar
       const limit = parseInt(urlObj.searchParams.get('limit') || '50', 10);
       const offset = (page - 1) * limit;
 
-      const targetPool = laravelPool || pool;
+      // 1. Auto-sinkronisasi awal jika tabel dompet_marketplace masih kosong: salin data dari marketplace
+      try {
+        const [[countInit]] = await pool.query('SELECT COUNT(*) as cnt FROM dompet_marketplace');
+        if (Number(countInit?.cnt || 0) === 0) {
+          await pool.query(`
+            INSERT IGNORE INTO dompet_marketplace (
+              kode_perusahaan, id_toko, nama_toko, saluran, id_transaksi,
+              tanggal_transaksi, tipe_transaksi, deskripsi, nominal, arah,
+              saldo_akhir, raw_data, dibuat_pada, diperbarui_pada
+            )
+            SELECT 
+              'RSG',
+              CAST(t.store_id AS CHAR),
+              COALESCE(s.store_name, 'Toko Marketplace'),
+              COALESCE(c.code, 'marketplace'),
+              t.transaction_id,
+              t.transaction_date,
+              COALESCE(t.type, 'Pencairan'),
+              t.description,
+              t.amount,
+              t.direction,
+              t.current_balance,
+              t.raw_data,
+              t.created_at,
+              t.updated_at
+            FROM marketplace.marketplace_wallet_transactions t
+            LEFT JOIN marketplace.stores s ON t.store_id = s.id
+            LEFT JOIN marketplace.channels c ON s.channel_id = c.id
+          `);
+        }
+      } catch (eSync) {
+        console.warn('[Sync Wallet to RuangMarket Error]:', eSync.message);
+      }
 
-      // 1. Ambil Ringkasan Saldo per Toko (Saldo Terkini)
-      // Ambil transaksi paling baru per toko yang current_balance-nya tidak null
-      const [latestBalances] = await targetPool.query(`
+      // 2. Ambil Ringkasan Saldo per Toko (Saldo Terkini) dari dompet_marketplace (ruangmarket)
+      const [latestBalances] = await pool.query(`
         SELECT 
-          s.id as store_id,
-          s.store_name,
-          c.code as channel,
-          c.name as channel_name,
+          d.id_toko as store_id,
+          d.nama_toko as store_name,
+          d.saluran as channel,
           (
-            SELECT t2.current_balance 
-            FROM marketplace.marketplace_wallet_transactions t2 
-            WHERE t2.store_id = s.id AND t2.current_balance IS NOT NULL 
-            ORDER BY t2.transaction_date DESC, t2.id DESC 
+            SELECT d2.saldo_akhir 
+            FROM dompet_marketplace d2 
+            WHERE d2.id_toko = d.id_toko AND d2.saldo_akhir IS NOT NULL 
+            ORDER BY d2.tanggal_transaksi DESC, d2.id DESC 
             LIMIT 1
           ) as latest_balance,
-          (
-            SELECT MAX(t3.transaction_date)
-            FROM marketplace.marketplace_wallet_transactions t3
-            WHERE t3.store_id = s.id
-          ) as last_updated
-        FROM marketplace.stores s
-        LEFT JOIN marketplace.channels c ON s.channel_id = c.id
-        WHERE s.status = 'connected' OR EXISTS (
-          SELECT 1 FROM marketplace.marketplace_wallet_transactions wt WHERE wt.store_id = s.id LIMIT 1
-        )
+          MAX(d.tanggal_transaksi) as last_updated
+        FROM dompet_marketplace d
+        GROUP BY d.id_toko, d.nama_toko, d.saluran
         ORDER BY latest_balance DESC
       `).catch(err => {
         console.warn('[Wallet Summary Query Error]:', err.message);
         return [[]];
       });
 
-      // Hitung agregat saldo
       let totalSaldoSemua = 0;
       let totalSaldoShopee = 0;
       let totalSaldoTiktok = 0;
@@ -62,38 +84,38 @@ export async function handleWalletRoutes(req, res, pathname, urlObj, { pool, lar
           store_id: b.store_id,
           store_name: b.store_name || 'Toko',
           channel: ch || 'marketplace',
-          channel_name: b.channel_name || 'Marketplace',
+          channel_name: ch.toUpperCase(),
           balance: bal,
           last_updated: b.last_updated
         };
       });
 
-      // 2. Query Daftar Mutasi Wallet
+      // 3. Query Daftar Mutasi Wallet dari dompet_marketplace (ruangmarket)
       const whereConds = [];
       const whereParams = [];
 
       if (storeId !== 'all') {
-        whereConds.push('t.store_id = ?');
+        whereConds.push('d.id_toko = ?');
         whereParams.push(storeId);
       }
 
       if (channel !== 'all') {
-        whereConds.push('LOWER(c.code) = ?');
+        whereConds.push('LOWER(d.saluran) = ?');
         whereParams.push(channel);
       }
 
       if (startDate) {
-        whereConds.push('t.transaction_date >= ?');
+        whereConds.push('d.tanggal_transaksi >= ?');
         whereParams.push(`${startDate} 00:00:00`);
       }
 
       if (endDate) {
-        whereConds.push('t.transaction_date <= ?');
+        whereConds.push('d.tanggal_transaksi <= ?');
         whereParams.push(`${endDate} 23:59:59`);
       }
 
       if (search) {
-        whereConds.push('(t.transaction_id LIKE ? OR t.description LIKE ? OR s.store_name LIKE ?)');
+        whereConds.push('(d.id_transaksi LIKE ? OR d.deskripsi LIKE ? OR d.nama_toko LIKE ?)');
         const sWild = `%${search}%`;
         whereParams.push(sWild, sWild, sWild);
       }
@@ -101,48 +123,41 @@ export async function handleWalletRoutes(req, res, pathname, urlObj, { pool, lar
       const whereClause = whereConds.length > 0 ? `WHERE ${whereConds.join(' AND ')}` : '';
 
       // Hitung total data
-      const [[countRow]] = await targetPool.query(`
+      const [[countRow]] = await pool.query(`
         SELECT COUNT(*) as total
-        FROM marketplace.marketplace_wallet_transactions t
-        LEFT JOIN marketplace.stores s ON t.store_id = s.id
-        LEFT JOIN marketplace.channels c ON s.channel_id = c.id
+        FROM dompet_marketplace d
         ${whereClause}
       `, whereParams).catch(() => [[{ total: 0 }]]);
 
       const totalItems = Number(countRow?.total || 0);
 
       // Hitung total mutasi masuk & keluar dalam filter aktif
-      const [[totalsRow]] = await targetPool.query(`
+      const [[totalsRow]] = await pool.query(`
         SELECT 
-          COALESCE(SUM(CASE WHEN LOWER(t.direction) = 'in' THEN t.amount ELSE 0 END), 0) as total_masuk,
-          COALESCE(SUM(CASE WHEN LOWER(t.direction) = 'out' THEN t.amount ELSE 0 END), 0) as total_keluar
-        FROM marketplace.marketplace_wallet_transactions t
-        LEFT JOIN marketplace.stores s ON t.store_id = s.id
-        LEFT JOIN marketplace.channels c ON s.channel_id = c.id
+          COALESCE(SUM(CASE WHEN LOWER(d.arah) = 'in' THEN d.nominal ELSE 0 END), 0) as total_masuk,
+          COALESCE(SUM(CASE WHEN LOWER(d.arah) = 'out' THEN d.nominal ELSE 0 END), 0) as total_keluar
+        FROM dompet_marketplace d
         ${whereClause}
       `, whereParams).catch(() => [[{ total_masuk: 0, total_keluar: 0 }]]);
 
-      // Ambil baris transaksi paginasi
-      const [txRows] = await targetPool.query(`
+      // Ambil baris transaksi paginasi dari tabel dompet_marketplace (ruangmarket)
+      const [txRows] = await pool.query(`
         SELECT 
-          t.id,
-          t.store_id,
-          s.store_name,
-          c.code as channel,
-          c.name as channel_name,
-          t.transaction_id,
-          t.transaction_date,
-          t.type,
-          t.description,
-          t.amount,
-          t.direction,
-          t.current_balance,
-          t.created_at
-        FROM marketplace.marketplace_wallet_transactions t
-        LEFT JOIN marketplace.stores s ON t.store_id = s.id
-        LEFT JOIN marketplace.channels c ON s.channel_id = c.id
+          d.id,
+          d.id_toko as store_id,
+          d.nama_toko as store_name,
+          d.saluran as channel,
+          d.id_transaksi as transaction_id,
+          d.tanggal_transaksi as transaction_date,
+          d.tipe_transaksi as type,
+          d.deskripsi as description,
+          d.nominal as amount,
+          d.arah as direction,
+          d.saldo_akhir as current_balance,
+          d.dibuat_pada as created_at
+        FROM dompet_marketplace d
         ${whereClause}
-        ORDER BY t.transaction_date DESC, t.id DESC
+        ORDER BY d.tanggal_transaksi DESC, d.id DESC
         LIMIT ? OFFSET ?
       `, [...whereParams, limit, offset]).catch(err => {
         console.warn('[Wallet Tx Query Error]:', err.message);
@@ -165,7 +180,7 @@ export async function handleWalletRoutes(req, res, pathname, urlObj, { pool, lar
             store_id: r.store_id,
             store_name: r.store_name || 'Toko',
             channel: (r.channel || '').toLowerCase(),
-            channel_name: r.channel_name || 'Marketplace',
+            channel_name: (r.channel || '').toUpperCase(),
             transaction_id: r.transaction_id,
             transaction_date: r.transaction_date,
             type: r.type,
@@ -193,4 +208,3 @@ export async function handleWalletRoutes(req, res, pathname, urlObj, { pool, lar
 
   return false;
 }
-

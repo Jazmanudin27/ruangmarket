@@ -648,8 +648,33 @@ export async function initDb() {
       await conn.query(`ALTER TABLE produk_master ADD INDEX idx_sku_kain (sku_kain)`);
     } catch (e) {}
 
+    // 13. Tabel Dompet & Saldo Marketplace (dompet_marketplace)
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS dompet_marketplace (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        kode_perusahaan VARCHAR(32) DEFAULT 'RSG',
+        id_toko VARCHAR(100) NOT NULL,
+        nama_toko VARCHAR(255) NOT NULL,
+        saluran VARCHAR(50) NOT NULL,
+        id_transaksi VARCHAR(100) NOT NULL,
+        tanggal_transaksi DATETIME NOT NULL,
+        tipe_transaksi VARCHAR(100) DEFAULT 'Pencairan',
+        deskripsi TEXT NULL,
+        nominal DECIMAL(15,2) NOT NULL DEFAULT 0,
+        arah ENUM('in', 'out') NOT NULL DEFAULT 'in',
+        saldo_akhir DECIMAL(15,2) NULL,
+        raw_data LONGTEXT NULL,
+        dibuat_pada TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        diperbarui_pada TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_toko_transaksi (id_toko, id_transaksi),
+        INDEX idx_id_toko (id_toko),
+        INDEX idx_saluran (saluran),
+        INDEX idx_tanggal_transaksi (tanggal_transaksi)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Mutasi Saldo & Dompet Marketplace RuangMarket';
+    `);
+
     conn.release();
-    console.log('[MySQL] Tabel Bahasa Indonesia (toko_marketplace, produk_marketplace, produk_master, pesanan_marketplace, spk_batch, pelanggan_master, tahapan_spk_master, master_hpp_produk, detail_master_hpp_produk, master_kain) siap!');
+    console.log('[MySQL] Tabel Bahasa Indonesia (toko_marketplace, produk_marketplace, produk_master, pesanan_marketplace, spk_batch, pelanggan_master, tahapan_spk_master, master_hpp_produk, detail_master_hpp_produk, master_kain, dompet_marketplace) siap!');
   } catch (err) {
     console.error('[MySQL Init Error]:', err.message);
   }
