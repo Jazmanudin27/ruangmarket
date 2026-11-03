@@ -2103,12 +2103,13 @@ export default function PesananMasukDesktopView({ onNavigate }) {
                             "TO_RECEIVE",
                             "DIKIRIM",
                             "TO_CONFIRM_RECEIVE",
+                            "DELIVERED",
                           ].includes(statusRaw);
                           const isSelesai = [
                             "COMPLETED",
                             "FINISHED",
                             "SELESAI",
-                            "DELIVERED",
+                            "SETTLED",
                           ].includes(statusRaw);
                           const isBatal = [
                             "CANCELLED",

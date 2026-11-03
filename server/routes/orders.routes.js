@@ -271,8 +271,8 @@ export async function handleOrdersRoutes(req, res, pathname, urlObj, { pool, lar
             SUM(CASE WHEN UPPER(status_pesanan) IN ('READY_TO_SHIP', 'TO_SHIP', 'PROCESSED', 'SIAP DIKIRIM', 'PERLU DIPROSES', 'AWAITING_SHIPMENT', 'AWAITING_COLLECTION') THEN 1 ELSE 0 END) as total_siap_kirim,
             SUM(CASE WHEN UPPER(status_pesanan) IN ('READY_TO_SHIP', 'TO_SHIP', 'PROCESSED', 'SIAP DIKIRIM', 'PERLU DIPROSES', 'AWAITING_SHIPMENT', 'AWAITING_COLLECTION') AND ((no_resi IS NOT NULL AND TRIM(no_resi) != '' AND LOWER(no_resi) != 'belum ada resi') OR UPPER(status_pesanan) IN ('PROCESSED', 'AWAITING_COLLECTION')) THEN 1 ELSE 0 END) as total_diproses,
             SUM(CASE WHEN UPPER(status_pesanan) IN ('READY_TO_SHIP', 'TO_SHIP', 'PROCESSED', 'SIAP DIKIRIM', 'PERLU DIPROSES', 'AWAITING_SHIPMENT', 'AWAITING_COLLECTION') AND (no_resi IS NULL OR TRIM(no_resi) = '' OR LOWER(no_resi) = 'belum ada resi') AND UPPER(status_pesanan) NOT IN ('PROCESSED', 'AWAITING_COLLECTION') THEN 1 ELSE 0 END) as total_belum_diproses,
-            SUM(CASE WHEN UPPER(status_pesanan) IN ('TO_CONFIRM_RECEIVE', 'SHIPPED', 'DIKIRIM', 'IN_TRANSIT') THEN 1 ELSE 0 END) as total_dikirim,
-            SUM(CASE WHEN UPPER(status_pesanan) IN ('COMPLETED', 'FINISHED', 'SELESAI', 'DELIVERED') THEN 1 ELSE 0 END) as total_selesai,
+            SUM(CASE WHEN UPPER(status_pesanan) IN ('TO_CONFIRM_RECEIVE', 'SHIPPED', 'DIKIRIM', 'IN_TRANSIT', 'DELIVERED') THEN 1 ELSE 0 END) as total_dikirim,
+            SUM(CASE WHEN UPPER(status_pesanan) IN ('COMPLETED', 'FINISHED', 'SELESAI', 'SETTLED') THEN 1 ELSE 0 END) as total_selesai,
             SUM(CASE WHEN saluran = 'tiktok' THEN 1 ELSE 0 END) as total_tiktok,
             SUM(CASE WHEN saluran = 'shopee' THEN 1 ELSE 0 END) as total_shopee
           FROM pesanan_marketplace
@@ -307,9 +307,9 @@ export async function handleOrdersRoutes(req, res, pathname, urlObj, { pool, lar
           whereClauses.push("((no_resi IS NOT NULL AND TRIM(no_resi) != '' AND LOWER(no_resi) != 'belum ada resi') OR UPPER(status_pesanan) IN ('PROCESSED', 'AWAITING_COLLECTION'))");
         }
       } else if (tab === 'dikirim') {
-        whereClauses.push("UPPER(status_pesanan) IN ('TO_CONFIRM_RECEIVE', 'SHIPPED', 'DIKIRIM', 'IN_TRANSIT')");
+        whereClauses.push("UPPER(status_pesanan) IN ('TO_CONFIRM_RECEIVE', 'SHIPPED', 'DIKIRIM', 'IN_TRANSIT', 'DELIVERED')");
       } else if (tab === 'selesai') {
-        whereClauses.push("UPPER(status_pesanan) IN ('COMPLETED', 'FINISHED', 'SELESAI', 'DELIVERED')");
+        whereClauses.push("UPPER(status_pesanan) IN ('COMPLETED', 'FINISHED', 'SELESAI', 'SETTLED')");
       } else if (tab === 'tiktok') {
         whereClauses.push("saluran = 'tiktok'");
       } else if (tab === 'shopee') {
