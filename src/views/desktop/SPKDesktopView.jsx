@@ -5088,9 +5088,7 @@ export default function SPKView() {
                                             Rp
                                           </span>
                                           <input
-                                            type="number"
-                                            min="0"
-                                            min="0"
+                                            type="text"
                                             value={formatNumberId(prod.hpp)}
                                             placeholder="0"
                                             onChange={(e) =>
@@ -5101,7 +5099,7 @@ export default function SPKView() {
                                                 parseNumberId(e.target.value),
                                               )
                                             }
-                                            title="Harga Pokok Produksi (HPP) per PCS" type="text"
+                                            title="Harga Pokok Produksi (HPP) per PCS"
                                             style={{
                                               width: "84px",
                                               padding: "3px 4px",
