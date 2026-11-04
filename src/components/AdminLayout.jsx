@@ -1227,7 +1227,7 @@ export default function AdminLayout() {
                     }}
                   >
                     <DollarSign size={14} color={(activeTab === 'keuangan' || activeTab === 'mutasi_kas') ? '#38bdf8' : '#94a3b8'} style={{ flexShrink: 0 }} />
-                    <span style={{ textAlign: 'left', flex: 1 }}>Mutasi Kas (BCA / Mandiri)</span>
+                    <span style={{ textAlign: 'left', flex: 1 }}>Mutasi Kas</span>
                   </button>
 
                   {/* Submenu 2: Saldo Marketplace */}
