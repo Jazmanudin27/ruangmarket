@@ -13,6 +13,20 @@ import {
   Sparkles,
 } from "lucide-react";
 import { toastSuccess, toastError } from "../utils/alert.util";
+import SearchableSelect from "./SearchableSelect";
+
+// Helper format angka ribuan Indonesia
+const formatNumberId = (val) => {
+  if (val === undefined || val === null || val === "" || isNaN(val)) return "";
+  return Number(val).toLocaleString("id-ID");
+};
+
+// Helper parse input ribuan ke angka murni
+const parseNumberId = (str) => {
+  if (!str) return 0;
+  const clean = String(str).replace(/[^0-9]/g, "");
+  return Number(clean) || 0;
+};
 
 export default function ModalDetailHPP({
   isOpen,
@@ -47,10 +61,41 @@ export default function ModalDetailHPP({
 
   // Jasa details
   const [jasaDetails, setJasaDetails] = useState([
-    { nama_jasa: "Jasa Potong Pola", jumlah: 1, harga: 2000, total: 2000 },
-    { nama_jasa: "Jasa Jahit & Obras", jumlah: 1, harga: 7500, total: 7500 },
-    { nama_jasa: "Finishing & Kancing", jumlah: 1, harga: 1500, total: 1500 },
-    { nama_jasa: "BOP & Kemasan/Label", jumlah: 1, harga: 2000, total: 2000 },
+    { nama_jasa: "Jasa Potong", jumlah: 1, harga: 2000, total: 2000 },
+    { nama_jasa: "Jasa Jahit", jumlah: 1, harga: 7000, total: 7000 },
+    { nama_jasa: "Kain Keras", jumlah: 1, harga: 500, total: 500 },
+    { nama_jasa: "Kancing", jumlah: 1, harga: 50, total: 50 },
+    { nama_jasa: "Jasa Lubang Kancing", jumlah: 1, harga: 200, total: 200 },
+    { nama_jasa: "Plastik Packing", jumlah: 1, harga: 400, total: 400 },
+    { nama_jasa: "Finishing", jumlah: 1, harga: 500, total: 500 },
+    { nama_jasa: "Beban Listrik", jumlah: 1, harga: 550, total: 550 },
+    { nama_jasa: "Benang", jumlah: 1, harga: 200, total: 200 },
+    { nama_jasa: "Biaya DLL", jumlah: 1, harga: 800, total: 800 },
+    { nama_jasa: "Label Size", jumlah: 1, harga: 150, total: 150 },
+    { nama_jasa: "BOP", jumlah: 1, harga: 2500, total: 2500 },
+  ]);
+
+  // Daftar Jasa Referensi dari Database
+  const [daftarJasaReferensi, setDaftarJasaReferensi] = useState([
+    { nama_jasa: "Jasa Potong", harga: 2000 },
+    { nama_jasa: "Jasa Potong Pola", harga: 2000 },
+    { nama_jasa: "Jasa Jahit", harga: 7000 },
+    { nama_jasa: "Jasa Jahit & Obras", harga: 7500 },
+    { nama_jasa: "Kain Keras", harga: 500 },
+    { nama_jasa: "Kancing", harga: 50 },
+    { nama_jasa: "Jasa Lubang Kancing", harga: 200 },
+    { nama_jasa: "Plastik Packing", harga: 400 },
+    { nama_jasa: "Finishing", harga: 500 },
+    { nama_jasa: "Finishing & Pasang Kancing", harga: 1500 },
+    { nama_jasa: "Beban Listrik", harga: 550 },
+    { nama_jasa: "Benang", harga: 200 },
+    { nama_jasa: "Biaya DLL", harga: 800 },
+    { nama_jasa: "Label Size", harga: 150 },
+    { nama_jasa: "BOP", harga: 2500 },
+    { nama_jasa: "BOP & Kemasan Plastik/Label", harga: 2000 },
+    { nama_jasa: "Bordir / Sablon", harga: 3000 },
+    { nama_jasa: "Pasang Resleting", harga: 1500 },
+    { nama_jasa: "Jasa Obras", harga: 1500 },
   ]);
 
   const [pilihanKain, setPilihanKain] = useState([]);
@@ -91,6 +136,10 @@ export default function ModalDetailHPP({
 
           if (Array.isArray(d.jasa_details) && d.jasa_details.length > 0) {
             setJasaDetails(d.jasa_details);
+          }
+
+          if (Array.isArray(d.daftar_jasa_referensi) && d.daftar_jasa_referensi.length > 0) {
+            setDaftarJasaReferensi(d.daftar_jasa_referensi);
           }
 
           setIdKategoriHpp(d.produk.id_kategori_hpp || "");
@@ -135,10 +184,56 @@ export default function ModalDetailHPP({
     });
   };
 
+  // Handle Select Jasa dari Dropdown Database
+  const handleSelectJasa = (idx, selectedNama) => {
+    if (selectedNama === "__CUSTOM__") {
+      setJasaDetails((prev) => {
+        const copy = [...prev];
+        copy[idx] = { ...copy[idx], is_custom: true };
+        return copy;
+      });
+      return;
+    }
+
+    const found = daftarJasaReferensi.find(
+      (item) => item.nama_jasa.toLowerCase() === selectedNama.toLowerCase()
+    );
+
+    setJasaDetails((prev) => {
+      const copy = [...prev];
+      const prevItem = copy[idx] || {};
+      const jumlah = Number(prevItem.jumlah || 1);
+      const hargaBaru = found ? Number(found.harga || 0) : Number(prevItem.harga || 0);
+      copy[idx] = {
+        ...prevItem,
+        nama_jasa: selectedNama,
+        harga: hargaBaru,
+        total: Math.round(jumlah * hargaBaru),
+        is_custom: false,
+      };
+      return copy;
+    });
+  };
+
   const handleAddJasa = () => {
+    // Cari opsi referensi yang belum ada di list agar langsung variatif
+    const unused =
+      daftarJasaReferensi.find(
+        (ref) =>
+          !jasaDetails.some(
+            (j) => (j.nama_jasa || "").toLowerCase() === ref.nama_jasa.toLowerCase()
+          )
+      ) || daftarJasaReferensi[0] || { nama_jasa: "Jasa Jahit", harga: 7000 };
+
     setJasaDetails((prev) => [
       ...prev,
-      { nama_jasa: "Komponen Biaya Baru", jumlah: 1, harga: 1000, total: 1000 },
+      {
+        nama_jasa: unused.nama_jasa,
+        jumlah: 1,
+        harga: Number(unused.harga || 0),
+        total: Number(unused.harga || 0),
+        is_custom: false,
+      },
     ]);
   };
 
@@ -148,6 +243,74 @@ export default function ModalDetailHPP({
       return;
     }
     setJasaDetails((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  // Options untuk SearchableSelect Kain
+  const kainOptions = React.useMemo(() => {
+    const opts = (pilihanKain || []).map((k) => ({
+      value: k.kode_sku_kain || k.nama_kain,
+      label: `${k.nama_kain || k.kode_sku_kain}`,
+      subtitle: `@Rp ${Number(k.harga_per_meter || 0).toLocaleString("id-ID")}/m`,
+    }));
+
+    if (
+      kainState.nama_kain &&
+      !pilihanKain.some(
+        (k) =>
+          k.kode_sku_kain === kainState.nama_kain ||
+          k.nama_kain === kainState.nama_kain
+      )
+    ) {
+      opts.unshift({
+        value: kainState.nama_kain,
+        label: `${kainState.nama_kain} (Manual)`,
+        subtitle: `@Rp ${Number(kainState.harga_per_meter || 0).toLocaleString("id-ID")}/m`,
+      });
+    }
+
+    return opts;
+  }, [pilihanKain, kainState.nama_kain, kainState.harga_per_meter]);
+
+  // Options untuk SearchableSelect Jasa Konveksi
+  const jasaOptions = React.useMemo(() => {
+    const opts = (daftarJasaReferensi || []).map((ref) => ({
+      value: ref.nama_jasa,
+      label: ref.nama_jasa,
+      subtitle: `@Rp ${Number(ref.harga || 0).toLocaleString("id-ID")}`,
+    }));
+
+    opts.push({
+      value: "__CUSTOM__",
+      label: "✏️ Ketik Manual / Jasa Kustom...",
+      subtitle: "Input nama jasa / biaya baru",
+    });
+
+    return opts;
+  }, [daftarJasaReferensi]);
+
+  // Handler ganti kain dari SearchableSelect
+  const handleKainChange = (sel) => {
+    if (!sel) return;
+    const found = pilihanKain.find(
+      (k) => k.kode_sku_kain === sel || k.nama_kain === sel
+    );
+    if (found) {
+      const hrgMtr = Number(found.harga_per_meter || 15000);
+      const hrgCm = Math.round(hrgMtr / 100);
+      setKainState((prev) => ({
+        ...prev,
+        sku_kain: found.kode_sku_kain || sel,
+        nama_kain: found.nama_kain || sel,
+        harga_kain_cm: hrgCm,
+        harga_per_meter: hrgMtr,
+      }));
+    } else {
+      setKainState((prev) => ({
+        ...prev,
+        sku_kain: sel,
+        nama_kain: sel,
+      }));
+    }
   };
 
   // Submit & Save
@@ -403,62 +566,14 @@ export default function ModalDetailHPP({
                 >
                   Pilih Kain (Master)
                 </label>
-                <select
+                <SearchableSelect
+                  size="sm"
+                  placeholder="-- Cari / Pilih Kain --"
                   value={kainState.sku_kain || kainState.nama_kain}
-                  onChange={(e) => {
-                    const sel = e.target.value;
-                    const found = pilihanKain.find(
-                      (k) =>
-                        k.kode_sku_kain === sel ||
-                        k.nama_kain === sel
-                    );
-                    if (found) {
-                      const hrgMtr = Number(found.harga_per_meter || 15000);
-                      const hrgCm = Math.round(hrgMtr / 100);
-                      setKainState((prev) => ({
-                        ...prev,
-                        sku_kain: found.kode_sku_kain || sel,
-                        nama_kain: found.nama_kain || sel,
-                        harga_kain_cm: hrgCm,
-                        harga_per_meter: hrgMtr,
-                      }));
-                    } else {
-                      setKainState((prev) => ({
-                        ...prev,
-                        sku_kain: sel,
-                        nama_kain: sel,
-                      }));
-                    }
-                  }}
-                  style={{
-                    width: "100%",
-                    padding: "4px 6px",
-                    borderRadius: "4px",
-                    border: "1px solid #86efac",
-                    fontSize: "11px",
-                    backgroundColor: "#ffffff",
-                    color: "#0f172a",
-                    fontWeight: "600",
-                  }}
-                >
-                  <option value="">-- Pilih Kain --</option>
-                  {pilihanKain.map((k, kIdx) => (
-                    <option key={kIdx} value={k.kode_sku_kain || k.nama_kain}>
-                      {k.nama_kain || k.kode_sku_kain} (@Rp{" "}
-                      {Number(k.harga_per_meter || 0).toLocaleString("id-ID")}/m)
-                    </option>
-                  ))}
-                  {kainState.nama_kain &&
-                    !pilihanKain.some(
-                      (k) =>
-                        k.kode_sku_kain === kainState.nama_kain ||
-                        k.nama_kain === kainState.nama_kain
-                    ) && (
-                      <option value={kainState.nama_kain}>
-                        {kainState.nama_kain} (Manual)
-                      </option>
-                    )}
-                </select>
+                  onChange={handleKainChange}
+                  options={kainOptions}
+                  style={{ width: "100%" }}
+                />
               </div>
 
               {/* Panjang Kain (CM) */}
@@ -476,25 +591,26 @@ export default function ModalDetailHPP({
                 </label>
                 <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
                   <input
-                    type="number"
-                    min="0"
-                    step="5"
-                    value={kainState.panjang_kain_cm}
+                    type="text"
+                    inputMode="numeric"
+                    value={kainState.panjang_kain_cm === 0 ? "" : formatNumberId(kainState.panjang_kain_cm)}
+                    placeholder="0"
                     onChange={(e) =>
                       setKainState((prev) => ({
                         ...prev,
-                        panjang_kain_cm: Number(e.target.value || 0),
+                        panjang_kain_cm: parseNumberId(e.target.value),
                       }))
                     }
                     style={{
                       width: "100%",
-                      padding: "4px 6px",
+                      padding: "4px 8px",
                       borderRadius: "4px",
                       border: "1px solid #86efac",
                       fontSize: "11px",
-                      textAlign: "center",
+                      textAlign: "right",
                       fontWeight: "700",
                       backgroundColor: "#ffffff",
+                      color: "#047857",
                     }}
                   />
                   <span style={{ fontSize: "10px", color: "#64748b" }}>cm</span>
@@ -517,26 +633,28 @@ export default function ModalDetailHPP({
                 <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
                   <span style={{ fontSize: "10px", color: "#64748b" }}>Rp</span>
                   <input
-                    type="number"
-                    min="0"
-                    step="10"
-                    value={kainState.harga_kain_cm}
-                    onChange={(e) =>
+                    type="text"
+                    inputMode="numeric"
+                    value={kainState.harga_kain_cm === 0 ? "" : formatNumberId(kainState.harga_kain_cm)}
+                    placeholder="0"
+                    onChange={(e) => {
+                      const val = parseNumberId(e.target.value);
                       setKainState((prev) => ({
                         ...prev,
-                        harga_kain_cm: Number(e.target.value || 0),
-                        harga_per_meter: Number(e.target.value || 0) * 100,
-                      }))
-                    }
+                        harga_kain_cm: val,
+                        harga_per_meter: val * 100,
+                      }));
+                    }}
                     style={{
                       width: "100%",
-                      padding: "4px 6px",
+                      padding: "4px 8px",
                       borderRadius: "4px",
                       border: "1px solid #86efac",
                       fontSize: "11px",
                       textAlign: "right",
                       fontWeight: "700",
                       backgroundColor: "#ffffff",
+                      color: "#0f172a",
                     }}
                   />
                 </div>
@@ -610,7 +728,7 @@ export default function ModalDetailHPP({
               style={{
                 border: "1px solid #cbd5e1",
                 borderRadius: "5px",
-                overflow: "hidden",
+                overflow: "visible",
                 backgroundColor: "#ffffff",
               }}
             >
@@ -635,7 +753,7 @@ export default function ModalDetailHPP({
                       style={{
                         padding: "4px 8px",
                         textAlign: "right",
-                        width: "80px",
+                        width: "120px",
                       }}
                     >
                       Biaya (Rp)
@@ -659,44 +777,114 @@ export default function ModalDetailHPP({
                         {jIdx + 1}
                       </td>
                       <td style={{ padding: "4px 6px" }}>
-                        <input
-                          type="text"
-                          value={j.nama_jasa}
-                          onChange={(e) =>
-                            handleUpdateJasa(jIdx, "nama_jasa", e.target.value)
-                          }
-                          style={{
-                            width: "100%",
-                            padding: "3px 5px",
-                            borderRadius: "3px",
-                            border: "1px solid #cbd5e1",
-                            fontSize: "10.5px",
-                          }}
-                        />
+                        <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
+                          <SearchableSelect
+                            size="sm"
+                            placeholder="-- Cari / Pilih Jasa --"
+                            value={
+                              j.is_custom
+                                ? "__CUSTOM__"
+                                : daftarJasaReferensi.some(
+                                    (ref) =>
+                                      ref.nama_jasa.toLowerCase() ===
+                                      (j.nama_jasa || "").toLowerCase()
+                                  )
+                                ? j.nama_jasa
+                                : j.nama_jasa
+                                ? "__CUSTOM__"
+                                : ""
+                            }
+                            dropUp={
+                              jIdx >= Math.max(1, jasaDetails.length - 2) &&
+                              jasaDetails.length > 2
+                            }
+                            onChange={(val) => {
+                              if (val === "__CUSTOM__") {
+                                setJasaDetails((prev) => {
+                                  const copy = [...prev];
+                                  copy[jIdx] = { ...copy[jIdx], is_custom: true };
+                                  return copy;
+                                });
+                              } else {
+                                handleSelectJasa(jIdx, val);
+                              }
+                            }}
+                            options={jasaOptions}
+                            style={{ width: "100%" }}
+                          />
+
+                          {(j.is_custom ||
+                            (j.nama_jasa &&
+                              !daftarJasaReferensi.some(
+                                (ref) =>
+                                  ref.nama_jasa.toLowerCase() ===
+                                  j.nama_jasa.toLowerCase()
+                              ))) && (
+                            <input
+                              type="text"
+                              placeholder="Ketik nama komponen / jasa..."
+                              value={j.nama_jasa}
+                              onChange={(e) =>
+                                handleUpdateJasa(jIdx, "nama_jasa", e.target.value)
+                              }
+                              style={{
+                                width: "100%",
+                                padding: "3px 6px",
+                                borderRadius: "3px",
+                                border: "1px solid #0284c7",
+                                backgroundColor: "#f0f9ff",
+                                fontSize: "10.5px",
+                                color: "#0369a1",
+                                fontWeight: "600",
+                              }}
+                            />
+                          )}
+                        </div>
                       </td>
                       <td style={{ padding: "4px 6px", textAlign: "right" }}>
-                        <input
-                          type="number"
-                          min="0"
-                          step="100"
-                          value={j.harga}
-                          onChange={(e) =>
-                            handleUpdateJasa(
-                              jIdx,
-                              "harga",
-                              Number(e.target.value || 0)
-                            )
-                          }
+                        <div
                           style={{
-                            width: "70px",
-                            padding: "3px 5px",
-                            borderRadius: "3px",
-                            border: "1px solid #cbd5e1",
-                            fontSize: "10.5px",
-                            textAlign: "right",
-                            fontWeight: "700",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "3px",
+                            justifyContent: "flex-end",
                           }}
-                        />
+                        >
+                          <span
+                            style={{
+                              fontSize: "10px",
+                              color: "#64748b",
+                              fontWeight: "700",
+                            }}
+                          >
+                            Rp
+                          </span>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            value={
+                              j.harga === 0 ? "" : formatNumberId(j.harga)
+                            }
+                            placeholder="0"
+                            onChange={(e) =>
+                              handleUpdateJasa(
+                                jIdx,
+                                "harga",
+                                parseNumberId(e.target.value)
+                              )
+                            }
+                            style={{
+                              width: "85px",
+                              padding: "3px 6px",
+                              borderRadius: "3px",
+                              border: "1px solid #cbd5e1",
+                              fontSize: "11px",
+                              textAlign: "right",
+                              fontWeight: "700",
+                              color: "#0f172a",
+                            }}
+                          />
+                        </div>
                       </td>
                       <td style={{ padding: "4px 6px", textAlign: "center" }}>
                         <button
@@ -807,14 +995,16 @@ export default function ModalDetailHPP({
                 <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
                   <span style={{ fontSize: "11px", fontWeight: "700" }}>Rp</span>
                   <input
-                    type="number"
-                    min="0"
-                    step="500"
-                    value={manualHpp}
-                    onChange={(e) => setManualHpp(Number(e.target.value || 0))}
+                    type="text"
+                    inputMode="numeric"
+                    value={manualHpp === 0 ? "" : formatNumberId(manualHpp)}
+                    placeholder="0"
+                    onChange={(e) =>
+                      setManualHpp(parseNumberId(e.target.value))
+                    }
                     style={{
-                      width: "90px",
-                      padding: "4px 6px",
+                      width: "105px",
+                      padding: "4px 8px",
                       borderRadius: "4px",
                       border: "1px solid #0284c7",
                       fontSize: "12px",

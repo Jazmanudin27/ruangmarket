@@ -99,6 +99,51 @@ export async function handleHPPProdukRoutes(req, res, pathname, urlObj, { pool, 
       const [allKain] = await pool.query('SELECT kode_sku_kain, nama_kain, harga_per_meter FROM master_kain ORDER BY nama_kain ASC').catch(() => [[]]);
       const [allHppKat] = await pool.query('SELECT id_kategori_hpp, nama_kategori_hpp, total_hpp FROM master_hpp_produk ORDER BY nama_kategori_hpp ASC').catch(() => [[]]);
 
+      // Ambil seluruh daftar referensi jasa dari detail_master_hpp_produk yang ada di database
+      const [dbJasaRef] = await pool.query(`
+        SELECT TRIM(nama_jasa) as nama_jasa, MAX(harga) as harga 
+        FROM detail_master_hpp_produk 
+        WHERE nama_jasa IS NOT NULL AND TRIM(nama_jasa) != '' 
+        GROUP BY TRIM(nama_jasa) 
+        ORDER BY nama_jasa ASC
+      `).catch(() => [[]]);
+
+      // Daftar standar konveksi fallback jika database masih sedikit
+      const standardJasaList = [
+        { nama_jasa: 'Jasa Potong', harga: 2000 },
+        { nama_jasa: 'Jasa Potong Pola', harga: 2000 },
+        { nama_jasa: 'Jasa Jahit', harga: 7000 },
+        { nama_jasa: 'Jasa Jahit & Obras', harga: 7500 },
+        { nama_jasa: 'Kain Keras', harga: 500 },
+        { nama_jasa: 'Kancing', harga: 50 },
+        { nama_jasa: 'Jasa Lubang Kancing', harga: 200 },
+        { nama_jasa: 'Plastik Packing', harga: 400 },
+        { nama_jasa: 'Finishing', harga: 500 },
+        { nama_jasa: 'Finishing & Pasang Kancing', harga: 1500 },
+        { nama_jasa: 'Beban Listrik', harga: 550 },
+        { nama_jasa: 'Benang', harga: 200 },
+        { nama_jasa: 'Biaya DLL', harga: 800 },
+        { nama_jasa: 'Label Size', harga: 150 },
+        { nama_jasa: 'BOP', harga: 2500 },
+        { nama_jasa: 'BOP & Kemasan Plastik/Label', harga: 2000 },
+        { nama_jasa: 'Bordir / Sablon', harga: 3000 },
+        { nama_jasa: 'Pasang Resleting', harga: 1500 },
+        { nama_jasa: 'Jasa Obras', harga: 1500 }
+      ];
+
+      // Gabungkan referensi DB dan standar (DB diprioritaskan)
+      const jasaMap = new Map();
+      standardJasaList.forEach(item => jasaMap.set(item.nama_jasa.toLowerCase(), item));
+      (dbJasaRef || []).forEach(item => {
+        if (item.nama_jasa) {
+          jasaMap.set(item.nama_jasa.toLowerCase(), {
+            nama_jasa: item.nama_jasa,
+            harga: Number(item.harga || 0)
+          });
+        }
+      });
+      const daftarJasaReferensi = Array.from(jasaMap.values()).sort((a, b) => a.nama_jasa.localeCompare(b.nama_jasa));
+
       sendJson(res, 200, {
         status: 'success',
         data: {
@@ -126,7 +171,8 @@ export async function handleHPPProdukRoutes(req, res, pathname, urlObj, { pool, 
           kalkulasi_hpp: kalkulasiHpp,
           harga_modal_actual: actualHpp,
           pilihan_kain: allKain || [],
-          pilihan_kategori_hpp: allHppKat || []
+          pilihan_kategori_hpp: allHppKat || [],
+          daftar_jasa_referensi: daftarJasaReferensi
         }
       });
       return true;
@@ -221,9 +267,10 @@ export async function handleHPPProdukRoutes(req, res, pathname, urlObj, { pool, 
         }
 
         let whereClause = '';
-        if (produkId && Number(produkId) > 0) {
+        const targetProdId = produk_id || body.produk_id;
+        if (targetProdId && Number(targetProdId) > 0) {
           whereClause = 'id = ?';
-          updateParams.push(Number(produkId));
+          updateParams.push(Number(targetProdId));
         } else if (cleanSku) {
           whereClause = 'kode_sku = ? OR kode_sku = ?';
           updateParams.push(cleanSku, cleanSku.replace(/^RSG-|^PO-/gi, ''));
