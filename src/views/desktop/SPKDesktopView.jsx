@@ -128,6 +128,19 @@ function compareProducts(a, b) {
   });
 }
 
+// Helper format angka ribuan Indonesia
+const formatNumberId = (val) => {
+  if (val === undefined || val === null || val === "" || isNaN(val)) return "";
+  return Number(val).toLocaleString("id-ID");
+};
+
+// Helper parse input ribuan ke angka murni
+const parseNumberId = (str) => {
+  if (!str) return 0;
+  const clean = String(str).replace(/[^0-9]/g, "");
+  return Number(clean) || 0;
+};
+
 // Searchable Select Component with instant search filter
 function SearchableSelect({
   label,
@@ -1540,23 +1553,23 @@ export default function SPKView() {
     const norm = getNormalizedStatus(statusStr);
     switch (norm) {
       case "perencanaan":
-        return { bg: "#f1f5f9", color: "#475569", border: "#cbd5e1" };
+        return { bg: "#f1f5f9", color: "#475569", border: "#cbd5e1", emoji: "📋" };
       case "sampling":
-        return { bg: "#f5f3ff", color: "#7c3aed", border: "#ddd6fe" };
+        return { bg: "#f5f3ff", color: "#7c3aed", border: "#ddd6fe", emoji: "⏳" };
       case "print_kain":
-        return { bg: "#eff6ff", color: "#2563eb", border: "#bfdbfe" };
+        return { bg: "#eff6ff", color: "#2563eb", border: "#bfdbfe", emoji: "🖨️" };
       case "potong":
-        return { bg: "#fef3c7", color: "#d97706", border: "#fde68a" };
+        return { bg: "#fef3c7", color: "#d97706", border: "#fde68a", emoji: "✂️" };
       case "jahit":
-        return { bg: "#e0f2fe", color: "#0284c7", border: "#bae6fd" };
+        return { bg: "#e0f2fe", color: "#0284c7", border: "#bae6fd", emoji: "🪡" };
       case "finishing":
-        return { bg: "#ecfeff", color: "#0891b2", border: "#a5f3fc" };
+        return { bg: "#ecfeff", color: "#0891b2", border: "#a5f3fc", emoji: "📦" };
       case "selesai":
-        return { bg: "#dcfce7", color: "#166534", border: "#bbf7d0" };
+        return { bg: "#dcfce7", color: "#166534", border: "#bbf7d0", emoji: "✅" };
       case "batal":
-        return { bg: "#fee2e2", color: "#b91c1c", border: "#fecaca" };
+        return { bg: "#fee2e2", color: "#b91c1c", border: "#fecaca", emoji: "❌" };
       default:
-        return { bg: "#f8fafc", color: "#334155", border: "#e2e8f0" };
+        return { bg: "#f8fafc", color: "#334155", border: "#e2e8f0", emoji: "⚙️" };
     }
   };
 
@@ -1633,6 +1646,17 @@ export default function SPKView() {
       inactiveBg: "#f8fafc",
       inactiveColor: "#334155",
       shadow: "rgba(71, 85, 105, 0.25)",
+    },
+    {
+      value: "sampling",
+      label: `Antrian & Sampling (${countByTahapan("sampling")})`,
+      icon: Clock,
+      activeBorder: "#7c3aed",
+      inactiveBorder: "#ddd6fe",
+      activeBg: "#7c3aed",
+      inactiveBg: "#f5f3ff",
+      inactiveColor: "#6d28d9",
+      shadow: "rgba(124, 58, 237, 0.25)",
     },
     {
       value: "potong",
@@ -2530,23 +2554,82 @@ export default function SPKView() {
                           >
                             {(() => {
                               const isSelesai = Boolean(batch.is_all_selesai);
+                              if (isSelesai) {
+                                return (
+                                  <span
+                                    style={{
+                                      display: "inline-block",
+                                      padding: "3px 10px",
+                                      borderRadius: "4px",
+                                      fontSize: "10.5px",
+                                      fontWeight: "800",
+                                      backgroundColor: "#dcfce7",
+                                      color: "#166534",
+                                      border: "1px solid #bbf7d0",
+                                    }}
+                                  >
+                                    ✅ Selesai
+                                  </span>
+                                );
+                              }
+
+                              // Kumpulkan daftar status unik dari seluruh SPK di dalam batch ini
+                              const statusList = Array.from(
+                                new Set(
+                                  spkList.map((s) => s.status_spk || "Antrian & Sampling")
+                                )
+                              );
+
+                              if (statusList.length === 0) {
+                                return (
+                                  <span
+                                    style={{
+                                      display: "inline-block",
+                                      padding: "3px 10px",
+                                      borderRadius: "4px",
+                                      fontSize: "10.5px",
+                                      fontWeight: "800",
+                                      backgroundColor: "#fef3c7",
+                                      color: "#d97706",
+                                      border: "1px solid #fde68a",
+                                    }}
+                                  >
+                                    Diproses
+                                  </span>
+                                );
+                              }
+
                               return (
-                                <span
-                                  style={{
-                                    display: "inline-block",
-                                    padding: "3px 10px",
-                                    borderRadius: "4px",
-                                    fontSize: "10.5px",
-                                    fontWeight: "800",
-                                    textTransform: "uppercase",
-                                    letterSpacing: "0.02em",
-                                    backgroundColor: isSelesai ? "#dcfce7" : "#fef3c7",
-                                    color: isSelesai ? "#166534" : "#d97706",
-                                    border: isSelesai ? "1px solid #bbf7d0" : "1px solid #fde68a",
-                                  }}
-                                >
-                                  {isSelesai ? "Selesai" : "Diproses"}
-                                </span>
+                                <div style={{ display: "flex", flexDirection: "column", gap: "3px", alignItems: "center" }}>
+                                  {statusList.map((st, sIdx) => {
+                                    const style = getStatusBadgeStyle(st);
+                                    const count = spkList.filter((s) => (s.status_spk || "Antrian & Sampling") === st).length;
+                                    return (
+                                      <span
+                                        key={sIdx}
+                                        style={{
+                                          display: "inline-flex",
+                                          alignItems: "center",
+                                          gap: "4px",
+                                          padding: "2px 8px",
+                                          borderRadius: "4px",
+                                          fontSize: "10px",
+                                          fontWeight: "800",
+                                          backgroundColor: style.bg,
+                                          color: style.color,
+                                          border: `1px solid ${style.border}`,
+                                          whiteSpace: "nowrap",
+                                        }}
+                                      >
+                                        <span>{style.emoji || "⏳"}</span>
+                                        <span>{st}</span>
+                                        {spkList.length > 1 && (
+                                          <span style={{ opacity: 0.8, fontSize: "9px" }}>({count})</span>
+                                        )}
+                                      </span>
+                                    );
+                                  })}
+                                </div>
                               );
                             })()}
                           </td>
@@ -3494,7 +3577,7 @@ export default function SPKView() {
                                 style={{
                                   padding: "6px 8px",
                                   textAlign: "center",
-                                  width: "75px",
+                                  width: "84px",
                                 }}
                               >
                                 QTY
@@ -4896,7 +4979,7 @@ export default function SPKView() {
                                                 sIdx,
                                                 pIdx,
                                                 "panjang_kain_cm",
-                                                Number(e.target.value || 0),
+                                                parseNumberId(e.target.value),
                                               )
                                             }
                                             title="Panjang kain per potong / pcs dalam centimeter"
@@ -5007,20 +5090,20 @@ export default function SPKView() {
                                           <input
                                             type="number"
                                             min="0"
-                                            step="500"
-                                            value={prod.hpp ?? ""}
+                                            min="0"
+                                            value={formatNumberId(prod.hpp)}
                                             placeholder="0"
                                             onChange={(e) =>
                                               handleUpdateProductInSPK(
                                                 sIdx,
                                                 pIdx,
                                                 "hpp",
-                                                Number(e.target.value || 0),
+                                                parseNumberId(e.target.value),
                                               )
                                             }
-                                            title="Harga Pokok Produksi (HPP) per PCS"
+                                            title="Harga Pokok Produksi (HPP) per PCS" type="text"
                                             style={{
-                                              width: "75px",
+                                              width: "84px",
                                               padding: "3px 4px",
                                               borderRadius: "4px",
                                               border: "1px solid #cbd5e1",
@@ -5623,7 +5706,7 @@ export default function SPKView() {
                     onChange={(e) =>
                       setEditKainModal({
                         ...editKainModal,
-                        panjang_kain_cm: Number(e.target.value || 0),
+                        panjang_kain_cm: parseNumberId(e.target.value),
                       })
                     }
                     placeholder="Contoh: 95"
@@ -5660,7 +5743,7 @@ export default function SPKView() {
                     onChange={(e) =>
                       setEditKainModal({
                         ...editKainModal,
-                        harga_kain_cm: Number(e.target.value || 0),
+                        harga_kain_cm: parseNumberId(e.target.value),
                       })
                     }
                     placeholder="Contoh: 150"
