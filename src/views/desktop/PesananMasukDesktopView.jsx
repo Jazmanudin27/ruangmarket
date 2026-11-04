@@ -976,8 +976,8 @@ export default function PesananMasukDesktopView({ onNavigate }) {
             flexWrap: "wrap",
           }}
         >
-          {/* Tarik Pesanan Historical */}
-          <button
+          {/* Tarik Pesanan Historical (DI-HIDDEN SEMENTARA) */}
+          {/* <button
             type="button"
             id="btn-tarik-pesanan-historical"
             onClick={() => setShowHistoricalModal(true)}
@@ -1007,7 +1007,7 @@ export default function PesananMasukDesktopView({ onNavigate }) {
           >
             <Calendar size={13} />
             <span>Tarik Pesanan Historical</span>
-          </button>
+          </button> */}
 
           {/* Tombol Scan Kemasan Online */}
           <button
@@ -4271,56 +4271,6 @@ export default function PesananMasukDesktopView({ onNavigate }) {
                       {isLookingUpScan ? "Mencari..." : "Cari / Scan"}
                     </button>
                   </form>
-
-                  {/* Dropdown Cepat Pilih dari Daftar Antrean Pesanan */}
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "6px",
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: "11px",
-                        fontWeight: "700",
-                        color: "#64748b",
-                      }}
-                    >
-                      Pilih Antrean:
-                    </span>
-                    <select
-                      value={activeScanOrder?.no_pesanan || ""}
-                      onChange={(e) => {
-                        const target = packingQueue.find(
-                          (o) => (o.no_pesanan || o.id) === e.target.value,
-                        );
-                        if (target) handleOpenScanKemasan(target);
-                      }}
-                      style={{
-                        padding: "5px 8px",
-                        borderRadius: "5px",
-                        border: "1px solid #cbd5e1",
-                        fontSize: "11.5px",
-                        fontWeight: "700",
-                        color: "#0f172a",
-                        backgroundColor: "#ffffff",
-                        maxWidth: "280px",
-                      }}
-                    >
-                      <option value="">
-                        -- Pilih Pesanan ({packingQueue.length} Order) --
-                      </option>
-                      {packingQueue.map((o) => (
-                        <option key={o.id} value={o.no_pesanan || o.id}>
-                          {o.no_pesanan} —{" "}
-                          {o.nama_pembeli || o.customerName || "-"} (
-                          {o.saluran || o.channel}){" "}
-                          {o.status_kemas === "sudah_dikemas" ? "✓" : ""}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
                 </div>
 
                 {/* CARD UTAMA VERIFIKASI ITEM PRODUK */}
@@ -4362,8 +4312,7 @@ export default function PesananMasukDesktopView({ onNavigate }) {
                           marginTop: "4px",
                         }}
                       >
-                        Scan barcode nomor pesanan / nomor resi di atas atau
-                        pilih dari daftar antrean.
+                        Scan barcode nomor pesanan / nomor resi di atas.
                       </div>
                     </div>
                   ) : (

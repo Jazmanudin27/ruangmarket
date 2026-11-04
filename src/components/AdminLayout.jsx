@@ -31,6 +31,7 @@ import {
   DollarSign,
   Warehouse,
   Settings,
+  Wallet,
   FileSpreadsheet
 } from 'lucide-react';
 import { getCompanies, getActiveCompany, setActiveCompanyCode } from '../utils/tenant.util';
