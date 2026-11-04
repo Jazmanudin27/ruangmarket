@@ -71,18 +71,34 @@ export default function CetakSPKModal({ isOpen, onClose, batch, spk, adminName =
     totals.qty += qty;
 
     const cmVal = Number(item.panjang_kain_cm || parseFloat(item.estimasi_kain) || 0);
-    const estKainDisplay = cmVal > 0 
-      ? `${((cmVal * qty) / 100).toFixed(1)} M${item.kain_nama ? ` (${item.kain_nama})` : ''}`
-      : (item.estimasi_kain && typeof item.estimasi_kain === 'string' && isNaN(Number(item.estimasi_kain)) ? item.estimasi_kain : '—');
+    const meterPerPcs = cmVal > 0 ? (cmVal / 100) : 0;
+    const totalMeter = cmVal > 0 ? ((cmVal * qty) / 100) : 0;
+    const kainLabel = item.kain_nama || item.nama_kain || item.sku_kain || '';
+
+    let estKainDisplay = '—';
+    if (cmVal > 0) {
+      estKainDisplay = `${meterPerPcs.toFixed(2)} M × ${qty} = ${totalMeter.toFixed(1)} M${kainLabel ? ` (${kainLabel})` : ''}`;
+    } else if (item.estimasi_kain && typeof item.estimasi_kain === 'string' && isNaN(Number(item.estimasi_kain))) {
+      estKainDisplay = item.estimasi_kain;
+    }
 
     rows.push({
       model: sku,
       sizes: rowSizes,
       qty: qty,
+      cmVal: cmVal,
+      meterPerPcs: meterPerPcs,
+      totalMeter: totalMeter,
+      kainLabel: kainLabel,
       estimasiKain: estKainDisplay,
       sisaKain: item.sisa_kain || '—'
     });
   });
+
+  // Hitung akumulasi total meter kain untuk semua produk
+  const totalMeterSemua = rows.reduce((sum, r) => sum + (Number(r.totalMeter) || 0), 0);
+  const allKainLabels = Array.from(new Set(rows.map(r => r.kainLabel).filter(Boolean)));
+  const labelKainTotal = allKainLabels.length === 1 ? allKainLabels[0] : (allKainLabels.length > 1 ? 'Campur' : '');
 
   const handlePrint = () => {
     const printContent = document.getElementById('spk-print-area');
@@ -335,13 +351,13 @@ export default function CetakSPKModal({ isOpen, onClose, batch, spk, adminName =
                   <th colSpan={8} style={{ border: '1px solid #000', padding: '4px', textAlign: 'center' }}>
                     SIZE TARGET / POTONG
                   </th>
-                  <th rowSpan={2} style={{ border: '1px solid #000', padding: '6px 4px', width: '10%', background: '#dc2626', color: '#fff', textAlign: 'center' }}>
+                  <th rowSpan={2} style={{ border: '1px solid #000', padding: '6px 4px', width: '9%', background: '#dc2626', color: '#fff', textAlign: 'center' }}>
                     TOTAL QTY
                   </th>
-                  <th rowSpan={2} style={{ border: '1px solid #000', padding: '6px 4px', width: '13%', textAlign: 'center' }}>
+                  <th rowSpan={2} style={{ border: '1px solid #000', padding: '6px 4px', width: '17%', textAlign: 'center' }}>
                     ESTIMASI KAIN (M)
                   </th>
-                  <th rowSpan={2} style={{ border: '1px solid #000', padding: '6px 4px', width: '13%', textAlign: 'center' }}>
+                  <th rowSpan={2} style={{ border: '1px solid #000', padding: '6px 4px', width: '10%', textAlign: 'center' }}>
                     SISA KAIN (M)
                   </th>
                 </tr>
@@ -374,8 +390,21 @@ export default function CetakSPKModal({ isOpen, onClose, batch, spk, adminName =
                       <td style={{ border: '1px solid #000', padding: '5px 4px', textAlign: 'center', background: '#dc2626', color: '#ffffff', fontWeight: '800' }}>
                         {r.qty}
                       </td>
-                      <td style={{ border: '1px solid #000', padding: '5px 4px', textAlign: 'center' }}>
-                        {r.estimasiKain}
+                      <td style={{ border: '1px solid #000', padding: '4px 4px', textAlign: 'center', fontSize: '9.5px', lineHeight: '1.3' }}>
+                        {r.cmVal > 0 ? (
+                          <div>
+                            <div>
+                              <b>{r.meterPerPcs.toFixed(2)} M</b> × <b>{r.qty}</b> = <b style={{ color: '#0369a1' }}>{r.totalMeter.toFixed(1)} M</b>
+                            </div>
+                            {r.kainLabel && (
+                              <div style={{ fontSize: '8.5px', color: '#475569' }}>
+                                ({r.kainLabel})
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          r.estimasiKain
+                        )}
                       </td>
                       <td style={{ border: '1px solid #000', padding: '5px 4px', textAlign: 'center' }}>
                         {r.sisaKain}
@@ -396,8 +425,8 @@ export default function CetakSPKModal({ isOpen, onClose, batch, spk, adminName =
                   <td style={{ border: '1px solid #000', padding: '5px 4px', textAlign: 'center', background: '#dc2626', color: '#ffffff', fontWeight: '800' }}>
                     {totals.qty}
                   </td>
-                  <td style={{ border: '1px solid #000', padding: '5px 4px', textAlign: 'center' }}>
-                    —
+                  <td style={{ border: '1px solid #000', padding: '5px 4px', textAlign: 'center', background: '#f0fdf4', color: '#166534', fontWeight: '900', fontSize: '10px' }}>
+                    {totalMeterSemua > 0 ? `${totalMeterSemua.toFixed(1)} M${labelKainTotal ? ` (${labelKainTotal})` : ''}` : '—'}
                   </td>
                   <td style={{ border: '1px solid #000', padding: '5px 4px', textAlign: 'center' }}>
                     —

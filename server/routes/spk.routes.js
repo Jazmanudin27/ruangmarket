@@ -238,5 +238,71 @@ export async function handleSPKRoutes(req, res, pathname, urlObj, { pool }) {
     }
   }
 
+  // 4. POST /api/spk/update-status - Update status SPK dari Scanner Barcode
+  if ((pathname === '/api/spk/update-status' || pathname === '/api/marketplace/spk/update-status') && req.method === 'POST') {
+    try {
+      const body = await parseJsonBody(req);
+      if (!body) {
+        sendJson(res, 400, { status: 'error', message: 'Data tidak boleh kosong' });
+        return true;
+      }
+      const { batch_id, id_spk, status_spk } = body;
+      if (!id_spk || !status_spk) {
+        sendJson(res, 400, { status: 'error', message: 'id_spk dan status_spk diperlukan' });
+        return true;
+      }
+
+      // Cari batch dari database
+      let whereSql = '1=1';
+      const params = [];
+      if (batch_id) {
+        whereSql = 'id = ? OR kode_produksi = ?';
+        params.push(batch_id, batch_id);
+      }
+
+      const [rows] = await pool.query(`SELECT * FROM spk_batch WHERE ${whereSql}`, params);
+      let matchedAny = false;
+
+      for (const row of rows) {
+        let spkList = [];
+        try {
+          spkList = typeof row.spk_list === 'string' ? JSON.parse(row.spk_list) : (row.spk_list || []);
+        } catch (_) {
+          spkList = [];
+        }
+
+        let updatedInBatch = false;
+        spkList = spkList.map((spk) => {
+          if (spk.id_spk === id_spk || spk.no_spk === id_spk) {
+            updatedInBatch = true;
+            matchedAny = true;
+            return { ...spk, status_spk: status_spk };
+          }
+          return spk;
+        });
+
+        if (updatedInBatch) {
+          const allDone = spkList.every((s) => (s.status_spk || '').toLowerCase().includes('selesai') || (s.status_spk || '').toLowerCase().includes('kirim'));
+          const newBatchStatus = allDone ? 'Selesai' : row.status;
+          await pool.query(
+            'UPDATE spk_batch SET spk_list = ?, status = ? WHERE id = ?',
+            [JSON.stringify(spkList), newBatchStatus, row.id]
+          );
+        }
+      }
+
+      sendJson(res, 200, {
+        status: 'success',
+        message: `Status SPK ${id_spk} berhasil diperbarui ke ${status_spk}`,
+        updated: matchedAny
+      });
+      return true;
+    } catch (err) {
+      console.error('[SPK Update Status Error]:', err.message);
+      sendJson(res, 500, { status: 'error', message: err.message });
+      return true;
+    }
+  }
+
   return false;
 }

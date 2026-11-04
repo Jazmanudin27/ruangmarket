@@ -32,6 +32,7 @@ import {
   ZoomIn,
   Calculator,
   Coins,
+  QrCode,
 } from "lucide-react";
 import { showConfirm, toastSuccess, toastError } from "../../utils/alert.util";
 import { INITIAL_BATCH_PRODUKSI } from "../../data/initialSPK";
@@ -42,6 +43,8 @@ import { INITIAL_PELANGGAN_DATA } from "./PelangganDesktopView";
 import { INITIAL_TAHAPAN_DATA } from "./TahapanSPKDesktopView";
 import { getActiveCompany } from "../../utils/tenant.util";
 import CetakSPKModal from "../../components/CetakSPKModal";
+import CetakLabelBarcodeSPKModal from "../../components/CetakLabelBarcodeSPKModal";
+import ModalScanSelesaiSPK from "../../components/ModalScanSelesaiSPK";
 import ModalDetailHPP from "../../components/ModalDetailHPP";
 
 export const SPK_STORAGE_KEY = "ruangmarket_spk_v2"; // version bump for new nested structure
@@ -734,7 +737,61 @@ export default function SPKView() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [previewDesign, setPreviewDesign] = useState(null); // { url, title }
-  const [printModalData, setPrintModalData] = useState(null); // { batch, spk }
+  const [printModalData, setPrintModalData] = useState(null); // { batch, spk } (A4)
+  const [printLabelModalData, setPrintLabelModalData] = useState(null); // { batch, spk } (100mm x 150mm Thermal)
+  const [isScanModalOpen, setIsScanModalOpen] = useState(false); // Modal scanner barcode SPK
+
+  // Handler update status SPK dari Scanner Barcode
+  const handleUpdateSpkStatusFromScan = (batchId, spkId, newStatus) => {
+    setBatchList((prev) => {
+      const updated = prev.map((b) => {
+        if (b.id !== batchId && b.kode_produksi !== batchId) return b;
+        const spks = (b.spk_list || []).map((s) => {
+          if (s.id_spk === spkId || s.no_spk === spkId) {
+            return { ...s, status_spk: newStatus };
+          }
+          return s;
+        });
+
+        const allDone = spks.every((s) =>
+          (s.status_spk || "").toLowerCase().includes("selesai") ||
+          (s.status_spk || "").toLowerCase().includes("kirim")
+        );
+        return {
+          ...b,
+          spk_list: spks,
+          status: allDone ? "Selesai" : b.status,
+        };
+      });
+
+      try {
+        localStorage.setItem(SPK_STORAGE_KEY, JSON.stringify(updated));
+      } catch (e) {}
+
+      fetch("/api/marketplace/spk/update-status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ batch_id: batchId, id_spk: spkId, status_spk: newStatus }),
+      }).catch(() => {});
+
+      return updated;
+    });
+
+    // Update detailBatch jika sedang dibuka
+    setDetailBatch((prev) => {
+      if (!prev) return prev;
+      if (prev.id !== batchId && prev.kode_produksi !== batchId) return prev;
+      const spks = (prev.spk_list || []).map((s) => {
+        if (s.id_spk === spkId || s.no_spk === spkId) {
+          return { ...s, status_spk: newStatus };
+        }
+        return s;
+      });
+      return { ...prev, spk_list: spks };
+    });
+
+    toastSuccess(`SPK ${spkId} berhasil di-scan & status diperbarui ke: ${newStatus}!`);
+  };
   const [formData, setFormData] = useState({
     kode_produksi: "",
     nama_pelanggan: "",
@@ -1743,6 +1800,33 @@ export default function SPKView() {
               flexWrap: "wrap",
             }}
           >
+            {/* Tombol Scan Barcode Selesai Produksi */}
+            <button
+              type="button"
+              onClick={() => setIsScanModalOpen(true)}
+              style={{
+                height: "30px",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "6px",
+                padding: "0 14px",
+                borderRadius: "6px",
+                border: "1px solid rgba(16, 185, 129, 0.4)",
+                backgroundColor: "#059669",
+                color: "#ffffff",
+                fontSize: "12px",
+                fontWeight: "800",
+                lineHeight: 1,
+                cursor: "pointer",
+                boxShadow: "0 2px 4px rgba(5, 150, 105, 0.25)",
+                transition: "all 0.15s ease",
+              }}
+            >
+              <QrCode size={14} />
+              <span>Scan Selesai Produksi</span>
+            </button>
+
             <button
               type="button"
               onClick={() => {
@@ -2400,6 +2484,37 @@ export default function SPKView() {
                                 <Eye size={12} />
                               </button>
 
+                              {/* Cetak Label Barcode 100x150 mm Button */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if ((batch.spk_list || []).length === 1) {
+                                    setPrintLabelModalData({
+                                      batch,
+                                      spk: batch.spk_list[0],
+                                    });
+                                  } else {
+                                    setSelectPrintBatch(batch);
+                                  }
+                                }}
+                                title="Cetak Label Barcode SPK (Kertas 100mm x 150mm)"
+                                style={{
+                                  width: "26px",
+                                  height: "26px",
+                                  borderRadius: "4px",
+                                  border: "1px solid #10b981",
+                                  backgroundColor: "#ecfdf5",
+                                  color: "#059669",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  cursor: "pointer",
+                                  transition: "all 0.15s ease",
+                                }}
+                              >
+                                <Tag size={12} />
+                              </button>
+
                               {/* Edit Button */}
                               <button
                                 type="button"
@@ -2631,13 +2746,8 @@ export default function SPKView() {
                   0,
                 );
                 return (
-                  <button
+                  <div
                     key={sIdx}
-                    type="button"
-                    onClick={() => {
-                      setPrintModalData({ batch: selectPrintBatch, spk });
-                      setSelectPrintBatch(null);
-                    }}
                     style={{
                       display: "flex",
                       alignItems: "center",
@@ -2646,20 +2756,10 @@ export default function SPKView() {
                       borderRadius: "6px",
                       border: "1px solid #cbd5e1",
                       backgroundColor: "#f8fafc",
-                      cursor: "pointer",
-                      textAlign: "left",
-                      transition: "all 0.15s ease",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = "#f0f9ff";
-                      e.currentTarget.style.borderColor = "#0284c7";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = "#f8fafc";
-                      e.currentTarget.style.borderColor = "#cbd5e1";
+                      gap: "10px",
                     }}
                   >
-                    <div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
                       <div
                         style={{
                           fontWeight: "800",
@@ -2675,37 +2775,80 @@ export default function SPKView() {
                           fontSize: "11.5px",
                           color: "#0f172a",
                           fontWeight: "700",
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
                         }}
                       >
                         {spk.nama_spk || "SPK Produksi"}
                       </div>
                       <div style={{ fontSize: "10px", color: "#64748b" }}>
-                        Penjahit: {spk.penjahit || "-"} • Status:{" "}
-                        {spk.status_spk || "Potong Pola"}
+                        Penjahit: {spk.penjahit || "-"} • {spkQty} PCS
                       </div>
                     </div>
+
                     <div
                       style={{
                         display: "flex",
                         alignItems: "center",
                         gap: "6px",
+                        flexShrink: 0,
                       }}
                     >
-                      <span
+                      {/* Tombol Cetak SPK A4 */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPrintModalData({ batch: selectPrintBatch, spk });
+                          setSelectPrintBatch(null);
+                        }}
                         style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "4px",
+                          padding: "6px 10px",
+                          borderRadius: "5px",
+                          border: "1px solid #0284c7",
+                          backgroundColor: "#f0f9ff",
+                          color: "#0284c7",
                           fontSize: "10.5px",
                           fontWeight: "700",
-                          color: "#047857",
-                          backgroundColor: "#ecfdf5",
-                          padding: "2px 6px",
-                          borderRadius: "4px",
+                          cursor: "pointer",
                         }}
+                        title="Cetak Dokumen SPK Format A4"
                       >
-                        {spkQty} PCS
-                      </span>
-                      <Printer size={14} color="#0284c7" />
+                        <Printer size={13} />
+                        <span>Lembar SPK (A4)</span>
+                      </button>
+
+                      {/* Tombol Cetak Label Barcode 100x150 mm */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPrintLabelModalData({ batch: selectPrintBatch, spk });
+                          setSelectPrintBatch(null);
+                        }}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "4px",
+                          padding: "6px 10px",
+                          borderRadius: "5px",
+                          border: "none",
+                          backgroundColor: "#059669",
+                          color: "#ffffff",
+                          fontSize: "10.5px",
+                          fontWeight: "800",
+                          cursor: "pointer",
+                          boxShadow: "0 1px 3px rgba(5, 150, 105, 0.3)",
+                        }}
+                        title="Cetak Label Barcode Thermal 100mm x 150mm untuk ditempel di plastik"
+                      >
+                        <Tag size={13} />
+                        <span>Label Barcode (100x150)</span>
+                      </button>
                     </div>
-                  </button>
+                  </div>
                 );
               })}
             </div>
@@ -3089,30 +3232,59 @@ export default function SPKView() {
                           </select>
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setPrintModalData({
-                            batch: detailBatch,
-                            spk: currentSpk,
-                          })
-                        }
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: "4px",
-                          padding: "5px 10px",
-                          borderRadius: "4px",
-                          border: "1px solid #818cf8",
-                          backgroundColor: "#6366f1",
-                          color: "#ffffff",
-                          fontSize: "11px",
-                          fontWeight: "700",
-                          cursor: "pointer",
-                        }}
-                      >
-                        <Printer size={12} /> Cetak SPK Ini
-                      </button>
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setPrintModalData({
+                              batch: detailBatch,
+                              spk: currentSpk,
+                            })
+                          }
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "4px",
+                            padding: "5px 10px",
+                            borderRadius: "4px",
+                            border: "1px solid #818cf8",
+                            backgroundColor: "#6366f1",
+                            color: "#ffffff",
+                            fontSize: "11px",
+                            fontWeight: "700",
+                            cursor: "pointer",
+                          }}
+                        >
+                          <Printer size={12} /> Cetak SPK Ini
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setPrintLabelModalData({
+                              batch: detailBatch,
+                              spk: currentSpk,
+                            })
+                          }
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "4px",
+                            padding: "5px 10px",
+                            borderRadius: "4px",
+                            border: "none",
+                            backgroundColor: "#059669",
+                            color: "#ffffff",
+                            fontSize: "11px",
+                            fontWeight: "800",
+                            cursor: "pointer",
+                            boxShadow: "0 1px 3px rgba(5, 150, 105, 0.3)",
+                          }}
+                          title="Cetak Label Barcode Thermal 100x150 mm untuk ditempel pada bungkusan plastik"
+                        >
+                          <Tag size={12} /> Label Barcode (100x150)
+                        </button>
+                      </div>
                     </div>
 
                     {currentSpk.design_img && (
@@ -5418,13 +5590,33 @@ export default function SPKView() {
         </div>
       )}
 
-      {/* Modal Cetak SPK */}
+      {/* Modal Cetak SPK (Format A4) */}
       <CetakSPKModal
         isOpen={Boolean(printModalData)}
         onClose={() => setPrintModalData(null)}
         batch={printModalData?.batch}
         spk={printModalData?.spk}
         adminName={activeCompany?.name || "RUANG SERAGAM"}
+      />
+
+      {/* Modal Cetak Label Barcode SPK (Thermal 100mm x 150mm) */}
+      <CetakLabelBarcodeSPKModal
+        isOpen={Boolean(printLabelModalData)}
+        onClose={() => setPrintLabelModalData(null)}
+        batch={printLabelModalData?.batch}
+        spk={printLabelModalData?.spk}
+        adminName={activeCompany?.name || "RUANG SERAGAM"}
+      />
+
+      {/* Modal Scanner Barcode SPK Selesai Produksi */}
+      <ModalScanSelesaiSPK
+        isOpen={isScanModalOpen}
+        onClose={() => setIsScanModalOpen(false)}
+        batches={batchList}
+        onUpdateSpkStatus={handleUpdateSpkStatusFromScan}
+        onOpenPrintLabel={(b, s) => {
+          setPrintLabelModalData({ batch: b, spk: s });
+        }}
       />
 
       {/* Modal Detail & Edit HPP Produk */}

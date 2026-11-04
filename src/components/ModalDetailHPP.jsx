@@ -101,8 +101,7 @@ export default function ModalDetailHPP({
   const [pilihanKain, setPilihanKain] = useState([]);
   const [idKategoriHpp, setIdKategoriHpp] = useState("");
   const [namaKategoriHpp, setNamaKategoriHpp] = useState("");
-  const [isManualOverride, setIsManualOverride] = useState(false);
-  const [manualHpp, setManualHpp] = useState(currentHpp || 0);
+  const [initialHpp, setInitialHpp] = useState(currentHpp || 0);
   const [updateMasterProduk, setUpdateMasterProduk] = useState(true);
 
   // Fetch breakdown from server when modal opens
@@ -146,8 +145,8 @@ export default function ModalDetailHPP({
           setNamaKategoriHpp(d.produk.nama_kategori_hpp || "");
           setPilihanKain(d.pilihan_kain || []);
 
-          const actual = Number(currentHpp || d.harga_modal_actual || 0);
-          setManualHpp(actual);
+          const actual = Number(currentHpp || d.harga_modal_actual || d.produk?.harga_modal || 0);
+          setInitialHpp(actual);
         }
       })
       .catch((err) => {
@@ -158,7 +157,7 @@ export default function ModalDetailHPP({
       });
   }, [isOpen, produkId, sku, namaProduk]);
 
-  // Calculations
+  // Calculations: Otomatis selalu menjumlahkan Subtotal Kain + Subtotal Jasa
   const subtotalKain = Math.round(
     Number(kainState.panjang_kain_cm || 0) * Number(kainState.harga_kain_cm || 0)
   );
@@ -167,7 +166,7 @@ export default function ModalDetailHPP({
     0
   );
   const calculatedHpp = subtotalKain + subtotalJasa;
-  const finalHpp = isManualOverride ? Number(manualHpp || 0) : calculatedHpp;
+  const finalHpp = calculatedHpp;
 
   // Handle Jasa Row updates
   const handleUpdateJasa = (idx, field, val) => {
@@ -500,7 +499,7 @@ export default function ModalDetailHPP({
                   color: "#059669",
                 }}
               >
-                Rp {Number(finalHpp).toLocaleString("id-ID")}
+                Rp {Number(initialHpp).toLocaleString("id-ID")}
               </div>
             </div>
           </div>
@@ -929,7 +928,7 @@ export default function ModalDetailHPP({
             </button>
           </div>
 
-          {/* Section 3: Ringkasan Total HPP */}
+          {/* Section 3: Ringkasan Total HPP Otomatis */}
           <div
             style={{
               padding: "10px 14px",
@@ -937,84 +936,26 @@ export default function ModalDetailHPP({
               backgroundColor: "#f8fafc",
               border: "1px solid #cbd5e1",
               display: "flex",
-              flexDirection: "column",
-              gap: "6px",
+              alignItems: "center",
+              justifyContent: "space-between",
             }}
           >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-              }}
-            >
-              <div style={{ fontSize: "11px", color: "#64748b" }}>
-                Total Kalkulasi: Kain (Rp {subtotalKain.toLocaleString("id-ID")})
-                + Jasa (Rp {subtotalJasa.toLocaleString("id-ID")})
+            <div>
+              <div style={{ fontSize: "11px", fontWeight: "700", color: "#334155" }}>
+                Total Kalkulasi HPP Otomatis
               </div>
-              <div
-                style={{
-                  fontSize: "14px",
-                  fontWeight: "900",
-                  color: "#0f172a",
-                }}
-              >
-                = Rp {calculatedHpp.toLocaleString("id-ID")}
+              <div style={{ fontSize: "10px", color: "#64748b" }}>
+                Kain (Rp {subtotalKain.toLocaleString("id-ID")}) + Jasa (Rp {subtotalJasa.toLocaleString("id-ID")})
               </div>
             </div>
-
-            {/* Manual Override checkbox */}
             <div
               style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                paddingTop: "6px",
-                borderTop: "1px dashed #cbd5e1",
+                fontSize: "16px",
+                fontWeight: "900",
+                color: "#059669",
               }}
             >
-              <label
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "6px",
-                  fontSize: "10.5px",
-                  color: "#334155",
-                  cursor: "pointer",
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={isManualOverride}
-                  onChange={(e) => setIsManualOverride(e.target.checked)}
-                />
-                <span>Kustomisasi / Ubah nominal HPP langsung:</span>
-              </label>
-
-              {isManualOverride && (
-                <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                  <span style={{ fontSize: "11px", fontWeight: "700" }}>Rp</span>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={manualHpp === 0 ? "" : formatNumberId(manualHpp)}
-                    placeholder="0"
-                    onChange={(e) =>
-                      setManualHpp(parseNumberId(e.target.value))
-                    }
-                    style={{
-                      width: "105px",
-                      padding: "4px 8px",
-                      borderRadius: "4px",
-                      border: "1px solid #0284c7",
-                      fontSize: "12px",
-                      fontWeight: "800",
-                      textAlign: "right",
-                      color: "#0284c7",
-                    }}
-                  />
-                </div>
-              )}
+              = Rp {calculatedHpp.toLocaleString("id-ID")}
             </div>
           </div>
 
