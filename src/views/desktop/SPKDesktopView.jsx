@@ -740,6 +740,114 @@ export default function SPKView() {
   const [printModalData, setPrintModalData] = useState(null); // { batch, spk } (A4)
   const [printLabelModalData, setPrintLabelModalData] = useState(null); // { batch, spk } (100mm x 150mm Thermal)
   const [isScanModalOpen, setIsScanModalOpen] = useState(false); // Modal scanner barcode SPK
+  const [pelangganModal, setPelangganModal] = useState(null); // Modal Tambah/Edit Pelanggan dari SPK
+  const [savingPelanggan, setSavingPelanggan] = useState(false);
+
+  // Handlers Master Pelanggan (Tambah, Edit, Hapus dari dalam SPK)
+  const handleOpenAddPelanggan = () => {
+    const nextNum = (pelangganOptions?.length || 0) + 1;
+    const autoKode = `PLG-${new Date().getFullYear()}-${String(nextNum).padStart(3, "0")}`;
+    setPelangganModal({
+      isOpen: true,
+      mode: "add",
+      data: {
+        kode_pelanggan: autoKode,
+        nama_pelanggan: "",
+        no_hp: "",
+        alamat: "",
+        status: "Aktif",
+        kategori_pelanggan: "Umum",
+      },
+    });
+  };
+
+  const handleOpenEditPelanggan = (item) => {
+    if (!item) return;
+    setPelangganModal({
+      isOpen: true,
+      mode: "edit",
+      data: {
+        id: item.id || null,
+        kode_pelanggan: item.kode_pelanggan || "",
+        nama_pelanggan: item.nama_pelanggan || "",
+        no_hp: item.no_hp || "",
+        alamat: item.alamat || "",
+        status: item.status || "Aktif",
+        kategori_pelanggan: item.kategori_pelanggan || "Umum",
+      },
+    });
+  };
+
+  const handleDeletePelanggan = async (item) => {
+    if (!item) return;
+    const confirmed = await showConfirm(
+      "Hapus Pelanggan?",
+      `Yakin ingin menghapus pelanggan "${item.nama_pelanggan}" dari database?`,
+      "Ya, Hapus",
+      "Batal",
+    );
+    if (!confirmed) return;
+
+    try {
+      if (item.id) {
+        await fetch(`/api/marketplace/pelanggan?id=${item.id}`, { method: "DELETE" });
+      }
+      setPelangganOptions((prev) => prev.filter((p) => p.id !== item.id && p.nama_pelanggan !== item.nama_pelanggan));
+      if (formData.nama_pelanggan === item.nama_pelanggan) {
+        setFormData((prev) => ({ ...prev, nama_pelanggan: "" }));
+      }
+      toastSuccess(`Pelanggan "${item.nama_pelanggan}" berhasil dihapus`);
+      loadPelangganOptions();
+    } catch (err) {
+      toastError("Gagal menghapus pelanggan: " + err.message);
+    }
+  };
+
+  const handleSavePelanggan = async (e) => {
+    if (e) e.preventDefault();
+    if (!pelangganModal?.data?.nama_pelanggan?.trim()) {
+      toastError("Nama Pelanggan wajib diisi!");
+      return;
+    }
+
+    setSavingPelanggan(true);
+    try {
+      const payload = {
+        ...pelangganModal.data,
+        kode_perusahaan: activeCompany?.code || "RSG",
+      };
+
+      const res = await fetch("/api/marketplace/pelanggan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        toastSuccess(
+          pelangganModal.mode === "edit"
+            ? "Data pelanggan berhasil diperbarui!"
+            : "Pelanggan baru berhasil ditambahkan!",
+        );
+        // Otomatis pilih nama pelanggan yang baru di-save di form SPK
+        setFormData((prev) => ({
+          ...prev,
+          nama_pelanggan: pelangganModal.data.nama_pelanggan.trim(),
+          no_telepon: pelangganModal.data.no_hp || prev.no_telepon,
+          alamat: pelangganModal.data.alamat || prev.alamat,
+        }));
+        await loadPelangganOptions();
+        setPelangganModal(null);
+      } else {
+        const errJson = await res.json().catch(() => ({}));
+        toastError(errJson.message || "Gagal menyimpan data pelanggan");
+      }
+    } catch (err) {
+      toastError("Error: " + err.message);
+    } finally {
+      setSavingPelanggan(false);
+    }
+  };
 
   // Handler update status SPK dari Scanner Barcode
   const handleUpdateSpkStatusFromScan = (batchId, spkId, newStatus) => {
@@ -2459,7 +2567,7 @@ export default function SPKView() {
                                 gap: "4px",
                               }}
                             >
-                              {/* Detail Button */}
+                              {/* Detail Button (Biru Solid) */}
                               <button
                                 type="button"
                                 onClick={() => {
@@ -2471,7 +2579,7 @@ export default function SPKView() {
                                   width: "26px",
                                   height: "26px",
                                   borderRadius: "4px",
-                                  border: "1px solid #38bdf8",
+                                  border: "1px solid #0284c7",
                                   backgroundColor: "#0284c7",
                                   color: "#ffffff",
                                   display: "inline-flex",
@@ -2479,12 +2587,13 @@ export default function SPKView() {
                                   justifyContent: "center",
                                   cursor: "pointer",
                                   transition: "all 0.15s ease",
+                                  boxShadow: "0 1px 2px rgba(2, 132, 199, 0.3)",
                                 }}
                               >
                                 <Eye size={12} />
                               </button>
 
-                              {/* Cetak Label Barcode 100x150 mm Button */}
+                              {/* Cetak Label Barcode 100x150 mm Button (Hijau Emerald Solid) */}
                               <button
                                 type="button"
                                 onClick={() => {
@@ -2502,20 +2611,21 @@ export default function SPKView() {
                                   width: "26px",
                                   height: "26px",
                                   borderRadius: "4px",
-                                  border: "1px solid #10b981",
-                                  backgroundColor: "#ecfdf5",
-                                  color: "#059669",
+                                  border: "1px solid #059669",
+                                  backgroundColor: "#059669",
+                                  color: "#ffffff",
                                   display: "inline-flex",
                                   alignItems: "center",
                                   justifyContent: "center",
                                   cursor: "pointer",
                                   transition: "all 0.15s ease",
+                                  boxShadow: "0 1px 2px rgba(5, 150, 105, 0.3)",
                                 }}
                               >
                                 <Tag size={12} />
                               </button>
 
-                              {/* Edit Button */}
+                              {/* Edit Button (Kuning / Amber Emas Solid) */}
                               <button
                                 type="button"
                                 onClick={() =>
@@ -2526,20 +2636,21 @@ export default function SPKView() {
                                   width: "26px",
                                   height: "26px",
                                   borderRadius: "4px",
-                                  border: "1px solid #38bdf8",
-                                  backgroundColor: "#f0f9ff",
-                                  color: "#0284c7",
+                                  border: "1px solid #d97706",
+                                  backgroundColor: "#f59e0b",
+                                  color: "#ffffff",
                                   display: "inline-flex",
                                   alignItems: "center",
                                   justifyContent: "center",
                                   cursor: "pointer",
                                   transition: "all 0.15s ease",
+                                  boxShadow: "0 1px 2px rgba(245, 158, 11, 0.3)",
                                 }}
                               >
                                 <Edit3 size={12} />
                               </button>
 
-                              {/* Delete Button */}
+                              {/* Delete Button (Merah Solid) */}
                               <button
                                 type="button"
                                 onClick={() => handleDeleteBatch(batch)}
@@ -2548,7 +2659,7 @@ export default function SPKView() {
                                   width: "26px",
                                   height: "26px",
                                   borderRadius: "4px",
-                                  border: "1px solid #fca5a5",
+                                  border: "1px solid #dc2626",
                                   backgroundColor: "#ef4444",
                                   color: "#ffffff",
                                   display: "inline-flex",
@@ -2556,6 +2667,7 @@ export default function SPKView() {
                                   justifyContent: "center",
                                   cursor: "pointer",
                                   transition: "all 0.15s ease",
+                                  boxShadow: "0 1px 2px rgba(239, 68, 68, 0.3)",
                                 }}
                               >
                                 <Trash2 size={12} />
@@ -3891,10 +4003,94 @@ export default function SPKView() {
                     >
                       Pelanggan <span style={{ color: "#ef4444" }}>*</span>
                     </label>
+
+                    {/* Tombol Aksi Pelanggan: Edit & Hapus jika terpilih, dan Tambah Baru */}
+                    <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                      {formData.nama_pelanggan && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const found = pelangganOptions.find(
+                                (p) => p.nama_pelanggan === formData.nama_pelanggan
+                              );
+                              if (found) handleOpenEditPelanggan(found);
+                              else handleOpenAddPelanggan();
+                            }}
+                            title="Edit data pelanggan yang dipilih"
+                            style={{
+                              fontSize: "10px",
+                              fontWeight: "700",
+                              color: "#d97706",
+                              backgroundColor: "#fffbeb",
+                              border: "1px solid #fde68a",
+                              borderRadius: "4px",
+                              padding: "1px 6px",
+                              cursor: "pointer",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "3px",
+                            }}
+                          >
+                            <Edit3 size={10} /> Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const found = pelangganOptions.find(
+                                (p) => p.nama_pelanggan === formData.nama_pelanggan
+                              );
+                              if (found) handleDeletePelanggan(found);
+                            }}
+                            title="Hapus pelanggan yang dipilih dari database"
+                            style={{
+                              fontSize: "10px",
+                              fontWeight: "700",
+                              color: "#ef4444",
+                              backgroundColor: "#fef2f2",
+                              border: "1px solid #fecaca",
+                              borderRadius: "4px",
+                              padding: "1px 6px",
+                              cursor: "pointer",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "3px",
+                            }}
+                          >
+                            <Trash2 size={10} /> Hapus
+                          </button>
+                        </>
+                      )}
+                      <button
+                        type="button"
+                        onClick={handleOpenAddPelanggan}
+                        title="Tambah Pelanggan Baru ke Database"
+                        style={{
+                          fontSize: "10px",
+                          fontWeight: "700",
+                          color: "#0284c7",
+                          backgroundColor: "#f0f9ff",
+                          border: "1px solid #bae6fd",
+                          borderRadius: "4px",
+                          padding: "1px 7px",
+                          cursor: "pointer",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "3px",
+                        }}
+                      >
+                        <Plus size={10} /> + Tambah Pelanggan
+                      </button>
+                    </div>
                   </div>
+
                   <SearchableSelect
                     value={formData.nama_pelanggan}
                     onChange={(val, opt) => {
+                      if (val === "__ADD_NEW_PELANGGAN__") {
+                        handleOpenAddPelanggan();
+                        return;
+                      }
                       if (opt && opt.item) {
                         setFormData((prev) => ({
                           ...prev,
@@ -3907,12 +4103,30 @@ export default function SPKView() {
                         setFormData((prev) => ({ ...prev, nama_pelanggan: val }));
                       }
                     }}
-                    options={pelangganOptions.map((p) => ({
-                      value: p.nama_pelanggan,
-                      label: p.nama_pelanggan,
-                      displayLabel: p.nama_pelanggan,
-                      item: p,
-                    }))}
+                    options={[
+                      {
+                        value: "__ADD_NEW_PELANGGAN__",
+                        label: "➕ Tambah Pelanggan Baru...",
+                        displayLabel: "➕ Tambah Pelanggan Baru...",
+                      },
+                      ...(() => {
+                        const seen = new Set();
+                        const list = [];
+                        (pelangganOptions || []).forEach((p) => {
+                          const key = (p.nama_pelanggan || "").trim().toLowerCase();
+                          if (key && !seen.has(key)) {
+                            seen.add(key);
+                            list.push({
+                              value: p.nama_pelanggan,
+                              label: p.nama_pelanggan,
+                              displayLabel: p.nama_pelanggan,
+                              item: p,
+                            });
+                          }
+                        });
+                        return list;
+                      })()
+                    ]}
                     placeholder="Pilih pelanggan dari master data..."
                   />
                 </div>
@@ -4434,6 +4648,7 @@ export default function SPKView() {
                                     padding: "6px 8px",
                                     fontWeight: "800",
                                     color: "#475569",
+                                    width: "320px",
                                   }}
                                 >
                                   NAMA PRODUK
@@ -4443,7 +4658,7 @@ export default function SPKView() {
                                     padding: "6px 8px",
                                     fontWeight: "800",
                                     color: "#475569",
-                                    width: "165px",
+                                    width: "195px",
                                     textAlign: "center",
                                   }}
                                 >
@@ -4454,7 +4669,7 @@ export default function SPKView() {
                                     padding: "6px 8px",
                                     fontWeight: "800",
                                     color: "#475569",
-                                    width: "145px",
+                                    width: "185px",
                                     textAlign: "center",
                                   }}
                                 >
@@ -4465,7 +4680,7 @@ export default function SPKView() {
                                     padding: "6px 8px",
                                     fontWeight: "800",
                                     color: "#475569",
-                                    width: "85px",
+                                    width: "95px",
                                     textAlign: "center",
                                   }}
                                 >
@@ -4476,7 +4691,7 @@ export default function SPKView() {
                                     padding: "6px 8px",
                                     fontWeight: "800",
                                     color: "#475569",
-                                    width: "35px",
+                                    width: "45px",
                                     textAlign: "center",
                                   }}
                                 >
@@ -4583,7 +4798,7 @@ export default function SPKView() {
                                     </td>
 
                                     {/* 2. NAMA PRODUK & SKU */}
-                                    <td style={{ padding: "4px 6px", verticalAlign: "middle" }}>
+                                    <td style={{ padding: "4px 6px", verticalAlign: "middle", width: "320px", maxWidth: "320px" }}>
                                       <SearchableSelect
                                         value={prod.produk_id}
                                         fallbackLabel={prod.nama_produk}
@@ -5600,24 +5815,28 @@ export default function SPKView() {
       />
 
       {/* Modal Cetak Label Barcode SPK (Thermal 100mm x 150mm) */}
-      <CetakLabelBarcodeSPKModal
-        isOpen={Boolean(printLabelModalData)}
-        onClose={() => setPrintLabelModalData(null)}
-        batch={printLabelModalData?.batch}
-        spk={printLabelModalData?.spk}
-        adminName={activeCompany?.name || "RUANG SERAGAM"}
-      />
+      {printLabelModalData && (
+        <CetakLabelBarcodeSPKModal
+          isOpen={Boolean(printLabelModalData)}
+          onClose={() => setPrintLabelModalData(null)}
+          batch={printLabelModalData.batch}
+          spk={printLabelModalData.spk}
+          adminName={activeCompany?.name || "RUANG SERAGAM"}
+        />
+      )}
 
       {/* Modal Scanner Barcode SPK Selesai Produksi */}
-      <ModalScanSelesaiSPK
-        isOpen={isScanModalOpen}
-        onClose={() => setIsScanModalOpen(false)}
-        batches={batchList}
-        onUpdateSpkStatus={handleUpdateSpkStatusFromScan}
-        onOpenPrintLabel={(b, s) => {
-          setPrintLabelModalData({ batch: b, spk: s });
-        }}
-      />
+      {isScanModalOpen && (
+        <ModalScanSelesaiSPK
+          isOpen={isScanModalOpen}
+          onClose={() => setIsScanModalOpen(false)}
+          batches={batchList}
+          onUpdateSpkStatus={handleUpdateSpkStatusFromScan}
+          onOpenPrintLabel={(b, s) => {
+            setPrintLabelModalData({ batch: b, spk: s });
+          }}
+        />
+      )}
 
       {/* Modal Detail & Edit HPP Produk */}
       {hppModalData && (
@@ -5703,6 +5922,260 @@ export default function SPKView() {
             setHppModalData(null);
           }}
         />
+      )}
+
+      {/* Modal Tambah / Edit Pelanggan (Langsung dari Form SPK) */}
+      {pelangganModal && pelangganModal.isOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(15, 23, 42, 0.7)",
+            zIndex: 2700,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "16px",
+          }}
+          onClick={() => setPelangganModal(null)}
+        >
+          <div
+            style={{
+              backgroundColor: "#ffffff",
+              borderRadius: "10px",
+              width: "100%",
+              maxWidth: "480px",
+              boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.35)",
+              overflow: "hidden",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div
+              style={{
+                padding: "12px 16px",
+                background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
+                color: "#ffffff",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <User size={18} />
+                <span style={{ fontSize: "13px", fontWeight: "800" }}>
+                  {pelangganModal.mode === "edit" ? "Edit Data Pelanggan" : "Tambah Pelanggan Baru"}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPelangganModal(null)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "#ffffff",
+                  cursor: "pointer",
+                  padding: "4px",
+                }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Modal Form Body */}
+            <form onSubmit={handleSavePelanggan}>
+              <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "10px" }}>
+                <div>
+                  <label style={{ display: "block", fontSize: "11px", fontWeight: "700", color: "#334155", marginBottom: "3px" }}>
+                    Kode Pelanggan
+                  </label>
+                  <input
+                    type="text"
+                    value={pelangganModal.data?.kode_pelanggan || ""}
+                    onChange={(e) =>
+                      setPelangganModal((prev) => ({
+                        ...prev,
+                        data: { ...prev.data, kode_pelanggan: e.target.value },
+                      }))
+                    }
+                    placeholder="PLG-2026-001"
+                    style={{
+                      width: "100%",
+                      padding: "6px 9px",
+                      borderRadius: "5px",
+                      border: "1px solid #cbd5e1",
+                      fontSize: "11.5px",
+                      fontFamily: "monospace",
+                      fontWeight: "700",
+                      backgroundColor: "#f8fafc",
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: "block", fontSize: "11px", fontWeight: "700", color: "#334155", marginBottom: "3px" }}>
+                    Nama Pelanggan / Instansi <span style={{ color: "#ef4444" }}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={pelangganModal.data?.nama_pelanggan || ""}
+                    onChange={(e) =>
+                      setPelangganModal((prev) => ({
+                        ...prev,
+                        data: { ...prev.data, nama_pelanggan: e.target.value },
+                      }))
+                    }
+                    placeholder="Contoh: Pesantren Al-Hikmah Bandung"
+                    style={{
+                      width: "100%",
+                      padding: "6px 9px",
+                      borderRadius: "5px",
+                      border: "1px solid #cbd5e1",
+                      fontSize: "11.5px",
+                      fontWeight: "600",
+                      color: "#0f172a",
+                    }}
+                  />
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                  <div>
+                    <label style={{ display: "block", fontSize: "11px", fontWeight: "700", color: "#334155", marginBottom: "3px" }}>
+                      No. WhatsApp / HP
+                    </label>
+                    <input
+                      type="text"
+                      value={pelangganModal.data?.no_hp || ""}
+                      onChange={(e) =>
+                        setPelangganModal((prev) => ({
+                          ...prev,
+                          data: { ...prev.data, no_hp: e.target.value },
+                        }))
+                      }
+                      placeholder="08123456789"
+                      style={{
+                        width: "100%",
+                        padding: "6px 9px",
+                        borderRadius: "5px",
+                        border: "1px solid #cbd5e1",
+                        fontSize: "11.5px",
+                        color: "#0f172a",
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: "block", fontSize: "11px", fontWeight: "700", color: "#334155", marginBottom: "3px" }}>
+                      Kategori Pelanggan
+                    </label>
+                    <select
+                      value={pelangganModal.data?.kategori_pelanggan || "Umum"}
+                      onChange={(e) =>
+                        setPelangganModal((prev) => ({
+                          ...prev,
+                          data: { ...prev.data, kategori_pelanggan: e.target.value },
+                        }))
+                      }
+                      style={{
+                        width: "100%",
+                        padding: "6px 9px",
+                        borderRadius: "5px",
+                        border: "1px solid #cbd5e1",
+                        fontSize: "11.5px",
+                        color: "#0f172a",
+                        backgroundColor: "#ffffff",
+                      }}
+                    >
+                      <option value="Umum">Umum</option>
+                      <option value="Dropship">Dropship</option>
+                      <option value="Sekolah / Instansi">Sekolah / Instansi</option>
+                      <option value="Konveksi">Konveksi</option>
+                      <option value="Reseller">Reseller</option>
+                      <option value="Lainnya">Lainnya</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ display: "block", fontSize: "11px", fontWeight: "700", color: "#334155", marginBottom: "3px" }}>
+                    Alamat Lengkap
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={pelangganModal.data?.alamat || ""}
+                    onChange={(e) =>
+                      setPelangganModal((prev) => ({
+                        ...prev,
+                        data: { ...prev.data, alamat: e.target.value },
+                      }))
+                    }
+                    placeholder="Alamat pengiriman / domisili..."
+                    style={{
+                      width: "100%",
+                      padding: "6px 9px",
+                      borderRadius: "5px",
+                      border: "1px solid #cbd5e1",
+                      fontSize: "11.5px",
+                      color: "#0f172a",
+                      fontFamily: "inherit",
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div
+                style={{
+                  padding: "10px 16px",
+                  borderTop: "1px solid #e2e8f0",
+                  backgroundColor: "#f8fafc",
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  gap: "8px",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setPelangganModal(null)}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: "5px",
+                    border: "1px solid #cbd5e1",
+                    backgroundColor: "#ffffff",
+                    color: "#475569",
+                    fontSize: "11.5px",
+                    fontWeight: "700",
+                    cursor: "pointer",
+                  }}
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingPelanggan}
+                  style={{
+                    padding: "6px 16px",
+                    borderRadius: "5px",
+                    border: "none",
+                    backgroundColor: "#0284c7",
+                    color: "#ffffff",
+                    fontSize: "11.5px",
+                    fontWeight: "700",
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "5px",
+                    opacity: savingPelanggan ? 0.7 : 1,
+                  }}
+                >
+                  <Save size={13} />
+                  <span>{savingPelanggan ? "Menyimpan..." : "Simpan Pelanggan"}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );

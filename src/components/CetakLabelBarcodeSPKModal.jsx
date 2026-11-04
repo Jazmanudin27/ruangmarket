@@ -10,15 +10,15 @@ export default function CetakLabelBarcodeSPKModal({
 }) {
   const printRef = useRef(null);
 
-  if (!isOpen || !spk || !batch) return null;
-
-  const noProduksi = (batch.kode_produksi || batch.no_produksi || 'PRD').trim();
-  const noSpk = (spk.id_spk || spk.no_spk || 'SPK').trim();
-  const rawItems = spk.produk_items || [];
+  const noProduksi = (batch?.kode_produksi || batch?.no_produksi || 'PRD').trim();
+  const noSpk = (spk?.id_spk || spk?.no_spk || 'SPK').trim();
+  const rawItems = spk?.produk_items || [];
 
   // Generate daftar label per-pcs produk
   // Setiap item dengan Qty N akan di-generate menjadi N lembar label stiker unik
   const labelList = useMemo(() => {
+    if (!isOpen || !spk || !batch) return [];
+
     const list = [];
     let globalIndex = 1;
 
@@ -60,7 +60,9 @@ export default function CetakLabelBarcodeSPKModal({
     });
 
     return list;
-  }, [batch, spk, rawItems, noProduksi, noSpk]);
+  }, [isOpen, batch, spk, rawItems, noProduksi, noSpk]);
+
+  if (!isOpen || !spk || !batch) return null;
 
   const handlePrint = () => {
     const printContent = document.getElementById('print-labels-container');
