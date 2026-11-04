@@ -70,11 +70,16 @@ export default function CetakSPKModal({ isOpen, onClose, batch, spk, adminName =
 
     totals.qty += qty;
 
+    const cmVal = Number(item.panjang_kain_cm || parseFloat(item.estimasi_kain) || 0);
+    const estKainDisplay = cmVal > 0 
+      ? `${((cmVal * qty) / 100).toFixed(1)} M${item.kain_nama ? ` (${item.kain_nama})` : ''}`
+      : (item.estimasi_kain && typeof item.estimasi_kain === 'string' && isNaN(Number(item.estimasi_kain)) ? item.estimasi_kain : '—');
+
     rows.push({
       model: sku,
       sizes: rowSizes,
       qty: qty,
-      estimasiKain: item.estimasi_kain ? (item.panjang_kain_cm ? `${((item.panjang_kain_cm * qty) / 100).toFixed(1)} M` : '—') : '—',
+      estimasiKain: estKainDisplay,
       sisaKain: item.sisa_kain || '—'
     });
   });

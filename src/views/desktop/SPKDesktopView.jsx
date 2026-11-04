@@ -30,6 +30,8 @@ import {
   Image as ImageIcon,
   Upload,
   ZoomIn,
+  Calculator,
+  Coins,
 } from "lucide-react";
 import { showConfirm, toastSuccess, toastError } from "../../utils/alert.util";
 import { INITIAL_BATCH_PRODUKSI } from "../../data/initialSPK";
@@ -40,6 +42,7 @@ import { INITIAL_PELANGGAN_DATA } from "./PelangganDesktopView";
 import { INITIAL_TAHAPAN_DATA } from "./TahapanSPKDesktopView";
 import { getActiveCompany } from "../../utils/tenant.util";
 import CetakSPKModal from "../../components/CetakSPKModal";
+import ModalDetailHPP from "../../components/ModalDetailHPP";
 
 export const SPK_STORAGE_KEY = "ruangmarket_spk_v2"; // version bump for new nested structure
 const PRODUK_STORAGE_KEY = "ruangmarket_produk_gamis_v4";
@@ -615,18 +618,19 @@ export default function SPKView() {
             tipe_set: p.tipe_set || "Single",
             satuan: p.satuan || "PCS",
             harga_beli: Number(p.harga_modal || 0),
+            hpp: Number(p.harga_modal || p.cost_price || p.hpp || 0),
             harga_jual: Number(p.harga_jual || 0),
             sku_kain: p.sku_kain || "",
             nama_kain: p.nama_kain || "",
             panjang_kain_cm: (() => {
               const raw = p.estimasi_kain ?? p.panjang_kain_cm;
               const num = parseFloat(String(raw ?? "").replace(/[^0-9.]/g, ""));
-              return !isNaN(num) ? Math.round(num) : 200;
+              return !isNaN(num) && num > 0 ? Math.round(num) : 200;
             })(),
             estimasi_kain: (() => {
               const raw = p.estimasi_kain ?? p.panjang_kain_cm;
               const num = parseFloat(String(raw ?? "").replace(/[^0-9.]/g, ""));
-              return !isNaN(num) ? Math.round(num) : 200;
+              return !isNaN(num) && num > 0 ? Math.round(num) : 200;
             })(),
             harga_kain_cm: Number(p.harga_kain_cm || 150),
             bundle_items: Array.isArray(p.bundle_items) ? p.bundle_items : [],
@@ -640,6 +644,7 @@ export default function SPKView() {
               mapped.push({
                 ...initP,
                 sku: initP.sku || initP.kode_sku || "",
+                hpp: Number(initP.harga_modal || initP.hpp || 0),
                 panjang_kain_cm: Number(initP.panjang_kain_cm || 200),
                 estimasi_kain: Number(initP.panjang_kain_cm || 200),
                 harga_kain_cm: Number(initP.harga_kain_cm || 150),
@@ -723,6 +728,7 @@ export default function SPKView() {
   const [expandedBatch, setExpandedBatch] = useState({});
   const [activeTabSpkIdx, setActiveTabSpkIdx] = useState(0);
   const [editKainModal, setEditKainModal] = useState(null);
+  const [hppModalData, setHppModalData] = useState(null);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -921,6 +927,7 @@ export default function SPKView() {
               kategori: p1.kategori,
               satuan: p1.satuan,
               qty: 50,
+              hpp: Number(p1.hpp ?? p1.harga_beli ?? 0),
               kain_nama: p1.nama_kain || p1.sku_kain || "Kain",
               panjang_kain_cm: Number(p1.estimasi_kain || p1.panjang_kain_cm || 200),
               harga_kain_cm: p1.harga_kain_cm || 150,
@@ -994,6 +1001,7 @@ export default function SPKView() {
           kategori: pDefault.kategori || "Umum",
           satuan: pDefault.satuan || "PCS",
           qty: qty,
+          hpp: Number(pDefault.hpp ?? pDefault.harga_beli ?? 0),
           kain_nama: kainNama,
           panjang_kain_cm: cmPerPcs,
           harga_kain_cm: hargaCm,
@@ -1067,6 +1075,7 @@ export default function SPKView() {
       kategori: pDefault.kategori || "Umum",
       satuan: pDefault.satuan || "PCS",
       qty: qty,
+      hpp: Number(pDefault.hpp ?? pDefault.harga_beli ?? 0),
       kain_nama: kainNama,
       panjang_kain_cm: cmPerPcs,
       harga_kain_cm: hargaCm,
@@ -1090,14 +1099,14 @@ export default function SPKView() {
       const items = [...list[spkIdx].produk_items];
       const current = { ...items[prodIdx], [field]: val };
 
-      // Jika qty diubah, hitung ulang estimasi kain otomatis jika ada spesifikasi kain
-      if (field === "qty") {
-        const q = Number(val || 0);
+      // Jika qty atau panjang_kain_cm diubah, hitung ulang estimasi kain otomatis jika ada spesifikasi kain
+      if (field === "qty" || field === "panjang_kain_cm") {
+        const q = Number(field === "qty" ? val : current.qty || 0);
         const kainNama =
           current.kain_nama ||
           current.estimasi_kain?.split(" - ")?.[0] ||
           "Kain";
-        const cmPerPcs = Number(current.panjang_kain_cm || 0);
+        const cmPerPcs = Number(field === "panjang_kain_cm" ? val : current.panjang_kain_cm || 0);
         const hargaCm = Number(current.harga_kain_cm || 0);
         if (cmPerPcs > 0) {
           current.estimasi_kain = buildEstimasiKain(
@@ -1213,6 +1222,7 @@ export default function SPKView() {
         kain_nama: kainNama,
         panjang_kain_cm: cmPerPcs,
         harga_kain_cm: hargaCm,
+        hpp: Number(prod.hpp ?? prod.harga_modal ?? prod.harga_beli ?? 0),
         bundle_items: prod.bundle_items || [],
         estimasi_kain: estimasiKainText,
       };
@@ -3200,7 +3210,7 @@ export default function SPKView() {
                                 style={{
                                   padding: "6px 8px",
                                   textAlign: "center",
-                                  width: "80px",
+                                  width: "75px",
                                 }}
                               >
                                 QTY
@@ -3208,78 +3218,240 @@ export default function SPKView() {
                               <th style={{ padding: "6px 8px" }}>
                                 ESTIMASI KAIN
                               </th>
+                              <th
+                                style={{
+                                  padding: "6px 8px",
+                                  textAlign: "right",
+                                  width: "95px",
+                                }}
+                              >
+                                HPP/PCS
+                              </th>
+                              <th
+                                style={{
+                                  padding: "6px 8px",
+                                  textAlign: "right",
+                                  width: "105px",
+                                }}
+                              >
+                                TOTAL HPP
+                              </th>
                             </tr>
                           </thead>
                           <tbody>
-                            {pItems.map((p, pIdx) => (
-                              <tr
-                                key={pIdx}
-                                style={{
-                                  borderBottom: "1px solid #f1f5f9",
-                                }}
-                              >
-                                <td
+                            {pItems.map((p, pIdx) => {
+                              const cm = Number(p.panjang_kain_cm || parseFloat(p.estimasi_kain) || 0);
+                              const totalCm = cm * Number(p.qty || 1);
+                              const totalM = (totalCm / 100).toFixed(1);
+                              const hppVal = Number(p.hpp || p.harga_modal || p.cost_price || 0);
+                              const totalHpp = hppVal * Number(p.qty || 1);
+
+                              return (
+                                <tr
+                                  key={pIdx}
                                   style={{
-                                    padding: "5px 8px",
-                                    textAlign: "center",
-                                    color: "#64748b",
+                                    borderBottom: "1px solid #f1f5f9",
                                   }}
                                 >
-                                  {pIdx + 1}
-                                </td>
-                                <td style={{ padding: "5px 8px" }}>
-                                  <div
+                                  <td
                                     style={{
-                                      fontWeight: "700",
-                                      color: "#0f172a",
+                                      padding: "5px 8px",
+                                      textAlign: "center",
+                                      color: "#64748b",
                                     }}
                                   >
-                                    {p.nama_produk}
-                                  </div>
-                                  {p.sku && (
-                                    <span
+                                    {pIdx + 1}
+                                  </td>
+                                  <td style={{ padding: "5px 8px" }}>
+                                    <div
                                       style={{
-                                        fontSize: "9.5px",
-                                        fontFamily: "monospace",
-                                        color: "#0284c7",
+                                        fontWeight: "700",
+                                        color: "#0f172a",
                                       }}
                                     >
-                                      {p.sku}
-                                    </span>
-                                  )}
-                                </td>
-                                <td
-                                  style={{
-                                    padding: "5px 8px",
-                                    textAlign: "center",
-                                    fontWeight: "800",
-                                  }}
-                                >
-                                  {p.qty} {p.satuan || "PCS"}
-                                </td>
-                                <td style={{ padding: "5px 8px" }}>
-                                  {Number(p.panjang_kain_cm) > 0 ? (
-                                    <span
+                                      {p.nama_produk}
+                                    </div>
+                                    {p.sku && (
+                                      <span
+                                        style={{
+                                          fontSize: "9.5px",
+                                          fontFamily: "monospace",
+                                          color: "#0284c7",
+                                        }}
+                                      >
+                                        {p.sku}
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td
+                                    style={{
+                                      padding: "5px 8px",
+                                      textAlign: "center",
+                                      fontWeight: "800",
+                                    }}
+                                  >
+                                    {p.qty} {p.satuan || "PCS"}
+                                  </td>
+                                  <td style={{ padding: "5px 8px" }}>
+                                    {cm > 0 ? (
+                                      <span
+                                        style={{
+                                          fontSize: "10px",
+                                          color: "#166534",
+                                          fontWeight: "600",
+                                        }}
+                                      >
+                                        ✂️ {p.kain_nama || "Kain"} (
+                                        {cm} cm/pcs) • Butuh:{" "}
+                                        <b>{totalCm.toLocaleString("id-ID")} cm</b> ({totalM} m)
+                                      </span>
+                                    ) : (p.estimasi_kain && typeof p.estimasi_kain === "string" && p.estimasi_kain.trim() !== "" && p.estimasi_kain !== "0") ? (
+                                      <span
+                                        style={{
+                                          fontSize: "10px",
+                                          color: "#166534",
+                                          fontWeight: "600",
+                                        }}
+                                      >
+                                        ✂️ {p.estimasi_kain}
+                                      </span>
+                                    ) : (
+                                      <span style={{ color: "#94a3b8" }}>-</span>
+                                    )}
+                                  </td>
+                                  <td
+                                    style={{
+                                      padding: "5px 8px",
+                                      textAlign: "right",
+                                      fontWeight: "700",
+                                      color: "#334155",
+                                    }}
+                                  >
+                                    <div
                                       style={{
-                                        fontSize: "10px",
-                                        color: "#166534",
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        gap: "4px",
+                                        justifyContent: "flex-end",
                                       }}
                                     >
-                                      ✂️ {p.kain_nama || "Kain"} (
-                                      {p.panjang_kain_cm} cm/pcs) • Butuh:{" "}
-                                      {(
-                                        (Number(p.panjang_kain_cm) || 0) *
-                                        (Number(p.qty) || 1)
-                                      ).toLocaleString("id-ID")}{" "}
-                                      cm
-                                    </span>
-                                  ) : (
-                                    "-"
-                                  )}
-                                </td>
-                              </tr>
-                            ))}
+                                      <span>
+                                        {hppVal > 0
+                                          ? `Rp ${hppVal.toLocaleString("id-ID")}`
+                                          : "-"}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          setHppModalData({
+                                            mode: "detail",
+                                            spkIdx: detailActiveSpkIdx,
+                                            prodIdx: pIdx,
+                                            produkId: p.produk_id,
+                                            sku: p.sku,
+                                            namaProduk: p.nama_produk,
+                                            currentHpp: hppVal,
+                                            currentPanjangKain: cm,
+                                            currentKainNama: p.kain_nama || "Kain",
+                                            currentHargaKainCm: p.harga_kain_cm || 150,
+                                          })
+                                        }
+                                        title="Lihat / Edit Rincian HPP (Kain & Jasa Konveksi) & Update ke Master"
+                                        style={{
+                                          width: "18px",
+                                          height: "18px",
+                                          borderRadius: "3px",
+                                          border: "1px solid #bae6fd",
+                                          backgroundColor: "#f0f9ff",
+                                          color: "#0284c7",
+                                          display: "inline-flex",
+                                          alignItems: "center",
+                                          justifyContent: "center",
+                                          cursor: "pointer",
+                                          padding: 0,
+                                        }}
+                                      >
+                                        <Calculator size={10} />
+                                      </button>
+                                    </div>
+                                  </td>
+                                  <td
+                                    style={{
+                                      padding: "5px 8px",
+                                      textAlign: "right",
+                                      fontWeight: "800",
+                                      color: "#0284c7",
+                                    }}
+                                  >
+                                    {totalHpp > 0 ? `Rp ${totalHpp.toLocaleString("id-ID")}` : "-"}
+                                  </td>
+                                </tr>
+                              );
+                            })}
                           </tbody>
+                          <tfoot
+                            style={{
+                              backgroundColor: "#f8fafc",
+                              borderTop: "2px solid #cbd5e1",
+                              fontWeight: "800",
+                              fontSize: "10.5px",
+                            }}
+                          >
+                            <tr>
+                              <td
+                                colSpan={2}
+                                style={{
+                                  padding: "6px 8px",
+                                  textAlign: "right",
+                                  color: "#475569",
+                                }}
+                              >
+                                TOTAL:
+                              </td>
+                              <td
+                                style={{
+                                  padding: "6px 8px",
+                                  textAlign: "center",
+                                  color: "#0f172a",
+                                }}
+                              >
+                                {pItems.reduce((acc, it) => acc + Number(it.qty || 0), 0)} PCS
+                              </td>
+                              <td
+                                style={{
+                                  padding: "6px 8px",
+                                  color: "#166534",
+                                }}
+                              >
+                                Total Kebutuhan Kain:{" "}
+                                <b>
+                                  {(
+                                    pItems.reduce((acc, it) => {
+                                      const cm = Number(it.panjang_kain_cm || parseFloat(it.estimasi_kain) || 0);
+                                      return acc + cm * Number(it.qty || 1);
+                                    }, 0) / 100
+                                  ).toFixed(1)}{" "}
+                                  Meter
+                                </b>
+                              </td>
+                              <td style={{ padding: "6px 8px" }}></td>
+                              <td
+                                style={{
+                                  padding: "6px 8px",
+                                  textAlign: "right",
+                                  color: "#0284c7",
+                                }}
+                              >
+                                Rp{" "}
+                                {pItems
+                                  .reduce((acc, it) => {
+                                    const hppVal = Number(it.hpp || it.harga_modal || it.cost_price || 0);
+                                    return acc + hppVal * Number(it.qty || 1);
+                                  }, 0)
+                                  .toLocaleString("id-ID")}
+                              </td>
+                            </tr>
+                          </tfoot>
                         </table>
                       </div>
                     </div>
@@ -4099,7 +4271,29 @@ export default function SPKView() {
                                     padding: "6px 8px",
                                     fontWeight: "800",
                                     color: "#475569",
-                                    width: "95px",
+                                    width: "165px",
+                                    textAlign: "center",
+                                  }}
+                                >
+                                  ESTIMASI KAIN (CM/PCS)
+                                </th>
+                                <th
+                                  style={{
+                                    padding: "6px 8px",
+                                    fontWeight: "800",
+                                    color: "#475569",
+                                    width: "145px",
+                                    textAlign: "center",
+                                  }}
+                                >
+                                  HPP / MODAL (RP)
+                                </th>
+                                <th
+                                  style={{
+                                    padding: "6px 8px",
+                                    fontWeight: "800",
+                                    color: "#475569",
+                                    width: "85px",
                                     textAlign: "center",
                                   }}
                                 >
@@ -4139,6 +4333,7 @@ export default function SPKView() {
                                       sku_kain: p.sku_kain,
                                       panjang_kain_cm: p.panjang_kain_cm,
                                       harga_kain_cm: p.harga_kain_cm,
+                                      hpp: Number(p.hpp ?? p.harga_modal ?? p.harga_beli ?? 0),
                                       bundle_items: p.bundle_items,
                                     };
                                   },
@@ -4182,10 +4377,17 @@ export default function SPKView() {
                                             prod.panjang_kain_cm || 0,
                                           harga_kain_cm:
                                             prod.harga_kain_cm || 150,
+                                          hpp: Number(prod.hpp ?? prod.harga_modal ?? prod.harga_beli ?? 0),
                                           bundle_items: prod.bundle_items || [],
                                         },
                                         ...productSelectOptions,
                                       ];
+
+                                const cmVal = Number(prod.panjang_kain_cm || parseFloat(prod.estimasi_kain) || 0);
+                                const qVal = Number(prod.qty || 1);
+                                const totMeter = ((cmVal * qVal) / 100).toFixed(1);
+                                const hppNum = Number(prod.hpp || 0);
+                                const totHpp = hppNum * qVal;
 
                                 return (
                                   <tr
@@ -4208,7 +4410,7 @@ export default function SPKView() {
                                       {pIdx + 1}
                                     </td>
 
-                                    {/* 2. NAMA PRODUK, SKU & ESTIMASI KAIN */}
+                                    {/* 2. NAMA PRODUK & SKU */}
                                     <td style={{ padding: "4px 6px", verticalAlign: "middle" }}>
                                       <SearchableSelect
                                         value={prod.produk_id}
@@ -4270,10 +4472,70 @@ export default function SPKView() {
                                             {prod.kategori || "Umum"}
                                           </span>
                                         )}
+                                      </div>
+                                    </td>
 
-                                        {/* Estimasi Kain: Klik untuk Edit */}
-                                        {(Number(prod.panjang_kain_cm) > 0 || prod.kain_nama) ? (
+                                    {/* 3. INPUT ESTIMASI KAIN (CM/PCS) */}
+                                    <td
+                                      style={{
+                                        padding: "4px 6px",
+                                        textAlign: "center",
+                                        verticalAlign: "middle",
+                                      }}
+                                    >
+                                      <div
+                                        style={{
+                                          display: "inline-flex",
+                                          flexDirection: "column",
+                                          gap: "2px",
+                                          alignItems: "center",
+                                        }}
+                                      >
+                                        <div
+                                          style={{
+                                            display: "flex",
+                                            alignItems: "center",
+                                            gap: "4px",
+                                          }}
+                                        >
+                                          <input
+                                            type="number"
+                                            min="0"
+                                            step="1"
+                                            value={prod.panjang_kain_cm ?? ""}
+                                            placeholder="0"
+                                            onChange={(e) =>
+                                              handleUpdateProductInSPK(
+                                                sIdx,
+                                                pIdx,
+                                                "panjang_kain_cm",
+                                                Number(e.target.value || 0),
+                                              )
+                                            }
+                                            title="Panjang kain per potong / pcs dalam centimeter"
+                                            style={{
+                                              width: "55px",
+                                              padding: "3px 4px",
+                                              borderRadius: "4px",
+                                              border: "1px solid #cbd5e1",
+                                              fontSize: "11px",
+                                              fontWeight: "800",
+                                              color: "#047857",
+                                              textAlign: "center",
+                                              backgroundColor: "#ffffff",
+                                            }}
+                                          />
                                           <span
+                                            style={{
+                                              fontSize: "10px",
+                                              color: "#64748b",
+                                              fontWeight: "600",
+                                            }}
+                                          >
+                                            cm
+                                          </span>
+                                          <button
+                                            type="button"
                                             onClick={() =>
                                               setEditKainModal({
                                                 spkIdx: sIdx,
@@ -4287,132 +4549,152 @@ export default function SPKView() {
                                                 applyToAll: false,
                                               })
                                             }
-                                            title="Klik untuk mengubah estimasi kain (panjang/jenis/harga)"
+                                            title="Atur Jenis Kain & Harga Master"
                                             style={{
-                                              display: "inline-flex",
-                                              alignItems: "center",
-                                              gap: "4px",
-                                              padding: "2px 6px",
+                                              width: "20px",
+                                              height: "20px",
                                               borderRadius: "4px",
-                                              backgroundColor: "#f0fdf4",
-                                              color: "#166534",
-                                              fontSize: "9px",
-                                              fontWeight: "600",
                                               border: "1px solid #bbf7d0",
-                                              cursor: "pointer",
-                                              transition: "all 0.15s ease",
-                                            }}
-                                            onMouseEnter={(e) => {
-                                              e.currentTarget.style.backgroundColor = "#dcfce7";
-                                              e.currentTarget.style.borderColor = "#86efac";
-                                            }}
-                                            onMouseLeave={(e) => {
-                                              e.currentTarget.style.backgroundColor = "#f0fdf4";
-                                              e.currentTarget.style.borderColor = "#bbf7d0";
-                                            }}
-                                          >
-                                            <Scissors size={9} color="#16a34a" />
-                                            <b style={{ color: "#15803d" }}>
-                                              {prod.kain_nama || "Kain"}
-                                            </b>
-                                            <span style={{ color: "#16a34a" }}>
-                                              ({prod.panjang_kain_cm || 0} cm/pcs)
-                                            </span>
-                                            <span style={{ color: "#86efac" }}>•</span>
-                                            <span>
-                                              Butuh:{" "}
-                                              <b style={{ fontFamily: "monospace", color: "#166534" }}>
-                                                {(
-                                                  (Number(prod.panjang_kain_cm) || 0) *
-                                                  (Number(prod.qty) || 1)
-                                                ).toLocaleString("id-ID")}{" "}
-                                                cm
-                                              </b>{" "}
-                                              (
-                                              {(
-                                                ((Number(prod.panjang_kain_cm) || 0) *
-                                                  (Number(prod.qty) || 1)) /
-                                                100
-                                              ).toFixed(1)}
-                                              m)
-                                            </span>
-                                            {Number(prod.harga_kain_cm) > 0 && (
-                                              <>
-                                                <span style={{ color: "#86efac" }}>•</span>
-                                                <span>
-                                                  Est. Biaya:{" "}
-                                                  <b style={{ color: "#15803d" }}>
-                                                    Rp{" "}
-                                                    {(
-                                                      (Number(prod.panjang_kain_cm) || 0) *
-                                                      (Number(prod.qty) || 1) *
-                                                      (Number(prod.harga_kain_cm) || 0)
-                                                    ).toLocaleString("id-ID")}
-                                                  </b>{" "}
-                                                  <span style={{ color: "#16a34a", fontSize: "8.5px" }}>
-                                                    (@Rp {Number(prod.harga_kain_cm || 0).toLocaleString("id-ID")}/cm)
-                                                  </span>
-                                                </span>
-                                              </>
-                                            )}
-                                            <span
-                                              style={{
-                                                marginLeft: "3px",
-                                                display: "inline-flex",
-                                                alignItems: "center",
-                                                gap: "2px",
-                                                color: "#0369a1",
-                                                backgroundColor: "#e0f2fe",
-                                                padding: "1px 5px",
-                                                borderRadius: "3px",
-                                                fontSize: "8.5px",
-                                                fontWeight: "800",
-                                                border: "1px solid #bae6fd",
-                                              }}
-                                              title="Klik untuk ubah estimasi kain"
-                                            >
-                                              <Edit3 size={8} /> Ubah
-                                            </span>
-                                          </span>
-                                        ) : (
-                                          <button
-                                            type="button"
-                                            onClick={() =>
-                                              setEditKainModal({
-                                                spkIdx: sIdx,
-                                                prodIdx: pIdx,
-                                                nama_produk: prod.nama_produk,
-                                                sku: prod.sku,
-                                                qty: prod.qty || 1,
-                                                kain_nama: "Kain",
-                                                panjang_kain_cm: 100,
-                                                harga_kain_cm: 150,
-                                                applyToAll: false,
-                                              })
-                                            }
-                                            style={{
+                                              backgroundColor: "#f0fdf4",
+                                              color: "#16a34a",
                                               display: "inline-flex",
                                               alignItems: "center",
-                                              gap: "3px",
-                                              padding: "2px 6px",
-                                              borderRadius: "3px",
-                                              border: "1px dashed #0284c7",
-                                              backgroundColor: "#f0f9ff",
-                                              color: "#0284c7",
-                                              fontSize: "9px",
-                                              fontWeight: "700",
+                                              justifyContent: "center",
                                               cursor: "pointer",
                                             }}
                                           >
-                                            <Scissors size={9} />
-                                            <span>+ Atur Estimasi Kain</span>
+                                            <Scissors size={10} />
                                           </button>
-                                        )}
-
+                                        </div>
+                                        <div
+                                          style={{
+                                            fontSize: "9px",
+                                            color: "#059669",
+                                            fontWeight: "600",
+                                            whiteSpace: "nowrap",
+                                          }}
+                                        >
+                                          Tot: <b>{totMeter} m</b>
+                                          {prod.kain_nama
+                                            ? ` • ${prod.kain_nama.length > 12 ? prod.kain_nama.slice(0, 12) + "..." : prod.kain_nama}`
+                                            : ""}
+                                        </div>
                                       </div>
                                     </td>
 
-                                    {/* 3. QTY */}
+                                    {/* 4. INPUT HPP / MODAL (RP) */}
+                                    <td
+                                      style={{
+                                        padding: "4px 6px",
+                                        textAlign: "right",
+                                        verticalAlign: "middle",
+                                      }}
+                                    >
+                                      <div
+                                        style={{
+                                          display: "inline-flex",
+                                          flexDirection: "column",
+                                          gap: "2px",
+                                          alignItems: "flex-end",
+                                          width: "100%",
+                                        }}
+                                      >
+                                        <div
+                                          style={{
+                                            display: "flex",
+                                            alignItems: "center",
+                                            gap: "3px",
+                                            justifyContent: "flex-end",
+                                            width: "100%",
+                                          }}
+                                        >
+                                          <span
+                                            style={{
+                                              fontSize: "10px",
+                                              color: "#64748b",
+                                              fontWeight: "700",
+                                            }}
+                                          >
+                                            Rp
+                                          </span>
+                                          <input
+                                            type="number"
+                                            min="0"
+                                            step="500"
+                                            value={prod.hpp ?? ""}
+                                            placeholder="0"
+                                            onChange={(e) =>
+                                              handleUpdateProductInSPK(
+                                                sIdx,
+                                                pIdx,
+                                                "hpp",
+                                                Number(e.target.value || 0),
+                                              )
+                                            }
+                                            title="Harga Pokok Produksi (HPP) per PCS"
+                                            style={{
+                                              width: "75px",
+                                              padding: "3px 4px",
+                                              borderRadius: "4px",
+                                              border: "1px solid #cbd5e1",
+                                              fontSize: "11px",
+                                              fontWeight: "800",
+                                              color: "#0f172a",
+                                              textAlign: "right",
+                                              backgroundColor: "#ffffff",
+                                            }}
+                                          />
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              setHppModalData({
+                                                mode: "form",
+                                                spkIdx: sIdx,
+                                                prodIdx: pIdx,
+                                                produkId: prod.produk_id,
+                                                sku: prod.sku,
+                                                namaProduk: prod.nama_produk,
+                                                currentHpp: prod.hpp || 0,
+                                                currentPanjangKain: prod.panjang_kain_cm || 200,
+                                                currentKainNama: prod.kain_nama || "Kain",
+                                                currentHargaKainCm: prod.harga_kain_cm || 150,
+                                              })
+                                            }
+                                            title="Buka Rincian Komponen HPP & Update ke Master Produk"
+                                            style={{
+                                              width: "20px",
+                                              height: "20px",
+                                              borderRadius: "4px",
+                                              border: "1px solid #bae6fd",
+                                              backgroundColor: "#f0f9ff",
+                                              color: "#0284c7",
+                                              display: "inline-flex",
+                                              alignItems: "center",
+                                              justifyContent: "center",
+                                              cursor: "pointer",
+                                              padding: 0,
+                                              flexShrink: 0,
+                                            }}
+                                          >
+                                            <Calculator size={10} />
+                                          </button>
+                                        </div>
+                                        <div
+                                          style={{
+                                            fontSize: "9px",
+                                            color: "#64748b",
+                                            whiteSpace: "nowrap",
+                                          }}
+                                        >
+                                          Tot:{" "}
+                                          <b style={{ color: "#0284c7" }}>
+                                            Rp {totHpp.toLocaleString("id-ID")}
+                                          </b>
+                                        </div>
+                                      </div>
+                                    </td>
+
+                                    {/* 5. QTY */}
                                     <td
                                       style={{
                                         padding: "4px 6px",
@@ -4461,7 +4743,7 @@ export default function SPKView() {
                                       </div>
                                     </td>
 
-                                    {/* 4. AKSI */}
+                                    {/* 6. AKSI */}
                                     <td
                                       style={{
                                         padding: "4px 6px",
@@ -4494,6 +4776,68 @@ export default function SPKView() {
                                 );
                               })}
                             </tbody>
+                            <tfoot
+                              style={{
+                                backgroundColor: "#f8fafc",
+                                borderTop: "2px solid #e2e8f0",
+                                fontWeight: "800",
+                                fontSize: "10px",
+                              }}
+                            >
+                              <tr>
+                                <td
+                                  colSpan={2}
+                                  style={{
+                                    padding: "5px 8px",
+                                    textAlign: "right",
+                                    color: "#475569",
+                                  }}
+                                >
+                                  TOTAL SPK INI:
+                                </td>
+                                <td
+                                  style={{
+                                    padding: "5px 8px",
+                                    textAlign: "center",
+                                    color: "#166534",
+                                  }}
+                                >
+                                  ✂️{" "}
+                                  {(
+                                    spk.produk_items.reduce((acc, it) => {
+                                      const cm = Number(it.panjang_kain_cm || parseFloat(it.estimasi_kain) || 0);
+                                      return acc + cm * Number(it.qty || 1);
+                                    }, 0) / 100
+                                  ).toFixed(1)}{" "}
+                                  m
+                                </td>
+                                <td
+                                  style={{
+                                    padding: "5px 8px",
+                                    textAlign: "right",
+                                    color: "#0284c7",
+                                  }}
+                                >
+                                  Rp{" "}
+                                  {spk.produk_items
+                                    .reduce((acc, it) => {
+                                      const hpp = Number(it.hpp || 0);
+                                      return acc + hpp * Number(it.qty || 1);
+                                    }, 0)
+                                    .toLocaleString("id-ID")}
+                                </td>
+                                <td
+                                  style={{
+                                    padding: "5px 8px",
+                                    textAlign: "center",
+                                    color: "#0f172a",
+                                  }}
+                                >
+                                  {spk.produk_items.reduce((acc, it) => acc + Number(it.qty || 0), 0)} PCS
+                                </td>
+                                <td></td>
+                              </tr>
+                            </tfoot>
                           </table>
                         </div>
                       </div>
@@ -5082,6 +5426,92 @@ export default function SPKView() {
         spk={printModalData?.spk}
         adminName={activeCompany?.name || "RUANG SERAGAM"}
       />
+
+      {/* Modal Detail & Edit HPP Produk */}
+      {hppModalData && (
+        <ModalDetailHPP
+          isOpen={Boolean(hppModalData)}
+          onClose={() => setHppModalData(null)}
+          produkId={hppModalData.produkId}
+          sku={hppModalData.sku}
+          namaProduk={hppModalData.namaProduk}
+          currentHpp={hppModalData.currentHpp}
+          currentPanjangKain={hppModalData.currentPanjangKain}
+          currentKainNama={hppModalData.currentKainNama}
+          currentHargaKainCm={hppModalData.currentHargaKainCm}
+          onSave={(updated) => {
+            const { hpp, panjang_kain_cm, kain_nama, harga_kain_cm } = updated;
+
+            if (hppModalData.mode === "form") {
+              const { spkIdx, prodIdx } = hppModalData;
+              setFormData((prev) => {
+                const list = [...prev.spk_list];
+                const items = [...list[spkIdx].produk_items];
+                const q = Number(items[prodIdx]?.qty || 1);
+                items[prodIdx] = {
+                  ...items[prodIdx],
+                  hpp: Number(hpp || 0),
+                  panjang_kain_cm: Number(panjang_kain_cm || 0),
+                  kain_nama: kain_nama || items[prodIdx]?.kain_nama,
+                  harga_kain_cm: Number(harga_kain_cm || items[prodIdx]?.harga_kain_cm || 150),
+                  estimasi_kain: buildEstimasiKain(
+                    kain_nama || items[prodIdx]?.kain_nama || "Kain",
+                    Number(panjang_kain_cm || 0),
+                    Number(harga_kain_cm || 150),
+                    q,
+                  ),
+                };
+                list[spkIdx] = { ...list[spkIdx], produk_items: items };
+                return { ...prev, spk_list: list };
+              });
+            } else if (hppModalData.mode === "detail") {
+              // Update detailBatch state
+              setDetailBatch((prev) => {
+                if (!prev) return prev;
+                const spkList = [...(prev.spk_list || [])];
+                const sIdx = hppModalData.spkIdx;
+                const pIdx = hppModalData.prodIdx;
+                if (spkList[sIdx] && spkList[sIdx].produk_items) {
+                  const items = [...spkList[sIdx].produk_items];
+                  items[pIdx] = {
+                    ...items[pIdx],
+                    hpp: Number(hpp || 0),
+                    panjang_kain_cm: Number(panjang_kain_cm || 0),
+                    kain_nama: kain_nama || items[pIdx]?.kain_nama,
+                  };
+                  spkList[sIdx] = { ...spkList[sIdx], produk_items: items };
+                }
+                return { ...prev, spk_list: spkList };
+              });
+
+              // Also update batchList in memory
+              setBatchList((prev) =>
+                prev.map((b) => {
+                  if (b.id !== detailBatch?.id) return b;
+                  const spkList = [...(b.spk_list || [])];
+                  const sIdx = hppModalData.spkIdx;
+                  const pIdx = hppModalData.prodIdx;
+                  if (spkList[sIdx] && spkList[sIdx].produk_items) {
+                    const items = [...spkList[sIdx].produk_items];
+                    items[pIdx] = {
+                      ...items[pIdx],
+                      hpp: Number(hpp || 0),
+                      panjang_kain_cm: Number(panjang_kain_cm || 0),
+                      kain_nama: kain_nama || items[pIdx]?.kain_nama,
+                    };
+                    spkList[sIdx] = { ...spkList[sIdx], produk_items: items };
+                  }
+                  return { ...b, spk_list: spkList };
+                }),
+              );
+            }
+
+            // Sync master produk list in memory
+            loadProdukList();
+            setHppModalData(null);
+          }}
+        />
+      )}
     </div>
   );
 }

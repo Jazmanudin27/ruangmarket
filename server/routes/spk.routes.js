@@ -23,6 +23,27 @@ export async function handleSPKRoutes(req, res, pathname, urlObj, { pool }) {
       sql += ' ORDER BY b.id DESC';
       const [rows] = await pool.query(sql, params);
       
+      // Ambil referensi master produk untuk melengkapi panjang_kain_cm dan hpp jika belum terisi
+      let masterBySku = new Map();
+      let masterByName = new Map();
+      try {
+        const [masterProds] = await pool.query(
+          'SELECT kode_sku, nama_produk, harga_modal, estimasi_kain, sku_kain FROM produk_master'
+        );
+        for (const mp of masterProds) {
+          if (mp.kode_sku) {
+            const s = String(mp.kode_sku).trim().toUpperCase();
+            masterBySku.set(s, mp);
+            masterBySku.set(s.replace(/^RSG-|^PO-/gi, ''), mp);
+          }
+          if (mp.nama_produk) {
+            masterByName.set(String(mp.nama_produk).trim().toLowerCase(), mp);
+          }
+        }
+      } catch (eRef) {
+        console.warn('[SPK GET Master Ref Error]:', eRef.message);
+      }
+
       const mapped = rows.map((r) => {
         let spkList = [];
         try {
@@ -30,6 +51,44 @@ export async function handleSPKRoutes(req, res, pathname, urlObj, { pool }) {
         } catch (e) {
           spkList = [];
         }
+
+        spkList = spkList.map((spk) => {
+          const produkItems = (spk.produk_items || []).map((item) => {
+            const cleanSku = String(item.sku || '').trim().toUpperCase();
+            const cleanName = String(item.nama_produk || '').trim().toLowerCase();
+            const ref = masterBySku.get(cleanSku) || masterByName.get(cleanName) || masterBySku.get(cleanSku.replace(/^RSG-|^PO-/gi, ''));
+
+            let panjangKain = Number(item.panjang_kain_cm || 0);
+            if (!panjangKain && item.estimasi_kain) {
+              const numMatch = String(item.estimasi_kain).match(/([0-9]+(\.[0-9]+)?)/);
+              if (numMatch) panjangKain = Math.round(parseFloat(numMatch[1]));
+            }
+            if (!panjangKain && ref && ref.estimasi_kain) {
+              const numMatch = String(ref.estimasi_kain).match(/([0-9]+(\.[0-9]+)?)/);
+              if (numMatch) panjangKain = Math.round(parseFloat(numMatch[1]));
+            }
+
+            let hppVal = Number(item.hpp ?? item.harga_modal ?? item.cost_price ?? 0);
+            if (!hppVal && ref && ref.harga_modal) {
+              hppVal = Number(ref.harga_modal || 0);
+            }
+
+            const kainNama = item.kain_nama || (ref ? (ref.sku_kain || 'Kain') : 'Kain');
+
+            return {
+              ...item,
+              panjang_kain_cm: panjangKain,
+              hpp: hppVal,
+              kain_nama: kainNama,
+            };
+          });
+
+          return {
+            ...spk,
+            produk_items: produkItems
+          };
+        });
+
         return {
           id: r.id,
           company_code: r.kode_perusahaan || 'RSG',

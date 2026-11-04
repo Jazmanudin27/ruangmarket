@@ -35,7 +35,8 @@ import {
   CheckCircle2,
   HelpCircle,
   RefreshCw,
-  ExternalLink
+  ExternalLink,
+  Calculator,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { showConfirm, toastSuccess, toastError } from '../../utils/alert.util';
@@ -43,6 +44,7 @@ import { INITIAL_PRODUK_DATA } from '../../data/initialProduk';
 import { INITIAL_KATEGORI_DATA } from '../../data/initialKategori';
 import { getActiveCompany, getActiveCompanyCode } from '../../utils/tenant.util';
 import { detectStatusOrder, detectBundleSet } from '../../utils/orderStatus.util';
+import ModalDetailHPP from '../../components/ModalDetailHPP';
 
 const STORAGE_KEY = 'ruangmarket_produk_gamis_v4';
 const KATEGORI_STORAGE_KEY = 'ruangmarket_kategori_v1';
@@ -353,6 +355,7 @@ export default function ProdukView() {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [hppModalData, setHppModalData] = useState(null);
 
   // Modal Detail Integrasi Toko Marketplace (Persis Tampilan Laravel ERP)
   const [selectedIntegrasiProduk, setSelectedIntegrasiProduk] = useState(null);
@@ -2607,7 +2610,39 @@ export default function ProdukView() {
 
                       {/* HARGA HPP */}
                       <td style={{ padding: '5px 8px', textAlign: 'right', fontWeight: '700', color: '#475569', fontSize: '12px', whiteSpace: 'nowrap', border: '1px solid #cbd5e1' }}>
-                        {formatRupiah(item.harga_beli)}
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', justifyContent: 'flex-end' }}>
+                          <span>{formatRupiah(item.harga_beli)}</span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setHppModalData({
+                                produkId: item.id,
+                                sku: item.sku,
+                                namaProduk: item.nama_produk,
+                                currentHpp: item.harga_beli,
+                                currentPanjangKain: item.estimasi_kain,
+                                currentKainNama: item.nama_kain,
+                                currentHargaKainCm: item.harga_kain_cm,
+                              })
+                            }
+                            title="Lihat / Edit Rincian HPP (Kain & Jasa) & Update ke Master"
+                            style={{
+                              width: '18px',
+                              height: '18px',
+                              borderRadius: '3px',
+                              border: '1px solid #bae6fd',
+                              backgroundColor: '#f0f9ff',
+                              color: '#0284c7',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              cursor: 'pointer',
+                              padding: 0,
+                            }}
+                          >
+                            <Calculator size={10} />
+                          </button>
+                        </div>
                       </td>
 
                       {/* HARGA JUAL */}
@@ -5605,6 +5640,33 @@ export default function ProdukView() {
             </span>
           </div>
         </div>
+      )}
+
+      {/* Modal Detail & Edit HPP Produk */}
+      {hppModalData && (
+        <ModalDetailHPP
+          isOpen={Boolean(hppModalData)}
+          onClose={() => setHppModalData(null)}
+          produkId={hppModalData.produkId}
+          sku={hppModalData.sku}
+          namaProduk={hppModalData.namaProduk}
+          currentHpp={hppModalData.currentHpp}
+          currentPanjangKain={hppModalData.currentPanjangKain}
+          currentKainNama={hppModalData.currentKainNama}
+          currentHargaKainCm={hppModalData.currentHargaKainCm}
+          onSave={({ hpp }) => {
+            setProdukList((prev) =>
+              prev.map((p) => {
+                if (p.id === hppModalData.produkId || p.sku === hppModalData.sku) {
+                  return { ...p, harga_beli: Number(hpp || 0) };
+                }
+                return p;
+              })
+            );
+            setHppModalData(null);
+            loadMasterProduk(currentPage, entriesPerPage);
+          }}
+        />
       )}
 
     </div>
